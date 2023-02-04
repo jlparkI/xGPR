@@ -5,7 +5,7 @@ import warnings
 
 import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor as GPR
-from sklearn.gaussian_process.kernels import RBF
+from sklearn.gaussian_process.kernels import RBF, Matern
 
 from .lb_optimizer import shared_hparam_search
 
@@ -14,6 +14,7 @@ def bayes_grid_tuning(kernel, dataset, bounds, random_seed,
                     n_pts_per_dim = 10, n_cycles = 3,
                     n_init_pts = 10,
                     subsample = 1,
+                    surrogate_kernel = "RBF",
                     eigval_quotient = 1e6,
                     min_eigval = 1e-6):
     """Conducts accelerated gridsearch optimization + Bayesian
@@ -41,6 +42,9 @@ def bayes_grid_tuning(kernel, dataset, bounds, random_seed,
             will give better results, but using a subsampled subset can be
             a fast way to find the (approximate) location of a good
             hyperparameter set.
+        surrogate_kernel (str): One of "RBF", "Matern". Determines the kernel
+            used for the surrogate. "RBF" is default, "Matern" is often slightly
+            better.
         eigval_quotient (float): A value by which the largest singular value
             of Z^T Z is divided to determine the smallest acceptable eigenvalue
             of Z^T Z (singular vectors with eigenvalues smaller than this
@@ -90,10 +94,17 @@ def bayes_grid_tuning(kernel, dataset, bounds, random_seed,
     smallest_non_inf_val = np.max(scores[scores < np.inf])
     scores[scores == np.inf] = smallest_non_inf_val
     scores = scores.tolist()
-    surrogate = GPR(kernel = RBF(),
+    if surrogate_kernel == "RBF":
+        surrogate = GPR(kernel = RBF(),
             normalize_y = True,
             alpha = 1e-6, random_state = random_seed,
             n_restarts_optimizer = 4)
+    else:
+        surrogate = GPR(kernel = Matern(nu=5/2),
+            normalize_y = True,
+            alpha = 1e-6, random_state = random_seed,
+            n_restarts_optimizer = 4)
+
 
     sigma_bounds = bounds[2:, :]
     iternum = len(sigma_grid)

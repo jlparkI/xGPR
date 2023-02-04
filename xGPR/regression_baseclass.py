@@ -517,7 +517,8 @@ class GPRegressionBaseclass(ABC):
     def tune_hyperparams_crude_bayes(self, dataset, bounds = None, random_seed = 123,
                     max_bayes_iter = 30, bayes_tol = 1e-1, n_pts_per_dim = 10,
                     n_cycles = 3, n_init_pts = 10, subsample = 1,
-                    eigval_quotient = 1e6, min_eigval = 1e-5):
+                    surrogate_kernel = "RBF", eigval_quotient = 1e6,
+                    min_eigval = 1e-5):
         """Tunes the hyperparameters using Bayesian optimization, but with
         a 'trick' that simplifies the problem greatly for 2-4 hyperparameter
         kernels. Hyperparameters are scored using an exact NMLL calculation.
@@ -545,6 +546,9 @@ class GPRegressionBaseclass(ABC):
             n_cycles (int): The number of cycles of "telescoping" grid search
                 to run. Increasing n_pts_per_dim and n_cycles usually only
                 results in very small improvements in performance.
+            surrogate_kernel (str): One of "RBF", "Matern". Determines the kernel
+                used for the surrogate. "RBF" is default, "Matern" is often slightly
+                better.
             subsample (float): A value in the range [0.01,1] that indicates what
                 fraction of the training set to use each time the score is
                 calculated (the same subset is used every time). In general, 1
@@ -595,6 +599,7 @@ class GPRegressionBaseclass(ABC):
                                 self.verbose, bayes_tol,
                                 n_pts_per_dim, n_cycles, n_init_pts,
                                 subsample = subsample,
+                                surrogate_kernel = surrogate_kernel,
                                 eigval_quotient = eigval_quotient,
                                 min_eigval = min_eigval)
 
