@@ -42,7 +42,8 @@ implement these kernels with a "trick" that results in *linear
 scaling* with graph size and number of datapoints for both kernels.
 
 Be aware that these convolution kernels are a little slower than
-fixed-vector input kernels, because to avoid using excessive
+fixed-vector input kernels, *especially* for large graphs,
+because to avoid using excessive
 memory, the convolutions are performed in batches (rather
 than all at once). As a compensating factor, they frequently
 need fewer random features to achieve good performance.

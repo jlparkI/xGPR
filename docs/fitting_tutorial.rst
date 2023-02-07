@@ -114,7 +114,7 @@ is a single pass over the dataset (similar to an epoch when training a deep lear
 model but generally much faster). The ratio in turn is a dataset-dependent
 function of ``max_rank``. Notice that the relationship between ratio and
 number of iterations is different for ``srht`` and ``srht_2``; ``srht_2`` is
-nearly always better.
+better but as noted requires two passes over the data to build.
 
 If based on the ratio we obtain, we think that fitting
 will take more iterations than we would like, we can reconstruct the preconditioner

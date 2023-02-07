@@ -45,14 +45,15 @@ evaluate an RBF kernel on it against all length d subsequences in B. The
 net similarity is the average across all of these. If implemented as
 described, of course, this kernel would be extremely inefficient. In xGPR,
 however, we implement this kernel in such a way we can achieve *linear
-scaling* in both number of datapoints and sequence length!
+scaling* in both number of datapoints and sequence length.
 
 The FHTConv1d and Conv1d kernels perform the same operation, but FHTConv1d
 is MUCH faster if there are many features per sequence element or the
 conv_width is large, whereas Conv1d may be slightly faster for
 small "conv_width" or number of features per sequence element. Also,
 for large numbers of random features, FHTConv1d is much more efficient. In
-general, then, prefer FHTConv1d.
+general, then, prefer FHTConv1d. (Conv1d was originally implemented for
+testing and will be removed in a future release.)
 
 The chart below contrasts the performance of FHTConv1d, Conv1d and
 FastConv1d (a static layer kernel for sequences, see below) on some of the
@@ -62,8 +63,9 @@ as a measure of performance, with the same number of random features used
 for all kernels. The error bar is across different random seeds. FHTConv1d
 and Conv1d are similar as expected.
 
-Be aware that these convolution kernels are a slower than
-fixed-vector input kernels, because to avoid using excessive
+Be aware that these convolution kernels are slower than
+fixed-vector input kernels, *especially* for long sequences,
+because to avoid using excessive
 memory, the convolutions are performed in batches (rather
 than all at once). As a compensating factor, they frequently
 need fewer random features to achieve good performance.

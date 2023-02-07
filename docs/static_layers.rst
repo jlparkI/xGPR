@@ -34,7 +34,7 @@ feature convolutions are applied followed by global max pooling;
 this essentially measures what is the "best match" for a given
 random filter in the sequence of interest and thereby creates a
 "sequence profile". In the second and third layer, an ``RBF``
-(or ``Matern`` or even ``Linear``, although we've only really used
+(or potentially ``Matern`` or even ``Linear``, although we've only really used
 ``RBF``) kernel compares the sequence profile of training datapoints.
 The convolutions are performed just once and thus ``FastConv1d`` is often
 faster for hyperparameter tuning (hence the name) than ``FHTConv1d``.
@@ -77,5 +77,5 @@ what kind of features it generates. These are summarized below.
      - | One of ``maxpool``, ``maxpool_loc``. The former uses
        | global max pooling. The latter uses global max pooling
        | but also subtracts the average of the convolution results
-       | for each datapoint from the output, which sometimes
+       | for each datapoint from the output, which often
        | improves performance.

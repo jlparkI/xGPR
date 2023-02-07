@@ -162,23 +162,30 @@ There are currently three ``crude`` methods (plus an experimental
 method, addressed under experimental tuning methods on 
 the main page of the docs). Our prefered method is this:::
 
-  hparams, niter, best_score, scores = my_model.tune_hyperparams_crude_grid(my_dataset,
+  hparams, niter, best_score, scores = my_model.tune_hyperparams_crude_bayes(my_dataset,
                                      random_seed = 123,
-                                     bounds = None, n_gridpoints = 30,
-                                     n_pts_per_dim = 10, subsample = 1)
+                                     bounds = None, max_bayes_iter = 30,
+                                     bayes_tol = 1e-1, n_pts_per_dim = 10,
+                                     n_cycles = 3, n_init_pts = 10,
+                                     subsample = 1,
+                                     eigval_quotient = 1e8,
+                                     min_eigval = 1e-5)
 
 
-This method is a fun twist on classic gridsearch: we only need *one* pass over
+This method is a fun twist on Bayesian optimization: we only need *one* pass over
 the dataset to acquire *hundreds* of gridpoints along the first two
-hyperparameters, so that we can acquire hundreds of times more gridpoints
-than there are passes over the dataset. ``n_gridpoints`` determines how
-many gridpoints we have along the third, kernel-specific hyperparameter.
-Usually for initial tuning 25 - 30 is fine. This number corresponds to
-the number of passes over the data, each of which involves a matrix
-decomposition. The matrix decomposition is the main factor limiting scalability
-with number of random features for this method; anything much larger
-than 4000 training_rffs will be quite slow on GPU (on CPU, 4000 is probably
-far too many already).
+hyperparameters, so that the Bayesian optimization piece only runs along
+the third kernel-specific hyperparameter. This method is a little "finicky",
+in that small shifts in things like the optimization boundaries can cause
+small shifts in the location of the solution that is ultimately obtained.
+This arises from the stochastic nature of the sampling procedure used in
+the Bayesian optimization and has negligible impact on performance. If this
+bothers you, we suggest using ``crude_grid`` or ``crude_lbfgs`` (both
+described below) instead.
+
+Notice that under ``scores``, this function returns a tuple of the kernel-specific
+hyperparameter values that were evaluated and the best score associated with each.
+Plotting this can sometimes be informative.
 
 If ``bounds`` is ``None``, for this and for all other marginal likelihood
 tuning functions, the kernel default hyperparameter boundaries are used.
@@ -191,45 +198,54 @@ get a *really* strange result. To see how many hyperparameters your kernel
 has, use ``my_model.get_hyperparams()`` which will return the log of the current
 kernel hyperparameters as a numpy array.
 
+``max_bayes_iter`` controls the maximum number of iterations. Each iteration
+involves a single pass over the dataset plus a matrix decomposition. This
+matrix decomposition is the main factor limiting the scalability of this
+method with increasing numbers of random features; a matrix decomposition
+for a 1024 x 1024 matrix is fast, for a 10,000 by 10,000 matrix, not so
+much. ``bayes_tol`` is a threshold for convergence, the default is
+recommended. ``n_init_pts`` controls how many
+points are evaluated before Bayesian optimization starts. The default is
+good unless you are using a smaller bounded region, in which case you could
+decrease this for greater efficiency.
 
-``n_pts_per_dim`` controls how many values of the shared
+
+``n_pts_per_dim`` and ``n_cycles`` controls how many values of the shared
 hyperparameters *lambda* and *beta* are considered for each possible kernel-
 specific hyperparameter value. Increasing these may lead to a (generally
 negligible) boost in performance, but it is almost never necessary -- we
+recommend leaving this as default.
 recommend leaving this as default. Finally, if ``subsample`` is less than
 1 -- if it is 0.1, for example -- this fraction of the training data will
 be sampled when tuning hyperparameters. Keep in mind that using more of the
 training set will usually improve validation set performance.
 
+``eigval_quotient`` and ``min_eigval`` control how the eigenvalues of the
+design matrix are handled and should generally be left as default. Setting
+``min_eigval`` to a smaller value (e.g. 1e-6) or ``eigval_quotient`` to
+a larger value (e.g. 1e9) can slightly improve performance of this method
+but is not usually necessary or recommended.
+
 Another method we have used is this one:::
-
-  hparams, niter, best_score, scores = my_model.tune_hyperparams_crude_bayes(my_dataset,
+  
+  hparams, niter, best_score, scores = my_model.tune_hyperparams_crude_grid(my_dataset,
                                      random_seed = 123,
-                                     bounds = None, max_bayes_iter = 30,
-                                     bayes_tol = 1e-1, n_pts_per_dim = 10,
-                                     n_cycles = 3, n_init_pts = 10,
-                                     subsample = 1)
+                                     bounds = None, n_gridpoints = 30,
+                                     n_pts_per_dim = 10, subsample = 1,
+                                     eigval_quotient = 1e8, min_eigval = 1e-5)
 
-This method employs the same fun trick as ``crude_grid``, but rather than
-doing a gridsearch, it does Bayesian optimization. This makes it much more
-efficient than ``crude_grid`` -- it can find really good hyperparameter
-values in as little as 16 iterations. It's also more "finicky" and can
-be a little variable sometimes given slight shifts in bounds or other
-parameters; if that worries you, we recommend using ``crude_grid``
-instead. Most of the parameters have the same meaning as for ``crude_grid`` above.
 
-``max_bayes_iter`` controls the maximum number of iterations. Each iteration
-involves a single pass over the dataset plus a matrix decomposition. This
-matrix decomposition is the main factor limiting the scalability of this
-method with increasing numbers of random features; a matrix decomposition
-for a 2048 x 2048 matrix is fast, for a 10,000 by 10,000 matrix, not so
-much. ``bayes_tol`` is a threshold for convergence.
-recommend leaving these as default. ``n_init_pts`` controls how many
-points are evaluated before Bayesian optimization starts. The default is
-good unless you are using a smaller bounded region, in which case you could
-decrease this for greater efficiency.
+This method employs the same fun trick as ``crude_bayes``, but rather
+than doing Bayesian optimization, it does a gridsearch along the
+kernel-specific hyperparameter (if there is one). It's less "finicky" and
+than ``crude_bayes``, but usually needs more iterations
+to find a good set of hyperparameters. ``n_gridpoints`` determines how
+many gridpoints we have along the third, kernel-specific hyperparameter.
+This number corresponds to the number of passes over the data, each of
+which involves a matrix decomposition as with ``crude_bayes``.
+Most of the parameters have the same meaning as for ``crude_bayes`` above.
 
-``n_pts_per_dim`` and ``n_cycles`` controls how many values of the shared
+``n_pts_per_dim`` controls how many values of the shared
 hyperparameters *lambda* and *beta* are considered for each possible kernel-
 specific hyperparameter value. Increasing these may lead to a (generally
 negligible) boost in performance, but it is almost never necessary -- we
@@ -271,23 +287,24 @@ Tuning hyperparameters by approximate marginal likelihood
 
 The cost of the matrix decompositions used by ``crude`` methods
 scale as the cube of the number of random features.
-Consequently, these approaches are already slow for 5,000 
+Consequently, these approaches are already slow for 4,000 - 5,000 
 random features and are not very useful for any number of random
 features much greater than 5,000. It's better to train on GPU
 than on CPU, of course, but if you must tune on CPU then this
 is even more true, because the matrix multiplications involved
-in the ``crude`` procedures will be very slow for >> 1024
+in the ``crude`` procedures will be slow for >> 1024
 random features or so.
 
 For a larger number of random features, we can use an iterative
 method that approximates the marginal likelihood; these are called
 ``fine`` tuning methods. The approximation
 is actually quite accurate as long as the settings used are appropriate.
-A good rule of thumb: Validation set performance after fine-tuning will
-**never** be *worse* than validation set performance before fine-tuning,
+A good rule of thumb: Validation set performance after fine-tuning should
+almost *never* be worse than validation set performance before fine-tuning,
 *unless* we have chosen settings that are causing approximation quality
-deterioration, or are not allowing the optimizer sufficient time to
-search the space.
+deterioration, we are not allowing the optimizer sufficient time to
+search the space, or the kernel we have selected is completely wrong
+for our problem.
 
 Currently there are two supported tuning methods that use this approach,
 a Bayesian procedure and a direct (either Powell or Nelder-Mead) procedure.

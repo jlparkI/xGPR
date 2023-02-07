@@ -5,7 +5,7 @@ Building a dataset
 ---------------------
 
 To *make predictions with a trained model*, you can feed xGPR a
-numpy array (either 2d for basic kernels or 3d for sequence and
+numpy array (either 2d for fixed-vector kernels or 3d for sequence and
 graph kernels). To *train the model and/or perform
 convolution-based feature extraction*, by contrast, you have to supply your
 data in the form of a Dataset object, which is
@@ -15,9 +15,10 @@ Currently you can build a Dataset using either a numpy X array and a y-array
 in memory *OR* using a list of x-files and a corresponding list of y-files,
 both of which must be numpy arrays saved on disk as .npy files. In the latter
 case, xGPR will only load one x-y pair from the list at a time, making it easy
-to work with datasets too large to fit in memory. (We're looking at
-adding Dataset objects to accomodate other kinds of file types as well, e.g.
-csv files.) The order in which datapoints are provided is not important.
+to work with datasets too large to fit in memory. The order in which datapoints
+are provided is not important, *unless* you plan to use stochastic gradient
+descent for hyperparameter tuning or fitting, in which case datapoints should
+be "shuffled".
 
 One important note about Datasets in xGPR -- xGPR by default
 finds the mean and standard deviation of training y-values while
@@ -171,8 +172,7 @@ to use for training, and our test data is an array called
 the only `static_layer` available in xGPR, which is a type
 of kernel for sequences and time series that is completely
 different from the ``FHTConv1d`` kernel. It essentially mimics
-a three-layer 1d convolutional neural network.
-::
+a three-layer 1d convolutional neural network:::
 
   from xGPR.static_layers.fast_conv import FastConv1d
 

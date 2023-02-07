@@ -19,5 +19,4 @@ sequences and graphs.
 ### Documentation
 
 [The documentation](https://xgpr.readthedocs.io/en/latest/) covers a variety of use cases, including tabular data,
-sequences and graphs, installation requirements and much more. We strongly recommend
-reading the section on installation before you proceed.
+sequences and graphs, installation requirements and much more.
