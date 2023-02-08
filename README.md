@@ -20,3 +20,12 @@ sequences and graphs.
 
 [The documentation](https://xgpr.readthedocs.io/en/latest/) covers a variety of use cases, including tabular data,
 sequences and graphs, installation requirements and much more.
+
+### Citations
+
+If using xGPR for research intended for publication, please cite:
+
+Jonathan Parkinson, & Wei Wang. (2023). Scalable Gaussian process regression
+enables accurate prediction of protein and small molecule properties
+with uncertainty quantitation.
+[https://arxiv.org/abs/2302.03294](https://arxiv.org/abs/2302.03294)

@@ -6,4 +6,4 @@ if you are interested in contributing, please contact:
 
 .. image:: images/contact.png
 
-or visit the project github page.
+or visit the project `github page <https://github.com/jlparkI/xGPR>`_.

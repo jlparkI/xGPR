@@ -1,5 +1,7 @@
 xGPR
 ================================
+Fast Bayesian machine learning for
+sequences, graphs and tabular data.
 
 .. toctree::
   :maxdepth: 1
@@ -84,6 +86,17 @@ Package Reference
   Datasets<source/xGPR.data_handling>
 
   Tuning hyperparameters on a validation set<source/xGPR.tuning_toolkit.rst>
+
+
+
+Citations
+======================
+If using xGPR in research intended for publication, please cite:
+
+Jonathan Parkinson, & Wei Wang. (2023). Scalable Gaussian process regression
+enables accurate prediction of protein and small molecule properties
+with uncertainty quantitation.
+`https://arxiv.org/abs/2302.03294 <https://arxiv.org/abs/2302.03294>`_
 
 
 
