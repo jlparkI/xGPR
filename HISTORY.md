@@ -24,3 +24,8 @@ crude bayes tuning control.
 Removed unneeded options for crude bayes tuning
 control. Reset default cuda path which was set
 incorrectly in earlier versions.
+
+### Version 0.0.2.7
+
+Rebuilt sdist using cuda-10.0. Removed earlier
+versions to avoid any issues with default cuda path.
