@@ -271,7 +271,6 @@ def main():
 
     os.chdir(os.path.join(setup_fpath, "xGPR", "fast_hadamard_transform",
                 "gpu_src"))
-    os.remove("libarray_operations.a")
 
     os.chdir(os.path.join(setup_fpath, "xGPR", "fitting_toolkit"))
     if "sgd_fitting_toolkit.c" in os.listdir():
