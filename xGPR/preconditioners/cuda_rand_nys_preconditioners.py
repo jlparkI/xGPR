@@ -1,13 +1,19 @@
-"""Implements a randomized nystrom preconditioner for CPU."""
+"""Implements a randomized nystrom preconditioner for Cuda."""
 from scipy.sparse.linalg import LinearOperator
 import numpy as np
+try:
+    import cupy as cp
+    from cupyx.scipy.sparse.linalg import LinearOperator as cpx_LinearOperator
+except:
+    pass
 from .rand_nys_constructors import initialize_gauss, initialize_srht, initialize_srht_multipass
 
 
-class CPU_RandNysPreconditioner(LinearOperator):
+
+class Cuda_RandNysPreconditioner(cpx_LinearOperator):
     """Implements a preconditioner based on the randomized
     Nystrom approximation to the inverse of Z^T Z + lambda;
-    for CPU only.
+    for Cuda only.
 
     Attributes:
         achieved_ratio (float): lambda_ / min_eig, where min_eig is the

@@ -1,7 +1,10 @@
 """Contains functions for calculating exact and approximate
 NMLL gradients for the regression model."""
 import numpy as np
-import cupy as cp
+try:
+    import cupy as cp
+except:
+    pass
 from .cho_solvers import gpu_cho_calcs, cpu_cho_calcs, cpu_cho_solver, gpu_cho_solver
 
 

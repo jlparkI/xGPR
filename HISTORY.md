@@ -29,3 +29,8 @@ incorrectly in earlier versions.
 
 Rebuilt sdist using cuda-10.0. Removed earlier
 versions to avoid any issues with default cuda path.
+
+### Version 0.0.2.8
+
+Fixed bugs preventing xGPR from running correctly
+when no CUDA available.

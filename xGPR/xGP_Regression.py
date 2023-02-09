@@ -10,6 +10,8 @@ try:
     import cupy as cp
     import cupyx as cpx
     from cupyx.scipy.sparse.linalg import cg as Cuda_CG
+    from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
+    from .cg_toolkit.cuda_cg_linear_operators import Cuda_CGLinearOperator
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
 import numpy as np
@@ -18,7 +20,6 @@ from scipy.sparse.linalg import cg as CPU_CG
 
 from .constants import constants
 from .regression_baseclass import GPRegressionBaseclass
-from .preconditioners.rand_nys_preconditioners import Cuda_RandNysPreconditioner
 from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
 from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
@@ -32,7 +33,7 @@ from .scoring_tools.probe_generators import generate_normal_probes_gpu
 from .scoring_tools.probe_generators import generate_normal_probes_cpu
 
 from cg_tools import CPU_ConjugateGrad, GPU_ConjugateGrad
-from .cg_toolkit.cg_linear_operators import Cuda_CGLinearOperator, CPU_CGLinearOperator
+from .cg_toolkit.cg_linear_operators import CPU_CGLinearOperator
 
 
 class xGPRegression(GPRegressionBaseclass):
