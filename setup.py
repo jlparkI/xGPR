@@ -39,7 +39,7 @@ def initial_checks():
     if "CUDA_PATH" in os.environ:
         CUDA_PATH = os.environ["CUDA_PATH"]
     else:
-        CUDA_PATH = "/usr/local/cuda-10.0"
+        CUDA_PATH = "/usr/local/cuda"
     print(f"Using cuda located at: {CUDA_PATH}")
 
     if not os.path.isdir(CUDA_PATH):

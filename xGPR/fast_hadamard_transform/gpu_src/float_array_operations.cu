@@ -244,10 +244,10 @@ void floatCudaHTransform3d(float *cArray,
     int arrsize = dim0 * dim1 * dim2;
     int blocksPerGrid;
 
-    //For less than 64, use specialized routines. dim2 is always
+    //For less than 32, use specialized routines. dim2 is always
     //a power of two, and for best performance on CUDA threads per block
     //should be a multiple of 32, so the baseLevelTransform does
-    //not work as well for dim2 < 64. There is a great deal of room
+    //not work as well for dim2 < 32. There is a great deal of room
     //for additional optimization here that we have not done (yet) 
     //because input dim < 32 but > 2 is a somewhat niche application.
     if (dim2 < 32){
