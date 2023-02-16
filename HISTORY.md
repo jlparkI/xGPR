@@ -34,3 +34,9 @@ versions to avoid any issues with default cuda path.
 
 Fixed bugs preventing xGPR from running correctly
 when no CUDA available.
+
+### Version 0.0.2.9
+
+Fixed an additional bug causing errors when running
+with no CUDA available. CUDA-free operation now seems
+to work properly.

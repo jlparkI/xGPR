@@ -40,6 +40,14 @@ command:::
 
 and pip will then use this cuda location when compiling the package.
 
+**Known issue**: Occasionally we have encountered issues when trying
+to install into a Conda environment, since in this case the CUDA path
+may be set to a Conda installation of cuda that does not always contain
+the necessary libraries for compilation. This problem can be avoided by
+setting ``export CUDA_PATH`` as above. We prefer to install into a virtual
+environment rather than a Conda environment where possible since it avoids
+this whole issue.
+
 An alternative way to install is to retrieve the most recent
 release from `the github releases page <https://github.com/jlparkI/xGPR/releases>`_ .
 Download and extract the zipped source file, then inside the unzipped

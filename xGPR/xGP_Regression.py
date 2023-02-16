@@ -940,7 +940,7 @@ class xGPRegression(GPRegressionBaseclass):
         x_k[:,0] *= dataset.get_ndatapoints()
 
         logdet = estimate_logdet(alphas, betas, self.kernel.get_num_rffs(),
-                        preconditioner)
+                        preconditioner, self.device)
         nmll = estimate_nmll(train_dataset, self.kernel, logdet, x_k,
                         z_trans_y, y_trans_y)
         if self.verbose:
