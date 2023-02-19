@@ -1122,10 +1122,6 @@ class GPRegressionBaseclass(ABC):
             self.weights, n_iter, losses = self._calc_weights_cg_lib_ext(dataset,
                                         cg_tol = tol, preconditioner = preconditioner,
                                         max_iter = max_iter)
-        elif mode == "cg_test":
-            self.weights, n_iter, losses = self._calc_weights_cg(dataset,
-                                        cg_tol = tol, preconditioner = preconditioner,
-                                        max_iter = max_iter)
         elif mode == "lbfgs":
             self.weights, n_iter = self._calc_weights_lbfgs(dataset,
                                         tol = tol, max_iter = max_iter)

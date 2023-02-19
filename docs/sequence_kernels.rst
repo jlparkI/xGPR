@@ -29,14 +29,13 @@ comparisons.
        | all subsequences of length "conv_width"
        | in the two sequences.
      - "conv_width":int
-   * - Conv1d
-     - | Same as "FHTConv1d", but slighty
-       | faster for small "conv_width" or
-       | few features per sequence element,
-       | much slower for large. This kernel
-       | is deprecated and will be removed
-       | in an upcoming release.
-     - | "conv_width":int
+
+
+**Note:** The Conv1d kernel provided up through version 0.0.2.9
+is deprecated, and is no longer available from 0.1.0.0 forward.
+It provided the same functionality as FHTConv1d but was substantially
+slower on CPU and more memory-intensive. It was implemented primarily
+for comparison with FHTConv1d.
 
 If we have a sequence (or time series) of length N and d = conv_width,
 to measure the similarity of two sequences A and B, these kernels take all the

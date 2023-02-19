@@ -507,9 +507,8 @@ sometimes be informative.
 Other methods
 ----------------------------------------------------
 
-It is also possible to design your own hyperparameter tuning scheme
-or to use an experimental SGD-based method; these are described under
-Miscellaneous on the main page.
+It is also possible to design your own hyperparameter tuning scheme;
+some guidance is provided under Miscellaneous on the main page.
 
 
 

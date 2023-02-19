@@ -1,47 +1,6 @@
 Experimental & custom hyperparameter tuning methods
 =======================================================
 
-Experimental
-----------------------------------------------------
-
-You can also tune hyperparameters using the AMSGrad stochastic gradient
-descent method. Note that this is actually a biased estimator of the
-full gradient of the marginal likelihood, so it usually achieves a
-suboptimal result. That's why this is an experimental method that is
-not recommended, so use at your own risk. It is of
-course possible to fine-tune the result achieved by sgd using some
-other method, and we've achieved good results this way on some problems.
-As a compensating advantage, sgd is highly scalable.
-
-Here's an example of how to use it:::
-  
-  my_model.tune_hyperparams_sgd(my_dataset, random_seed = 123,
-                                     n_epochs = 10, minibatch_size = 1000,
-                                     lr = 0.02, n_restarts = 5, bounds = None,
-                                     start_averaging = 9, nmll_method = "approx",
-                                     nmll_rank = 1024, nmll_probes = 25,
-                                     nmll_iter = 500, nmll_tol = 1e-6)
-
-Notice that here we additionally specify the initial learning rate as
-``lr``, number of epochs and minibatch size, as well as a number of
-restarts. All of these
-affect performance, and stochastic gradient descent is a lot less
-forgiving than ``minimal_bayes`` or L-BFGS (unfortunately). Note that
-minibatch sizes > 2000 will be quite slow and are not recommended.
-
-Notice that you can also specify an ``nmll_method`` that is either
-``approx`` or ``exact``. At the *end* of each sgd restart, the module
-will calculate the marginal likelihood using the method you specify.
-``exact`` does not scale well to large #s of
-random features -- it is useful up to 5,000 random features or so.
-For larger numbers of random features, consider using ``approx``.
-To understand the other settings and when to change them, see
-the section above on tuning using approximate marginal likelihood.
-
-SGD is mostly useful to find a starting point for another method
-(e.g. L-BFGS). Sometimes the result from sgd will be good enough it
-does not need any further tuning but this is not often true.
-
 
 Designing your own
 --------------------
