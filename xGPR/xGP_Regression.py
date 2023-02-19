@@ -28,7 +28,6 @@ from .fitting_toolkit.ams_grad_toolkit import amsModelFit
 
 from .scoring_tools.approximate_nmll_calcs import estimate_logdet, estimate_nmll
 from .scoring_tools.gradient_tools import exact_nmll_reg_grad
-from .scoring_tools.gradient_tools import minibatch_reg_grad
 from .scoring_tools.probe_generators import generate_normal_probes_gpu
 from .scoring_tools.probe_generators import generate_normal_probes_cpu
 
@@ -261,9 +260,7 @@ class xGPRegression(GPRegressionBaseclass):
 
 
     def _calc_zTy(self, dataset):
-        """Calculates the vector Z^T y. This function
-        should never be called if a kernel has not
-        already been initialized.
+        """Calculates the vector Z^T y.
 
         Args:
             dataset: An Dataset object that can supply
@@ -639,6 +636,8 @@ class xGPRegression(GPRegressionBaseclass):
 
     def calc_gradient_terms(self, dataset, subsample = 1):
         """Calculates terms needed for the gradient calculation.
+        Specific for negative marginal log likelihood (NMLL),
+        as opposed to loss on the training set.
 
         Args:
             dataset: An OnlineDataset or OfflineDataset with the
@@ -948,32 +947,3 @@ class xGPRegression(GPRegressionBaseclass):
         if pretransform_dir is not None:
             train_dataset.delete_dataset_files()
         return float(nmll)
-
-
-    def minibatch_nmll_gradient(self, params, xdata, ydata):
-        """Calculates the gradient of the negative marginal log likelihood w/r/t
-        the hyperparameters for a specified set of hyperparameters using
-        exact methods (matrix decompositions), for a MINIBATCH ONLY.
-        The minibatch should contain less than 3,000 datapoints. Given this,
-        the gradient can be calculated very efficiently using exact methods.
-        Since this uses a Cholesky decomposition, it may exhibit numerical
-        instability for extreme hyperparameter values.
-
-        Args:
-            params (np.ndarray): The set of hyperparameters at which
-                to calculate the gradient.
-            xdata (array): A cupy or numpy array of shape (ndatapoints, nfeatures)
-                containing the raw data for the minibatch.
-            ydata (array): A cupy or numpy arrayof shape (ndatapoints) containing
-                the minibatch raw y data.
-
-        Returns:
-            grad (np.ndarray): The gradient of the NMLL w/r/t the hyperparameters.
-        """
-        self.kernel.set_hyperparams(params, logspace=True)
-        hparams = self.kernel.get_hyperparams(logspace=False)
-
-        xdata, dz_dsigma = self.kernel.kernel_specific_gradient(xdata)
-        grad = minibatch_reg_grad(xdata, ydata, dz_dsigma, hparams, self.device)
-
-        return grad
