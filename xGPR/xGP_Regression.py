@@ -2,7 +2,7 @@
 
 The xGPRegression class provides the tools needed to fit a regression
 model and make predictions for new datapoints. It inherits from
-GPModelBaseclass.
+GPRegressionBaseclass.
 """
 import warnings
 
