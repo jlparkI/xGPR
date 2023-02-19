@@ -76,3 +76,52 @@ def exact_nmll_reg_grad(z_trans_z, z_trans_y, y_trans_y,
 
     grad *= hparams
     return z_trans_z_chol, weights, grad
+
+
+
+
+def map_gradient(hparams, z_data, y_data, dz_dsigma,
+        weights, hparam_grad, weight_grad):
+    """Calculates the gradient of the training set loss, given specified
+    regularization parameters, for the input data arrays. The
+    regularization loss is not calculated in this function and
+    should be added to the result by caller. Calculations are in place
+    so nothing is returned.
+
+    Args:
+        hparams (np.ndarray): The set of hyperparameters at which
+            to calculate the gradient.
+        z_data (array): A numpy or cupy array of transformed x-data
+            we will use to calculate the gradient (must be appropriate
+            for the current device, caller should verify). Shape is
+            N x M for M random features, N datapoints.
+        y_data (array): A numpy or cupy array of y-data we will use
+            to calculate the gradient (must be appropriate for the
+            current device, caller should verify). Shape is N.
+        dz_dsigma (array): A cupy or numpy array (as appropriate) with
+            the gradient of the random features with respect to each
+            kernel-specific hyperparameter. Shape is N x M x D for
+            N datapoints, M random features, D kernel specific
+            hyperparameters. D may be 0.
+        weights (array): A cupy or numpy array (as appopriate) of the
+            current weights
+        device (str): One of "cpu", "gpu".
+        hparam_grad (array): A cupy or numpy array to which the
+            hyperparameter gradient calculated here will be added.
+            This enables a caller to call this function repeatedly on
+            different arrays and sum the results.
+        weight_grad (array): A cupy or numpy array to which the
+            weight gradient calculated here will be added.
+            This enables a caller to call this function repeatedly on
+            different arrays and sum the results.
+    """
+    weight_prod = z_data @ weights
+    loss = y_data - weight_prod
+    hparam_grad[0] += 0.5 * (loss**2).sum() / hparams[0]**3
+    hparam_grad[1] += (loss * weight_prod).sum() / (hparams[1] * hparams[0]**2)
+
+    for i in range(dz_dsigma.shape[2]):
+        weight_prod = dz_dsigma[:,:,i] @ weights
+        hparam_grad[2 + i,:] += (weight_prod * loss).sum() / hparams[0]**2
+
+    weight_grad += (loss[:,None] * z_data).sum(axis=0) / hparams[0]**2

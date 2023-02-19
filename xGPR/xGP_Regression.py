@@ -28,6 +28,7 @@ from .fitting_toolkit.ams_grad_toolkit import amsModelFit
 
 from .scoring_tools.approximate_nmll_calcs import estimate_logdet, estimate_nmll
 from .scoring_tools.gradient_tools import exact_nmll_reg_grad
+from .scoring_tools.gradient_tools import map_gradient
 from .scoring_tools.probe_generators import generate_normal_probes_gpu
 from .scoring_tools.probe_generators import generate_normal_probes_cpu
 
@@ -947,3 +948,5 @@ class xGPRegression(GPRegressionBaseclass):
         if pretransform_dir is not None:
             train_dataset.delete_dataset_files()
         return float(nmll)
+
+
