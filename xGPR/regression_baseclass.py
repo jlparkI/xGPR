@@ -130,10 +130,14 @@ class GPRegressionBaseclass(ABC):
 
 
     @abc.abstractmethod
-    def minibatch_nmll_gradient(self, params, xdata, ydata):
+    def full_map_gradient(self, in_params, dataset, a_reg):
         """Subclasses must implement a method that calculates
-        the gradient of the negative marginal log likelihood for
-        a minibatch."""
+        the regularized MAP gradient for the full training set."""
+
+    @abc.abstractmethod
+    def minibatch_map_gradient(self, params, x_data, y_data, a_reg):
+        """Subclasses must implement a method that calculates
+        the regularized MAP gradient for a minibatch."""
 
     @abc.abstractmethod
     def exact_nmll(self, hyperparams, dataset):
@@ -803,26 +807,32 @@ class GPRegressionBaseclass(ABC):
 
 
 
-    def tune_hyperparams_crude_sgd(self, dataset, random_seed = 123,
-            n_epochs = 1, minibatch_size = 1000, learn_rate = 0.02,
-            n_restarts = 5, bounds = None,
-            start_averaging = 1000, nmll_method = "approx",
-            nmll_rank = 1024, nmll_probes = 25, nmll_iter = 200,
-            nmll_tol = 1e-6):
-        """Tunes the hyperparameters using SGD. Note that this uses
-        a biased estimator to the full gradient, so it will almost
-        certainly find a suboptimal set of hyperparameters. In spite
-        of this, it can be useful for finding a good starting point
-        for another method (e.g. Nelder-Mead), because it is fast and
-        can quickly search large regions of hyperparameter space.
-        Bear in mind however that the solutions it provides may
-        be a considerable difference from optimal.
+    def tune_hyperparams_map_sgd(self, dataset, a_reg = 1.0, random_seed = 123,
+            n_epochs = 2, minibatch_size = 1000, learn_rate = 0.02,
+            n_restarts = 3, bounds = None, nmll_rank = 1024,
+            nmll_probes = 25, nmll_iter = 200, nmll_tol = 1e-6):
+        """Tunes the hyperparameters using SGD, using training set loss as an
+        objective. Note that this can overfit dramatically -- the only thing
+        preventing it from doing so is the regularization applied via a hyperprior
+        (a prior on the hyperparameters) which is controlled by a_reg. Smaller
+        values of a_reg imply tighter regularization, larger less regularization.
+
+        To tune using this routine, call it using different values of a_reg, and
+        determine which value of a_reg yields the best result. The tuning_toolkit
+        contains a routine to perform this automatically (using Bayesian optimization)
+        which may be more convenient than writing your own. When you call this function,
+        the NMLL is returned so that you can compare the best NMLL achieved for different
+        values of a_reg.
+
+        Note that the NMLL is evaluated using an approximation to the log determinant.
+        The quality of this approximation is determined by the 'nmll' settings (see
+        further notes).
 
         Args:
             dataset: Object of class OnlineDataset or OfflineDataset.
             random_seed (int): A random seed for the random
                 number generator.
-            n_epochs: The maximum number of epochs per restart.
+            n_epochs: The maximum number of epochs per restart. Must be >= 2.
             minibatch_size (int): The size of the minibatches.
             learn_rate (float): The initial learning rate.
             n_restarts (int): The maximum number of restarts to run.
@@ -830,14 +840,6 @@ class GPRegressionBaseclass(ABC):
             bounds (np.ndarray): The bounds for optimization. Defaults to
                 None, in which case the kernel uses its default bounds.
                 If supplied, must be a 2d numpy array of shape (num_hyperparams, 2).
-            start_averaging (int): The epoch number on which to start averaging
-                (if performing stochastic hparam averaging or "Polyak-Ruppert"
-                averaging). If greater than n_epochs, no averaging is performed.
-            nmll_method (str): one of "exact", "approx". Determines how the score
-                for a set of hyperparameters at the end of a restart is calculated.
-                "exact" is better for small datasets & numbers of rffs. "approx"
-                is much slower for small datasets / num rffs but much
-                faster for large.
             nmll_rank (int): The preconditioner rank for approximate NMLL estimation.
                 Ignored if nmll_method is "exact". A larger value may reduce
                 the number of iterations for nmll approximation to converge and
@@ -863,7 +865,9 @@ class GPRegressionBaseclass(ABC):
                     initiated. If problems are found, a ValueError will provide an
                     explanation of the error.
         """
-        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, nmll_method)
+        if n_epochs < 2:
+            raise ValueError("Must use at least 2 epochs per restart.")
+        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "approx")
 
         rng = np.random.default_rng(random_seed)
         best_cost, net_iterations, best_params = np.inf, 0, None
@@ -873,29 +877,16 @@ class GPRegressionBaseclass(ABC):
                     for j in range(bounds.shape[0])]
             init_hparams = np.asarray(init_hparams)
             dataset.reset_index()
-            #If a non-positive definite matrix is encountered, we've stumbled
-            #across a really bad set of hyperparameters. This doesn't mean we
-            #need to stop dead in our tracks -- it means we need to move to
-            #the next restart and print some kind of notification to user.
-            try:
-                hyperparams, iterations = amsgrad_optimizer(self.minibatch_nmll_gradient,
+            hyperparams, iterations = amsgrad_optimizer(self.minibatch_map_gradient,
                                 init_hparams, dataset,
                                 bounds, minibatch_size,
                                 n_epochs, learn_rate,
-                                start_averaging, self.verbose)
-                if self.verbose:
-                    print(hyperparams)
-            except:
-                if self.verbose:
-                    print("Failure / non-positive definite matrix on stochastic "
-                        "optimization attempt. Retrying...")
-                continue
+                                n_epochs - 1, a_reg, self.verbose)
+            if self.verbose:
+                print(hyperparams)
             net_iterations += iterations
 
-            if nmll_method == "exact":
-                cost = self.exact_nmll(hyperparams[:init_hparams.shape[0]], dataset)
-            else:
-                cost = self.approximate_nmll(hyperparams[:init_hparams.shape[0]],
+            cost = self.approximate_nmll(hyperparams[:init_hparams.shape[0]],
                         dataset, nmll_rank, nmll_probes, random_seed,
                         nmll_iter, nmll_tol)
             if cost < best_cost:

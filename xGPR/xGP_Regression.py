@@ -28,7 +28,7 @@ from .fitting_toolkit.ams_grad_toolkit import amsModelFit
 
 from .scoring_tools.approximate_nmll_calcs import estimate_logdet, estimate_nmll
 from .scoring_tools.gradient_tools import exact_nmll_reg_grad
-from .scoring_tools.gradient_tools import map_gradient
+from .scoring_tools.gradient_tools import map_gradient, complete_map_grad_calc
 from .scoring_tools.probe_generators import generate_normal_probes_gpu
 from .scoring_tools.probe_generators import generate_normal_probes_cpu
 
@@ -950,3 +950,86 @@ class xGPRegression(GPRegressionBaseclass):
         return float(nmll)
 
 
+
+    def minibatch_map_gradient(self, params, x_data, y_data, a_reg):
+        """Calculates the regularized MAP gradient using a
+        minibatch supplied by caller.
+
+        Args:
+            params (np.ndarray): A numpy array of shape
+                num_rffs + num hyperparams. The first num_hyperparams
+                elements are the hyperparameters, the remaining
+                elements are the weights.
+            x_data (array): A cupy or numpy array containing the
+                minibatch for which the gradient will be calculated.
+            y_data (array): A cupy or numpy array containing the associated
+                target (y) values.
+            a_reg (float): A regularization parameter.
+
+        Returns:
+            loss (float): The loss value for this minibatch.
+            grad (array): A cupy or numpy array (depending on device)
+                containing the gradient for both hyperparameters and
+                weights.
+        """
+        num_hparams = self.kernel.get_hyperparams().shape[0]
+
+        if self.device == "gpu":
+            grad = cp.zeros(params.shape)
+        else:
+            grad = np.zeros(params.shape)
+
+        hparams = params[:num_hparams]
+        weights = params[num_hparams:]
+
+        xfeatures, dz_dsigma = self.kernel.kernel_specific_gradient(x_data)
+        loss = map_gradient(hparams, xfeatures, y_data,
+                dz_dsigma, weights, grad)
+        complete_map_grad_calc(grad, hparams, x_data.shape[0], weights, a_reg)
+        return loss, grad
+
+
+
+    def full_map_gradient(self, in_params, dataset, a_reg):
+        """Calculates the regularized MAP gradient for
+        the full dataset.
+
+        Args:
+            in_params (np.ndarray): A numpy array of shape
+                num_rffs + num hyperparams. The first num_hyperparams
+                elements are the hyperparameters, the remaining
+                elements are the weights.
+            dataset: A Dataset object for the full training dataset.
+            a_reg (float): A regularization parameter.
+
+        Returns:
+            loss (float): The loss value calculated across the full
+                dataset.
+            gradient (np.ndarray): An array of shape num_rffs +
+                num_hyperparams. The first num_hyperparams elements
+                are the hyperparameter gradients, the remainder are
+                the weight gradients.
+        """
+        num_hparams = self.kernel.get_hyperparams().shape[0]
+
+        if self.device == "gpu":
+            grad = cp.zeros(in_params.shape)
+            params = cp.asarray(in_params)
+        else:
+            grad = np.zeros(in_params.shape)
+            params = in_params
+
+        hparams = params[:num_hparams]
+        weights = params[num_hparams:]
+
+        loss = 0.0
+        for x_data, y_data in dataset.get_chunked_data():
+            xfeatures, dz_dsigma = self.kernel.kernel_specific_gradient(x_data)
+            loss += map_gradient(hparams, xfeatures, y_data,
+                        dz_dsigma, weights, grad)
+        complete_map_grad_calc(grad, hparams, dataset.get_ndatapoints(),
+                weights, a_reg)
+
+        if self.device == "gpu":
+            grad = cp.asnumpy(grad)
+        return loss, grad

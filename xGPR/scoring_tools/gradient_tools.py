@@ -5,6 +5,7 @@ try:
     import cupy as cp
 except:
     pass
+from ..constants import constants
 from .cho_solvers import gpu_cho_calcs, cpu_cho_calcs, cpu_cho_solver, gpu_cho_solver
 
 
@@ -81,7 +82,7 @@ def exact_nmll_reg_grad(z_trans_z, z_trans_y, y_trans_y,
 
 
 def map_gradient(hparams, z_data, y_data, dz_dsigma,
-        weights, hparam_grad, weight_grad):
+        weights, gradient):
     """Calculates the gradient of the training set loss, given specified
     regularization parameters, for the input data arrays. The
     regularization loss is not calculated in this function and
@@ -106,22 +107,58 @@ def map_gradient(hparams, z_data, y_data, dz_dsigma,
         weights (array): A cupy or numpy array (as appopriate) of the
             current weights
         device (str): One of "cpu", "gpu".
-        hparam_grad (array): A cupy or numpy array to which the
-            hyperparameter gradient calculated here will be added.
+        gradient (array): A cupy or numpy array to which the
+            gradient calculated here will be added.
             This enables a caller to call this function repeatedly on
             different arrays and sum the results.
-        weight_grad (array): A cupy or numpy array to which the
-            weight gradient calculated here will be added.
-            This enables a caller to call this function repeatedly on
-            different arrays and sum the results.
+
+    Returns:
+        loss (float): The training set loss for this batch.
     """
     weight_prod = z_data @ weights
     loss = y_data - weight_prod
-    hparam_grad[0] += 0.5 * (loss**2).sum() / hparams[0]**3
-    hparam_grad[1] += (loss * weight_prod).sum() / (hparams[1] * hparams[0]**2)
+    gradient[0] += 0.5 * (loss**2).sum() / hparams[0]**3
+    gradient[1] += (loss * weight_prod).sum() / (hparams[1] * hparams[0]**2)
 
     for i in range(dz_dsigma.shape[2]):
         weight_prod = dz_dsigma[:,:,i] @ weights
-        hparam_grad[2 + i,:] += (weight_prod * loss).sum() / hparams[0]**2
+        gradient[2 + i,:] += (weight_prod * loss).sum() / hparams[0]**2
 
-    weight_grad += (loss[:,None] * z_data).sum(axis=0) / hparams[0]**2
+    gradient += (loss[:,None] * z_data).sum(axis=0) / hparams[0]**2
+    return 0.5 * float((loss**2).sum()) / hparams[0]**2
+
+
+def complete_map_grad_calc(gradient, hparams, ndatapoints,
+        weights, a_reg = 1.0):
+    """This function computes the terms in the MAP gradient that
+    are data-independent and depend only on the hyperparameters.
+    Arrays are modified in place so nothing is returned.
+
+    Args:
+        gradient (array): An array of shape (num_hyperparams + num_rffs)
+            containing the MAP gradient values for both hyperparameters and
+            weights.
+        hparams (array): An array of shape (num_hyperparams)
+            containing the current hyperparameter values (not their log)
+        ndatapoints (int): The number of datapoints in the minibatch
+            or the dataset.
+        weights (array): A cupy or numpy array containing the current weight
+            values.
+        a_reg (float): A regularization value that penalizes hyperparameter
+            values which might cause overfitting.
+    """
+    log_hparams = np.log(hparams)
+    gradient[0] -= ndatapoints * log_hparams[0]
+    gradient[0] -= (log_hparams[0] + constants.LAMBDA_HPRIOR) / (hparams[0] * a_reg**2)
+
+    gradient[1] -= weights.shape[0] / hparams[1]
+    gradient[1] -= log_hparams[1] / (hparams[1] * a_reg**2)
+    gradient[1] += float(weights.T @ weights) / hparams[1]**3
+
+    if hparams.shape[0] > 2:
+        gradient[2:hparams.shape] -= (log_hparams[2:] + constants.SIGMA_HPRIOR) / \
+                (hparams[2:] * a_reg**2)
+
+    gradient[hparams.shape[0]:] -= weights / (hparams[1]**2)
+
+    gradient[:hparams.shape[0]] *= hparams
