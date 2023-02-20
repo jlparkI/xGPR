@@ -117,15 +117,15 @@ def map_gradient(hparams, z_data, y_data, dz_dsigma,
     """
     weight_prod = z_data @ weights
     loss = y_data - weight_prod
-    gradient[0] += 0.5 * (loss**2).sum() / hparams[0]**3
-    gradient[1] += (loss * weight_prod).sum() / (hparams[1] * hparams[0]**2)
+    gradient[0] -= 0.5 * (loss**2).sum() / hparams[0]**3
+    gradient[1] -= (loss * weight_prod).sum() / (hparams[1] * hparams[0]**2)
 
     for i in range(dz_dsigma.shape[2]):
         weight_prod = dz_dsigma[:,:,i] @ weights
-        gradient[2 + i,:] += (weight_prod * loss).sum() / hparams[0]**2
+        gradient[2 + i] -= (weight_prod * loss).sum() / hparams[0]**2
 
-    gradient += (loss[:,None] * z_data).sum(axis=0) / hparams[0]**2
-    return 0.5 * float((loss**2).sum()) / hparams[0]**2
+    gradient[hparams.shape[0]:] += (loss[:,None] * z_data).sum(axis=0) / hparams[0]**2
+    return 0.5 * float((loss**2).sum() / hparams[0]**2)
 
 
 def complete_map_grad_calc(gradient, hparams, ndatapoints,
@@ -146,19 +146,30 @@ def complete_map_grad_calc(gradient, hparams, ndatapoints,
             values.
         a_reg (float): A regularization value that penalizes hyperparameter
             values which might cause overfitting.
+
+    Returns:
+        loss (float): The component of the loss resulting from the regularization
+            terms.
     """
     log_hparams = np.log(hparams)
-    gradient[0] -= ndatapoints * log_hparams[0]
-    gradient[0] -= (log_hparams[0] + constants.LAMBDA_HPRIOR) / (hparams[0] * a_reg**2)
+    loss = 0.5 * weights.shape[0] * float(weights.T @ weights) / hparams[1]**2
+    loss += weights.shape[0] * log_hparams[1] + ndatapoints * log_hparams[0]
+    loss += 0.5 * log_hparams[1] / (a_reg**2)
+    loss += 0.5 * (log_hparams[0] + constants.LAMBDA_HPRIOR) / (a_reg**2)
 
-    gradient[1] -= weights.shape[0] / hparams[1]
-    gradient[1] -= log_hparams[1] / (hparams[1] * a_reg**2)
-    gradient[1] += float(weights.T @ weights) / hparams[1]**3
+    gradient[0] += ndatapoints * log_hparams[0]
+    gradient[0] += (log_hparams[0] + constants.LAMBDA_HPRIOR) / (hparams[0] * a_reg**2)
+
+    gradient[1] += weights.shape[0] / hparams[1]
+    gradient[1] += log_hparams[1] / (hparams[1] * a_reg**2)
+    gradient[1] -= float(weights.T @ weights) / hparams[1]**3
 
     if hparams.shape[0] > 2:
-        gradient[2:hparams.shape] -= (log_hparams[2:] + constants.SIGMA_HPRIOR) / \
+        gradient[2:hparams.shape[0]] += (log_hparams[2:] + constants.SIGMA_HPRIOR) / \
                 (hparams[2:] * a_reg**2)
+        loss += 0.5 * float((log_hparams[2:] + constants.SIGMA_HPRIOR).sum()) / (a_reg**2)
 
-    gradient[hparams.shape[0]:] -= weights / (hparams[1]**2)
+    gradient[hparams.shape[0]:] += weights / (hparams[1]**2)
 
     gradient[:hparams.shape[0]] *= hparams
+    return float(loss)

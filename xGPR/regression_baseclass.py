@@ -844,7 +844,8 @@ class GPRegressionBaseclass(ABC):
         """
         bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "exact")
         best_x, best_score, net_iterations = None, np.inf, 0
-        bounds_tuples = list(map(tuple, bounds))
+        bounds_tuples = list(map(tuple, bounds)) + [(None,None) for i in
+                range(self.training_rffs)]
 
         init_hyperparams = self.kernel.get_hyperparams(logspace=True)
         init_params = np.zeros((init_hyperparams.shape[0] + self.training_rffs))
@@ -860,10 +861,10 @@ class GPRegressionBaseclass(ABC):
             res = minimize(cost_fun, options={"maxiter":max_iter},
                         x0 = init_params, args = args,
                         jac = True, bounds = bounds_tuples)
-
             cost = self.approximate_nmll(res.x[:init_hyperparams.shape[0]],
                         dataset, nmll_rank, nmll_probes, random_seed,
                         nmll_iter, nmll_tol)
+            print(res.x)
             net_iterations += res.nfev
             if cost < best_score:
                 best_x = res.x[:init_hyperparams.shape[0]]
@@ -872,8 +873,8 @@ class GPRegressionBaseclass(ABC):
                 print(f"Restart {iteration} completed. Best score is {best_score}.")
 
             init_params[:] = 0
-            init_hyperparams = [rng.uniform(low = bounds[j,0], high = bounds[j,1])
-                    for j in range(bounds.shape[0])]
+            init_hyperparams = np.array([rng.uniform(low = bounds[j,0], high = bounds[j,1])
+                    for j in range(bounds.shape[0])])
             init_params[:init_hyperparams.shape[0]] = init_hyperparams
 
         if best_x is None:

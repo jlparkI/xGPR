@@ -974,10 +974,18 @@ class xGPRegression(GPRegressionBaseclass):
         """
         num_hparams = self.kernel.get_hyperparams().shape[0]
 
+        #Unlike full map grad, input params here are either cupy or numpy
+        #array, depending on device -- switching the weights back and forth
+        #for each minibatch would be expensive, and we aren't using a scipy
+        #routine for SGD so don't need to. Only catch: the kernel hparams are always
+        #numpy array. Therefore, if running on gpu, send hparams to kernel
+        #as numpy array before proceeding.
         if self.device == "gpu":
             grad = cp.zeros(params.shape)
+            self.kernel.set_hyperparams(cp.asnumpy(params[:num_hparams]), logspace=True)
         else:
             grad = np.zeros(params.shape)
+            self.kernel.set_hyperparams(params[:num_hparams], logspace=True)
 
         hparams = params[:num_hparams]
         weights = params[num_hparams:]
@@ -1011,25 +1019,31 @@ class xGPRegression(GPRegressionBaseclass):
                 the weight gradients.
         """
         num_hparams = self.kernel.get_hyperparams().shape[0]
+        self.kernel.set_hyperparams(in_params[:num_hparams], logspace=True)
 
+        #Input here is always numpy array (in order to be compatible with
+        #Scipy's LBFGS). Since this func loops over the whole dataset, time
+        #to convert from / to cupy array once at beginning is negligible
+        #fraction of total expense.
         if self.device == "gpu":
             grad = cp.zeros(in_params.shape)
             params = cp.asarray(in_params)
+            hparams, weights = cp.exp(params[:num_hparams]), params[num_hparams:]
         else:
             grad = np.zeros(in_params.shape)
-            params = in_params
-
-        hparams = params[:num_hparams]
-        weights = params[num_hparams:]
+            params = in_params.copy()
+            hparams, weights = np.exp(params[:num_hparams]), params[num_hparams:]
 
         loss = 0.0
         for x_data, y_data in dataset.get_chunked_data():
             xfeatures, dz_dsigma = self.kernel.kernel_specific_gradient(x_data)
             loss += map_gradient(hparams, xfeatures, y_data,
                         dz_dsigma, weights, grad)
-        complete_map_grad_calc(grad, hparams, dataset.get_ndatapoints(),
+        loss += complete_map_grad_calc(grad, hparams, dataset.get_ndatapoints(),
                 weights, a_reg)
 
         if self.device == "gpu":
             grad = cp.asnumpy(grad)
+        if self.verbose:
+            print("Gradient evaluation complete.")
         return loss, grad
