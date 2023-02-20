@@ -720,7 +720,8 @@ class GPRegressionBaseclass(ABC):
     def tune_hyperparams_crude_lbfgs(self, dataset, random_seed = 123,
             max_iter = 20, n_restarts = 1, starting_hyperparams = None,
             bounds = None, subsample = 1):
-        """Tunes the hyperparameters using the L-BFGS algorithm.
+        """Tunes the hyperparameters using the L-BFGS algorithm, with
+        NMLL as the objective.
         It uses either a supplied set of starting hyperparameters OR
         randomly chosen locations. If the latter, it is run
         n_restarts times. Because it uses exact NMLL rather than
@@ -804,6 +805,83 @@ class GPRegressionBaseclass(ABC):
 
         self._post_tuning_cleanup(dataset, best_x)
         return best_x, net_iterations, best_score
+
+
+
+
+    def tune_hyperparams_map_lbfgs(self, dataset, random_seed = 123,
+            max_iter = 20, n_restarts = 1, bounds = None, a_reg = 1.0,
+            nmll_rank = 1024, nmll_probes = 25, nmll_iter = 200,
+            nmll_tol = 1e-6):
+        """Tunes the hyperparameters using the L-BFGS algorithm, with
+        training set loss as the objective. Unlike crude_lbfgs, this
+        algorithm scales well to a large number of random features
+        and datapoints. It measures loss on the training set using
+        a regularization term or complexity penalty, and runs up
+        to the indicated number of restarts.
+
+        Args:
+            dataset: Object of class OnlineDataset or OfflineDataset.
+            random_seed (int): A random seed for the random
+                number generator. Defaults to 123.
+            max_iter (int): The maximum number of iterations for
+                which l-bfgs should be run per restart.
+            n_restarts (int): The maximum number of restarts to run l-bfgs.
+            bounds (np.ndarray): The bounds for optimization. Defaults to
+                None, in which case the kernel uses its default bounds.
+                If supplied, must be a 2d numpy array of shape (num_hyperparams, 2).
+            a_reg (float): A value > 0 that determines the strength of regularization.
+
+        Returns:
+            hyperparams (np.ndarray): The best hyperparams found during optimization.
+            n_feval (int): The number of function evaluations during optimization.
+            best_score (float): The best negative marginal log-likelihood achieved.
+
+        Raises:
+            ValueError: The input dataset is checked for validity before tuning is
+                initiated. If problems are found, a ValueError will provide an
+                explanation of the error.
+        """
+        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "exact")
+        best_x, best_score, net_iterations = None, np.inf, 0
+        bounds_tuples = list(map(tuple, bounds))
+
+        init_hyperparams = self.kernel.get_hyperparams(logspace=True)
+        init_params = np.zeros((init_hyperparams.shape[0] + self.training_rffs))
+        init_params[:init_hyperparams.shape[0]] = init_hyperparams
+
+        rng = np.random.default_rng(random_seed)
+        args, cost_fun = (dataset, a_reg), self.full_map_gradient
+
+        if self.verbose:
+            print("Now beginning L-BFGS minimization.")
+
+        for iteration in range(n_restarts):
+            res = minimize(cost_fun, options={"maxiter":max_iter},
+                        x0 = init_params, args = args,
+                        jac = True, bounds = bounds_tuples)
+
+            cost = self.approximate_nmll(res.x[:init_hyperparams.shape[0]],
+                        dataset, nmll_rank, nmll_probes, random_seed,
+                        nmll_iter, nmll_tol)
+            net_iterations += res.nfev
+            if cost < best_score:
+                best_x = res.x[:init_hyperparams.shape[0]]
+                best_score = copy.deepcopy(cost)
+            if self.verbose:
+                print(f"Restart {iteration} completed. Best score is {best_score}.")
+
+            init_params[:] = 0
+            init_hyperparams = [rng.uniform(low = bounds[j,0], high = bounds[j,1])
+                    for j in range(bounds.shape[0])]
+            init_params[:init_hyperparams.shape[0]] = init_hyperparams
+
+        if best_x is None:
+            raise ValueError("All restarts failed to find acceptable hyperparameters.")
+
+        self._post_tuning_cleanup(dataset, best_x)
+        return best_x, net_iterations, best_score
+
 
 
 
