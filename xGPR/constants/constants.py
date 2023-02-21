@@ -15,4 +15,4 @@ DEFAULT_SCORE_IF_PROBLEM = 1e40
 #The following are hyperpriors that work well for MAP
 #gradient estimation.
 LAMBDA_HPRIOR = 2
-SIGMA_HPRIOR = -10
+SIGMA_HPRIOR = 10

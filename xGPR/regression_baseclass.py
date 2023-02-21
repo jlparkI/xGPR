@@ -25,6 +25,8 @@ from .optimizers.pure_bayes_optimizer import pure_bayes_tuning
 from .optimizers.bayes_grid_optimizer import bayes_grid_tuning
 from .optimizers.lb_optimizer import shared_hparam_search
 from .optimizers.crude_grid_optimizer import crude_grid_tuning
+from .scoring_tools.gradient_tools import full_map_gradient, minibatch_map_gradient
+
 
 class GPRegressionBaseclass(ABC):
     """The base class for xGPR regression classes. Provides shared
@@ -852,7 +854,7 @@ class GPRegressionBaseclass(ABC):
         init_params[:init_hyperparams.shape[0]] = init_hyperparams
 
         rng = np.random.default_rng(random_seed)
-        args, cost_fun = (dataset, a_reg), self.full_map_gradient
+        args, cost_fun = (dataset, self.kernel, a_reg, self.verbose), full_map_gradient
 
         if self.verbose:
             print("Now beginning L-BFGS minimization.")
