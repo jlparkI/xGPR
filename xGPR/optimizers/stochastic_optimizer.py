@@ -7,7 +7,7 @@ except:
     pass
 import numpy as np
 
-from ..scoring_tools.gradient_tools import minibatch_map_gradient
+from ..scoring_toolkit.map_gradient_tools import minibatch_map_gradient
 
 
 def amsgrad_optimizer(kernel, init_param_vals, dataset, bounds,

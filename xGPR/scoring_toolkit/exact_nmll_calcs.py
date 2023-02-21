@@ -30,7 +30,7 @@ def calc_zty(dataset, kernel):
     else:
         z_trans_y = np.zeros((kernel.get_num_rffs()))
 
-        y_trans_y = 0
+    y_trans_y = 0
 
     if dataset.pretransformed:
         for xdata, ydata in dataset.get_chunked_data():

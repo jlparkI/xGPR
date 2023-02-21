@@ -10,12 +10,10 @@ cd fht_operations_tests
 python basic_fht_functions_test.py
 python fht_conv1d_test.py
 python poly_fht.py
-python mm_conv1d_test.py
 cd ..
 
 #Run gradient tests
 cd gradient_calc_tests
-python conv1d_gradient_test.py
 python fht_conv1d_gradient_test.py
 python graph_conv1d_gradient_test.py
 python linear_gradient_test.py
@@ -48,7 +46,6 @@ python test_fine_bayes_tuning.py
 python test_fine_direct_tuning.py
 python test_fitting_bayes_tuning.py
 python test_fitting_direct_tuning.py
-python test_sgd_tuning.py
 cd ..
 
 #Run fitting tests

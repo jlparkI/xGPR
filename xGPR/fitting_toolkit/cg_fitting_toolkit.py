@@ -4,7 +4,7 @@ import warnings
 try:
     import cupy as cp
     from cupyx.scipy.sparse.linalg import cg as Cuda_CG
-    from .cg_toolkit.cuda_cg_linear_operators import Cuda_CGLinearOperator
+    from ..cg_toolkit.cuda_cg_linear_operators import Cuda_CGLinearOperator
 except:
     pass
 import numpy as np

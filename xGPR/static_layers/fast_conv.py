@@ -17,7 +17,6 @@ except:
     pass
 
 from ..kernels.convolution_kernels.conv_feature_extractor import FHTMaxpoolConv1dFeatureExtractor
-from ..kernels.convolution_kernels.conv_feature_extractor import MMConv1dFeatureExtractor
 from ..data_handling.offline_data_handling import OfflineDataset
 
 class FastConv1d:

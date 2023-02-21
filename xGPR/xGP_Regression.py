@@ -5,7 +5,6 @@ model and make predictions for new datapoints. It inherits from
 GPRegressionBaseclass.
 """
 import warnings
-import copy
 
 try:
     import cupy as cp
@@ -20,11 +19,11 @@ from .regression_baseclass import GPRegressionBaseclass
 from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
 
-from .optimizers.stochastic_optimizer import amsgrad_optimizer
 from .optimizers.pure_bayes_optimizer import pure_bayes_tuning
 from .optimizers.bayes_grid_optimizer import bayes_grid_tuning
 from .optimizers.lb_optimizer import shared_hparam_search
 from .optimizers.crude_grid_optimizer import crude_grid_tuning
+from .optimizers.map_loss_bayes_optimizer import bayes_map_loss_tuning
 
 from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
 from .fitting_toolkit.sgd_fitting_toolkit import sgdModelFit
@@ -996,100 +995,19 @@ class xGPRegression(GPRegressionBaseclass):
 
 
 
-
-    def tune_hyperparams_map_lbfgs(self, dataset, random_seed = 123,
-            max_iter = 20, n_restarts = 1, bounds = None, a_reg = 1.0,
+    def tune_hyperparams_map(self, dataset, random_seed = 123,
+            max_epochs = 10, learn_rate = 0.002, minibatch_size = 1000,
+            n_restarts = 3, mode = "sgd", bounds = None,
+            n_init_pts = 10, areg_bounds = None, max_iter = 25,
             nmll_rank = 1024, nmll_probes = 25, nmll_iter = 200,
             nmll_tol = 1e-6):
-        """Tunes the hyperparameters using the L-BFGS algorithm, with
-        training set loss as the objective. Unlike crude_lbfgs, this
-        algorithm scales well to a large number of random features
-        and datapoints. It measures loss on the training set using
-        a regularization term or complexity penalty, and runs up
-        to the indicated number of restarts.
-
-        Args:
-            dataset: Object of class OnlineDataset or OfflineDataset.
-            random_seed (int): A random seed for the random
-                number generator. Defaults to 123.
-            max_iter (int): The maximum number of iterations for
-                which l-bfgs should be run per restart.
-            n_restarts (int): The maximum number of restarts to run l-bfgs.
-            bounds (np.ndarray): The bounds for optimization. Defaults to
-                None, in which case the kernel uses its default bounds.
-                If supplied, must be a 2d numpy array of shape (num_hyperparams, 2).
-            a_reg (float): A value > 0 that determines the strength of regularization.
-
-        Returns:
-            hyperparams (np.ndarray): The best hyperparams found during optimization.
-            n_feval (int): The number of function evaluations during optimization.
-            best_score (float): The best negative marginal log-likelihood achieved.
-
-        Raises:
-            ValueError: The input dataset is checked for validity before tuning is
-                initiated. If problems are found, a ValueError will provide an
-                explanation of the error.
-        """
-        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "exact")
-        best_x, best_score, net_iterations = None, np.inf, 0
-        bounds_tuples = list(map(tuple, bounds)) + [(None,None) for i in
-                range(self.training_rffs)]
-
-        init_hyperparams = self.kernel.get_hyperparams(logspace=True)
-        init_params = np.zeros((init_hyperparams.shape[0] + self.training_rffs))
-        init_params[:init_hyperparams.shape[0]] = init_hyperparams
-
-        rng = np.random.default_rng(random_seed)
-        args, cost_fun = (dataset, self.kernel, a_reg, self.verbose), full_map_gradient
-
-        if self.verbose:
-            print("Now beginning L-BFGS minimization.")
-
-        for iteration in range(n_restarts):
-            res = minimize(cost_fun, options={"maxiter":max_iter},
-                        x0 = init_params, args = args,
-                        jac = True, bounds = bounds_tuples)
-            cost = self.approximate_nmll(res.x[:init_hyperparams.shape[0]],
-                        dataset, nmll_rank, nmll_probes, random_seed,
-                        nmll_iter, nmll_tol)
-            print(res.x)
-            net_iterations += res.nfev
-            if cost < best_score:
-                best_x = res.x[:init_hyperparams.shape[0]]
-                best_score = copy.deepcopy(cost)
-            if self.verbose:
-                print(f"Restart {iteration} completed. Best score is {best_score}.")
-
-            init_params[:] = 0
-            init_hyperparams = np.array([rng.uniform(low = bounds[j,0], high = bounds[j,1])
-                    for j in range(bounds.shape[0])])
-            init_params[:init_hyperparams.shape[0]] = init_hyperparams
-
-        if best_x is None:
-            raise ValueError("All restarts failed to find acceptable hyperparameters.")
-
-        self._post_tuning_cleanup(dataset, best_x)
-        return best_x, net_iterations, best_score
-
-
-
-
-    def tune_hyperparams_map_sgd(self, dataset, a_reg = 1.0, random_seed = 123,
-            n_epochs = 2, minibatch_size = 1000, learn_rate = 0.02,
-            n_restarts = 3, bounds = None, nmll_rank = 1024,
-            nmll_probes = 25, nmll_iter = 200, nmll_tol = 1e-6):
-        """Tunes the hyperparameters using SGD, using training set loss as an
-        objective. Note that this can overfit dramatically -- the only thing
-        preventing it from doing so is the regularization applied via a hyperprior
-        (a prior on the hyperparameters) which is controlled by a_reg. Smaller
-        values of a_reg imply tighter regularization, larger less regularization.
-
-        To tune using this routine, call it using different values of a_reg, and
-        determine which value of a_reg yields the best result. The tuning_toolkit
-        contains a routine to perform this automatically (using Bayesian optimization)
-        which may be more convenient than writing your own. When you call this function,
-        the NMLL is returned so that you can compare the best NMLL achieved for different
-        values of a_reg.
+        """Tunes the hyperparameters using training set loss as an objective --
+        this is a novel / experimental approach. Note that this can overfit dramatically
+        -- the only thing preventing it from doing so is the regularization applied
+        via a hyperprior (a prior on the hyperparameters). This hyperprior is tuned
+        by repeatedly retuning the other hyperparameters for different values of the
+        hyperprior, and evaluating each using approximate NMLL post tuning.
+        Bayesian optimization is used to select values for the hyperprior.
 
         Note that the NMLL is evaluated using an approximation to the log determinant.
         The quality of this approximation is determined by the 'nmll' settings (see
@@ -1099,14 +1017,22 @@ class xGPRegression(GPRegressionBaseclass):
             dataset: Object of class OnlineDataset or OfflineDataset.
             random_seed (int): A random seed for the random
                 number generator.
-            n_epochs: The maximum number of epochs per restart. Must be >= 2.
-            minibatch_size (int): The size of the minibatches.
-            learn_rate (float): The initial learning rate.
+            max_epochs: The maximum number of epochs per restart. Must be >= 2.
+            learn_rate (float): The initial learning rate for SGD. Ignored if 'mode'
+                is not 'sgd'.
+            minibatch_size (int): The size of the minibatches. Ignored if 'mode'
+                is not 'sgd'.
             n_restarts (int): The maximum number of restarts to run.
-                Ignored if starting_hyperparams are supplied.
+            mode (str): One of 'sgd', 'lbfgs'. Determines how hyperparameters /
+                weights are optimized for each hyperprior value selected by
+                Bayesian optimization.
             bounds (np.ndarray): The bounds for optimization. Defaults to
                 None, in which case the kernel uses its default bounds.
                 If supplied, must be a 2d numpy array of shape (num_hyperparams, 2).
+            n_init_pts (int): The number of initial points to evaluate.
+            areg_bounds (np.ndarray): Must be either None or an array of shape (1,2).
+                If supplied, specifies the bounds on the optimization of the log
+                of the hyperprior.
             nmll_rank (int): The preconditioner rank for approximate NMLL estimation.
                 Ignored if nmll_method is "exact". A larger value may reduce
                 the number of iterations for nmll approximation to converge and
@@ -1132,40 +1058,27 @@ class xGPRegression(GPRegressionBaseclass):
                     initiated. If problems are found, a ValueError will provide an
                     explanation of the error.
         """
-        if n_epochs < 2:
+        if max_epochs < 2:
             raise ValueError("Must use at least 2 epochs per restart.")
-        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "approx")
 
-        rng = np.random.default_rng(random_seed)
-        best_cost, net_iterations, best_params = np.inf, 0, None
-        all_costs = []
-        for i in range(n_restarts):
-            init_hparams = [rng.uniform(low = bounds[j,0], high = bounds[j,1])
-                    for j in range(bounds.shape[0])]
-            init_hparams = np.asarray(init_hparams)
-            dataset.reset_index()
-            hyperparams, iterations = amsgrad_optimizer(self.minibatch_map_gradient,
-                                init_hparams, dataset,
-                                bounds, minibatch_size,
-                                n_epochs, learn_rate,
-                                n_epochs - 1, a_reg, self.verbose)
-            if self.verbose:
-                print(hyperparams)
-            net_iterations += iterations
+        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "exact")
 
-            cost = self.approximate_nmll(hyperparams[:init_hparams.shape[0]],
-                        dataset, nmll_rank, nmll_probes, random_seed,
-                        nmll_iter, nmll_tol)
-            if cost < best_cost:
-                best_cost = copy.copy(cost)
-                best_params = copy.deepcopy(hyperparams[:init_hparams.shape[0]])
-                if self.verbose:
-                    print(f"New best cost: {best_cost}")
-            all_costs.append(cost)
-            if self.verbose:
-                print("\n\n")
+        if areg_bounds is not None:
+            if areg_bounds.shape[0] != 1 or areg_bounds.shape[1] != 2:
+                raise ValueError("areg_bounds must be either None or a numpy array "
+                        "of shape (1,2).")
+            hprior_bounds = areg_bounds
+        else:
+            hprior_bounds = np.ndarray([-8,0])
 
-        dataset.reset_index()
-        if best_params is None:
-            raise ValueError("No stochastic optimization attempt succeeded.")
-        return best_params, net_iterations, best_cost
+        optimizer_args = {"bounds":bounds, "minibatch_size":minibatch_size,
+                "n_restarts":n_restarts, "max_epochs":max_epochs,
+                "mode":mode, "learn_rate":learn_rate, "nmll_rank":nmll_rank,
+                "nmll_probes":nmll_probes, "nmll_iter":nmll_iter,
+                "nmll_tol":nmll_tol}
+
+        best_x, scores, best_score, niter = bayes_map_loss_tuning(self.kernel,
+                dataset, hprior_bounds, optimizer_args, self.approximate_nmll,
+                random_seed, max_iter, tol = 1e-1, n_init_pts = n_init_pts)
+        self._post_tuning_cleanup(dataset, best_x)
+        return best_x, niter, best_score, scores

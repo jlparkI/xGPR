@@ -11,7 +11,7 @@ from ..scoring_toolkit.exact_nmll_calcs import calc_var_design_mat
 from ..scoring_toolkit.exact_nmll_calcs import direct_weight_calc, calc_design_mat
 
 
-def calc_weights_exact(kernel, dataset):
+def calc_weights_exact(dataset, kernel):
     """Calculates the weights when fitting the model using
     matrix decomposition. Exact and fast for small numbers
     of random features but poor scaling.
@@ -20,6 +20,8 @@ def calc_weights_exact(kernel, dataset):
         dataset: Either OnlineDataset or OfflineDataset,
             containing the information on the dataset we
             are fitting.
+        kernel: A valid kernel object that can generate random
+            features.
 
     Returns:
         weights: A cupy or numpy array of shape (M) for M
