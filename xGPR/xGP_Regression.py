@@ -5,34 +5,41 @@ model and make predictions for new datapoints. It inherits from
 GPRegressionBaseclass.
 """
 import warnings
+import copy
 
 try:
     import cupy as cp
-    import cupyx as cpx
-    from cupyx.scipy.sparse.linalg import cg as Cuda_CG
     from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
-    from .cg_toolkit.cuda_cg_linear_operators import Cuda_CGLinearOperator
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
 import numpy as np
-from scipy.linalg import cho_solve
-from scipy.sparse.linalg import cg as CPU_CG
+from scipy.optimize import minimize
 
 from .constants import constants
 from .regression_baseclass import GPRegressionBaseclass
 from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
+
+from .optimizers.stochastic_optimizer import amsgrad_optimizer
+from .optimizers.pure_bayes_optimizer import pure_bayes_tuning
+from .optimizers.bayes_grid_optimizer import bayes_grid_tuning
+from .optimizers.lb_optimizer import shared_hparam_search
+from .optimizers.crude_grid_optimizer import crude_grid_tuning
+
 from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
 from .fitting_toolkit.sgd_fitting_toolkit import sgdModelFit
 from .fitting_toolkit.ams_grad_toolkit import amsModelFit
+from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext
+from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
 
-from .scoring_tools.approximate_nmll_calcs import estimate_logdet, estimate_nmll
-from .scoring_tools.gradient_tools import exact_nmll_reg_grad
-from .scoring_tools.probe_generators import generate_normal_probes_gpu
-from .scoring_tools.probe_generators import generate_normal_probes_cpu
+from .scoring_toolkit.approximate_nmll_calcs import estimate_logdet, estimate_nmll
+from .scoring_toolkit.nmll_gradient_tools import exact_nmll_reg_grad, calc_gradient_terms
+from .scoring_toolkit.probe_generators import generate_normal_probes_gpu
+from .scoring_toolkit.probe_generators import generate_normal_probes_cpu
+from .scoring_toolkit.exact_nmll_calcs import calc_zty, calc_design_mat, direct_weight_calc
 
 from cg_tools import CPU_ConjugateGrad, GPU_ConjugateGrad
-from .cg_toolkit.cg_linear_operators import CPU_CGLinearOperator
+
 
 
 class xGPRegression(GPRegressionBaseclass):
@@ -80,6 +87,11 @@ class xGPRegression(GPRegressionBaseclass):
         super().__init__(training_rffs, fitting_rffs, variance_rffs,
                         kernel_choice, device, kernel_specific_params,
                         verbose, double_precision_fht)
+
+
+
+
+
 
     def predict(self, input_x, get_var = True,
             chunk_size = 2000):
@@ -135,76 +147,6 @@ class xGPRegression(GPRegressionBaseclass):
         return preds * self.trainy_std + self.trainy_mean, var * self.trainy_std**2
 
 
-    def transform_data(self, input_x, chunk_size = 2000):
-        """Generate the random features for each chunk
-        of an input array. This function is a generator
-        so it will yield the random features as blocks
-        of shape (chunk_size, fitting_rffs).
-
-        Args:
-            input_x (np.ndarray): The input data. Should be a 2d numpy
-                array (if non-convolution kernel) or 3d (if convolution
-                kernel).
-            chunk_size (int): The number of datapoints to process at
-                a time. Lower values limit memory consumption. Defaults
-                to 2000.
-
-        Yields:
-            x_trans (array): An array containing the random features
-                generated for a chunk of the input. Shape is
-                (chunk_size, fitting_rffs).
-
-        Raises:
-            ValueError: If the dimensionality or type of the input does
-                not match what is expected, or if the model has
-                not yet been fitted, a ValueError is raised.
-        """
-        xdata = self.pre_prediction_checks(input_x, False)
-        for i in range(0, xdata.shape[0], chunk_size):
-            cutoff = min(i + chunk_size, xdata.shape[0])
-            yield self.kernel.transform_x(xdata[i:cutoff, :])
-
-
-
-    def pre_prediction_checks(self, input_x, get_var):
-        """Checks the input data to predict_scores to ensure validity.
-
-        Args:
-            input_x (np.ndarray): A numpy array containing the input data.
-            get_var (bool): Whether a variance calculation is desired.
-
-        Returns:
-            x_array: A cupy array (if self.device is gpu) or a reference
-                to the unmodified input array otherwise.
-
-        Raises:
-            ValueError: If invalid inputs are supplied,
-                a detailed ValueError is raised to explain.
-        """
-        x_array = input_x
-        if self.kernel is None:
-            raise ValueError("Model has not yet been successfully fitted.")
-        if not self.kernel.validate_new_datapoints(input_x):
-            raise ValueError("The input has incorrect dimensionality.")
-        #TODO: Add proper variance calc for linear kernel.
-        if self.var is None and get_var:
-            raise ValueError("Variance was requested but suppress_var "
-                    "was selected when fitting or a linear kernel was "
-                    "used, meaning that variance has not been generated.")
-        if self.device == "gpu":
-            mempool = cp.get_default_memory_pool()
-            mempool.free_all_blocks()
-            x_array = cp.asarray(input_x)
-
-        return x_array
-
-
-    def get_hyperparams(self):
-        """Simple helper function to return hyperparameters if the model
-        has already been tuned or fitted."""
-        if self.kernel is None:
-            return None
-        return self.kernel.get_hyperparams()
 
 
     def build_preconditioner(self, dataset, max_rank = 512,
@@ -259,462 +201,6 @@ class xGPRegression(GPRegressionBaseclass):
 
 
 
-    def _calc_zTy(self, dataset):
-        """Calculates the vector Z^T y.
-
-        Args:
-            dataset: An Dataset object that can supply
-                chunked data.
-
-        Returns:
-            z_trans_y (array): A shape (num_rffs)
-                array that contains Z^T y.
-            y_trans_y (float): The value y^T y.
-        """
-        if self.device == "gpu":
-            z_trans_y = cp.zeros((self.kernel.get_num_rffs()))
-        else:
-            z_trans_y = np.zeros((self.kernel.get_num_rffs()))
-
-        y_trans_y = 0
-
-        if dataset.pretransformed:
-            for xdata, ydata in dataset.get_chunked_data():
-                z_trans_y += xdata.T @ ydata
-                y_trans_y += float( (ydata**2).sum() )
-        else:
-            for xdata, ydata in dataset.get_chunked_data():
-                zdata = self.kernel.transform_x(xdata)
-                z_trans_y += zdata.T @ ydata
-                y_trans_y += float( (ydata**2).sum() )
-        return z_trans_y, y_trans_y
-
-
-    def _calc_weights_exact(self, dataset):
-        """Calculates the weights when fitting the model using
-        matrix decomposition. Exact and fast for small numbers
-        of random features but poor scaling.
-
-        Args:
-            dataset: Either OnlineDataset or OfflineDataset,
-                containing the information on the dataset we
-                are fitting.
-
-        Returns:
-            weights: A cupy or numpy array of shape (M) for M
-                random features.
-        """
-        z_trans_z, z_trans_y, _ = self._calc_design_mat(dataset)
-        lambda_p = self.kernel.get_hyperparams(logspace=False)[0]
-        z_trans_z.flat[::z_trans_z.shape[0]+1] += lambda_p**2
-        _, weights = self._direct_weight_calc(z_trans_z, z_trans_y)
-        return weights
-
-
-    def _calc_weights_cg(self, dataset, cg_tol = 1e-4, max_iter = 500,
-                        preconditioner = None):
-        """Calculates the weights when fitting the model using
-        preconditioned CG. Good scaling but slower for small
-        numbers of random features.
-
-        Args:
-            dataset: Either OnlineDataset or OfflineDataset.
-            cg_tol (float): The threshold below which cg is deemed to have
-                converged. Defaults to 1e-5.
-            max_iter (int): The maximum number of iterations before
-                CG is deemed to have failed to converge.
-            preconditioner: Either None or a valid Preconditioner (e.g.
-                CudaRandomizedPreconditioner, CPURandomizedPreconditioner
-                etc). If None, no preconditioning is used. Otherwise,
-                the preconditioner is used for CG. The preconditioner
-                can be built by calling self.build_preconditioner
-                with appropriate arguments.
-            starting_guess: Either None or a cupy or numpy array containing
-                starting guess values for the weights. Defaults to None.
-
-        Returns:
-            weights: A cupy or numpy array of shape (M) for M
-                random features.
-            n_iter (int): The number of CG iterations.
-            losses (list): The loss on each iteration; for diagnostic
-                purposes.
-        """
-        if self.device == "gpu":
-            cg_operator = GPU_ConjugateGrad()
-            resid = cp.zeros((self.kernel.get_num_rffs(), 2, 1))
-        else:
-            cg_operator = CPU_ConjugateGrad()
-            resid = np.zeros((self.kernel.get_num_rffs(), 2, 1))
-
-        z_trans_y, _ = self._calc_zTy(dataset)
-        resid[:,0,:] = z_trans_y[:,None] / dataset.get_ndatapoints()
-
-        weights, converged, n_iter, losses = cg_operator.fit(dataset, self.kernel,
-                preconditioner, resid, max_iter, cg_tol, self.verbose,
-                nmll_settings = False)
-        weights *= dataset.get_ndatapoints()
-        if not converged:
-            warnings.warn("Conjugate gradients failed to converge! Try refitting "
-                        "the model with updated settings.")
-
-        if self.verbose:
-            print(f"CG iterations: {n_iter}")
-        return weights, n_iter, losses
-
-
-    def _calc_weights_cg_lib_ext(self, dataset, cg_tol = 1e-5, max_iter = 500,
-                        preconditioner = None):
-        """Calculates the weights when fitting the model using
-        preconditioned CG. Good scaling but slower for small
-        numbers of random features. Uses the CG implementation
-        in Scipy and Cupy instead of the internal implementation
-        (we've found these to provide very similar results,
-        but it is good to be able to use either, also the
-        internal implementation can keep track of loss values
-        for diagnostics.)
-
-        Args:
-            dataset: Either OnlineDataset or OfflineDataset.
-            cg_tol (float): The threshold below which cg is deemed to have
-                converged. Defaults to 1e-5.
-            max_iter (int): The maximum number of iterations before
-                CG is deemed to have failed to converge.
-            preconditioner: Either None or a valid Preconditioner (e.g.
-                CudaRandomizedPreconditioner, CPURandomizedPreconditioner
-                etc). If None, no preconditioning is used. Otherwise,
-                the preconditioner is used for CG. The preconditioner
-                can be built by calling self.build_preconditioner
-                with appropriate arguments.
-            starting_guess: Either None or a cupy or numpy array containing
-                starting guess values for the weights. Defaults to None.
-
-        Returns:
-            weights: A cupy or numpy array of shape (M) for M
-                random features.
-            n_iter (int): The number of CG iterations.
-            losses (list): The loss on each iteration; for diagnostic
-                purposes.
-        """
-        if self.device == "gpu":
-            cg_fun = Cuda_CG
-            cg_operator = Cuda_CGLinearOperator(dataset, self.kernel,
-                    self.verbose)
-        else:
-            cg_fun = CPU_CG
-            cg_operator = CPU_CGLinearOperator(dataset, self.kernel,
-                    self.verbose)
-
-        z_trans_y, _ = self._calc_zTy(dataset)
-
-        weights, convergence = cg_fun(A = cg_operator, b = z_trans_y,
-                M = preconditioner, tol = cg_tol, atol=0)
-
-        if convergence != 0:
-            warnings.warn("Conjugate gradients failed to converge! Try refitting "
-                        "the model with updated settings.")
-
-        return weights, cg_operator.n_iter, []
-
-
-    def _calc_weights_lbfgs(self, fitting_dataset, tol, max_iter = 500):
-        """Calculates the weights when fitting the model using
-        L-BFGS. Only recommended for small datasets.
-
-        Args:
-            fitting_dataset: An OnlineDataset or OfflineDataset with
-                the training data to be fitted.
-            tol (float): The threshold for convergence.
-            max_iter (int): The maximum number of L-BFGS iterations.
-            random_state (int): Seed for the random number generator.
-
-        Returns:
-            weights: A cupy or numpy array (depending on self.device)
-                containing the resulting weights from fitting.
-            niter (int): The number of function evaluations required
-                to obtain this set of weights.
-        """
-        model_fitter = lBFGSModelFit(fitting_dataset, self.kernel,
-                    self.device, self.verbose)
-        weights = model_fitter.fit_model_lbfgs(max_iter, tol)
-        n_iter = model_fitter.get_niter()
-        return weights, n_iter
-
-
-
-
-    def _calc_weights_sgd(self, fitting_dataset, tol, max_iter = 50,
-            preconditioner = None, manual_lr = None):
-        """Calculates the weights when fitting the model using
-        stochastic variance reduction gradient descent, preferably
-        with preconditioning (although can also function without).
-        Excellent scaling, but a little less accurate than CG.
-
-        Args:
-            fitting_dataset: An OnlineDataset or OfflineDataset with
-                the training data to be fitted.
-            tol (float): The threshold for convergence.
-            max_iter (int): The maximum number of epochs.
-            preconditioner: Either None or a valid Preconditioner object.
-            manual_lr (float): Either None or a float. If not None, this
-                is a user-specified initial learning rate. If None, find
-                a good initial learning rate using autotuning.
-
-        Returns:
-            weights: A cupy or numpy array (depending on self.device)
-                containing the resulting weights from fitting.
-            niter (int): The number of function evaluations required
-                to obtain this set of weights.
-            losses (list): A list of losses at each iteration.
-        """
-        model_fitter = sgdModelFit(self.kernel.get_lambda(), self.device, self.verbose)
-        weights, losses = model_fitter.fit_model(fitting_dataset,
-                    self.kernel, tol = tol, max_epochs = max_iter,
-                    preconditioner = preconditioner, manual_lr = manual_lr)
-        n_iter = model_fitter.get_niter()
-        return weights, n_iter, losses
-
-
-    def _calc_weights_ams(self, fitting_dataset, tol, max_iter = 50):
-        """Calculates the weights when fitting the model using
-        AMSGrad. Use for testing purposes only -- this is not currently
-        competitive with our other methods on tough problems.
-
-        Args:
-            fitting_dataset: An OnlineDataset or OfflineDataset with
-                the training data to be fitted.
-            tol (float): The threshold for convergence.
-            max_iter (int): The maximum number of epochs.
-
-        Returns:
-            weights: A cupy or numpy array (depending on self.device)
-                containing the resulting weights from fitting.
-            niter (int): The number of function evaluations required
-                to obtain this set of weights.
-        """
-        model_fitter = amsModelFit(self.kernel.get_lambda(), self.device, self.verbose)
-        weights, losses = model_fitter.fit_model(fitting_dataset,
-                    self.kernel, tol = tol, max_epochs = max_iter)
-        n_iter = model_fitter.get_niter()
-        return weights, n_iter, losses
-
-
-
-    def _calc_variance(self, dataset):
-        """Calculates the var matrix used for calculating
-        posterior predictive variance on new datapoints. We
-        only ever use closed-form matrix-decomposition based
-        calculations here since the variance does not need to
-        be approximated as accurately as the posterior predictive
-        mean, so we can restrict the user to a smaller number of
-        random features (defined in constants.constants).
-
-        Args:
-            dataset: Either an OnlineDataset or an OfflineDataset containing
-                the data that needs to be fitted.
-
-        Returns:
-            var: A cupy or numpy array of shape (M, M) where M is the
-                number of random features.
-        """
-        if self.verbose:
-            print("Estimating variance...")
-        #This is a very naughty hack.
-        #TODO: Add a proper variance calc for linear.
-        if self.kernel_choice == "Linear":
-            return None
-        z_trans_z = self._calc_var_design_mat(dataset)
-        lambda_ = self.kernel.get_lambda()
-        z_trans_z.flat[::z_trans_z.shape[0]+1] += lambda_**2
-        if self.device == "cpu":
-            var = np.linalg.pinv(z_trans_z)
-        else:
-            var = cp.linalg.pinv(z_trans_z)
-        if self.verbose:
-            print("Variance estimated.")
-        return var
-
-
-    def _direct_weight_calc(self, chol_z_trans_z, z_trans_y):
-        """Calculates the cholesky decomposition of (z^T z + lambda)^-1
-        and then uses this to calculate the weights as (z^T z + lambda)^-1 z^T y.
-        This exact calculation is only suitable for < 10,000 random features or so;
-        cholesky has O(M^3) scaling.
-
-        Args:
-            z_trans_z: An M x M cupy or numpy matrix where M is the number of
-                random features formed from z^T z when z is the random features
-                generated for raw input data X.
-            z_trans_y: A length M cupy or numpy array where M is the number of
-                random features, formed from z^T y.
-
-        Returns:
-            chol_z_trans_z: The cholesky decomposition of z_trans_z. An M x M
-                cupy or numpy matrix.
-            weights: A length M cupy or numpy array containing the weights.
-        """
-        lambda_p = self.kernel.get_hyperparams(logspace=False)[0]
-        chol_z_trans_z.flat[::chol_z_trans_z.shape[0]+1] += lambda_p**2
-        if self.device == "cpu":
-            chol_z_trans_z = np.linalg.cholesky(chol_z_trans_z)
-            weights = cho_solve((chol_z_trans_z, True), z_trans_y)
-        else:
-            chol_z_trans_z = cp.linalg.cholesky(chol_z_trans_z)
-            weights = cpx.scipy.linalg.solve_triangular(chol_z_trans_z,
-                            z_trans_y, lower=True)
-            weights = cpx.scipy.linalg.solve_triangular(chol_z_trans_z.T,
-                            weights, lower=False)
-        return chol_z_trans_z, weights
-
-
-
-    def _calc_design_mat(self, dataset):
-        """Calculates the z_trans_z (z^T z) matrix where Z is the random
-        features generated from raw input data X. Also generates
-        y^T y and z^T y.
-
-        Args:
-            dataset: An OnlineDataset or OfflineDataset object storing
-                the data we will use.
-
-        Returns:
-            z_trans_z: The cupy or numpy matrix resulting from z^T z. Will
-                be shape M x M for M random features.
-            z_trans_y: The cupy or numpy length M array resulting from
-                z^T y for M random features.
-            y_trans_y (float): The result of the dot product of y with itself.
-                Used for some marginal likelihood calculations.
-        """
-        num_rffs = self.kernel.get_num_rffs()
-        if self.device == "cpu":
-            z_trans_z, z_trans_y = np.zeros((num_rffs, num_rffs)), np.zeros((num_rffs))
-        else:
-            z_trans_z = cp.zeros((num_rffs, num_rffs))
-            z_trans_y = cp.zeros((num_rffs))
-        y_trans_y = 0.0
-        if dataset.pretransformed:
-            for xfeatures, ydata in dataset.get_chunked_data():
-                z_trans_y += xfeatures.T @ ydata
-                z_trans_z += xfeatures.T @ xfeatures
-                y_trans_y += ydata.T @ ydata
-        else:
-            for xdata, ydata in dataset.get_chunked_data():
-                xfeatures = self.kernel.transform_x(xdata)
-                z_trans_y += xfeatures.T @ ydata
-                z_trans_z += xfeatures.T @ xfeatures
-                y_trans_y += ydata.T @ ydata
-        return z_trans_z, z_trans_y, float(y_trans_y)
-
-
-    def _calc_var_design_mat(self, dataset):
-        """Calculates the z_trans_z (z^T z) matrix where Z is the random
-        features generated from raw input data X, for calculating
-        variance only (since in this case we only use up to
-        self.variance_rffs of the features generated).
-
-        Args:
-            dataset: An OnlineDataset or OfflineDataset object storing
-                the data we will use.
-
-        Returns:
-            z_trans_z: The cupy or numpy matrix resulting from z^T z. Will
-                be shape M x M for M random features.
-        """
-        num_rffs = self.variance_rffs
-        if self.device == "cpu":
-            z_trans_z = np.zeros((num_rffs, num_rffs))
-        else:
-            z_trans_z = cp.zeros((num_rffs, num_rffs))
-        if dataset.pretransformed:
-            for xfeatures in dataset.get_chunked_x_data():
-                z_trans_z += xfeatures[:,:num_rffs].T @ xfeatures[:,:num_rffs]
-        else:
-            for xdata in dataset.get_chunked_x_data():
-                xfeatures = self.kernel.transform_x(xdata)
-                z_trans_z += xfeatures[:,:num_rffs].T @ xfeatures[:,:num_rffs]
-        return z_trans_z
-
-
-    def calc_gradient_terms(self, dataset, subsample = 1):
-        """Calculates terms needed for the gradient calculation.
-        Specific for negative marginal log likelihood (NMLL),
-        as opposed to loss on the training set.
-
-        Args:
-            dataset: An OnlineDataset or OfflineDataset with the
-                raw data we need for these calculations.
-            subsample (float): A value in the range [0.01,1] that indicates what
-                fraction of the training set to use each time the gradient is
-                calculated (the same subset is used every time). In general, 1
-                will give better results, but using a subsampled subset can be
-                a fast way to find the (approximate) location of a good
-                hyperparameter set.
-
-        Returns:
-            z_trans_z: The M x M cupy or numpy matrix for M random features.
-            z_trans_y: The length M cupy or numpy array for M random features.
-            y_trans_y (float): The dot product of y with itself.
-            dz_dsigma_ty (array): Derivative w/r/t kernel-specific hyperparams times y.
-            inner_deriv (array): Derivative for the log determinant portion of the NMLL.
-            ndatapoints (int): The number of datapoints.
-        """
-        if subsample > 1 or subsample < 0.01:
-            raise ValueError("Subsample must be in the range [0.01, 1].")
-
-        num_rffs = self.kernel.get_num_rffs()
-        hparams = self.kernel.get_hyperparams()
-        if self.device == "cpu":
-            z_trans_z = np.zeros((num_rffs, num_rffs))
-            z_trans_y = np.zeros((num_rffs))
-            dz_dsigma_ty = np.zeros((num_rffs, hparams.shape[0] - 2))
-            inner_deriv = np.zeros((num_rffs, num_rffs,
-                                    hparams.shape[0] - 2))
-            transpose = np.transpose
-        else:
-            z_trans_z = cp.zeros((num_rffs, num_rffs))
-            z_trans_y = cp.zeros((num_rffs))
-            dz_dsigma_ty = cp.zeros((num_rffs, hparams.shape[0] - 2))
-            inner_deriv = cp.zeros((num_rffs, num_rffs,
-                                    hparams.shape[0] - 2))
-            transpose = cp.transpose
-
-        y_trans_y = 0
-        ndatapoints = 0
-
-        if subsample == 1:
-            for xdata, ydata in dataset.get_chunked_data():
-                xfeatures, dz_dsigma = self.kernel.kernel_specific_gradient(xdata)
-                z_trans_y += xfeatures.T @ ydata
-                z_trans_z += xfeatures.T @ xfeatures
-                y_trans_y += ydata.T @ ydata
-                ndatapoints += xfeatures.shape[0]
-
-                for i in range(dz_dsigma.shape[2]):
-                    dz_dsigma_ty[:,i] += dz_dsigma[:,:,i].T @ ydata
-                    inner_deriv[:,:,i] += dz_dsigma[:,:,i].T @ xfeatures
-        else:
-            rng = np.random.default_rng(123)
-            for xdata, ydata in dataset.get_chunked_data():
-                idx_size = max(1, int(subsample * xdata.shape[0]))
-                idx = rng.choice(xdata.shape[0], idx_size, replace=False)
-                xdata, ydata = xdata[idx,...], ydata[idx]
-                xfeatures, dz_dsigma = self.kernel.kernel_specific_gradient(xdata)
-                z_trans_y += xfeatures.T @ ydata
-                z_trans_z += xfeatures.T @ xfeatures
-                y_trans_y += ydata.T @ ydata
-                ndatapoints += xdata.shape[0]
-
-                for i in range(dz_dsigma.shape[2]):
-                    dz_dsigma_ty[:,i] += dz_dsigma[:,:,i].T @ ydata
-                    inner_deriv[:,:,i] += dz_dsigma[:,:,i].T @ xfeatures
-
-        inner_deriv += transpose(inner_deriv, (1,0,2))
-        return z_trans_z, z_trans_y, float(y_trans_y), dz_dsigma_ty, inner_deriv, ndatapoints
-
-
-
-
-
-
     def exact_nmll(self, hyperparams, dataset):
         """Calculates the exact negative marginal log likelihood (the model
         'score') using matrix decompositions. Fast for small numbers of random
@@ -733,7 +219,7 @@ class xGPRegression(GPRegressionBaseclass):
         """
         self.kernel.set_hyperparams(hyperparams, logspace=True)
         nsamples = dataset.get_ndatapoints()
-        z_trans_z, z_trans_y, y_trans_y = self._calc_design_mat(dataset)
+        z_trans_z, z_trans_y, y_trans_y = calc_design_mat(dataset, self.kernel)
         if self.device == "cpu":
             diagfunc, logfunc = np.diag, np.log
         else:
@@ -744,7 +230,8 @@ class xGPRegression(GPRegressionBaseclass):
         #lead to a singular design matrix. This is rare, but be prepared to
         #handle if this problem is encountered.
         try:
-            chol_z_trans_z, weights = self._direct_weight_calc(z_trans_z, z_trans_y)
+            chol_z_trans_z, weights = direct_weight_calc(z_trans_z, z_trans_y,
+                    self.kernel)
         except:
             warnings.warn("Near-singular matrix encountered when calculating score for "
                     f"hyperparameters {hyperparams}.")
@@ -801,7 +288,7 @@ class xGPRegression(GPRegressionBaseclass):
             print("Evaluating gradient...")
 
         z_trans_z, z_trans_y, y_trans_y, dz_dsigma_ty, inner_deriv, nsamples = \
-                        self.calc_gradient_terms(dataset, subsample)
+                        calc_gradient_terms(dataset, self.kernel, self.device, subsample)
         grad = np.zeros((hparams.shape[0]))
 
         #Try-except here since very occasionally, optimizer samples a really
@@ -924,7 +411,7 @@ class xGPRegression(GPRegressionBaseclass):
                         random_seed, preconditioner)
 
         if preconditioner is None:
-            z_trans_y, y_trans_y = self._calc_zTy(train_dataset)
+            z_trans_y, y_trans_y = calc_zty(train_dataset, self.kernel)
         else:
             z_trans_y = preconditioner.get_zty()
             y_trans_y = preconditioner.get_yty()
@@ -947,3 +434,738 @@ class xGPRegression(GPRegressionBaseclass):
         if pretransform_dir is not None:
             train_dataset.delete_dataset_files()
         return float(nmll)
+
+
+
+    def fit(self, dataset, preconditioner = None,
+                tol = 1e-6, preset_hyperparams=None, max_iter = 500,
+                random_seed = 123, run_diagnostics = False,
+                mode = "cg", suppress_var = False,
+                manual_lr = None):
+        """Fits the model after checking that the input data
+        is consistent with the kernel choice and other user selections.
+
+        Args:
+            dataset: Object of class OnlineDataset or OfflineDataset.
+            preconditioner: Either None or a valid Preconditioner (e.g.
+                CudaRandomizedPreconditioner, CPURandomizedPreconditioner
+                etc). If None, no preconditioning is used.
+            tol (float): The threshold below which iterative strategies (L-BFGS, CG,
+                SGD) are deemed to have converged. Defaults to 1e-5. Note that how
+                reaching the threshold is assessed may depend on the algorithm.
+            preset_hyperparams: Either None or a numpy array. If None,
+                hyperparameters must already have been tuned using one
+                of the tuning methods (e.g. tune_hyperparams_bayes_bfgs).
+                If supplied, must be a numpy array of shape (N, 2) where
+                N is the number of hyperparams for the kernel in question.
+            max_iter (int): The maximum number of epochs for iterative strategies.
+            random_seed (int): The random seed for the random number generator.
+            run_diagnostics (bool): If True, the number of conjugate
+                gradients and the preconditioner diagnostics ratio are returned.
+            mode (str): Must be one of "sgd", "amsgrad", "cg", "lbfgs", "exact".
+                Determines the approach used. If 'exact', self.kernel.get_num_rffs
+                must be <= constants.constants.MAX_CLOSED_FORM_RFFS.
+            suppress_var (bool): If True, do not calculate variance. This is generally only
+                useful when optimizing hyperparameters, since otherwise we want to calculate
+                the variance. It is best to leave this as default False unless performing
+                hyperparameter optimization.
+            manual_lr (float): Either None or a float. If not None, this is the initial
+                learning rate used for stochastic gradient descent or ams grad (ignored
+                for all other fitting modes). If None, the algorithm will try to determine
+                a good initial learning rate itself.
+
+        Returns:
+            Does not return anything unless run_diagnostics is True.
+            n_iter (int): The number of iterations for conjugate gradients, L-BFGS or sgd.
+            losses (list): The loss on each iteration. Only for SGD and CG, otherwise,
+                empty list.
+
+        Raises:
+            ValueError: The input dataset is checked for validity before tuning is
+                initiated, an error is raised if problems are found."""
+        self._run_fitting_prep(dataset, random_seed, preset_hyperparams)
+        if self.verbose:
+            print("starting fitting")
+
+        if mode == "exact":
+            if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
+                raise ValueError("You specified 'exact' fitting, but self.fitting_rffs is "
+                        f"> {constants.MAX_CLOSED_FORM_RFFS}.")
+            self.weights, n_iter, losses = calc_weights_exact(dataset, self.kernel)
+
+        elif mode == "cg":
+            self.weights, n_iter, losses = cg_fit_lib_ext(self.kernel, dataset, tol,
+                    max_iter, preconditioner, self.verbose)
+
+        elif mode == "lbfgs":
+            model_fitter = lBFGSModelFit(dataset, self.kernel,
+                    self.device, self.verbose)
+            self.weights, n_iter, losses = model_fitter.fit_model_lbfgs(max_iter, tol)
+
+        elif mode == "sgd":
+            model_fitter = sgdModelFit(self.kernel.get_lambda(), self.device, self.verbose)
+            self.weights, n_iter, losses = model_fitter.fit_model(dataset,
+                    self.kernel, tol = tol, max_epochs = max_iter,
+                    preconditioner = preconditioner, manual_lr = manual_lr)
+
+        elif mode == "amsgrad":
+            model_fitter = amsModelFit(self.kernel.get_lambda(), self.device, self.verbose)
+            self.weights, n_iter, losses = model_fitter.fit_model(dataset,
+                    self.kernel, tol = tol, max_epochs = max_iter)
+
+        else:
+            raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
+                        "'lbfgs', 'cg', 'sgd', 'amsgrad', 'exact'.")
+        if not suppress_var:
+            self.var = calc_variance_exact(self.kernel, dataset, self.kernel_choice,
+                                self.variance_rffs)
+
+        if self.verbose:
+            print("Fitting complete.")
+        if self.device == "gpu":
+            mempool = cp.get_default_memory_pool()
+            mempool.free_all_blocks()
+        if run_diagnostics:
+            return n_iter, losses
+
+
+
+    #############################
+    #The next block of functions are used for tuning hyperparameters. We provide
+    #a variety of strategies (the user can additionally combine them
+    #to generate more), with some strong recommendations on which to use when
+    #(see docs). The remaining code in this class is dedicated to these
+    #various strategies.
+    #############################
+
+
+
+    def tune_hyperparams_fine_bayes(self, dataset, bounds = None, random_seed = 123,
+                    max_bayes_iter = 30, tol = 1e-1, nmll_rank = 1024,
+                    nmll_probes = 25, nmll_iter = 500,
+                    nmll_tol = 1e-6, pretransform_dir = None,
+                    preconditioner_mode = "srht_2"):
+        """Tunes the hyperparameters using Bayesian optimization, WITHOUT
+        using gradient information. This algorithm is not very efficient for searching the entire
+        hyperparameter space, BUT for 3 and 4 hyperparameter kernels, it can be very effective
+        for searching some bounded region. Consequently, it may sometimes be useful to
+        use a "crude" method (e.g. minimal_bayes) to find a starting point,
+        then run this method to fine-tune.
+
+        This method uses approximate NMLL. Note that the approximation will only be
+        good so long as the 'nmll' settings selected are reasonable.
+
+        Args:
+            dataset: Object of class OnlineDataset or OfflineDataset.
+            bounds (np.ndarray): The bounds for optimization. Must be supplied,
+                in contrast to most other tuning routines, since this routine
+                is more seldom used for searching the whole hyperparameter space.
+                Must be a 2d numpy array of shape (num_hyperparams, 2).
+            random_seed (int): A random seed for the random
+                number generator. Defaults to 123.
+            max_bayes_iter (int): The maximum number of iterations of Bayesian
+                optimization.
+            tol (float): Criteria for convergence.
+            nmll_rank (int): The preconditioner rank for approximate NMLL estimation.
+                A larger value may reduce the number of iterations for nmll approximation
+                to converge and improve estimation accuracy, but will also increase
+                cost for preconditioner construction.
+            nmll_probes (int): The number of probes for approximate NMLL estimation.
+                A larger value may improve accuracy of estimation but with increased
+                computational cost.
+            nmll_iter (int): The maximum number of iterations for approximate NMLL.
+                A larger value may improve accuracy of estimation but with
+                increased computational cost.
+            nmll_tol (float): The convergence tolerance for approximate NMLL.
+                A smaller value may improve accuracy of estimation but with
+                increased computational cost.
+            pretransform_dir (str): Either None or a valid filepath where pretransformed
+                data can be saved. If not None, the dataset is "pretransformed" before
+                each round of evaluations when using approximate NMLL. This can take up a
+                lot of disk space if the number of random features is large, but can
+                greatly increase speed of fitting for convolution kernels with large #
+                random features.
+            preconditioner_mode (str): One of "srht", "srht_2". Determines the mode of
+                preconditioner construction. "srht" is cheaper, requiring one pass over
+                the dataset, but lower quality. "srht_2" requires two passes over the
+                dataset but is better. Prefer "srht_2" unless you are running on CPU,
+                in which case "srht" may be preferable.
+
+        Returns:
+            hyperparams (np.ndarray): The best hyperparams found during optimization.
+            n_feval (int): The number of function evaluations during optimization.
+            best_score (float): The best negative marginal log-likelihood achieved.
+
+        Raises:
+            ValueError: The input dataset is checked for validity before tuning is
+                initiated. If problems are found, a ValueError will provide an
+                explanation of the error. This method will also raise a ValueError
+                if you try to use it on a kernel with > 4 hyperparameters (since
+                Bayesian tuning loses efficiency in high dimensions rapidly).
+        """
+        if nmll_rank >= self.training_rffs:
+            raise ValueError("NMLL rank must be < the number of training rffs.")
+        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "approximate")
+        nmll_params = (nmll_rank, nmll_probes, random_seed,
+                    nmll_iter, nmll_tol, pretransform_dir,
+                    preconditioner_mode)
+
+        hyperparams, best_score, n_feval = pure_bayes_tuning(self.approximate_nmll,
+                        dataset, bounds, random_seed,
+                        max_iter = max_bayes_iter,
+                        verbose = self.verbose, tol = tol,
+                        nmll_params = nmll_params)
+        self._post_tuning_cleanup(dataset, hyperparams)
+        return hyperparams, n_feval, best_score
+
+
+
+
+    def tune_hyperparams_crude_grid(self, dataset, bounds = None, random_seed = 123,
+                    n_gridpoints = 30, n_pts_per_dim = 10, subsample = 1,
+                    eigval_quotient = 1e6, min_eigval = 1e-5):
+        """Tunes the hyperparameters using gridsearch, but with
+        a 'trick' that simplifies the problem greatly for 2-3 hyperparameter
+        kernels. Hyperparameters are scored using an exact NMLL calculation.
+        The NMLL calculation uses a matrix decomposition with cubic
+        scaling in the number of random features, so it is extremely slow
+        for anything more than 3-4,000 random features, but has
+        low risk of overfitting and is easy to use. It is therefore
+        intended as a "quick-and-dirty" method. We recommend using
+        this with a small number of random features (e.g. 500 - 3000)
+        as a starting point for fine-tuning.
+
+        Args:
+            dataset: Object of class OnlineDataset or OfflineDataset.
+            bounds (np.ndarray): The bounds for optimization. If None, default
+                boundaries for the kernel will be used. Otherwise, must be an
+                array of shape (# hyperparams, 2).
+            random_seed (int): A random seed for the random
+                number generator. Defaults to 123.
+            n_gridpoints (int): The number of gridpoints per non-shared hparam.
+            n_pts_per_dim (int): The number of grid points per shared hparam.
+            subsample (float): A value in the range [0.01,1] that indicates what
+                fraction of the training set to use each time the score is
+                calculated (the same subset is used every time). In general, 1
+                will give better results, but using a subsampled subset can be
+                a fast way to find the (approximate) location of a good
+                hyperparameter set.
+            eigval_quotient (float): A value by which the largest singular value
+                of Z^T Z is divided to determine the smallest acceptable eigenvalue
+                of Z^T Z (singular vectors with eigenvalues smaller than this
+                are discarded). Setting this to larger values will make this
+                slightly more accurate, at the risk of numerical stability issues.
+                In general, do not change this without good reason.
+            min_eigval (float): If the largest singular value of Z^T Z divided by
+                eigval_quotient is < min_eigval, min_eigval is used as the cutoff
+                threshold instead. Setting this to smaller values will make this
+                slightly more accurate, at the risk of numerical stability
+                issues. In general, do not change this without good reason.
+
+        Returns:
+            hyperparams (np.ndarray): The best hyperparams found during optimization.
+            n_feval (int): The number of function evaluations during optimization.
+            best_score (float): The best negative marginal log-likelihood achieved.
+            scores (tuple): A tuple where the first element is the sigma values
+                evaluated and the second is the resulting scores. Can be useful
+                for diagnostic purposes.
+
+        Raises:
+            ValueError: The input dataset is checked for validity before tuning is
+                initiated. If problems are found, a raise exception will provide an
+                explanation of the error. This method will also raise an exception
+                if you try to use it on a kernel with > 4 hyperparameters (since
+                this strategy no longer provides any benefit under those conditions)
+                or < 3.
+            n_init_pts (int): The number of initial grid points to evaluate before
+                Bayesian optimization. 10 (the default) is usually fine. If you are
+                searcing a smaller space, however, you can save time by using
+                a smaller # (e.g. 5).
+        """
+        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "exact")
+        num_hparams = self.kernel.get_hyperparams().shape[0]
+        if num_hparams == 2:
+            best_score, hyperparams = shared_hparam_search(np.array([]), self.kernel,
+                    dataset, bounds, n_pts_per_dim, 3, subsample = subsample)
+            n_feval, scores = 1, ()
+        elif num_hparams == 3:
+            hyperparams, scores, best_score = crude_grid_tuning(self.kernel,
+                                dataset, bounds, self.verbose,
+                                n_gridpoints, subsample = subsample,
+                                eigval_quotient = eigval_quotient,
+                                min_eigval = min_eigval)
+            n_feval = n_gridpoints
+
+        else:
+            raise ValueError("The crude grid procedure is only appropriate for "
+                    "kernels with 2-3 hyperparameters.")
+
+        self._post_tuning_cleanup(dataset, hyperparams)
+        return hyperparams, n_feval, best_score, scores
+
+
+
+
+    def tune_hyperparams_crude_bayes(self, dataset, bounds = None, random_seed = 123,
+                    max_bayes_iter = 30, bayes_tol = 1e-1, n_pts_per_dim = 10,
+                    n_cycles = 3, n_init_pts = 10, subsample = 1,
+                    eigval_quotient = 1e6, min_eigval = 1e-5):
+        """Tunes the hyperparameters using Bayesian optimization, but with
+        a 'trick' that simplifies the problem greatly for 2-4 hyperparameter
+        kernels. Hyperparameters are scored using an exact NMLL calculation.
+        The NMLL calculation uses a matrix decomposition with cubic
+        scaling in the number of random features, so it is extremely slow
+        for anything more than 3-4,000 random features, but has
+        low risk of overfitting and is easy to use. It is therefore
+        intended as a "quick-and-dirty" method. We recommend using
+        this with a small number of random features (e.g. 500 - 3000)
+        and if performance is insufficient, fine-tune hyperparameters
+        using a method with better scalability.
+
+        Args:
+            dataset: Object of class OnlineDataset or OfflineDataset.
+            random_seed (int): A random seed for the random
+                number generator. Defaults to 123.
+            max_bayes_iter (int): The maximum number of iterations of Bayesian
+                optimization.
+            bounds (np.ndarray): The bounds for optimization. If None, default
+                boundaries for the kernel will be used. Otherwise, must be an
+                array of shape (# hyperparams, 2).
+            bayes_tol (float): Criteria for convergence for Bayesian
+                optimization.
+            n_pts_per_dim (int): The number of grid points per shared hparam.
+            n_cycles (int): The number of cycles of "telescoping" grid search
+                to run. Increasing n_pts_per_dim and n_cycles usually only
+                results in very small improvements in performance.
+            subsample (float): A value in the range [0.01,1] that indicates what
+                fraction of the training set to use each time the score is
+                calculated (the same subset is used every time). In general, 1
+                will give better results, but using a subsampled subset can be
+                a fast way to find the (approximate) location of a good
+                hyperparameter set.
+            eigval_quotient (float): A value by which the largest singular value
+                of Z^T Z is divided to determine the smallest acceptable eigenvalue
+                of Z^T Z (singular vectors with eigenvalues smaller than this
+                are discarded). Setting this to larger values will make this
+                slightly more accurate, at the risk of numerical stability issues.
+                In general, do not change this without good reason.
+            min_eigval (float): If the largest singular value of Z^T Z divided by
+                eigval_quotient is < min_eigval, min_eigval is used as the cutoff
+                threshold instead. Setting this to smaller values will make this
+                slightly more accurate, at the risk of numerical stability
+                issues. In general, do not change this without good reason.
+
+        Returns:
+            hyperparams (np.ndarray): The best hyperparams found during optimization.
+            n_feval (int): The number of function evaluations during optimization.
+            best_score (float): The best negative marginal log-likelihood achieved.
+            scores (tuple): A tuple where the first element is the sigma values
+                evaluated and the second is the resulting scores. Can be useful
+                for diagnostic purposes.
+
+        Raises:
+            ValueError: The input dataset is checked for validity before tuning is
+                initiated. If problems are found, a raise exception will provide an
+                explanation of the error. This method will also raise an exception
+                if you try to use it on a kernel with > 4 hyperparameters (since
+                this strategy no longer provides any benefit under those conditions)
+                or < 3.
+            n_init_pts (int): The number of initial grid points to evaluate before
+                Bayesian optimization. 10 (the default) is usually fine. If you are
+                searcing a smaller space, however, you can save time by using
+                a smaller # (e.g. 5).
+        """
+        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "exact")
+        num_hparams = self.kernel.get_hyperparams().shape[0]
+        if num_hparams == 2:
+            best_score, hyperparams = shared_hparam_search(np.array([]), self.kernel,
+                    dataset, bounds, n_pts_per_dim, n_cycles, subsample = subsample)
+            n_feval, scores = 1, ()
+        elif 5 > num_hparams > 2:
+            hyperparams, scores, best_score, n_feval = bayes_grid_tuning(self.kernel,
+                                dataset, bounds, random_seed, max_bayes_iter,
+                                self.verbose, bayes_tol,
+                                n_pts_per_dim, n_cycles, n_init_pts,
+                                subsample = subsample,
+                                eigval_quotient = eigval_quotient,
+                                min_eigval = min_eigval)
+
+        else:
+            raise ValueError("The crude_bayes procedure is only appropriate for "
+                    "kernels with 3-4 hyperparameters.")
+
+        self._post_tuning_cleanup(dataset, hyperparams)
+        return hyperparams, n_feval, best_score, scores
+
+
+
+
+    def tune_hyperparams_fine_direct(self, dataset, bounds = None,
+                    optim_method = "Powell", starting_hyperparams = None,
+                    random_seed = 123, max_iter = 50, nmll_rank = 1024,
+                    nmll_probes = 25, nmll_iter = 500,
+                    nmll_tol = 1e-6, pretransform_dir = None,
+                    preconditioner_mode = "srht_2"):
+        """Tunes hyperparameters using either Nelder-Mead or Powell (Powell
+        preferred), with an approximate NMLL calculation instead of exact.
+        This is generally not useful for searching the whole hyperparameter space.
+        If given a good starting point, however, it can work pretty well.
+        Consequently it is best used to fine-tune "crude" hyperparameters obtained
+        from an initial tuning run with a small number of random features in a
+        less scalable method (e.g. minimal bayes).
+
+        This method uses approximate NMLL. Note that the approximation will only be
+        good so long as the 'nmll' parameters selected are reasonable.
+
+        Args:
+            dataset: Object of class OnlineDataset or OfflineDataset.
+            bounds (np.ndarray): The bounds for optimization.
+                Either a 2d numpy array of shape (num_hyperparams, 2) or None,
+                in which case default kernel boundaries are used.
+            optim_method (str): One of "Powell", "Nelder-Mead".
+            starting_hyperparams (np.ndarray): A starting point for optimization.
+                Defaults to None. If None, randomly selected locations are used.
+            random_seed (int): Seed for the random number generator.
+            max_iter (int): The maximum number of iterations.
+            nmll_rank (int): The preconditioner rank for approximate NMLL estimation.
+                A larger value may reduce the number of iterations for nmll
+                approximation to converge and improve estimation accuracy, but
+                will also increase computational cost for preconditioner construction.
+            nmll_probes (int): The number of probes for approximate NMLL estimation.
+                A larger value may improve accuracy of estimation but with increased
+                computational cost.
+            nmll_iter (int): The maximum number of iterations for approximate NMLL.
+                A larger value may improve accuracy of estimation but with increased
+                computational cost.
+            nmll_tol (float): The convergence tolerance for approximate NMLL.
+                A smaller value may improve accuracy of estimation but with
+                increased computational cost.
+            pretransform_dir (str): Either None or a valid filepath where pretransformed
+                data can be saved. If not None, the dataset is "pretransformed" before
+                each round of evaluations when using approximate NMLL. This can take up a
+                lot of disk space if the number of random features is large, but can
+                greatly increase speed of fitting for convolution kernels with large #
+                random features.
+            preconditioner_mode (str): One of "srht", "srht_2". Determines the mode of
+                preconditioner construction. "srht" is cheaper, requiring one pass over
+                the dataset, but lower quality. "srht_2" requires two passes over the
+                dataset but is better. Prefer "srht_2" unless you are running on CPU,
+                in which case "srht" may be preferable.
+
+        Returns:
+            hyperparams (np.ndarray): The best hyperparams found during optimization.
+            n_feval (int): The number of function evaluations during optimization.
+                best_score (float): The best negative marginal log-likelihood achieved.
+
+        Raises:
+            ValueError: The input dataset is checked for validity before tuning is
+                initiated. If problems are found, a ValueError will provide an
+                explanation of the error.
+        """
+        if optim_method not in ["Powell", "Nelder-Mead"]:
+            raise ValueError("optim_method must be in ['Powell', 'Nelder-Mead']")
+        #If the user passed starting hyperparams, use them. Otherwise,
+        #if a kernel already exists, use those hyperparameters. Otherwise...
+        init_hyperparams = starting_hyperparams
+        if init_hyperparams is None and self.kernel is not None:
+            init_hyperparams = self.kernel.get_hyperparams()
+            init_hyperparams = np.round(init_hyperparams, 1)
+
+        if nmll_rank >= self.training_rffs:
+            raise ValueError("NMLL rank must be < the number of training rffs.")
+        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "approximate")
+        #If kernel was only just now created by run_pretuning_prep and
+        #no starting hyperparams were passed, use the mean of the bounds.
+        #This is...not good in general, but running multiple restarts with NM
+        #is pretty expensive, which is why user is recommended to specify a
+        #starting point for NM. The mean of the bounds is a (bad) default.
+        if init_hyperparams is None:
+            init_hyperparams = np.mean(bounds, axis=1)
+
+        bounds_tuples = list(map(tuple, bounds))
+        if self.verbose:
+            print("Now beginning NM minimization.")
+
+        args = (dataset, nmll_rank, nmll_probes, random_seed,
+                    nmll_iter, nmll_tol, pretransform_dir,
+                    preconditioner_mode)
+
+        if optim_method == "Powell":
+            res = minimize(self.approximate_nmll, x0 = init_hyperparams,
+                options={"maxfev":max_iter, "xtol":1e-1, "ftol":1},
+                method=optim_method, args = args, bounds = bounds_tuples)
+        elif optim_method == "Nelder-Mead":
+            res = minimize(self.approximate_nmll, x0 = init_hyperparams,
+                options={"maxfev":max_iter,
+                        "xatol":1e-1, "fatol":1e-1},
+                method=optim_method, args = args, bounds = bounds_tuples)
+
+        self._post_tuning_cleanup(dataset, res.x)
+        return res.x, res.nfev, res.fun
+
+
+
+    def tune_hyperparams_crude_lbfgs(self, dataset, random_seed = 123,
+            max_iter = 20, n_restarts = 1, starting_hyperparams = None,
+            bounds = None, subsample = 1):
+        """Tunes the hyperparameters using the L-BFGS algorithm, with
+        NMLL as the objective.
+        It uses either a supplied set of starting hyperparameters OR
+        randomly chosen locations. If the latter, it is run
+        n_restarts times. Because it uses exact NMLL rather than
+        approximate, this method is only suitable to small numbers
+        of random features; scaling to larger numbers of random
+        features is quite poor. Using > 5000 random features in
+        this method will be fairly slow. It may also be less useful
+        for large datasets. This is therefore intended as a "quick-
+        and-dirty" method. Often however the hyperparameters obtained
+        using this method are good enough that no further fine-tuning
+        is required.
+
+        Args:
+            dataset: Object of class OnlineDataset or OfflineDataset.
+            random_seed (int): A random seed for the random
+                number generator. Defaults to 123.
+            max_iter (int): The maximum number of iterations for
+                which l-bfgs should be run per restart.
+            n_restarts (int): The maximum number of restarts to run l-bfgs.
+            starting_hyperparams (np.ndarray): A starting point for l-bfgs
+                based optimization. Defaults to None. If None, randomly
+                selected locations are used.
+            bounds (np.ndarray): The bounds for optimization. Defaults to
+                None, in which case the kernel uses its default bounds.
+                If supplied, must be a 2d numpy array of shape (num_hyperparams, 2).
+            subsample (float): A value in the range [0.01,1] that indicates what
+                fraction of the training set to use each time the gradient is
+                calculated (the same subset is used every time). In general, 1
+                will give better results, but using a subsampled subset can be
+                a fast way to find the (approximate) location of a good
+                hyperparameter set.
+
+        Returns:
+            hyperparams (np.ndarray): The best hyperparams found during optimization.
+            n_feval (int): The number of function evaluations during optimization.
+            best_score (float): The best negative marginal log-likelihood achieved.
+
+        Raises:
+            ValueError: The input dataset is checked for validity before tuning is
+                initiated. If problems are found, a ValueError will provide an
+                explanation of the error.
+        """
+        if subsample < 0.01 or subsample > 1:
+            raise ValueError("subsample must be in the range [0.01, 1].")
+
+        init_hyperparams = starting_hyperparams
+        if init_hyperparams is None and self.kernel is not None:
+            init_hyperparams = self.kernel.get_hyperparams(logspace=True)
+
+        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "exact")
+        best_x, best_score, net_iterations = None, np.inf, 0
+        bounds_tuples = list(map(tuple, bounds))
+
+        if init_hyperparams is None:
+            init_hyperparams = self.kernel.get_hyperparams(logspace=True)
+
+        rng = np.random.default_rng(random_seed)
+        args, cost_fun = (dataset, subsample), self.exact_nmll_gradient
+
+        if self.verbose:
+            print("Now beginning L-BFGS minimization.")
+
+        for iteration in range(n_restarts):
+            res = minimize(cost_fun, options={"maxiter":max_iter},
+                        x0 = init_hyperparams, args = args,
+                        jac = True, bounds = bounds_tuples)
+
+            net_iterations += res.nfev
+            if res.fun < best_score:
+                best_x = res.x
+                best_score = res.fun
+            if self.verbose:
+                print(f"Restart {iteration} completed. Best score is {best_score}.")
+
+            init_hyperparams = [rng.uniform(low = bounds[j,0], high = bounds[j,1])
+                    for j in range(bounds.shape[0])]
+            init_hyperparams = np.asarray(init_hyperparams)
+
+        if best_x is None:
+            raise ValueError("All restarts failed to find acceptable hyperparameters.")
+
+        self._post_tuning_cleanup(dataset, best_x)
+        return best_x, net_iterations, best_score
+
+
+
+
+    def tune_hyperparams_map_lbfgs(self, dataset, random_seed = 123,
+            max_iter = 20, n_restarts = 1, bounds = None, a_reg = 1.0,
+            nmll_rank = 1024, nmll_probes = 25, nmll_iter = 200,
+            nmll_tol = 1e-6):
+        """Tunes the hyperparameters using the L-BFGS algorithm, with
+        training set loss as the objective. Unlike crude_lbfgs, this
+        algorithm scales well to a large number of random features
+        and datapoints. It measures loss on the training set using
+        a regularization term or complexity penalty, and runs up
+        to the indicated number of restarts.
+
+        Args:
+            dataset: Object of class OnlineDataset or OfflineDataset.
+            random_seed (int): A random seed for the random
+                number generator. Defaults to 123.
+            max_iter (int): The maximum number of iterations for
+                which l-bfgs should be run per restart.
+            n_restarts (int): The maximum number of restarts to run l-bfgs.
+            bounds (np.ndarray): The bounds for optimization. Defaults to
+                None, in which case the kernel uses its default bounds.
+                If supplied, must be a 2d numpy array of shape (num_hyperparams, 2).
+            a_reg (float): A value > 0 that determines the strength of regularization.
+
+        Returns:
+            hyperparams (np.ndarray): The best hyperparams found during optimization.
+            n_feval (int): The number of function evaluations during optimization.
+            best_score (float): The best negative marginal log-likelihood achieved.
+
+        Raises:
+            ValueError: The input dataset is checked for validity before tuning is
+                initiated. If problems are found, a ValueError will provide an
+                explanation of the error.
+        """
+        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "exact")
+        best_x, best_score, net_iterations = None, np.inf, 0
+        bounds_tuples = list(map(tuple, bounds)) + [(None,None) for i in
+                range(self.training_rffs)]
+
+        init_hyperparams = self.kernel.get_hyperparams(logspace=True)
+        init_params = np.zeros((init_hyperparams.shape[0] + self.training_rffs))
+        init_params[:init_hyperparams.shape[0]] = init_hyperparams
+
+        rng = np.random.default_rng(random_seed)
+        args, cost_fun = (dataset, self.kernel, a_reg, self.verbose), full_map_gradient
+
+        if self.verbose:
+            print("Now beginning L-BFGS minimization.")
+
+        for iteration in range(n_restarts):
+            res = minimize(cost_fun, options={"maxiter":max_iter},
+                        x0 = init_params, args = args,
+                        jac = True, bounds = bounds_tuples)
+            cost = self.approximate_nmll(res.x[:init_hyperparams.shape[0]],
+                        dataset, nmll_rank, nmll_probes, random_seed,
+                        nmll_iter, nmll_tol)
+            print(res.x)
+            net_iterations += res.nfev
+            if cost < best_score:
+                best_x = res.x[:init_hyperparams.shape[0]]
+                best_score = copy.deepcopy(cost)
+            if self.verbose:
+                print(f"Restart {iteration} completed. Best score is {best_score}.")
+
+            init_params[:] = 0
+            init_hyperparams = np.array([rng.uniform(low = bounds[j,0], high = bounds[j,1])
+                    for j in range(bounds.shape[0])])
+            init_params[:init_hyperparams.shape[0]] = init_hyperparams
+
+        if best_x is None:
+            raise ValueError("All restarts failed to find acceptable hyperparameters.")
+
+        self._post_tuning_cleanup(dataset, best_x)
+        return best_x, net_iterations, best_score
+
+
+
+
+    def tune_hyperparams_map_sgd(self, dataset, a_reg = 1.0, random_seed = 123,
+            n_epochs = 2, minibatch_size = 1000, learn_rate = 0.02,
+            n_restarts = 3, bounds = None, nmll_rank = 1024,
+            nmll_probes = 25, nmll_iter = 200, nmll_tol = 1e-6):
+        """Tunes the hyperparameters using SGD, using training set loss as an
+        objective. Note that this can overfit dramatically -- the only thing
+        preventing it from doing so is the regularization applied via a hyperprior
+        (a prior on the hyperparameters) which is controlled by a_reg. Smaller
+        values of a_reg imply tighter regularization, larger less regularization.
+
+        To tune using this routine, call it using different values of a_reg, and
+        determine which value of a_reg yields the best result. The tuning_toolkit
+        contains a routine to perform this automatically (using Bayesian optimization)
+        which may be more convenient than writing your own. When you call this function,
+        the NMLL is returned so that you can compare the best NMLL achieved for different
+        values of a_reg.
+
+        Note that the NMLL is evaluated using an approximation to the log determinant.
+        The quality of this approximation is determined by the 'nmll' settings (see
+        further notes).
+
+        Args:
+            dataset: Object of class OnlineDataset or OfflineDataset.
+            random_seed (int): A random seed for the random
+                number generator.
+            n_epochs: The maximum number of epochs per restart. Must be >= 2.
+            minibatch_size (int): The size of the minibatches.
+            learn_rate (float): The initial learning rate.
+            n_restarts (int): The maximum number of restarts to run.
+                Ignored if starting_hyperparams are supplied.
+            bounds (np.ndarray): The bounds for optimization. Defaults to
+                None, in which case the kernel uses its default bounds.
+                If supplied, must be a 2d numpy array of shape (num_hyperparams, 2).
+            nmll_rank (int): The preconditioner rank for approximate NMLL estimation.
+                Ignored if nmll_method is "exact". A larger value may reduce
+                the number of iterations for nmll approximation to converge and
+                improve estimation accuracy, but will also increase computational
+                cost for preconditioner construction.
+            nmll_probes (int): The number of probes for approximate NMLL estimation.
+                Ignored if nmll_method is "exact". A larger value may improve
+                accuracy of estimation but with increased computational cost.
+            nmll_iter (int): The maximum number of iterations for approximate NMLL.
+                Ignored if nmll_method is "exact". A larger value may improve
+                accuracy of estimation but with increased computational cost.
+            nmll_tol (float): The convergence tolerance for approximate NMLL.
+                Ignored if nmll_method is "exact". A smaller value may improve
+                accuracy of estimation but with increased computational cost.
+
+        Returns:
+            hyperparams (np.ndarray): The best hyperparams found during optimization.
+            n_feval (int): The number of function evaluations during optimization.
+            best_score (float): The best negative marginal log-likelihood achieved.
+
+        Raises:
+            ValueError: The input dataset is checked for validity before tuning is
+                    initiated. If problems are found, a ValueError will provide an
+                    explanation of the error.
+        """
+        if n_epochs < 2:
+            raise ValueError("Must use at least 2 epochs per restart.")
+        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "approx")
+
+        rng = np.random.default_rng(random_seed)
+        best_cost, net_iterations, best_params = np.inf, 0, None
+        all_costs = []
+        for i in range(n_restarts):
+            init_hparams = [rng.uniform(low = bounds[j,0], high = bounds[j,1])
+                    for j in range(bounds.shape[0])]
+            init_hparams = np.asarray(init_hparams)
+            dataset.reset_index()
+            hyperparams, iterations = amsgrad_optimizer(self.minibatch_map_gradient,
+                                init_hparams, dataset,
+                                bounds, minibatch_size,
+                                n_epochs, learn_rate,
+                                n_epochs - 1, a_reg, self.verbose)
+            if self.verbose:
+                print(hyperparams)
+            net_iterations += iterations
+
+            cost = self.approximate_nmll(hyperparams[:init_hparams.shape[0]],
+                        dataset, nmll_rank, nmll_probes, random_seed,
+                        nmll_iter, nmll_tol)
+            if cost < best_cost:
+                best_cost = copy.copy(cost)
+                best_params = copy.deepcopy(hyperparams[:init_hparams.shape[0]])
+                if self.verbose:
+                    print(f"New best cost: {best_cost}")
+            all_costs.append(cost)
+            if self.verbose:
+                print("\n\n")
+
+        dataset.reset_index()
+        if best_params is None:
+            raise ValueError("No stochastic optimization attempt succeeded.")
+        return best_params, net_iterations, best_cost

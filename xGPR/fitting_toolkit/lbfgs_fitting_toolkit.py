@@ -7,6 +7,10 @@ except:
     pass
 from scipy.optimize import minimize
 
+from ..scoring_toolkit.exact_nmll_calcs import calc_zty
+
+
+
 class lBFGSModelFit:
     """This class contains all the tools needed to fit a model
     whose hyperparameters have already been tuned using the L-BFGS
@@ -24,7 +28,7 @@ class lBFGSModelFit:
         device (str): One of 'cpu', 'gpu'. Indicates where calculations
             will be performed.
         zero_arr: A convenience reference to either cp.zeros or np.zeros.
-        dtype: A convenience reference to either cp.float32 or np.float32,
+        dtype: A convenience reference to either cp.float64 or np.float64,
             depending on device.
         niter (int): The number of function evaluations performed.
     """
@@ -48,28 +52,28 @@ class lBFGSModelFit:
         self.device = device
         if device == "gpu":
             self.zero_arr = cp.zeros
-            self.dtype = cp.float32
+            self.dtype = cp.float64
         else:
             self.zero_arr = np.zeros
             self.dtype = np.float64
         self.n_iter = 0
 
-    def fit_model_lbfgs(self, max_iter = 500, tol = 2.220446049250313e-09):
+    def fit_model_lbfgs(self, max_iter = 500, tol = 3e-09):
         """Finds an optimal set of weights using the information already
         provided to the class constructor.
 
         Args:
-            tol (float): The threshold for convergence. Not currently used
-                since setting a larger / smaller tol can result in very
-                poor results with L-BFGS (either very large number of
-                iterations or poor performance).
             max_iter (int): The maximum number of iterations for L_BFGS.
+            tol (float): The threshold for convergence. User not currently
+                allowed to specify since setting a larger / smaller tol
+                can result in very poor results with L-BFGS (either very
+                large number of iterations or poor performance).
 
         Returns:
             wvec: A cupy or numpy array depending on device that contains the
                 best set of weights found. A 1d array of length self.kernel.get_num_rffs().
         """
-        z_trans_y, zty_norm = self.get_zty()
+        z_trans_y, _ = calc_zty(self.dataset, self.kernel)
         init_weights = np.zeros((self.kernel.get_num_rffs()))
         res = minimize(self.cost_fun, options={"maxiter":max_iter, "ftol":tol},
                     method = "L-BFGS-B",
@@ -79,7 +83,7 @@ class lBFGSModelFit:
         wvec = res.x
         if self.device == "gpu":
             wvec = cp.asarray(wvec)
-        return wvec
+        return wvec, self.n_iter, []
 
 
     def cost_fun(self, weights, z_trans_y):
@@ -134,10 +138,4 @@ class lBFGSModelFit:
             if i % 10 == 0 and self.verbose:
                 print(f"Chunk {i} complete.")
             i += 1
-        zty_norm = np.sqrt(float(vprod.T @ vprod))
-        return vprod, zty_norm
-
-
-    def get_niter(self):
-        """Returns the number of function evaluations performed."""
-        return self.n_iter
+        return vprod

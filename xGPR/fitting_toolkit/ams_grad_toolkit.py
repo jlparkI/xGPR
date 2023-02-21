@@ -98,7 +98,7 @@ class amsModelFit:
 
             if self.verbose and self.n_epoch % 1 == 0:
                 print(f"Epoch {self.n_epoch} complete; loss {losses[-1]}")
-        return wvec, losses
+        return wvec, self.n_epoch, losses
 
 
     def update_full_gradient(self, dataset, kernel, wvec):
@@ -118,8 +118,3 @@ class amsModelFit:
         zty_norm = np.sqrt(float(full_grad.T @ full_grad))
         full_grad += self.lambda_**2 * wvec - z_trans_y
         return full_grad / zty_norm
-
-
-    def get_niter(self):
-        """Returns the number of function evaluations performed."""
-        return self.n_epoch

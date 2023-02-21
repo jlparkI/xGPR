@@ -127,7 +127,9 @@ class sgdModelFit:
 
             if self.verbose and self.n_epoch % 1 == 0:
                 print(f"Epoch {self.n_epoch} complete; loss {losses[-1]}")
-        return wvec.copy(), losses
+        #The number of epochs is 2 x self.n_epoch because we perform
+        #a gradient "snapshot" for each actual epoch.
+        return wvec.copy(), 2 * self.n_epoch + 1, losses
 
 
 
@@ -199,9 +201,3 @@ class sgdModelFit:
         losses = (losses**2).sum(axis=0)
         best_idx = int(losses.argmin())
         return likely_lr[best_idx]
-
-
-
-    def get_niter(self):
-        """Returns the number of function evaluations performed."""
-        return 2 * self.n_epoch + 1
