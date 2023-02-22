@@ -20,7 +20,11 @@ def test_fit_cg(kernel, conv_kernel, random_seed, conv_width = 3,
 
     test_dataset, _ = build_test_dataset(conv_kernel = conv_kernel,
             xsuffix = "testxvalues.npy", ysuffix = "testyvalues.npy")
-    cpu_mod.tune_hyperparams_crude_bayes(train_dataset)
+    if cpu_mod.get_hyperparams().shape[0] < 5:
+        cpu_mod.tune_hyperparams_crude_bayes(train_dataset)
+    else:
+        cpu_mod.tune_hyperparams_crude_lbfgs(train_dataset, n_restarts = 3)
+
     print(f"Hyperparams, cpu, {kernel}: {cpu_mod.get_hyperparams()}")
 
     preconditioner, _ = cpu_mod.build_preconditioner(train_dataset,
@@ -39,7 +43,11 @@ def test_fit_cg(kernel, conv_kernel, random_seed, conv_width = 3,
         gpu_mod.fitting_rffs = 16384
         gpu_mod.verbose = False
 
-        gpu_mod.tune_hyperparams_crude_bayes(train_dataset)
+        if gpu_mod.get_hyperparams().shape[0] < 5:
+            gpu_mod.tune_hyperparams_crude_bayes(train_dataset)
+        else:
+            gpu_mod.tune_hyperparams_crude_lbfgs(train_dataset, n_restarts = 3)
+
         print(f"Hyperparams, gpu, {kernel}: {gpu_mod.get_hyperparams()}")
         preconditioner, _ = gpu_mod.build_preconditioner(train_dataset,
                 max_rank = 256, method = "srht")
@@ -67,7 +75,10 @@ def test_fit_exact(kernel, conv_kernel, random_seed, conv_width = 3,
     test_dataset, _ = build_test_dataset(conv_kernel = conv_kernel,
             xsuffix = "testxvalues.npy", ysuffix = "testyvalues.npy")
 
-    cpu_mod.tune_hyperparams_crude_bayes(train_dataset)
+    if cpu_mod.get_hyperparams().shape[0] < 5:
+        cpu_mod.tune_hyperparams_crude_bayes(train_dataset)
+    else:
+        cpu_mod.tune_hyperparams_crude_lbfgs(train_dataset, n_restarts = 3)
     print(f"Hyperparams, cpu, {kernel}: {cpu_mod.get_hyperparams()}")
     cpu_mod.fit(train_dataset,  random_seed = random_seed, mode = "exact")
     cpu_score = evaluate_model(cpu_mod, train_dataset, test_dataset,
@@ -80,7 +91,10 @@ def test_fit_exact(kernel, conv_kernel, random_seed, conv_width = 3,
         gpu_mod.fitting_rffs = 2048
         gpu_mod.verbose = False
 
-        gpu_mod.tune_hyperparams_crude_bayes(train_dataset)
+        if gpu_mod.get_hyperparams().shape[0] < 5:
+            gpu_mod.tune_hyperparams_crude_bayes(train_dataset)
+        else:
+            gpu_mod.tune_hyperparams_crude_lbfgs(train_dataset, n_restarts = 3)
         print(f"Hyperparams, gpu, {kernel}: {gpu_mod.get_hyperparams()}")
         gpu_mod.fit(train_dataset,  random_seed = random_seed, mode = "exact")
         gpu_score = evaluate_model(gpu_mod, train_dataset, test_dataset,
