@@ -96,7 +96,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
 
         self.sinfunc = None
         self.cosfunc = None
-        self.sorf_transform = dSORF
+        self.sorf_transform = fSORF
 
 
     def pretransform_x(self, input_x):

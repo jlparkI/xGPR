@@ -1,15 +1,23 @@
 """A 'mini-ARD' kernel that assigns one lengthscale per
 feature category for different feature types.
 Accepts only fixed vectors as input."""
+from math import ceil
+
 import numpy as np
+from scipy.stats import chi
+from cpu_basic_hadamard_operations import doubleCpuSORFTransform as dSORF
+from cpu_basic_hadamard_operations import floatCpuSORFTransform as fSORF
+
 try:
     import cupy as cp
+    from cuda_basic_hadamard_operations import doubleCudaPySORFTransform as dCudaSORF
+    from cuda_basic_hadamard_operations import floatCudaPySORFTransform as fCudaSORF
 except:
     pass
-from ..sorf_kernel_baseclass import SORFKernelBaseclass
+from ..kernel_baseclass import KernelBaseclass
 
 
-class MiniARD(SORFKernelBaseclass):
+class MiniARD(KernelBaseclass):
     """The MiniARD is a subset of automatic relevance determination
     (ARD), which assigns a lengthscale to every feature. MiniARD
     rather assigns a different lengthscale to each group of features
@@ -17,9 +25,8 @@ class MiniARD(SORFKernelBaseclass):
     a user-provided list of "split points", points at which to split
     up the feature vector.
 
-    This class inherits from SORFKernelBaseclass which in turn inherits
-    from KernelBaseclass. Only attributes unique to this child are
-    described in this docstring.
+    This class inherits from KernelBaseclass. Only attributes unique
+    to this child are described in this docstring.
 
     Attributes:
         hyperparams (np.ndarray): A length two + number of feature
@@ -37,7 +44,7 @@ class MiniARD(SORFKernelBaseclass):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123,
-                device = "cpu", kernel_spec_parms = {}):
+                device = "cpu", double_precision = False, kernel_spec_parms = {}):
         """Constructor for RBF.
 
         Args:
@@ -69,11 +76,25 @@ class MiniARD(SORFKernelBaseclass):
         self.hyperparams = np.ones((1 + self.split_pts.shape[0]))
         bounds = [[1e-3,1e1], [0.1, 10]] + [[1e-6, 1e2] for i in
                 range(self.hyperparams.shape[0] - 2)]
-        bounds = np.asarray(bounds)
-        self.set_bounds(bounds, logspace=False)
+        self.bounds = np.asarray(bounds)
+
+        self.padded_dims = 2**ceil(np.log2(max(xdim[-1], 2)))
+
+        radem_array = np.asarray([-1,1], dtype=np.int8)
+        rng = np.random.default_rng(random_seed)
+        if self.padded_dims < self.num_freqs:
+            self.nblocks = ceil(self.num_freqs / self.padded_dims)
+        else:
+            self.nblocks = 1
+        self.radem_diag = rng.choice(radem_array, size=(3, self.nblocks, self.padded_dims),
+                                replace=True)
+        self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
+                            random_state = random_seed)
 
         self.sinfunc = None
         self.cosfunc = None
+        self.num_threads = 2
+        self.sorf_transform = fSORF
         self.device = device
 
 
@@ -111,10 +132,18 @@ class MiniARD(SORFKernelBaseclass):
         if new_device == "cpu":
             self.cosfunc = np.cos
             self.sinfunc = np.sin
+            if self.double_precision:
+                self.sorf_transform = dSORF
+            else:
+                self.sorf_transform = fSORF
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
                 self.chi_arr = cp.asnumpy(self.chi_arr).astype(self.dtype)
         else:
+            if self.double_precision:
+                self.sorf_transform = dCudaSORF
+            else:
+                self.sorf_transform = fCudaSORF
             self.cosfunc = cp.cos
             self.sinfunc = cp.sin
             self.radem_diag = cp.asarray(self.radem_diag)
@@ -122,26 +151,8 @@ class MiniARD(SORFKernelBaseclass):
 
 
 
-    def pretransform_x(self, input_x):
-        """Random feature generation is divided into two steps. The first is
-        the SORF transform, here called 'pretransform'. For MOST kernels,
-        this step does not involve hyperparameters and can therefore
-        be shared. For this kernel, however, it DOES involve hyperparameters.
-        Therefore we override the parent class pretransform_x here and
-        merely return a reference to the input array (so we keep a
-        consistent interface).
 
-        Args:
-            input_x: A cupy or numpy array depending on self.device
-                containing the input data.
-
-        Returns:
-            output_x: A reference to the input array.
-        """
-        return input_x
-
-
-    def finish_transform(self, input_x, multiply_by_beta = True):
+    def transform_x(self, input_x):
         """Random feature generation is divided into two steps. The first is
         the SORF transform, here called 'pretransform'. For MOST kernels,
         this step does not involve hyperparameters and can therefore
@@ -173,14 +184,12 @@ class MiniARD(SORFKernelBaseclass):
         xtrans = self.empty((x_sorf.shape[0], self.num_rffs), self.dtype)
         xtrans[:,:self.num_freqs] = self.cosfunc(x_sorf)
         xtrans[:,self.num_freqs:] = self.sinfunc(x_sorf)
-        if multiply_by_beta:
-            xtrans *= (self.hyperparams[1] * np.sqrt(2 / self.num_rffs))
-        else:
-            xtrans *= np.sqrt(2 / self.num_rffs)
+        xtrans *= (self.hyperparams[1] * np.sqrt(2 / self.num_rffs))
         return xtrans
 
 
-    def kernel_specific_gradient(self, input_x, pre_sorf = False):
+
+    def kernel_specific_gradient(self, input_x):
         """Since all kernels share the beta and lambda hyperparameters,
         the gradient for these can be calculated by the parent class.
         The gradient kernel-specific hyperparameters however is calculated
@@ -189,10 +198,6 @@ class MiniARD(SORFKernelBaseclass):
 
         Args:
             input_x: A cupy or numpy array containing the raw input data.
-            pre_sorf (bool): If True, the input_x has already undergone
-                the first step in random feature generation. This is only
-                really applicable for the RBF and Matern kernels but
-                this input is accepted here to preserve a common interface.
 
         Returns:
             output_x: A cupy or numpy array containing the random feature
@@ -200,6 +205,9 @@ class MiniARD(SORFKernelBaseclass):
             dz_dsigma: A cupy or numpy array containing the derivative of
                 output_x with respect to the kernel-specific hyperparameters.
         """
+        #TODO: The gradient calculation as implemented here is inefficient.
+        #We can make it much more efficient, especially for cases where
+        #we just want the derivative @ a vector. Rewrite this.
         dz_dsigma = self.empty((input_x.shape[0], self.num_rffs,
                     self.split_pts.shape[0] - 1), dtype = self.dtype)
         x_sorf = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),

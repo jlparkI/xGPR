@@ -58,7 +58,7 @@ class FHTConv1d(KernelBaseclass):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
-                    double_precision = True, kernel_spec_parms = {}):
+                    double_precision = False, kernel_spec_parms = {}):
         """Constructor for FHT_Conv1d.
 
         Args:
