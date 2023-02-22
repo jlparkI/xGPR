@@ -23,7 +23,6 @@ from .optimizers.pure_bayes_optimizer import pure_bayes_tuning
 from .optimizers.bayes_grid_optimizer import bayes_grid_tuning
 from .optimizers.lb_optimizer import shared_hparam_search
 from .optimizers.crude_grid_optimizer import crude_grid_tuning
-from .optimizers.map_loss_bayes_optimizer import bayes_map_loss_tuning
 
 from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
 from .fitting_toolkit.sgd_fitting_toolkit import sgdModelFit
@@ -992,93 +991,3 @@ class xGPRegression(GPRegressionBaseclass):
 
         self._post_tuning_cleanup(dataset, best_x)
         return best_x, net_iterations, best_score
-
-
-
-    def tune_hyperparams_map(self, dataset, random_seed = 123,
-            max_epochs = 10, learn_rate = 0.002, minibatch_size = 1000,
-            n_restarts = 3, mode = "sgd", bounds = None,
-            n_init_pts = 10, areg_bounds = None, max_iter = 25,
-            nmll_rank = 1024, nmll_probes = 25, nmll_iter = 200,
-            nmll_tol = 1e-6):
-        """Tunes the hyperparameters using training set loss as an objective --
-        this is a novel / experimental approach. Note that this can overfit dramatically
-        -- the only thing preventing it from doing so is the regularization applied
-        via a hyperprior (a prior on the hyperparameters). This hyperprior is tuned
-        by repeatedly retuning the other hyperparameters for different values of the
-        hyperprior, and evaluating each using approximate NMLL post tuning.
-        Bayesian optimization is used to select values for the hyperprior.
-
-        Note that the NMLL is evaluated using an approximation to the log determinant.
-        The quality of this approximation is determined by the 'nmll' settings (see
-        further notes).
-
-        Args:
-            dataset: Object of class OnlineDataset or OfflineDataset.
-            random_seed (int): A random seed for the random
-                number generator.
-            max_epochs: The maximum number of epochs per restart. Must be >= 2.
-            learn_rate (float): The initial learning rate for SGD. Ignored if 'mode'
-                is not 'sgd'.
-            minibatch_size (int): The size of the minibatches. Ignored if 'mode'
-                is not 'sgd'.
-            n_restarts (int): The maximum number of restarts to run.
-            mode (str): One of 'sgd', 'lbfgs'. Determines how hyperparameters /
-                weights are optimized for each hyperprior value selected by
-                Bayesian optimization.
-            bounds (np.ndarray): The bounds for optimization. Defaults to
-                None, in which case the kernel uses its default bounds.
-                If supplied, must be a 2d numpy array of shape (num_hyperparams, 2).
-            n_init_pts (int): The number of initial points to evaluate.
-            areg_bounds (np.ndarray): Must be either None or an array of shape (1,2).
-                If supplied, specifies the bounds on the optimization of the log
-                of the hyperprior.
-            nmll_rank (int): The preconditioner rank for approximate NMLL estimation.
-                Ignored if nmll_method is "exact". A larger value may reduce
-                the number of iterations for nmll approximation to converge and
-                improve estimation accuracy, but will also increase computational
-                cost for preconditioner construction.
-            nmll_probes (int): The number of probes for approximate NMLL estimation.
-                Ignored if nmll_method is "exact". A larger value may improve
-                accuracy of estimation but with increased computational cost.
-            nmll_iter (int): The maximum number of iterations for approximate NMLL.
-                Ignored if nmll_method is "exact". A larger value may improve
-                accuracy of estimation but with increased computational cost.
-            nmll_tol (float): The convergence tolerance for approximate NMLL.
-                Ignored if nmll_method is "exact". A smaller value may improve
-                accuracy of estimation but with increased computational cost.
-
-        Returns:
-            hyperparams (np.ndarray): The best hyperparams found during optimization.
-            n_feval (int): The number of function evaluations during optimization.
-            best_score (float): The best negative marginal log-likelihood achieved.
-
-        Raises:
-            ValueError: The input dataset is checked for validity before tuning is
-                    initiated. If problems are found, a ValueError will provide an
-                    explanation of the error.
-        """
-        if max_epochs < 2:
-            raise ValueError("Must use at least 2 epochs per restart.")
-
-        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "exact")
-
-        if areg_bounds is not None:
-            if areg_bounds.shape[0] != 1 or areg_bounds.shape[1] != 2:
-                raise ValueError("areg_bounds must be either None or a numpy array "
-                        "of shape (1,2).")
-            hprior_bounds = areg_bounds
-        else:
-            hprior_bounds = np.ndarray([-8,0])
-
-        optimizer_args = {"bounds":bounds, "minibatch_size":minibatch_size,
-                "n_restarts":n_restarts, "max_epochs":max_epochs,
-                "mode":mode, "learn_rate":learn_rate, "nmll_rank":nmll_rank,
-                "nmll_probes":nmll_probes, "nmll_iter":nmll_iter,
-                "nmll_tol":nmll_tol}
-
-        best_x, scores, best_score, niter = bayes_map_loss_tuning(self.kernel,
-                dataset, hprior_bounds, optimizer_args, self.approximate_nmll,
-                random_seed, max_iter, tol = 1e-1, n_init_pts = n_init_pts)
-        self._post_tuning_cleanup(dataset, best_x)
-        return best_x, niter, best_score, scores

@@ -46,6 +46,13 @@ def bayes_map_loss_tuning(kernel, dataset, areg_bounds, optimizer_args,
             searcing a smaller space, however, you can sometimes save time by using
             a smaller # (e.g. 5).
 
+    Returns:
+        best_hparams (np.ndarray): The best hyperparameters obtained.
+        res (tuple): A tuple of (areg_pts, scores), indicating the areg regularization
+            values tested and the score obtained for each.
+        best_score (float): The best NMLL obtained.
+        total_iter (int): The total number of epochs executed.
+
     Raises:
         ValueError: A ValueError is raised if problematic values are supplied.
     """
@@ -79,12 +86,12 @@ def bayes_map_loss_tuning(kernel, dataset, areg_bounds, optimizer_args,
                             areg_bounds, random_seed + iternum)
         if optimizer_args["verbose"]:
             print(f"New areg: {new_areg}")
-        score, hparam, niter = evaluate_areg_value(kernel, dataset, new_areg,
+        score, hparam, niter = evaluate_areg_value(kernel, dataset, float(new_areg),
                             approx_cost_fun, random_seed + n_init_pts + iternum,
                             optimizer_args)
         total_iter += niter
         scores.append(score)
-        areg_pts.append(new_areg)
+        areg_pts.append(float(new_areg))
         hparams.append(hparam[:num_hparams])
 
         if min_dist < tol:
@@ -147,18 +154,50 @@ def propose_new_point(areg_vals, scores,
 
 
 
-def evaluate_areg_value(kernel, dataset, a_reg, approx_cost_fun, random_seed, optim_args):
+def evaluate_areg_value(kernel, dataset, a_reg, approx_cost_fun,
+        random_seed, optim_args):
     """Fits the model for a specified value of a_reg and returns the best
-    score and parameters achieved."""
+    score and parameters achieved.
+
+    Args:
+        kernel: A valid kernel that can generate random features.
+        dataset: An OnlineDataset or OfflineDataset containing raw data.
+        a_reg_bounds (float): A regularization value. Smaller = tighter regularization.
+        approx_cost_fun: A function this routine can call that evaluates the approximate NMLL.
+        random_seed (int): A seed for the random number generator.
+        optimizer_args (dict): A dictionary of arguments to the optimizer. Should
+            contain:
+            'bounds' (an N x 2 array for N hyperparameters bounding the
+            hyperparameter search)
+            'minibatch_size' (an int determining minibatch size)
+            'n_restarts' (an int determining number of restarts),
+            'max_epochs' (the max number of epochs)
+            'mode' (one of 'sgd', 'lbfgs' determining optimizer type)
+            'learn_rate' (the learning rate for SGD).
+            'nmll_rank', 'nmll_probes', 'nmll_iter', 'nmll_tol': Additional arguments
+                that control calculation of the approximate NMLL.
+            Some of these arguments are ignored by the 'lbfgs' optimizer.
+
+    Returns:
+        best_score (float): The best NMLL achieved.
+        best_x (np.ndarray): The best hyperparameters found.
+        niter (int): The number of epochs required to achieve this.
+
+    Raises:
+        ValueError: A ValueError is raised if no solution is found.
+    """
     rng = np.random.default_rng(random_seed)
-    niter = 0
+    niter, best_score = 0, np.inf
+    best_x = None
+
+    a_reg_value = np.exp(a_reg)
 
     num_hparams = kernel.get_hyperparams().shape[0]
     init_params = np.empty((num_hparams + kernel.get_num_rffs()))
 
     bounds = optim_args["bounds"]
     if optim_args["mode"] == "lbfgs":
-        args = (dataset, kernel, a_reg, optim_args["verbose"])
+        args = (dataset, kernel, a_reg_value, optim_args["verbose"])
         bounds_tuples = list(map(tuple, bounds)) + [(None, None) for i in
                         range(kernel.get_num_rffs())]
 
@@ -169,7 +208,7 @@ def evaluate_areg_value(kernel, dataset, a_reg, approx_cost_fun, random_seed, op
         init_params[:init_hyperparams.shape[0]] = init_hyperparams
 
         if optim_args["mode"] == "lbfgs":
-            res = minimize(full_map_gradient, options={"maxiter":optim_args["max_iter"]},
+            res = minimize(full_map_gradient, options={"maxiter":optim_args["max_epochs"]},
                         x0 = init_params, args = args,
                         jac = True, bounds = bounds_tuples)
             params = res.x
@@ -179,7 +218,7 @@ def evaluate_areg_value(kernel, dataset, a_reg, approx_cost_fun, random_seed, op
             params = amsgrad_optimizer(kernel, init_params, dataset, bounds,
                         optim_args["minibatch_size"], optim_args["max_epochs"],
                         learn_rate = optim_args["learn_rate"],
-                        a_reg = a_reg, verbose = optim_args["verbose"])
+                        a_reg = a_reg_value, verbose = optim_args["verbose"])
             niter += optim_args["max_epochs"]
 
         hparams = params[:num_hparams]
@@ -191,7 +230,7 @@ def evaluate_areg_value(kernel, dataset, a_reg, approx_cost_fun, random_seed, op
             best_x = hparams.copy()
             best_score = copy.deepcopy(cost)
             if optim_args["verbose"]:
-                print("New best hparams: {hparams}")
+                print(f"New best hparams: {hparams}")
 
     if best_x is None:
         raise ValueError("All restarts failed to find acceptable hyperparameters.")
