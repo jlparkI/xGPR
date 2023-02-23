@@ -7,11 +7,15 @@ import numpy as np
 from scipy.stats import chi
 from cpu_basic_hadamard_operations import doubleCpuSORFTransform as dSORF
 from cpu_basic_hadamard_operations import floatCpuSORFTransform as fSORF
+from cpu_basic_hadamard_operations import doubleCpuRBFFeatureGen as dRBF
+from cpu_basic_hadamard_operations import floatCpuRBFFeatureGen as fRBF
 
 try:
     import cupy as cp
     from cuda_basic_hadamard_operations import doubleCudaPySORFTransform as dCudaSORF
     from cuda_basic_hadamard_operations import floatCudaPySORFTransform as fCudaSORF
+    from cuda_basic_hadamard_operations import doubleCudaRBFFeatureGen as dCudaRBF
+    from cuda_basic_hadamard_operations import floatCudaRBFFeatureGen as fCudaRBF
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass
@@ -99,6 +103,7 @@ class MiniARD(KernelBaseclass):
         self.full_ard_weights = np.zeros((xdim[-1]))
         self.kernel_specific_set_hyperparams()
 
+        self.feature_gen = fRBF
         self.sinfunc = None
         self.cosfunc = None
         self.num_threads = 2
@@ -142,8 +147,10 @@ class MiniARD(KernelBaseclass):
             self.sinfunc = np.sin
             if self.double_precision:
                 self.sorf_transform = dSORF
+                self.feature_gen = dRBF
             else:
                 self.sorf_transform = fSORF
+                self.feature_gen = fRBF
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
                 self.full_ard_weights = cp.asnumpy(self.full_ard_weights).astype(self.dtype)
@@ -152,8 +159,10 @@ class MiniARD(KernelBaseclass):
         else:
             if self.double_precision:
                 self.sorf_transform = dCudaSORF
+                self.feature_gen = dCudaRBF
             else:
                 self.sorf_transform = fCudaSORF
+                self.feature_gen = fCudaRBF
             self.cosfunc = cp.cos
             self.sinfunc = cp.sin
             self.radem_diag = cp.asarray(self.radem_diag)
@@ -180,20 +189,14 @@ class MiniARD(KernelBaseclass):
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
-        x_sorf = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
+        xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
                             dtype = self.dtype)
-        x_sorf[:,:,:self.xdim[1]] = (input_x * self.full_ard_weights[None,:])[:,None,:]
+        xtrans[:,:,:self.xdim[1]] = (input_x * self.full_ard_weights[None,:])[:,None,:]
 
-        self.sorf_transform(x_sorf, self.radem_diag, self.num_threads)
-        x_sorf = x_sorf.reshape((x_sorf.shape[0], x_sorf.shape[1] *
-                        x_sorf.shape[2]))[:,:self.num_freqs]
-        x_sorf *= self.chi_arr[None,:]
-
-        xtrans = self.empty((x_sorf.shape[0], self.num_rffs), self.dtype)
-        xtrans[:,:self.num_freqs] = self.cosfunc(x_sorf)
-        xtrans[:,self.num_freqs:] = self.sinfunc(x_sorf)
-        xtrans *= (self.hyperparams[1] * np.sqrt(2 / self.num_rffs))
-        return xtrans
+        output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
+        self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
+                self.hyperparams[1], self.num_freqs, self.num_threads)
+        return output_x
 
 
 

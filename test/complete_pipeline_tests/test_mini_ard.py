@@ -19,6 +19,8 @@ class CheckMiniARDPipeline(unittest.TestCase):
 
     def test_fit_cg(self):
         """Test using preconditioned cg."""
+        print("Now running the MiniARD test. This one is slow on CPU, "
+                "so be prepared for this to take a minute...")
         cpu_score, gpu_score = test_fit_cg(KERNEL, CONV_KERNEL, RANDOM_SEED)
         self.assertTrue(cpu_score > 0.61)
         if gpu_score is not None:
