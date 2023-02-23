@@ -4,8 +4,7 @@
 * convolution on GPU. The input array should already live on GPU.
 * The Hadamard transforms are performed using functions from float_array_operations.cu
 * and double_array_operations.cu, the diagonal matrix multiplication is slightly
-* different and so is
-* implemented here.
+* different and so is implemented here.
 */
 #include <cuda.h>
 #include <cuda_runtime.h>

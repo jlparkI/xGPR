@@ -87,6 +87,9 @@ const char *floatPolyFHTPrep_(int8_t *radem, float *reshapedX,
             int reshapedDim1, int reshapedDim2,
             int rademStartPosition)
 {
+    if (numThreads > reshapedDim0)
+        numThreads = reshapedDim0;
+
     struct ThreadSORFFloatArrayArgs *th_args = malloc(numThreads *
             sizeof(struct ThreadSORFFloatArrayArgs));
     if (th_args == NULL){
@@ -168,6 +171,9 @@ const char *floatPolyConvFHTPrep_(int8_t *radem, float *reshapedX,
             int reshapedDim1, int reshapedDim2, int numFreqs,
             int startPosition, int rademStartPosition)
 {
+    if (numThreads > reshapedDim0)
+        numThreads = reshapedDim0;
+
     struct ThreadConv1dFloatArgs *th_args = malloc(numThreads * sizeof(struct ThreadConv1dFloatArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! If you don't know what that means..."
@@ -242,6 +248,9 @@ const char *doublePolyFHTPrep_(int8_t *radem, double *reshapedX,
             int reshapedDim1, int reshapedDim2,
             int rademStartPosition)
 {
+    if (numThreads > reshapedDim0)
+        numThreads = reshapedDim0;
+
     struct ThreadSORFDoubleArrayArgs *th_args = malloc(numThreads *
             sizeof(struct ThreadSORFDoubleArrayArgs));
     if (th_args == NULL){
@@ -322,6 +331,9 @@ const char *doublePolyConvFHTPrep_(int8_t *radem, double *reshapedX,
             int reshapedDim1, int reshapedDim2, int numFreqs,
             int startPosition, int rademStartPosition)
 {
+    if (numThreads > reshapedDim0)
+        numThreads = reshapedDim0;
+
     struct ThreadConv1dDoubleArgs *th_args = malloc(numThreads *
             sizeof(struct ThreadConv1dDoubleArgs));
     if (th_args == NULL){

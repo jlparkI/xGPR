@@ -1,23 +1,10 @@
 /*
 * Contains all functions needed to run the structured orthogonal features
 * (SORF) and randomized Hadamard transform (RHT) operations on an input 3d
-* array of doubles on GPU. The input array should
-* already live on GPU.
+* array of doubles on GPU. Note that many operations here assume specific dimensions
+* of the input array are a power of 2. The Cython wrapper checks this, so do
+* not call these routines OUTSIDE of the Cython wrapper -- use the Cython wrapper.
 */
-
-//Note that where possible, we have
-//avoided use of modulo and integer division
-//because they are more expensive. Instead, we use
-//(location >> log2Spacing) (equivalent to floor division on
-//location / spacing IF spacing is a power of 2) and 
-//(location & (spacing - 1)) 
-//(equivalent to location % spacing IF spacing is a power of 2). 
-//Note that all of this like many operations here works ONLY
-//if array.shape[2] is a power of 2 -- this should
-//ALWAYS be checked by caller. The Cython wrapper checks this
-//(and many other crucial details).
-//If you decide to use this outside of the Cython wrapper,
-//you must check yourself.
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -55,6 +42,7 @@ __global__ void doubleBaseLevelTransform(double *cArray, int N, int log2N){
 
 
     for (spacing = 2; spacing < N; spacing <<= 1){
+        //Equivalent to pos mod spacing IF spacing is a power of 2.
         lo = pos & (spacing - 1);
         id1 = ((pos - lo) << 1) + lo;
         id2 = id1 + spacing;
@@ -109,6 +97,7 @@ __global__ void doubleLevelNTransform(double *cArray, int arrsize,
                                 int spacing)
 {
     int pos = blockDim.x * blockIdx.x + threadIdx.x;
+    //Equivalent to pos mod spacing IF spacing is a power of 2.
     int lo = (pos & (spacing - 1));
     int id = lo + ((pos - lo) << 1);
     double y, *cPtr = cArray + id;

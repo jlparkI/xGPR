@@ -103,14 +103,21 @@ class GraphPolySum(KernelBaseclass):
                 self.graph_poly_func = floatGpuGraphPolyFHT
         else:
             if not isinstance(self.radem_diag, np.ndarray):
-                self.chi_arr = cp.asnumpy(self.chi_arr).astype(self.dtype)
+                self.chi_arr = cp.asnumpy(self.chi_arr)
                 self.radem_diag = cp.asnumpy(self.radem_diag)
             if self.double_precision:
                 self.graph_poly_func = doubleCpuGraphPolyFHT
             else:
                 self.graph_poly_func = floatCpuGraphPolyFHT
+            self.chi_arr = self.chi_arr.astype(self.dtype)
 
 
+
+    def kernel_specific_set_hyperparams(self):
+        """Provided for consistency with baseclass. This
+        kernel has no kernel-specific properties that must
+        be reset after hyperparameters are changed."""
+        return
 
 
     def transform_x(self, input_x):

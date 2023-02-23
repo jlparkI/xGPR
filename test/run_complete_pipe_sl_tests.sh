@@ -15,4 +15,5 @@ python test_linear.py
 python test_matern_fit.py
 python test_polysum.py
 python test_rbf_fit.py
+python test_mini_ard.py
 cd ..

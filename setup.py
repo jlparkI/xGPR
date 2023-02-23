@@ -80,6 +80,8 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
                     "poly_fht_operations.c")
     cpu_conv1d_op = os.path.join(cpu_fast_transform_path,
                     "conv1d_operations.c")
+    cpu_spec_ops = os.path.join(cpu_fast_transform_path,
+                    "specialized_ops.c")
 
     cpu_basic_op_wrapper = os.path.join(cpu_fast_transform_path,
                     "cpu_basic_hadamard_operations.pyx")
@@ -91,7 +93,7 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
     cpu_basic_op_ext = Extension("cpu_basic_hadamard_operations",
                     sources = [cpu_transform_functions,
                         cpu_float_array_op, cpu_double_array_op,
-                        cpu_basic_op_wrapper],
+                        cpu_basic_op_wrapper, cpu_spec_ops],
                 language="c", include_dirs=[numpy.get_include(),
                             cpu_fast_transform_path])
     cpu_conv_double_ext = Extension("cpu_convolution_double_hadamard_operations",

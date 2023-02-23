@@ -80,6 +80,9 @@
 const char *fastHadamard3dFloatArray_(float *Z, int zDim0, int zDim1, int zDim2,
                         int numThreads)
 {
+    if (numThreads > zDim0)
+        numThreads = zDim0;
+
     struct Thread3DFloatArrayArgs *th_args = malloc(numThreads * sizeof(struct Thread3DFloatArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
@@ -140,6 +143,9 @@ const char *fastHadamard3dFloatArray_(float *Z, int zDim0, int zDim1, int zDim2,
 const char *fastHadamard3dDoubleArray_(double *Z, int zDim0, int zDim1, int zDim2,
                         int numThreads)
 {
+    if (numThreads > zDim0)
+        numThreads = zDim0;
+
     struct Thread3DDoubleArrayArgs *th_args = malloc(numThreads * sizeof(struct Thread3DDoubleArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
@@ -201,6 +207,9 @@ const char *fastHadamard3dDoubleArray_(double *Z, int zDim0, int zDim1, int zDim
 const char *fastHadamard2dFloatArray_(float *Z, int zDim0, int zDim1,
                         int numThreads)
 {
+    if (numThreads > zDim0)
+        numThreads = zDim0;
+
     struct Thread3DFloatArrayArgs *th_args = malloc(numThreads * sizeof(struct Thread3DFloatArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
@@ -262,6 +271,9 @@ const char *fastHadamard2dFloatArray_(float *Z, int zDim0, int zDim1,
 const char *fastHadamard2dDoubleArray_(double *Z, int zDim0, int zDim1,
                         int numThreads)
 {
+    if (numThreads > zDim0)
+        numThreads = zDim0;
+
     struct Thread3DDoubleArrayArgs *th_args = malloc(numThreads * sizeof(struct Thread3DDoubleArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
@@ -325,6 +337,9 @@ const char *fastHadamard2dDoubleArray_(double *Z, int zDim0, int zDim1,
 const char *SORFFloatBlockTransform_(float *Z, int8_t *radem,
             int zDim0, int zDim1, int zDim2, int numThreads)
 {
+    if (numThreads > zDim0)
+        numThreads = zDim0;
+
     struct ThreadSORFFloatArrayArgs *th_args = malloc(numThreads * sizeof(struct ThreadSORFFloatArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
@@ -386,6 +401,9 @@ const char *SORFFloatBlockTransform_(float *Z, int8_t *radem,
 const char *SORFDoubleBlockTransform_(double *Z, int8_t *radem,
             int zDim0, int zDim1, int zDim2, int numThreads)
 {
+    if (numThreads > zDim0)
+        numThreads = zDim0;
+
     struct ThreadSORFDoubleArrayArgs *th_args = malloc(numThreads * sizeof(struct ThreadSORFDoubleArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
@@ -451,6 +469,9 @@ const char *SORFDoubleBlockTransform_(double *Z, int8_t *radem,
 const char *SRHTFloatBlockTransform_(float *Z, int8_t *radem,
             int zDim0, int zDim1, int numThreads)
 {
+    if (numThreads > zDim0)
+        numThreads = zDim0;
+
     struct ThreadSORFFloatArrayArgs *th_args = malloc(numThreads * sizeof(struct ThreadSORFFloatArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
@@ -513,6 +534,9 @@ const char *SRHTFloatBlockTransform_(float *Z, int8_t *radem,
 const char *SRHTDoubleBlockTransform_(double *Z, int8_t *radem,
             int zDim0, int zDim1, int numThreads)
 {
+    if (numThreads > zDim0)
+        numThreads = zDim0;
+
     struct ThreadSORFDoubleArrayArgs *th_args = malloc(numThreads * sizeof(struct ThreadSORFDoubleArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "

@@ -1,5 +1,5 @@
-#ifndef DOUBLE_CUDA_ARRAY_OPERATIONS_H
-#define DOUBLE_CUDA_ARRAY_OPERATIONS_H
+#ifndef DOUBLE_CUDA_RBF_OPERATIONS_H
+#define DOUBLE_CUDA_RBF_OPERATIONS_H
 
 const char *doubleCudaSORF3d(double *npArray, 
                     int8_t *radem, int dim0, int dim1,

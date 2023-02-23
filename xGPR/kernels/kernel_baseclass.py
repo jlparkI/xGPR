@@ -105,6 +105,12 @@ class KernelBaseclass(ABC):
         any kernel-specific operations needed to switch device
         for the kernel."""
 
+    @abc.abstractmethod
+    def kernel_specific_set_hyperparams(self):
+        """Kernel classes must implement a method that performs
+        any kernel-specific changes necessary after the hyperparameters
+        have been reset."""
+
 
     def check_bounds(self, bounds):
         """Checks a set of bounds provided by the caller to ensure they
@@ -236,6 +242,7 @@ class KernelBaseclass(ABC):
             self.hyperparams = np.exp(hyperparams)
         else:
             self.hyperparams = hyperparams
+        self.kernel_specific_set_hyperparams()
 
 
     def get_lambda(self):

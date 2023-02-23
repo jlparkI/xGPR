@@ -106,14 +106,21 @@ class GraphFHTConv1d(KernelBaseclass):
         else:
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
-                self.chi_arr = cp.asnumpy(self.chi_arr).astype(self.dtype)
+                self.chi_arr = cp.asnumpy(self.chi_arr)
             else:
                 self.chi_arr = self.chi_arr.astype(self.dtype)
             if self.double_precision:
                 self.conv_func = doubleCpuGraphConv1dTransform
             else:
                 self.conv_func = floatCpuGraphConv1dTransform
+            self.chi_arr = self.chi_arr.astype(self.dtype)
 
+
+    def kernel_specific_set_hyperparams(self):
+        """Provided for consistency with baseclass. This
+        kernel has no kernel-specific properties that must
+        be reset after hyperparameters are changed."""
+        return
 
 
     def transform_x(self, input_x):

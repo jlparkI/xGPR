@@ -59,6 +59,12 @@ class Linear(KernelBaseclass):
         return
 
 
+    def kernel_specific_set_hyperparams(self):
+        """Provided for consistency with baseclass. This
+        kernel has no kernel-specific properties that must
+        be reset after hyperparameters are changed."""
+        return
+
 
     def transform_x(self, input_x):
         """Most kernels generate random features. For the LinearKernel,

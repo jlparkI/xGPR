@@ -8,5 +8,5 @@ python linear_gradient_test.py
 python matern_gradient_test.py
 python rbf_gradient_test.py
 python polysum_gradient_test.py
+python mini_ard_gradient_test.py
 cd ..
-

@@ -134,7 +134,7 @@ class FHTConv1d(KernelBaseclass):
         else:
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
-                self.chi_arr = cp.asnumpy(self.chi_arr).astype(self.dtype)
+                self.chi_arr = cp.asnumpy(self.chi_arr)
             else:
                 self.chi_arr = self.chi_arr.astype(self.dtype)
             if self.double_precision:
@@ -143,6 +143,7 @@ class FHTConv1d(KernelBaseclass):
                 self.conv_func = floatCpuConv1dTransform
             self.stride_tricks = np.lib.stride_tricks.as_strided
             self.contiguous_array = np.ascontiguousarray
+            self.chi_arr = self.chi_arr.astype(self.dtype)
 
 
 
@@ -178,6 +179,12 @@ class FHTConv1d(KernelBaseclass):
                 self.hyperparams[2], mode = "conv")
         return xtrans[:,:self.num_rffs] * self.hyperparams[1]
 
+
+    def kernel_specific_set_hyperparams(self):
+        """Provided for consistency with baseclass. This
+        kernel has no kernel-specific properties that must
+        be reset after hyperparameters are changed."""
+        return
 
 
     def kernel_specific_gradient(self, input_x):

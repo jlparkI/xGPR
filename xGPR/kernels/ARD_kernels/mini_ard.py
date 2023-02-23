@@ -41,6 +41,9 @@ class MiniARD(KernelBaseclass):
             if x is the input data, lengthscale 1 applies
             to x[:,0:split_pts[0]], lengthscale 2 applies
             to x[:,split_pts[0]:split_pts[1]], etc.
+        full_ard_weights (array): A cupy or numpy array (depending on device)
+            containing the ARD weights for each input feature. This is
+            repopulated whenever the hyperparameters are updated.
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123,
@@ -91,6 +94,11 @@ class MiniARD(KernelBaseclass):
         self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
 
+        #Converts the hyperparameters into a "full" array of the
+        #same length as padded dims, just as if this were an ARD.
+        self.full_ard_weights = np.zeros((xdim[-1]))
+        self.kernel_specific_set_hyperparams()
+
         self.sinfunc = None
         self.cosfunc = None
         self.num_threads = 2
@@ -138,7 +146,9 @@ class MiniARD(KernelBaseclass):
                 self.sorf_transform = fSORF
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
-                self.chi_arr = cp.asnumpy(self.chi_arr).astype(self.dtype)
+                self.full_ard_weights = cp.asnumpy(self.full_ard_weights).astype(self.dtype)
+                self.chi_arr = cp.asnumpy(self.chi_arr)
+            self.chi_arr = self.chi_arr.astype(self.dtype)
         else:
             if self.double_precision:
                 self.sorf_transform = dCudaSORF
@@ -148,34 +158,32 @@ class MiniARD(KernelBaseclass):
             self.sinfunc = cp.sin
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
+            self.full_ard_weights = cp.asarray(self.full_ard_weights).astype(self.dtype)
 
 
 
+    def kernel_specific_set_hyperparams(self):
+        """Once hyperparameters have been reset, this kernel needs
+        to repopulate an array it will use when generating random
+        features."""
+        self.full_ard_weights[:] = 0
+        for i in range(1, self.split_pts.shape[0]):
+            self.full_ard_weights[self.split_pts[i-1]:self.split_pts[i]] = \
+                    self.hyperparams[i + 1]
 
     def transform_x(self, input_x):
-        """Random feature generation is divided into two steps. The first is
-        the SORF transform, here called 'pretransform'. For MOST kernels,
-        this step does not involve hyperparameters and can therefore
-        be shared. For this kernel, however, it DOES involve hyperparameters.
-        For this kernel, therefore, the entirey of the random feature
-        generation step is performed by finish_transform.
+        """Generates random features for an input array.
 
         Args:
             x: Either a cupy or numpy array containing the input.
-            multiply_by_beta (bool): If False, do not multiply the
-                result by beta (the amplitude). Used by gridsearch
-                routines during optimization. Defaults to True.
 
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
         x_sorf = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
                             dtype = self.dtype)
-        x_sorf[:,:,:self.xdim[1]] = input_x[:,None,:]
+        x_sorf[:,:,:self.xdim[1]] = (input_x * self.full_ard_weights[None,:])[:,None,:]
 
-        for i in range(1, self.split_pts.shape[0]):
-            x_sorf[:, :, self.split_pts[i-1]:self.split_pts[i]] *= \
-                    self.hyperparams[i + 1]
         self.sorf_transform(x_sorf, self.radem_diag, self.num_threads)
         x_sorf = x_sorf.reshape((x_sorf.shape[0], x_sorf.shape[1] *
                         x_sorf.shape[2]))[:,:self.num_freqs]
@@ -212,11 +220,7 @@ class MiniARD(KernelBaseclass):
                     self.split_pts.shape[0] - 1), dtype = self.dtype)
         x_sorf = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
                             dtype = self.dtype)
-        x_sorf[:,:,:self.xdim[1]] = input_x[:,None,:]
-
-        for i in range(1, self.split_pts.shape[0]):
-            x_sorf[:, :, self.split_pts[i-1]:self.split_pts[i]] *= \
-                    self.hyperparams[i + 1]
+        x_sorf[:,:,:self.xdim[1]] = (input_x * self.full_ard_weights[None,:])[:,None,:]
 
         self.sorf_transform(x_sorf, self.radem_diag, self.num_threads)
         x_feat = x_sorf.reshape((x_sorf.shape[0], x_sorf.shape[1] *

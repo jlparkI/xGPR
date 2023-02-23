@@ -11,11 +11,15 @@ import numpy as np
 from scipy.stats import chi
 from cpu_basic_hadamard_operations import doubleCpuSORFTransform as dSORF
 from cpu_basic_hadamard_operations import floatCpuSORFTransform as fSORF
+from cpu_basic_hadamard_operations import doubleCpuRBFFeatureGen as dRBF
+from cpu_basic_hadamard_operations import floatCpuRBFFeatureGen as fRBF
 
 try:
     import cupy as cp
     from cuda_basic_hadamard_operations import doubleCudaPySORFTransform as dCudaSORF
     from cuda_basic_hadamard_operations import floatCudaPySORFTransform as fCudaSORF
+    from cuda_basic_hadamard_operations import doubleCudaRBFFeatureGen as dCudaRBF
+    from cuda_basic_hadamard_operations import floatCudaRBFFeatureGen as fCudaRBF
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass
@@ -94,6 +98,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
                             random_state = random_seed)
         self.num_threads = 2
 
+        self.feature_gen = fRBF
         self.sinfunc = None
         self.cosfunc = None
         self.sorf_transform = fSORF
@@ -137,16 +142,21 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             self.sinfunc = np.sin
             if self.double_precision:
                 self.sorf_transform = dSORF
+                self.feature_gen = dRBF
             else:
                 self.sorf_transform = fSORF
+                self.feature_gen = fRBF
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
-                self.chi_arr = cp.asnumpy(self.chi_arr).astype(self.dtype)
+                self.chi_arr = cp.asnumpy(self.chi_arr)
+            self.chi_arr = self.chi_arr.astype(self.dtype)
         else:
             if self.double_precision:
                 self.sorf_transform = dCudaSORF
+                self.feature_gen = dCudaRBF
             else:
                 self.sorf_transform = fCudaSORF
+                self.feature_gen = fCudaRBF
             self.cosfunc = cp.cos
             self.sinfunc = cp.sin
             self.radem_diag = cp.asarray(self.radem_diag)
@@ -184,9 +194,20 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
-        xtrans = self.pretransform_x(input_x)
-        return self.finish_transform(xtrans)
+        xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
+                            dtype = self.dtype)
+        xtrans[:,:,:self.xdim[1]] = input_x[:,None,:] * self.hyperparams[2]
+        output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
+        self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
+                self.hyperparams[1], self.num_freqs, self.num_threads)
+        return output_x
 
+
+    def kernel_specific_set_hyperparams(self):
+        """Provided for consistency with baseclass. This
+        kernel has no kernel-specific properties that must
+        be reset after hyperparameters are changed."""
+        return
 
 
     def kernel_specific_gradient(self, input_x):

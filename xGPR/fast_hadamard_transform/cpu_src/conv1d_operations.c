@@ -70,6 +70,8 @@ const char *doubleConv1dPrep_(int8_t *radem, double *reshapedX,
             int reshapedDim1, int reshapedDim2,
             int startPosition, int numFreqs)
 {
+    if (numThreads > reshapedDim0)
+        numThreads = reshapedDim0;
 
     struct ThreadConv1dDoubleArgs *th_args = malloc(numThreads * sizeof(struct ThreadConv1dDoubleArgs));
     if (th_args == NULL){
@@ -147,6 +149,9 @@ const char *floatConv1dPrep_(int8_t *radem, float *reshapedX,
             int reshapedDim1, int reshapedDim2,
             int startPosition, int numFreqs)
 {
+
+    if (numThreads > reshapedDim0)
+        numThreads = reshapedDim0;
 
     struct ThreadConv1dFloatArgs *th_args = malloc(numThreads * sizeof(struct ThreadConv1dFloatArgs));
     if (th_args == NULL){
