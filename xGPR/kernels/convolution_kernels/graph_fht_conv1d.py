@@ -43,7 +43,7 @@ class GraphFHTConv1d(KernelBaseclass):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
-                    double_precision = True, kernel_spec_parms = {}):
+                    num_threads = 2, double_precision = False, kernel_spec_parms = {}):
         """Constructor for FHT_Conv1d.
 
         Args:
@@ -56,6 +56,8 @@ class GraphFHTConv1d(KernelBaseclass):
                 class as num_rffs.
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'gpu'. Indicates the starting device.
+            num_threads (int): The number of threads to use for random feature generation
+                if running on CPU. Ignored if running on GPU.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
 
@@ -63,7 +65,8 @@ class GraphFHTConv1d(KernelBaseclass):
             ValueError: A ValueError is raised if the dimensions of the input are
                 inappropriate given the conv_width.
         """
-        super().__init__(num_rffs, xdim, double_precision, sine_cosine_kernel = True)
+        super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = True,
+                double_precision = double_precision)
         if len(xdim) != 3:
             raise ValueError("Tried to initialize the GraphFHTConv1d kernel with a "
                     "2d x-array! x should be a 3d array for GraphFHTConv1d.")
@@ -143,7 +146,7 @@ class GraphFHTConv1d(KernelBaseclass):
                                 self.padded_dims), self.dtype)
         reshaped_x[:,:,:input_x.shape[2]] = input_x
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
-                2, self.hyperparams[2:], self.hyperparams[1])
+                self.num_threads, self.hyperparams[2:], self.hyperparams[1])
         return xtrans[:,:self.num_rffs]
 
 
@@ -171,6 +174,6 @@ class GraphFHTConv1d(KernelBaseclass):
                                 self.padded_dims), self.dtype)
         reshaped_x[:,:,:input_x.shape[2]] = input_x
         dz_dsigma = self.conv_func(reshaped_x, self.radem_diag,
-                output_x, self.chi_arr, 2, self.hyperparams[2:],
+                output_x, self.chi_arr, self.num_threads, self.hyperparams[2:],
                 self.hyperparams[1], mode = "gradient")
         return output_x[:,:self.num_rffs], dz_dsigma[:,:self.num_rffs]

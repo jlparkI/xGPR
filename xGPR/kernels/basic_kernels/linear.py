@@ -20,7 +20,8 @@ class Linear(KernelBaseclass):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123,
-                device = "cpu", double_precision = True,
+                device = "cpu", num_threads = 2,
+                double_precision = True,
                 kernel_spec_parms = {}):
         """Constructor.
 
@@ -30,6 +31,9 @@ class Linear(KernelBaseclass):
                 For this kernel, it is ignored.
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'gpu'. Indicates the starting device.
+            num_threads (int): The number of threads to use for random feature generation
+                if running on CPU; if running on GPU this is ignored. Since random features
+                are not generated for this kernel this is ignored.
             double_precision (bool): Not used for this kernel; accepted to preserve
                 common interface with other kernels.
             kernel_spec_parms (dict): A dictionary of kernel-specific parameters.
@@ -42,7 +46,9 @@ class Linear(KernelBaseclass):
             if kernel_spec_parms["intercept"] is False:
                 self.fit_intercept = False
                 actual_rffs = xdim[1]
+
         super().__init__(actual_rffs, xdim)
+
         if len(xdim) > 2:
             raise ValueError("The Linear kernel is only applicable for "
                     "fixed vector input.")

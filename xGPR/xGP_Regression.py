@@ -46,13 +46,12 @@ class xGPRegression(GPRegressionBaseclass):
     any attributes unique to it aside from those
     of the parent class."""
 
-    def __init__(self, training_rffs,
-                    fitting_rffs,
-                    variance_rffs = 16,
+    def __init__(self, training_rffs, fitting_rffs, variance_rffs = 16,
                     kernel_choice="rbf",
                     device = "cpu",
                     kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     verbose = True,
+                    num_threads = 2,
                     double_precision_fht = False):
         """The constructor for xGPRegression. Passes arguments onto
         the parent class constructor.
@@ -78,13 +77,17 @@ class xGPRegression(GPRegressionBaseclass):
                 for the conv1d kernel.
             verbose (bool): If True, regular updates are printed
                 during fitting and tuning. Defaults to True.
-            double_precision_fht (bool): If False, use single precision floats to generate
-                random features. This can increase speed but may result in a slight (usually
-                negligible) loss of accuracy.
+            num_threads (int): The number of threads to use for random feature generation
+                if running on CPU. If running on GPU, this argument is ignored.
+            double_precision_fht (bool): If True, use double precision during FHT for
+                generating random features. For most problems, it is not beneficial
+                to set this to True -- it merely increases computational expense
+                with negligible benefit -- but this option is useful for testing.
+                Defaults to False.
         """
         super().__init__(training_rffs, fitting_rffs, variance_rffs,
                         kernel_choice, device, kernel_specific_params,
-                        verbose, double_precision_fht)
+                        verbose, num_threads, double_precision_fht)
 
 
 

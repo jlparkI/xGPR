@@ -51,22 +51,24 @@ class GPRegressionBaseclass():
             for the conv1d kernel.
         verbose (bool): If True, regular updates are printed during
             hyperparameter tuning and fitting.
-        double_precision_fht (bool): If False, use single precision floats to generate
-            random features. This can increase speed but may result in a slight (usually
-            negligible) loss of accuracy.
+        num_threads (int): The number of threads to use for random feature generation
+            if running on CPU. If running on GPU, this argument is ignored.
         trainy_mean (float): The mean of the training ydata. Determined during fitting.
             Used for making predictions.
         trainy_std (float): The standard deviation of the training ydata. Determined
             during fitting. Used for making predictions.
+        double_precision_fht (bool): If True, use double precision during FHT for
+            generating random features. For most problems, it is not beneficial
+            to set this to True -- it merely increases computational expense
+            with negligible benefit -- but this option is useful for testing.
+            Defaults to False.
     """
 
-    def __init__(self, training_rffs,
-                    fitting_rffs,
-                    variance_rffs = 16,
-                    kernel_choice="RBF",
-                    device = "cpu",
+    def __init__(self, training_rffs, fitting_rffs, variance_rffs = 16,
+                    kernel_choice="RBF", device = "cpu",
                     kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     verbose = True,
+                    num_threads = 2,
                     double_precision_fht = False):
         """Constructor.
 
@@ -91,9 +93,8 @@ class GPRegressionBaseclass():
                 for the conv1d kernel.
             verbose (bool): If True, regular updates are printed
                 during fitting and tuning. Defaults to True.
-            double_precision_fht (bool): If False, use single precision floats to generate
-                random features. This can increase speed but may result in a slight (usually
-                negligible) loss of accuracy.
+            num_threads (int): The number of threads to use for random feature generation
+                if running on CPU. If running on GPU, this argument is ignored.
         """
         self.kernel_choice = kernel_choice
         self.kernel = None
@@ -107,11 +108,13 @@ class GPRegressionBaseclass():
         self.variance_rffs = variance_rffs
 
         self.kernel_spec_parms = kernel_specific_params
-        self.double_precision_fht = double_precision_fht
+        self.num_threads = num_threads
 
         self.verbose = verbose
         self.trainy_mean = 0.0
         self.trainy_std = 1.0
+
+        self.double_precision_fht = double_precision_fht
 
 
 
@@ -280,7 +283,7 @@ class GPRegressionBaseclass():
             raise ValueError("An unrecognized kernel choice was supplied.")
         kernel = KERNEL_NAME_TO_CLASS[kernel_choice](input_dims,
                             num_rffs, random_seed, self.device,
-                            self.double_precision_fht,
+                            self.num_threads, self.double_precision_fht,
                             kernel_spec_parms = self.kernel_spec_parms)
         if bounds is not None:
             kernel.set_bounds(bounds)
@@ -558,14 +561,30 @@ class GPRegressionBaseclass():
 
 
     @property
+    def num_threads(self):
+        """Property definition for the num_threads attribute."""
+        return self._num_threads
+
+    @num_threads.setter
+    def num_threads(self, value):
+        """Setter for the num_threads attribute."""
+        if value > 24 or value < 1:
+            self._num_threads = 2
+            raise ValueError("Num threads if supplied must be an integer from 1 to 24.")
+        self._num_threads = value
+
+
+    @property
     def double_precision_fht(self):
         """Property definition for the double_precision_fht attribute."""
         return self._double_precision_fht
 
-    @double_precision_fht.setter
+
+    @num_threads.setter
     def double_precision_fht(self, value):
         """Setter for the double_precision_fht attribute."""
         self._double_precision_fht = value
+
 
     @property
     def device(self):

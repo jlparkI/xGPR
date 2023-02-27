@@ -58,7 +58,8 @@ class FHTConv1d(KernelBaseclass):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
-                    double_precision = False, kernel_spec_parms = {}):
+                    num_threads = 2, double_precision = False,
+                    kernel_spec_parms = {}):
         """Constructor for FHT_Conv1d.
 
         Args:
@@ -71,6 +72,8 @@ class FHTConv1d(KernelBaseclass):
                 class as num_rffs.
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'gpu'. Indicates the starting device.
+            num_threads (int): The number of threads to use for random feature generation
+                if running on CPU. If running on GPU, this is ignored.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
             kernel_spec_parms (dict): A dictionary of additional kernel-specific
@@ -80,7 +83,8 @@ class FHTConv1d(KernelBaseclass):
             ValueError: A ValueError is raised if the dimensions of the input are
                 inappropriate given the conv_width.
         """
-        super().__init__(num_rffs, xdim, double_precision, sine_cosine_kernel = True)
+        super().__init__(num_rffs, xdim, num_threads = 2,
+                sine_cosine_kernel = True, double_precision = double_precision)
         if len(xdim) != 3:
             raise ValueError("Tried to initialize the Conv1d kernel with a 2d x-"
                     "array! x should be a 3d array for Conv1d.")
@@ -175,7 +179,7 @@ class FHTConv1d(KernelBaseclass):
                             strides=(input_x.strides[0], input_x.shape[2] * input_x.strides[2],
                                 input_x.strides[2]))
         reshaped_x[:,:,:self.dim2_no_padding] = self.contiguous_array(x_strided)
-        self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr, 2,
+        self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr, self.num_threads,
                 self.hyperparams[2], mode = "conv")
         return xtrans[:,:self.num_rffs] * self.hyperparams[1]
 
@@ -217,7 +221,8 @@ class FHTConv1d(KernelBaseclass):
                                 input_x.strides[2], input_x.strides[2]))
         reshaped_x[:,:,:self.dim2_no_padding] = self.contiguous_array(x_strided)
         dz_dsigma = self.conv_func(reshaped_x, self.radem_diag,
-                output_x, self.chi_arr, 2, self.hyperparams[2], mode = "conv_gradient")
+                output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
+                mode = "conv_gradient")
         output_x *= self.hyperparams[1]
         dz_dsigma *= self.hyperparams[1]
 

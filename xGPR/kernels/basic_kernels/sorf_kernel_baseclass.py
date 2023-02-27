@@ -45,7 +45,6 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         chi_arr: A diagonal array whose elements are drawn from the chi
             distribution. Ensures the marginals of the matrix resulting
             from S H D1 H D2 H D3 are correct.
-        num_threads (int): The number of threads for CPU-based FHT.
         sorf_transform: A reference to the Cython function that wraps the
             C code which generates the random features.
         cosfunc: A convenience reference to either cp.cos or np.cos,
@@ -54,8 +53,9 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             as appropriate for current device.
     """
 
-    def __init__(self, num_rffs, xdim, double_precision = True,
-                            sine_cosine_kernel = False, random_seed = 123):
+    def __init__(self, num_rffs, xdim, num_threads = 2,
+                            sine_cosine_kernel = True, random_seed = 123,
+                            double_precision = False):
         """Constructor for the SORFKernelBaseclass. Calls the KernelBaseclass
         constructor first.
 
@@ -67,19 +67,23 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
                 where N is the number of datapoints, D is number of features
                 and M is number of timepoints or sequence elements (convolution
                 kernels only).
+            num_threads (int): The number of threads to use for generating random
+                features if running on CPU. If running on GPU, this is ignored.
             random_seed (int): The seed to the random number generator.
-            double_precision (bool): If True, generate random features in double precision.
-                Otherwise, generate as single precision.
             sine_cosine_kernel (bool): If True, the kernel is a sine-cosine kernel,
                 meaning it will sample self.num_freqs frequencies and use the sine
                 and cosine of each to generate twice as many features
                 (self.num_rffs). sine-cosine kernels only accept num_rffs
                 that are even numbers.
+            double_precision (bool): If True, generate random features in double precision.
+                Otherwise, generate as single precision.
 
         Raises:
             ValueError: If a non 2d input array dimensionality is supplied.
         """
-        super().__init__(num_rffs, xdim, double_precision, sine_cosine_kernel)
+        super().__init__(num_rffs, xdim, num_threads = num_threads,
+                sine_cosine_kernel = sine_cosine_kernel,
+                double_precision = double_precision)
         if len(xdim) != 2:
             raise ValueError("The dimensionality of the input is inappropriate for "
                         "the kernel you have selected.")
@@ -96,7 +100,6 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
                                 replace=True)
         self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
-        self.num_threads = 2
 
         self.feature_gen = fRBF
         self.sinfunc = None

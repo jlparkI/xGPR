@@ -45,7 +45,9 @@ class KernelBaseclass(ABC):
             classes can call self.zero_arr and get an array appropriate
             for the current device.
         dtype: A reference to either np.float64, np.float32, cp.float32, cp.float64
-            depending on self.device and self.double_precision (see below).
+            depending on self.device and precision (by default, float32 -- we have not
+            found using float64 for FHT to provide any significant improvement on
+            benchmark problems).
         out_type: A reference to either np.float64 or cp.float64 depending on
             device.
         empty: A reference to either np.emtpy or cp.empty depending on self.device.
@@ -53,8 +55,8 @@ class KernelBaseclass(ABC):
             Otherwise, generate as single precision.
     """
 
-    def __init__(self, num_rffs, xdim, double_precision = True,
-            sine_cosine_kernel = False):
+    def __init__(self, num_rffs, xdim, num_threads = 2,
+            sine_cosine_kernel = False, double_precision = False):
         """Constructor for the KernelBaseclass.
 
         Args:
@@ -65,13 +67,15 @@ class KernelBaseclass(ABC):
                 where N is the number of datapoints, D is number of features
                 and M is number of timepoints or sequence elements (convolution
                 kernels only).
-            double_precision (bool): If True, generate random features in double precision.
-                Otherwise, generate as single precision.
+            num_threads (int): The number of threads to use if running on CPU. If
+                running on GPU, this is ignored.
             sine_cosine_kernel (bool): If True, the kernel is a sine-cosine kernel,
                 meaning it will sample self.num_freqs frequencies and use the sine
                 and cosine of each to generate twice as many features
                 (self.num_rffs). sine-cosine kernels only accept num_rffs
                 that are even numbers.
+            double_precision (bool): If True, generate random features in double precision.
+                Otherwise, generate as single precision.
 
         Raises:
             ValueError: Raises a ValueError if a sine-cosine kernel is requested
@@ -91,6 +95,9 @@ class KernelBaseclass(ABC):
         self.xdim = xdim
         self.hyperparams = None
         self.bounds = None
+
+        self.num_threads = num_threads
+
 
 
 
@@ -221,8 +228,7 @@ class KernelBaseclass(ABC):
 
 
     def set_hyperparams(self, hyperparams, logspace = True):
-        """Sets the kernel hyperparameters. We have not used the property
-        decorator since the logspace option is required.
+        """Sets the kernel hyperparameters.
 
         Args:
             hyperparams (np.ndarray): A numpy array of shape N for N hyperparameters.

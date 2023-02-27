@@ -51,14 +51,21 @@ class MiniARD(KernelBaseclass):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123,
-                device = "cpu", double_precision = False, kernel_spec_parms = {}):
-        """Constructor for RBF.
+                device = "cpu", num_threads = 2, double_precision = False,
+                kernel_spec_parms = {}):
+        """Constructor.
 
         Args:
             xdim (tuple): The dimensions of the input.
             num_rffs (int): The user-requested number of random Fourier features.
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'gpu'. Indicates the starting device.
+            num_threads (int): The number of threads to use for generating random
+                features if running on CPU. Ignored if running on GPU.
+            double_precision (bool): Whether to use double precision for the FHT
+                when generating random features. It is generally best to set to
+                False -- setting to True increases computational cost for negligible
+                benefit.
             kernel_spec_parms (dict): A dictionary of kernel-specific parameters.
                 In this case, must contain "split_points", which is a list
                 of split points across input arrays.
@@ -67,7 +74,8 @@ class MiniARD(KernelBaseclass):
             ValueError: A ValueError is raised if the needed kernel_spec_parms
                 are not supplied, or if the split points supplied are invalid.
         """
-        super().__init__(num_rffs, xdim, random_seed, sine_cosine_kernel = True)
+        super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = True,
+                double_precision = double_precision)
         if len(self.xdim) != 2:
             raise ValueError("The dimensionality of the input is inappropriate for "
                         "the kernel you have selected.")
@@ -106,7 +114,6 @@ class MiniARD(KernelBaseclass):
         self.feature_gen = fRBF
         self.sinfunc = None
         self.cosfunc = None
-        self.num_threads = 2
         self.sorf_transform = fSORF
         self.device = device
 
@@ -230,7 +237,7 @@ class MiniARD(KernelBaseclass):
                         x_sorf.shape[2]))[:,:self.num_freqs]
         x_feat *= self.chi_arr[None,:]
 
-        xtrans = self.empty((x_sorf.shape[0], self.num_rffs), self.dtype)
+        xtrans = self.empty((x_sorf.shape[0], self.num_rffs), self.out_type)
         xtrans[:,:self.num_freqs] = self.cosfunc(x_feat)
         xtrans[:,self.num_freqs:] = self.sinfunc(x_feat)
 

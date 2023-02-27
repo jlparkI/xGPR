@@ -179,5 +179,5 @@ def generate_float_rbf_values(test_array, radem, chi_arr, beta):
 
 
 if __name__ == "__main__":
-    time_test()
-    #unittest.main()
+    #time_test()
+    unittest.main()

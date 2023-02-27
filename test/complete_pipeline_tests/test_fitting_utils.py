@@ -26,7 +26,6 @@ def test_fit_cg(kernel, conv_kernel, random_seed, conv_width = 3,
         cpu_mod.tune_hyperparams_crude_lbfgs(train_dataset, n_restarts = 3)
 
     print(f"Hyperparams, cpu, {kernel}: {cpu_mod.get_hyperparams()}")
-
     preconditioner, _ = cpu_mod.build_preconditioner(train_dataset,
             max_rank = 256, method = "srht")
 
