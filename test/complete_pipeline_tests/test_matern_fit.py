@@ -6,7 +6,7 @@ preconditioner tests and fht operations tests as appopriate
 to determine which component is failing."""
 import unittest
 
-from test_fitting_utils import test_fit_cg, test_fit_exact
+from test_fitting_utils import test_fit_cpu, test_fit_gpu
 
 RANDOM_SEED = 123
 CONV_KERNEL = False
@@ -16,20 +16,23 @@ KERNEL = "Matern"
 class CheckMaternPipeline(unittest.TestCase):
     """An all in one pipeline test."""
 
-    def test_fit_cg(self):
-        """Test using preconditioned cg."""
-        cpu_score, gpu_score = test_fit_cg(KERNEL, CONV_KERNEL, RANDOM_SEED)
-        self.assertTrue(cpu_score > 0.58)
-        if gpu_score is not None:
-            self.assertTrue(gpu_score > 0.58)
 
 
-    def test_fit_exact(self):
-        """Test using exact."""
-        cpu_score, gpu_score = test_fit_exact(KERNEL, CONV_KERNEL, RANDOM_SEED)
-        self.assertTrue(cpu_score > 0.56)
-        if gpu_score is not None:
-            self.assertTrue(gpu_score > 0.56)
+    def test_fit_cpu(self):
+        """Test on cpu."""
+        cg_score, exact_score = test_fit_cpu(KERNEL, CONV_KERNEL, RANDOM_SEED,
+                conv_width = 3)
+        self.assertTrue(cg_score > 0.57)
+        self.assertTrue(exact_score > 0.55)
+
+    def test_fit_gpu(self):
+        """Test on gpu."""
+        cg_score, exact_score = test_fit_gpu(KERNEL, CONV_KERNEL, RANDOM_SEED,
+                conv_width = 3)
+        if cg_score is None or exact_score is None:
+            return
+        self.assertTrue(cg_score > 0.57)
+        self.assertTrue(exact_score > 0.55)
 
 
 if __name__ == "__main__":

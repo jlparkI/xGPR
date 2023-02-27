@@ -7,7 +7,7 @@ preconditioner tests and fht operations tests as appopriate
 to determine which component is failing."""
 import unittest
 
-from test_fitting_utils import test_fit_cg, test_fit_exact
+from test_fitting_utils import test_fit_cpu, test_fit_gpu
 
 RANDOM_SEED = 123
 CONV_KERNEL = False
@@ -17,22 +17,25 @@ KERNEL = "MiniARD"
 class CheckMiniARDPipeline(unittest.TestCase):
     """An all in one pipeline test."""
 
-    def test_fit_cg(self):
-        """Test using preconditioned cg."""
-        print("Now running the MiniARD test. This one is slow on CPU, "
-                "so be prepared for this to take a minute...")
-        cpu_score, gpu_score = test_fit_cg(KERNEL, CONV_KERNEL, RANDOM_SEED)
-        self.assertTrue(cpu_score > 0.61)
-        if gpu_score is not None:
-            self.assertTrue(gpu_score > 0.61)
 
 
-    def test_fit_exact(self):
-        """Test using exact."""
-        cpu_score, gpu_score = test_fit_exact(KERNEL, CONV_KERNEL, RANDOM_SEED)
-        self.assertTrue(cpu_score > 0.59)
-        if gpu_score is not None:
-            self.assertTrue(gpu_score > 0.59)
+    def test_fit_cpu(self):
+        """Test on cpu."""
+        print("Now testing MiniARD on CPU. This kernel is slow for tuning "
+                "on cpu, so this might take a minute...")
+        cg_score, exact_score = test_fit_cpu(KERNEL, CONV_KERNEL, RANDOM_SEED,
+                conv_width = 3)
+        self.assertTrue(cg_score > 0.66)
+        self.assertTrue(exact_score > 0.66)
+
+    def test_fit_gpu(self):
+        """Test on gpu."""
+        cg_score, exact_score = test_fit_gpu(KERNEL, CONV_KERNEL, RANDOM_SEED,
+                conv_width = 3)
+        if cg_score is None or exact_score is None:
+            return
+        self.assertTrue(cg_score > 0.66)
+        self.assertTrue(exact_score > 0.66)
 
 
 if __name__ == "__main__":
