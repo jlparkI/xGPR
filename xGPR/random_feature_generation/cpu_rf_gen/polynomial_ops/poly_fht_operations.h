@@ -6,6 +6,27 @@
 #define EPS_TOLERANCE 0.0
 #define MAX_THREADS 8
 
+
+struct ThreadConv1dDoubleArgs {
+    int startPosition;
+    int reshapedDim1, reshapedDim2;
+    int numFreqs;
+    double *reshapedXArray;
+    int8_t *rademArray;
+    int startRow, endRow;
+};
+
+
+struct ThreadConv1dFloatArgs {
+    int startPosition;
+    int reshapedDim1, reshapedDim2;
+    int numFreqs;
+    float *reshapedXArray;
+    int8_t *rademArray;
+    int startRow, endRow;
+};
+
+
 const char *floatPolyFHTPrep_(int8_t *radem, float *reshapedX,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,

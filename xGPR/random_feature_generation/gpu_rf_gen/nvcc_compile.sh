@@ -5,13 +5,13 @@ nvcc --compiler-options '-fPIC'  \
 nvcc --compiler-options '-fPIC'  \
     -c -o float_arrop_temp.o float_array_operations.cu
 nvcc --compiler-options '-fPIC'  \
-    -c -o double_spec_temp.o double_specialized_ops.cu
+    -c -o double_spec_temp.o rbf_ops/double_specialized_ops.cu
 nvcc --compiler-options '-fPIC'  \
-    -c -o float_spec_temp.o float_specialized_ops.cu
+    -c -o float_spec_temp.o rbf_ops/float_specialized_ops.cu
 nvcc --compiler-options '-fPIC'  \
-    -c -o polyfht_temp.o poly_fht.cu
+    -c -o polyfht_temp.o poly_ops/poly_fht.cu
 nvcc --compiler-options '-fPIC'  \
-    -c -o conv_temp.o convolution.cu
+    -c -o conv_temp.o convolution_ops/convolution.cu
 
 ar cru libarray_operations.a double_arrop_temp.o float_arrop_temp.o conv_temp.o polyfht_temp.o \
     float_spec_temp.o double_spec_temp.o

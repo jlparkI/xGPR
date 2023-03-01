@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "double_array_operations.h"
+#include "../double_array_operations.h"
 #include "double_specialized_ops.h"
 #include <cuda_profiler_api.h>
 

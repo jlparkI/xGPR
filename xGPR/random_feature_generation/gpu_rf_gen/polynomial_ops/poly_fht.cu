@@ -10,8 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "double_array_operations.h"
-#include "float_array_operations.h"
+#include "../double_array_operations.h"
+#include "../float_array_operations.h"
 #include "poly_fht.h"
 
 #define DEFAULT_THREADS_PER_BLOCK 256

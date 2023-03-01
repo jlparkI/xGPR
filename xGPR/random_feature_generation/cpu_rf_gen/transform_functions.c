@@ -118,6 +118,12 @@ const char *fastHadamard3dFloatArray_(float *Z, int zDim0, int zDim1, int zDim2,
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
     
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
     free(th_args);
     return "no_error";
 }
@@ -181,6 +187,12 @@ const char *fastHadamard3dDoubleArray_(double *Z, int zDim0, int zDim1, int zDim
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
     
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
     free(th_args);
     return "no_error";
 }
@@ -246,6 +258,12 @@ const char *fastHadamard2dFloatArray_(float *Z, int zDim0, int zDim1,
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
     
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
     free(th_args);
     return "no_error";
 }
@@ -310,6 +328,12 @@ const char *fastHadamard2dDoubleArray_(double *Z, int zDim0, int zDim1,
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
     
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
     free(th_args);
     return "no_error";
 }
@@ -376,6 +400,12 @@ const char *SORFFloatBlockTransform_(float *Z, int8_t *radem,
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
     
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
     free(th_args);
     return "no_error";
 }
@@ -440,6 +470,12 @@ const char *SORFDoubleBlockTransform_(double *Z, int8_t *radem,
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
     
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
     free(th_args);
     return "no_error";
 }
@@ -509,6 +545,12 @@ const char *SRHTFloatBlockTransform_(float *Z, int8_t *radem,
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
     
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
     free(th_args);
     return "no_error";
 }
@@ -574,6 +616,12 @@ const char *SRHTDoubleBlockTransform_(double *Z, int8_t *radem,
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
     
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
     free(th_args);
     return "no_error";
 }

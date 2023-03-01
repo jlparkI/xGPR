@@ -146,7 +146,7 @@ class GraphFHTConv1d(KernelBaseclass):
                                 self.padded_dims), self.dtype)
         reshaped_x[:,:,:input_x.shape[2]] = input_x
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
-                self.num_threads, self.hyperparams[2:], self.hyperparams[1])
+                self.num_threads, self.hyperparams[2], self.hyperparams[1])
         return xtrans[:,:self.num_rffs]
 
 
@@ -174,6 +174,6 @@ class GraphFHTConv1d(KernelBaseclass):
                                 self.padded_dims), self.dtype)
         reshaped_x[:,:,:input_x.shape[2]] = input_x
         dz_dsigma = self.conv_func(reshaped_x, self.radem_diag,
-                output_x, self.chi_arr, self.num_threads, self.hyperparams[2:],
+                output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
                 self.hyperparams[1], mode = "gradient")
         return output_x[:,:self.num_rffs], dz_dsigma[:,:self.num_rffs]

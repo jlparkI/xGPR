@@ -21,6 +21,11 @@ cdef extern from "conv1d_operations.h" nogil:
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
             int startPosition, int numFreqs);
+    const char *doubleConvRBFFeatureGen_(int8_t *radem, double *reshapedX,
+            double *chiArr, double *outputArray,
+            int numThreads, int reshapedDim0,
+            int reshapedDim1, int reshapedDim2,
+            int startPosition, int numFreqs)
 
 cdef extern from "transform_functions.h" nogil:
     const char *SORFDoubleBlockTransform_(double *Z, int8_t *radem, int zDim0,
@@ -29,18 +34,13 @@ cdef extern from "transform_functions.h" nogil:
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def doubleCpuConv1dTransform(np.ndarray[np.float64_t, ndim=3] reshapedX,
+def doubleCpuConv1dMaxpool(np.ndarray[np.float64_t, ndim=3] reshapedX,
                 np.ndarray[np.int8_t, ndim=3] radem,
-                np.ndarray[np.float64_t, ndim=2] Z,
-                np.ndarray[np.float64_t, ndim=1] S,
-                int numThreads, double sigma, 
-                str mode):
-    """Uses the wrapped doubleConv1dPrep_ and numpy operations to perform a
-    structured orthogonal random features or SORF operation on
-    an array of doubles that has been reshaped to perform convolution.
-    Note that doubleConv1dPrep should ONLY be accessed through this
-    since this wrapper performs key checks (the shape of the input
-    arrays, are they C-contiguous etc.) that should not be bypassed.
+                np.ndarray[np.float64_t, ndim=2] outputArray,
+                np.ndarray[np.float64_t, ndim=1] chiArr,
+                int numThreads, str mode):
+    """Uses wrapped C extensions to perform random feature generation
+    with ReLU activation and maxpooling.
 
     Args:
         reshapedX (np.ndarray): An array of type float64 from which
@@ -50,22 +50,16 @@ def doubleCpuConv1dTransform(np.ndarray[np.float64_t, ndim=3] reshapedX,
         radem (np.ndarray): A stack of diagonal matrices of type int8_t
             of shape (3 x 1 x m * C), where R is the number of random
             features requested and m is ceil(R / C).
-        Z (np.ndarray): An N x R array in which the output features
+        outputArray (np.ndarray): An N x R array in which the output features
             will be stored.
-        S (np.ndarray): A stack of diagonal matrices stored as an
+        chiArr (np.ndarray): A stack of diagonal matrices stored as an
             array of shape (R) drawn from a chi distribution.
         num_threads (int): This argument is so that this function has
             the same interface as the CPU SORF Transform. It is not
             needed for the GPU transform and is ignored.
-        sigma (double): The kernel specific hyperparameter for the
-            Conv1d kernel.
-        mode (str): One of 'maxpool', 'maxpool_loc', 'conv', 'conv_gradient'.
+        mode (str): One of 'maxpool', 'maxpool_loc'.
             Determines the type of activation function and pooling that
             is performed.
-
-    Returns:
-        gradient (np.ndarray): A float64 array of shape (N x R) if
-            mode is "conv_gradient"; otherwise nothing.
     """
     cdef const char *errCode
     cdef int i, startPosition, cutoff
@@ -76,32 +70,26 @@ def doubleCpuConv1dTransform(np.ndarray[np.float64_t, ndim=3] reshapedX,
 
     reshapedXCopy = np.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]))
     
-    if mode not in ["maxpool", "maxpool_loc", "conv", "conv_gradient"]:
+    if mode not in ["maxpool", "maxpool_loc"]:
         raise ValueError("Invalid mode supplied for convolution.")
 
     #Check that all arrays have expected sizes and data types.    
     if reshapedX.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if reshapedX.shape[0] != Z.shape[0]:
+    if reshapedX.shape[0] != outputArray.shape[0]:
         raise ValueError("The number of input and output datapoints do not "
                 "agree.")
 
 
-    #Check that shapes of radem, Z are correct.
+    #Check that shapes of radem, outputArray are correct.
     if radem.shape[0] != 3 or radem.shape[1] != 1:
         raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
-    if mode.startswith("maxpool"):
-        if Z.shape[1] != radem.shape[2]:
-            raise ValueError("Z.shape[1] must be an integer multiple of the next largest "
+    if outputArray.shape[1] != radem.shape[2]:
+        raise ValueError("outputArray.shape[1] must be an integer multiple of the next largest "
                 "power of 2 greater than the kernel width * X.shape[2].")
-    elif Z.shape[1] != 2 * radem.shape[2]:
-        raise ValueError("Z.shape[1] must be 2 * radem.shape[2], which must be an integer "
-                "multiple of the next largest power of 2 greater than the kernel width * "
-                "X.shape[2].")
 
-    #Next, make sure that reshapedX and S make sense.
-    if S.shape[0] != radem.shape[2]:
-        raise ValueError("S.shape[0] must == radem.shape[2].")
+    if chiArr.shape[0] != radem.shape[2]:
+        raise ValueError("chiArr.shape[0] must == radem.shape[2].")
         
     logdim = np.log2(reshapedX.shape[2])
     if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
@@ -110,16 +98,13 @@ def doubleCpuConv1dTransform(np.ndarray[np.float64_t, ndim=3] reshapedX,
         raise ValueError("The number of sampled frequencies should be an integer multiple of "
                 "reshapedX.shape[2].")
 
-    #Make sure that all inputs are C-contiguous.
-    if not Z.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] \
-            or not radem.flags["C_CONTIGUOUS"] or not S.flags["C_CONTIGUOUS"]:
+    if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] \
+            or not radem.flags["C_CONTIGUOUS"] or not chiArr.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
 
     startPosition, cutoff = 0, reshapedX.shape[2]
     scalingTerm = np.sqrt(1 / <double>radem.shape[2])
-    if mode == "conv_gradient":
-        gradient = np.zeros((Z.shape[0], Z.shape[1]), dtype=np.float64)
-    
+
     for i in range(num_repeats):
         reshapedXCopy[:] = reshapedX
         errCode = doubleConv1dPrep_(&radem[0,0,0],
@@ -130,50 +115,105 @@ def doubleCpuConv1dTransform(np.ndarray[np.float64_t, ndim=3] reshapedX,
         if errCode.decode("UTF-8") != "no_error":
             raise Exception("Fatal error encountered in doubleGpuConv1dTransform_.")
         
-        reshapedXCopy *= S[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
-        if mode == "maxpool":
-            Z[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
-        elif mode == "maxpool_loc":
-            Z[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
-            Z[:,startPosition:cutoff] -= reshapedXCopy.mean(axis=1)
-        elif mode == "conv_gradient":
-            featureMod = sigma * reshapedXCopy
-
-            Z[:,startPosition:cutoff] = np.cos(featureMod).sum(axis=1)
-            gradient[:,startPosition:cutoff] = (-np.sin(featureMod) * \
-                                reshapedXCopy).sum(axis=1)
-            cutoff += reshapedX.shape[2]
-            startPosition += reshapedX.shape[2]
-            Z[:,startPosition:cutoff] = np.sin(featureMod).sum(axis=1)
-            gradient[:,startPosition:cutoff] = (np.cos(featureMod) * \
-                                reshapedXCopy).sum(axis=1)
-        elif mode == "conv":
-            reshapedXCopy *= sigma
-            Z[:,startPosition:cutoff] = np.sum(np.cos(reshapedXCopy), axis=1)
-            cutoff += reshapedX.shape[2]
-            startPosition += reshapedX.shape[2]
-            Z[:,startPosition:cutoff] = np.sum(np.sin(reshapedXCopy), axis=1)
+        reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
+        outputArray[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
+        if mode == "maxpool_loc":
+            outputArray[:,startPosition:cutoff] -= reshapedXCopy.mean(axis=1)
 
         cutoff += reshapedX.shape[2]
         startPosition += reshapedX.shape[2]
-    
-    if not mode.startswith("maxpool"):
-        Z *= scalingTerm
-    if mode == "conv_gradient":
-        gradient *= scalingTerm
-        return gradient
 
 
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def doubleCpuGraphConv1dTransform(np.ndarray[np.float64_t, ndim=3] reshapedX,
+def doubleCpuConv1dFGen(np.ndarray[np.float64_t, ndim=3] reshapedX,
                 np.ndarray[np.int8_t, ndim=3] radem,
-                np.ndarray[np.float64_t, ndim=2] Z,
-                np.ndarray[np.float64_t, ndim=1] S,
+                np.ndarray[np.float64_t, ndim=2] outputArray,
+                np.ndarray[np.float64_t, ndim=1] chiArr,
+                int numThreads, double beta_):
+    """Uses wrapped C functions to generate random features for FHTConv1d, GraphConv1d,
+    and related kernels. This function cannot be used to calculate the gradient
+    so is only used for forward pass only (during fitting, inference, non-gradient-based
+    optimization). It does not multiply by the lengthscales, so caller should do this.
+    (This enables this function to also be used for GraphARD kernels if desired.)
+
+    Args:
+        reshapedX (np.ndarray): Raw data reshaped so that a convolution can be
+            performed on it using orthogonal random features with the SORF
+            operation. This array is not modified in place -- rather the features
+            that are generated are stored in outputArray. Shape is (N x D x C) for 
+            N datapoints. C must be a power of 2.
+        radem (np.ndarray): A stack of diagonal matrices with elements drawn from the
+            Rademacher distribution. Shape must be (3 x D x C).
+        outputArray (np.ndarray): A numpy array in which the generated features will be
+            stored. Is modified in-place.
+        chiArr (np.ndarray): A stack of diagonal matrices stored as an
+            array of shape m * C drawn from a chi distribution.
+        num_threads (int): Number of threads to use for FHT.
+        beta_ (double): The amplitude.
+
+    Raises:
+        ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
+    """
+    cdef const char *errCode
+    cdef np.ndarray[np.float64_t, ndim=3] reshapedXCopy = np.zeros((reshapedX.shape[0],
+                        reshapedX.shape[1], reshapedX.shape[2]))
+    cdef float scalingTerm
+    cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
+    cdef int i
+
+    if mode not in ["standard", "gradient"]:
+        raise ValueError("Invalid mode supplied for convolution.")
+
+    if reshapedX.shape[0] == 0:
+        raise ValueError("There must be at least one datapoint.")
+    if reshapedX.shape[0] != outputArray.shape[0]:
+        raise ValueError("The number of datapoints in the outputs and the inputs do "
+                "not agree.")
+    if radem.shape[0] != 3 or radem.shape[1] != 1:
+        raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
+    if outputArray.shape[1] != 2 * radem.shape[2]:
+        raise ValueError("outputArray.shape[1] must be 2 * radem.shape[2], which must be an integer multiple of "
+                    "the next power of 2 greater than the kernel width * X.shape[2].")
+    
+    if chiArr.shape[0] != radem.shape[2]:
+        raise ValueError("chiArr.shape[0] must == radem.shape[2].")
+    logdim = np.log2(reshapedX.shape[2])
+    if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
+        raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
+    if not radem.shape[2] % reshapedX.shape[2] == 0:
+        raise ValueError("The number of sampled frequencies should be an integer multiple of "
+                "reshapedX.shape[2].")
+
+    if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
+        or not chiArr.flags["C_CONTIGUOUS"]:
+        raise ValueError("One or more arguments to cpuGraphConv1dTransform is not "
+                "C contiguous.")
+
+    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
+    scalingTerm *= beta_
+
+    for i in range(num_repeats):
+        errCode = doubleConvRBFFeatureGen_(&radem[0,0,0], &reshapedX[0,0,0],
+                &reshapedXCopy[0,0,0], &chiArr[0], &outputArray[0,0], numThreads, reshapedX.shape[0],
+                reshapedX.shape[1], reshapedX.shape[2], i * reshapedX.shape[2], radem.shape[2])
+
+        if errCode.decode("UTF-8") != "no_error":
+            raise Exception("Fatal error encountered while performing graph convolution.")
+
+    outputArray *= scalingTerm
+
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def doubleCpuConvGrad(np.ndarray[np.float64_t, ndim=3] reshapedX,
+                np.ndarray[np.int8_t, ndim=3] radem,
+                np.ndarray[np.float64_t, ndim=2] outputArray,
+                np.ndarray[np.float64_t, ndim=1] chiArr,
                 int numThreads, double sigma,
-                double beta_,
-                str mode = "standard"):
+                double beta_):
     """Uses the wrapped doubleConv1dPrep_ and numpy operations to perform
     1d convolution on a sequence of vectors representing the nodes
     of a graph.
@@ -182,18 +222,17 @@ def doubleCpuGraphConv1dTransform(np.ndarray[np.float64_t, ndim=3] reshapedX,
         reshapedX (np.ndarray): Raw data reshaped so that a convolution can be
             performed on it using orthogonal random features with the SORF
             operation. This array is not modified in place -- rather the features
-            that are generated are stored in Z. Shape is (N x D x C) for 
+            that are generated are stored in outputArray. Shape is (N x D x C) for 
             N datapoints. C must be a power of 2.
         radem (np.ndarray): A stack of diagonal matrices with elements drawn from the
             Rademacher distribution. Shape must be (3 x D x C).
-        Z (np.ndarray): A numpy array in which the generated features will be
+        outputArray (np.ndarray): A numpy array in which the generated features will be
             stored. Is modified in-place.
-        S (np.ndarray): A stack of diagonal matrices stored as an
+        chiArr (np.ndarray): A stack of diagonal matrices stored as an
             array of shape m * C drawn from a chi distribution.
         num_threads (int): Number of threads to use for FHT.
         sigma (double): The lengthscale.
         beta_ (double): The amplitude.
-        mode (str): Either 'standard' or 'gradient'. If 'gradient' a gradient array is returned.
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -210,22 +249,20 @@ def doubleCpuGraphConv1dTransform(np.ndarray[np.float64_t, ndim=3] reshapedX,
     cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
     cdef int startPosition, cutoff, startPos2, cutoff2, i, j
 
-    if mode not in ["standard", "gradient"]:
-        raise ValueError("Invalid mode supplied for convolution.")
 
     if reshapedX.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if reshapedX.shape[0] != Z.shape[0]:
+    if reshapedX.shape[0] != outputArray.shape[0]:
         raise ValueError("The number of datapoints in the outputs and the inputs do "
                 "not agree.")
     if radem.shape[0] != 3 or radem.shape[1] != 1:
         raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
-    if Z.shape[1] != 2 * radem.shape[2]:
-        raise ValueError("Z.shape[1] must be 2 * radem.shape[2], which must be an integer multiple of "
+    if outputArray.shape[1] != 2 * radem.shape[2]:
+        raise ValueError("outputArray.shape[1] must be 2 * radem.shape[2], which must be an integer multiple of "
                     "the next power of 2 greater than the kernel width * X.shape[2].")
     
-    if S.shape[0] != radem.shape[2]:
-        raise ValueError("S.shape[0] must == radem.shape[2].")
+    if chiArr.shape[0] != radem.shape[2]:
+        raise ValueError("chiArr.shape[0] must == radem.shape[2].")
     logdim = np.log2(reshapedX.shape[2])
     if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
         raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
@@ -233,8 +270,8 @@ def doubleCpuGraphConv1dTransform(np.ndarray[np.float64_t, ndim=3] reshapedX,
         raise ValueError("The number of sampled frequencies should be an integer multiple of "
                 "reshapedX.shape[2].")
 
-    if not Z.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
-        or not S.flags["C_CONTIGUOUS"]:
+    if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
+        or not chiArr.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments to cpuGraphConv1dTransform is not "
                 "C contiguous.")
 
@@ -244,8 +281,7 @@ def doubleCpuGraphConv1dTransform(np.ndarray[np.float64_t, ndim=3] reshapedX,
     scalingTerm = np.sqrt(1 / <double>radem.shape[2])
     scalingTerm *= beta_
 
-    if mode == "gradient":
-        gradient = np.zeros((Z.shape[0], Z.shape[1], 1))
+    gradient = np.zeros((outputArray.shape[0], outputArray.shape[1], 1))
 
     for i in range(num_repeats):
         reshapedXCopy[:] = reshapedX * sigma
@@ -257,26 +293,24 @@ def doubleCpuGraphConv1dTransform(np.ndarray[np.float64_t, ndim=3] reshapedX,
 
         if errCode.decode("UTF-8") != "no_error":
             raise Exception("Fatal error encountered while performing graph convolution.")
-        reshapedXCopy *= S[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
+        reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
 
-        if mode == "gradient":
-            gradient[:,startPosition:cutoff,0] = (-np.sin(reshapedXCopy) * reshapedXCopy /
+        gradient[:,startPosition:cutoff,0] = (-np.sin(reshapedXCopy) * reshapedXCopy /
                                             sigma).sum(axis=1)
-            gradient[:,startPos2:cutoff2,0] = (np.cos(reshapedXCopy) * reshapedXCopy /
+        gradient[:,startPos2:cutoff2,0] = (np.cos(reshapedXCopy) * reshapedXCopy /
                                         sigma).sum(axis=1)
 
-        Z[:,startPosition:cutoff] = np.sum(np.cos(reshapedXCopy), axis=1)
-        Z[:,startPos2:cutoff2] = np.sum(np.sin(reshapedXCopy), axis=1)
+        outputArray[:,startPosition:cutoff] = np.sum(np.cos(reshapedXCopy), axis=1)
+        outputArray[:,startPos2:cutoff2] = np.sum(np.sin(reshapedXCopy), axis=1)
         cutoff += 2 * reshapedX.shape[2]
         startPosition += 2 * reshapedX.shape[2]
         startPos2 += 2 * reshapedX.shape[2]
         cutoff2 += 2 * reshapedX.shape[2]
 
-    Z *= scalingTerm
+    outputArray *= scalingTerm
     if mode == "gradient":
         gradient *= scalingTerm
         return gradient
-
 
 
 
@@ -284,8 +318,8 @@ def doubleCpuGraphConv1dTransform(np.ndarray[np.float64_t, ndim=3] reshapedX,
 @cython.wraparound(False)
 def doubleCpuGraphPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
                 np.ndarray[np.int8_t, ndim=3] radem,
-                np.ndarray[np.float64_t, ndim=2] S,
-                np.ndarray[np.float64_t, ndim=2] Z,
+                np.ndarray[np.float64_t, ndim=2] chiArr,
+                np.ndarray[np.float64_t, ndim=2] outputArray,
                 int polydegree, int numThreads):
     """Uses the wrapped PolyFHT_ and numpy operations to apply a pairwise
     polynomial kernel to all elements of two graphs.
@@ -293,13 +327,13 @@ def doubleCpuGraphPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
     Args:
         reshapedX (np.ndarray): Raw data reshaped so that the random features
             transformation can be applied. This array is not modified in place --
-            rather the features that are generated are stored in Z. Shape is (N x D x C)
+            rather the features that are generated are stored in outputArray. Shape is (N x D x C)
             for N datapoints. C must be a power of 2.
         radem (np.ndarray): A stack of diagonal matrices with elements drawn from the
             Rademacher distribution. Shape must be (polydegree x 1 x C).
-        S (np.ndarray): A stack of diagonal matrices stored as an
+        chiArr (np.ndarray): A stack of diagonal matrices stored as an
             array of shape (polydegree, m * C) drawn from a chi distribution.
-        Z (np.ndarray): A numpy array in which the generated features will be
+        outputArray (np.ndarray): A numpy array in which the generated features will be
             stored. Is modified in-place.
         polydegree (int): The degree of the polynomial kernel that we approximate. Should
             be <= 4 (for very high-degree polynomial kernels we are probably better off
@@ -320,19 +354,19 @@ def doubleCpuGraphPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
 
     if reshapedX.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if reshapedX.shape[0] != Z.shape[0]:
+    if reshapedX.shape[0] != outputArray.shape[0]:
         raise ValueError("The number of datapoints in the outputs and the inputs do "
                 "not agree.")
     if radem.shape[0] != 3 * polydegree or radem.shape[1] != 1:
         raise ValueError("radem must have length polydegree for dim 0 and length 1 for dim1.")
-    if Z.shape[1] != radem.shape[2]:
-        raise ValueError("Z.shape[1] must be radem.shape[2], which must be an integer multiple of "
+    if outputArray.shape[1] != radem.shape[2]:
+        raise ValueError("outputArray.shape[1] must be radem.shape[2], which must be an integer multiple of "
                     "the next power of 2 greater than the kernel width * X.shape[2].")
     
-    if S.shape[1] != radem.shape[2]:
-        raise ValueError("S.shape[1] must == radem.shape[2].")
-    if S.shape[0] != polydegree:
-        raise ValueError("S.shape[0] must == polydegree.")
+    if chiArr.shape[1] != radem.shape[2]:
+        raise ValueError("chiArr.shape[1] must == radem.shape[2].")
+    if chiArr.shape[0] != polydegree:
+        raise ValueError("chiArr.shape[0] must == polydegree.")
     logdim = np.log2(reshapedX.shape[2])
     if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
         raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
@@ -340,8 +374,8 @@ def doubleCpuGraphPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
         raise ValueError("The number of sampled frequencies should be an integer multiple of "
                 "reshapedX.shape[2].")
 
-    if not Z.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
-        or not S.flags["C_CONTIGUOUS"]:
+    if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
+        or not chiArr.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
 
     startPosition, cutoff = 0, reshapedX.shape[2]
@@ -357,7 +391,7 @@ def doubleCpuGraphPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
 
         if errCode.decode("UTF-8") != "no_error":
             raise Exception("Fatal error encountered while performing FHT RF generation.")
-        preSumFeats *= S[0:1, None, startPosition:cutoff]
+        preSumFeats *= chiArr[0:1, None, startPosition:cutoff]
         for j in range(1, polydegree):
             reshapedXCopy[:] = reshapedX
             errCode = doubleConv1dPrep_(&radem[3*j,0,0],
@@ -365,15 +399,15 @@ def doubleCpuGraphPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
                     reshapedX.shape[0], reshapedX.shape[1], 
                     reshapedX.shape[2], i * reshapedX.shape[2],
                     radem.shape[2])
-            reshapedXCopy *= S[j:(j+1), None, startPosition:cutoff]
+            reshapedXCopy *= chiArr[j:(j+1), None, startPosition:cutoff]
             preSumFeats *= reshapedXCopy
 
-        Z[:,startPosition:cutoff] = np.sum(preSumFeats, axis=1)
+        outputArray[:,startPosition:cutoff] = np.sum(preSumFeats, axis=1)
 
         cutoff += reshapedX.shape[2]
         startPosition += reshapedX.shape[2]
 
-    Z *= scalingTerm
+    outputArray *= scalingTerm
 
 
 
@@ -381,8 +415,8 @@ def doubleCpuGraphPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
 @cython.wraparound(False)
 def doubleCpuPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
                 np.ndarray[np.int8_t, ndim=3] radem,
-                np.ndarray[np.float64_t, ndim=3] S,
-                np.ndarray[np.float64_t, ndim=3] Z,
+                np.ndarray[np.float64_t, ndim=3] chiArr,
+                np.ndarray[np.float64_t, ndim=3] outputArray,
                 int polydegree, int numThreads):
     """Uses the wrapped PolyFHT_ and numpy operations for a polynomial
     kernel on fixed vector data in a 3d array.
@@ -390,13 +424,13 @@ def doubleCpuPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
     Args:
         reshapedX (np.ndarray): Raw data reshaped so that the random features
             transformation can be applied. This array is not modified in place --
-            rather the features that are generated are stored in Z. Shape is (N x D x C)
+            rather the features that are generated are stored in outputArray. Shape is (N x D x C)
             for N datapoints. C must be a power of 2.
         radem (np.ndarray): A stack of diagonal matrices with elements drawn from the
             Rademacher distribution. Shape must be (polydegree x D x C).
-        S (np.ndarray): A stack of diagonal matrices stored as an
+        chiArr (np.ndarray): A stack of diagonal matrices stored as an
             array of shape (polydegree, D, C) drawn from a chi distribution.
-        Z (np.ndarray): A numpy array in which the generated features will be
+        outputArray (np.ndarray): A numpy array in which the generated features will be
             stored. Is modified in-place.
         polydegree (int): The degree of the polynomial kernel that we approximate. Should
             be <= 4 (for very high-degree polynomial kernels we are probably better off
@@ -415,32 +449,32 @@ def doubleCpuPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
 
     if reshapedX.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if reshapedX.shape[0] != Z.shape[0] or reshapedX.shape[1] != Z.shape[1] or\
-            reshapedX.shape[2] != Z.shape[2]:
+    if reshapedX.shape[0] != outputArray.shape[0] or reshapedX.shape[1] != outputArray.shape[1] or\
+            reshapedX.shape[2] != outputArray.shape[2]:
         raise ValueError("The number of datapoints in the outputs and the inputs do "
                 "not agree.")
-    if radem.shape[0] != 3 * polydegree or S.shape[0] != polydegree:
-        raise ValueError("radem & S must have length polydegree for dim 0.")
+    if radem.shape[0] != 3 * polydegree or chiArr.shape[0] != polydegree:
+        raise ValueError("radem & chiArr must have length polydegree for dim 0.")
     
-    if S.shape[2] != radem.shape[2] or S.shape[1] != radem.shape[1]:
-        raise ValueError("S must have same shape[1] and shape[2] as radem.")
+    if chiArr.shape[2] != radem.shape[2] or chiArr.shape[1] != radem.shape[1]:
+        raise ValueError("chiArr must have same shape[1] and shape[2] as radem.")
     logdim = np.log2(reshapedX.shape[2])
     if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
         raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
     if radem.shape[2] != reshapedX.shape[2] or radem.shape[1] != reshapedX.shape[1]:
         raise ValueError("reshapedX shape[1] and shape[2] must == radem shape[1] and shape[2].")
 
-    if not Z.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
-        or not S.flags["C_CONTIGUOUS"]:
+    if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
+        or not chiArr.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
 
     scalingTerm = np.sqrt(1 / <double>radem.shape[2])
 
-    Z[:] = reshapedX
-    errCode = SORFDoubleBlockTransform_(&Z[0,0,0], &radem[0,0,0],
+    outputArray[:] = reshapedX
+    errCode = SORFDoubleBlockTransform_(&outputArray[0,0,0], &radem[0,0,0],
                         reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2],
                         numThreads)
-    Z *= S[0:1, :, :]
+    outputArray *= chiArr[0:1, :, :]
 
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing graph convolution.")
@@ -451,7 +485,7 @@ def doubleCpuPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
         errCode = SORFDoubleBlockTransform_(&reshapedXCopy[0,0,0], &radem[3*j,0,0],
                         reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2],
                         numThreads)
-        reshapedXCopy *= S[j:j+1, :, :]
-        Z *= reshapedXCopy
+        reshapedXCopy *= chiArr[j:j+1, :, :]
+        outputArray *= reshapedXCopy
 
-    Z *= scalingTerm
+    outputArray *= scalingTerm

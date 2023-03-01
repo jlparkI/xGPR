@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "float_array_operations.h"
+#include "../float_array_operations.h"
 #include "float_specialized_ops.h"
 #include <cuda_profiler_api.h>
 

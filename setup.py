@@ -69,7 +69,7 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
     """Finds the paths for the fast hadamard transform extensions for CPU and
     sets them up."""
     cpu_fast_transform_path = os.path.join(setup_fpath, "xGPR",
-                "fast_hadamard_transform", "cpu_src")
+                "random_feature_generation", "cpu_rf_gen")
     cpu_transform_functions = os.path.join(cpu_fast_transform_path,
                     "transform_functions.c")
     cpu_float_array_op = os.path.join(cpu_fast_transform_path,
@@ -129,8 +129,8 @@ def setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA = False)
     if NO_CUDA:
         failure = True
         return [], failure, []
-    cuda_hadamard_path = os.path.join(setup_fpath, "xGPR", "fast_hadamard_transform",
-            "gpu_src")
+    cuda_hadamard_path = os.path.join(setup_fpath, "xGPR", "random_feature_generation",
+            "gpu_rf_gen")
     os.chdir(cuda_hadamard_path)
     subprocess.run(["chmod", "+x", "nvcc_compile.sh"], check = True)
     subprocess.run(["./nvcc_compile.sh"], check = True)
@@ -248,23 +248,23 @@ def main():
 
 
     #Do some cleanup. (Really only matters when running setup.py develop.)
-    os.chdir(os.path.join(setup_fpath, "xGPR", "fast_hadamard_transform",
-                "gpu_src"))
+    os.chdir(os.path.join(setup_fpath, "xGPR", "random_feature_generation",
+                "gpu_rf_gen"))
     for gpu_fht_file in gpu_fht_files:
         compiled_cython_fname = os.path.basename(gpu_fht_file.replace(".pyx", ".cpp"))
         if compiled_cython_fname in os.listdir():
             os.remove(compiled_cython_fname)
 
-    os.chdir(os.path.join(setup_fpath, "xGPR", "fast_hadamard_transform",
-                "cpu_src"))
+    os.chdir(os.path.join(setup_fpath, "xGPR", "random_feature_generation",
+                "cpu_rf_gen"))
 
     for cpu_fht_file in cpu_fht_files:
         compiled_cython_fname = os.path.basename(cpu_fht_file.replace(".pyx", ".c"))
         if compiled_cython_fname in os.listdir():
             os.remove(compiled_cython_fname)
 
-    os.chdir(os.path.join(setup_fpath, "xGPR", "fast_hadamard_transform",
-                "gpu_src"))
+    os.chdir(os.path.join(setup_fpath, "xGPR", "random_feature_generation",
+                "gpu_rf_gen"))
 
     os.chdir(os.path.join(setup_fpath, "xGPR", "fitting_toolkit"))
     if "sgd_fitting_toolkit.c" in os.listdir():

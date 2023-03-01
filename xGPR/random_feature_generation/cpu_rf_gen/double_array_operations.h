@@ -24,4 +24,10 @@ void doubleConv1dMultiplyByRadem(double *xArray,
                         int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition);
+
+void doubleConv1dRademAndCopy(double *xArray,
+                        double *copyBuffer,
+                        int8_t *rademArray, int startRow,
+                        int endRow, int reshapedDim1,
+                        int reshapedDim2, int startPosition);
 #endif

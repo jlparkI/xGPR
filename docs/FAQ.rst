@@ -6,11 +6,6 @@ FAQ
    xGPR uses pthreads for multithreading. There's a Windows port of pthreads
    that we need to include (it's a near-term priority...)
 
-#. **Why does xGPR use CuPy instead of Tensorflow / PyTorch?**
-   
-   PyTorch & Tensorflow include a lot more functionality than xGPR needs,
-   whereas Cupy has almost everything we are looking for.
-
 #. **xGPR uses random features. How much does performance fluctuate if I
    choose a different random seed?**
 
@@ -37,9 +32,6 @@ FAQ
 
    * It should be something you can use for general machine learning problems,
      rather than something specific to a specific problem.
-
-   * It should have relatively few hyperparameters (we prefer kernels with
-     5 at most).
 
    If you have a kernel that meets all these criteria -- shoot us an email,
    we'd love to hear more. For more background, see :doc:`When should I use 

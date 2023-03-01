@@ -63,7 +63,7 @@ from __main__ import setup_rbf_test
 _, test_float, radem, _, chi_float = setup_rbf_test((1000,512), 2000, 123)
 float_out = np.zeros((1000,4000))
 """
-    time_taken = timeit.timeit("fRBF(test_float, float_out, radem, chi_float, 1.0, 2000, 2)", setup=block_setup,
+    time_taken = timeit.timeit("fRBF(test_float, float_out, radem, chi_float, 1.0, 2000, 3)", setup=block_setup,
                 number=ntests)
     print(f"Time for new variant: {1e6 * time_taken / ntests}")
 
@@ -166,7 +166,7 @@ def generate_float_rbf_values(test_array, radem, chi_arr, beta):
     """Generates the 'ground-truth' RBF values for
     comparison with those from the C / Cuda extension."""
     pretrans_x = test_array.copy()
-    fSORF(pretrans_x, radem, 2)
+    fSORF(pretrans_x, radem, 3)
     pretrans_x = pretrans_x.reshape((pretrans_x.shape[0], pretrans_x.shape[1] *
                         pretrans_x.shape[2]))[:,:chi_arr.shape[0]]
     pretrans_x *= chi_arr[None,:]

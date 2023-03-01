@@ -50,10 +50,10 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include "thread_args.h"
+#include "../thread_args.h"
 #include "poly_fht_operations.h"
-#include "double_array_operations.h"
-#include "float_array_operations.h"
+#include "../double_array_operations.h"
+#include "../float_array_operations.h"
 
 
 /*!
@@ -93,8 +93,7 @@ const char *floatPolyFHTPrep_(int8_t *radem, float *reshapedX,
     struct ThreadSORFFloatArrayArgs *th_args = malloc(numThreads *
             sizeof(struct ThreadSORFFloatArrayArgs));
     if (th_args == NULL){
-        PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! If you don't know what that means..."
-                "hint: it's really bad news...");
+        PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful!");
         return "error";
     }
     //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
@@ -128,6 +127,14 @@ const char *floatPolyFHTPrep_(int8_t *radem, float *reshapedX,
     }
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
+
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
+    free(th_args);
     return "no_error";
 }
 
@@ -213,6 +220,14 @@ const char *floatPolyConvFHTPrep_(int8_t *radem, float *reshapedX,
     }
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
+
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
+    free(th_args);
     return "no_error";
 }
 
@@ -288,6 +303,14 @@ const char *doublePolyFHTPrep_(int8_t *radem, double *reshapedX,
     }
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
+
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
+    free(th_args);
     return "no_error";
 }
 
@@ -373,6 +396,14 @@ const char *doublePolyConvFHTPrep_(int8_t *radem, double *reshapedX,
     }
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
+
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
+    free(th_args);
     return "no_error";
 }
 

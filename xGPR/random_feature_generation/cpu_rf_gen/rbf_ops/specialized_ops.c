@@ -28,8 +28,8 @@
 #include <pthread.h>
 #include <math.h>
 #include "specialized_ops.h"
-#include "float_array_operations.h"
-#include "double_array_operations.h"
+#include "../float_array_operations.h"
+#include "../double_array_operations.h"
 
 
 #define VALID_INPUTS 0
@@ -109,6 +109,12 @@ const char *rbfFeatureGenFloat_(float *cArray, int8_t *radem,
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
     
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
     free(th_args);
     return "no_error";
 }
@@ -188,6 +194,12 @@ const char *rbfFeatureGenDouble_(double *cArray, int8_t *radem,
     for (i=0; i < numThreads; i++)
         threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
     
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
     free(th_args);
     return "no_error";
 }

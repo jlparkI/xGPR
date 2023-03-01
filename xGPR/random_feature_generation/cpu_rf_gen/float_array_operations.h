@@ -40,4 +40,9 @@ void floatConv1dMultiplyByDiagonalMat(float *xArray,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition);
 
+void floatConv1dRademAndCopy(float *xArray,
+                        float *copyBuffer,
+                        int8_t *rademArray, int startRow,
+                        int endRow, int reshapedDim1,
+                        int reshapedDim2, int startPosition);
 #endif

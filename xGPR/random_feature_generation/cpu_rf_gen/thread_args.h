@@ -30,22 +30,4 @@ struct Thread3DDoubleArrayArgs {
 };
 
 
-struct ThreadConv1dDoubleArgs {
-    int startPosition;
-    int reshapedDim1, reshapedDim2;
-    int numFreqs;
-    double *reshapedXArray;
-    int8_t *rademArray;
-    int startRow, endRow;
-};
-
-
-struct ThreadConv1dFloatArgs {
-    int startPosition;
-    int reshapedDim1, reshapedDim2;
-    int numFreqs;
-    float *reshapedXArray;
-    int8_t *rademArray;
-    int startRow, endRow;
-};
 #endif

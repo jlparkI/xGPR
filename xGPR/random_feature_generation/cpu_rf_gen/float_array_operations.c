@@ -1,34 +1,38 @@
 /*!
- * # double_array_operations.c
+ * # float_array_operations.c
  *
  * This module performs core Hadamard transform and diagonal matrix
- * multiplication operations when the input is an array of doubles.
+ * multiplication operations when the input is an array of floats.
  * It includes the following functions:
  *
- * + doubleTransformRows3D
+ * + floatTransformRows3D
  * Performs the unnormalized Hadamard transform on a 3d array
  *
- * + doubleTransformRows2D
+ * + floatTransformRows2D
  * Performs the unnormalized Hadamard transform on a 2d array
  *
- * + doubleMultiplyByDiagonalRademacherMat2d
- * Multiplies a 2d array by a diagonal matrix whose elements
- * are drawn from a Rademacher distribution
+ * + floatMultiplyByDiagonalRademacherMat2D
+ * Multiplies a 2d array by a diagonal matrix whose elements are
+ * drawn from a Rademacher distribution
  *
- * + doubleMultiplyByDiagonalRademacherMat
+ * + floatMultiplyByDiagonalRademacherMat
  * Multiplies a 3d array by a diagonal matrix whose elements are
  * drawn from a Rademacher distribution
  *
- * + doubleConv1dMultiplyByRadem
- * Same as multiplyByDiagonalRademacherMat, but designed to work
+ * + floatConv1dMultiplyByRadem
+ * Same as floatMultiplyByDiagonalRademacherMat, but designed to work
  * on 3d arrays structured to perform FHT-based convolution.
+ *
+ * + floatConv1dRademAndCopy
+ * Same as Conv1dMultiplyByRadem, but copies from one array to a second
+ * array while performing the diagonal matrix multiplication.
  */
 
-#include "double_array_operations.h"
+#include "float_array_operations.h"
 
 
 /*!
- * # doubleTransformRows3D
+ * # floatTransformRows3D
  *
  * Performs an unnormalized Hadamard transform along the last
  * dimension of an input 3d array. The transform is performed
@@ -50,13 +54,13 @@
  * + `dim2` The length of dim3 of the array (e.g. C in
  * N x D x C)
  */
-void doubleTransformRows3D(double *xArray, int startRow, int endRow,
+void floatTransformRows3D(float *xArray, int startRow, int endRow,
                     int dim1, int dim2){
     int idx1 = startRow;
     int i = 0, j, h = 1;
-    double y;
+    float y;
     int rowStride = dim1 * dim2;
-    double *xElement, *yElement;
+    float *xElement, *yElement;
 
     //Unrolling the first few loops
     //of the transform increased speed substantially
@@ -143,7 +147,7 @@ void doubleTransformRows3D(double *xArray, int startRow, int endRow,
 
 
 /*!
- * # doubleTransformRows2D
+ * # floatTransformRows2D
  *
  * Performs an unnormalized Hadamard transform along the last
  * dimension of an input 2d array. The transform is performed
@@ -163,13 +167,13 @@ void doubleTransformRows3D(double *xArray, int startRow, int endRow,
  * + `dim1` The length of dim2 of the array (e.g. C in
  * N x C)
  */
-void doubleTransformRows2D(double *xArray, int startRow, int endRow,
+void floatTransformRows2D(float *xArray, int startRow, int endRow,
                     int dim1){
     int idx1 = startRow;
     int i = 0, j, h = 1;
-    double y;
+    float y;
     int rowStride = dim1;
-    double *xElement, *yElement;
+    float *xElement, *yElement;
 
     //Unrolling the first few loops
     //of the transform increased speed substantially
@@ -256,7 +260,7 @@ void doubleTransformRows2D(double *xArray, int startRow, int endRow,
 
 
 /*!
- * # doubleMultiplyByDiagonalRademacherMat2D
+ * # floatMultiplyByDiagonalRademacherMat2D
  *
  * Multiplies an input 2d array xArray by a 1d array rademArray assumed
  * to represent a diagonal matrix. rademArray should
@@ -282,16 +286,16 @@ void doubleTransformRows2D(double *xArray, int startRow, int endRow,
  * ## Returns:
  * Operations are in place so nothing is returned.
  */
-void doubleMultiplyByDiagonalRademacherMat2D(double *xArray,
+void floatMultiplyByDiagonalRademacherMat2D(float *xArray,
                     int8_t *rademArray,
                     int dim1,
                     int startRow, int endRow){
     
     int i = startRow, j = i;
-    double normConstant = log2(dim1) / 2;
+    float normConstant = log2(dim1) / 2;
     normConstant = 1 / pow(2, normConstant);
     int rowStride = dim1;
-    double *xElement;
+    float *xElement;
     int8_t *rademElement;
     
     for(i = startRow; i < endRow; i++){
@@ -309,12 +313,13 @@ void doubleMultiplyByDiagonalRademacherMat2D(double *xArray,
 
 
 
+
 /*!
- * # doubleMultiplyByDiagonalRademacherMat
+ * # floatMultiplyByDiagonalRademacherMat
  *
  * Multiplies an input 3d array xArray by a 3d array rademArray assumed
  * to represent a stack of diagonal matrices. rademArray should
- * therefore be of shape (3, D, C) if xArray is of shape (N, D, C).
+ * therefore be of shape (a, D, C) if xArray is of shape (N, D, C).
  * Thus each element (i, j, k) of xArray is multiplied by
  * element (start, j, k) of rademArray. Function assumes caller has
  * verified all dimensions. The array is also multiplied by the normalization
@@ -325,7 +330,7 @@ void doubleMultiplyByDiagonalRademacherMat2D(double *xArray,
  * + `xArray` Pointer to the first element of the array to be
  * modified. Must be a 3d array (e.g. N x D x C)
  * + `rademArray` A 3d array to multiply against xArray
- * of shape (1, D, C)
+ * of shape (a, D, C)
  * + `dim1` The length of dim2 of xArray (e.g. D in
  * N x D x C)
  * + `dim2` The length of dim3 of xArray (e.g. C in
@@ -338,16 +343,16 @@ void doubleMultiplyByDiagonalRademacherMat2D(double *xArray,
  * ## Returns:
  * Operations are in place so nothing is returned.
  */
-void doubleMultiplyByDiagonalRademacherMat(double *xArray,
+void floatMultiplyByDiagonalRademacherMat(float *xArray,
                     int8_t *rademArray,
                     int dim1, int dim2,
                     int startRow, int endRow){
     
     int i = startRow, j = i;
-    double normConstant = log2(dim2) / 2;
+    float normConstant = log2(dim2) / 2;
     normConstant = 1 / pow(2, normConstant);
     int rowStride = dim1 * dim2;
-    double *xElement;
+    float *xElement;
     int8_t *rademElement;
     
     for(i = startRow; i < endRow; i++){
@@ -364,12 +369,13 @@ void doubleMultiplyByDiagonalRademacherMat(double *xArray,
 
 
 
+
 /*!
- * # doubleConv1dMultiplyByRadem
+ * # floatConv1dMultiplyByRadem
  *
  * Multiplies an input 3d array xArray by a 3d array rademArray assumed
  * to represent a stack of diagonal matrices. rademArray should
- * be of shape (3, 1, C * m) if xArray is of shape (N, D, C)
+ * be of shape (a, 1, C * m) if xArray is of shape (N, D, C)
  * where m is an integer corresponding to the number of blocks
  * of random features that need to be generated.
  * Thus each element (i, j, k) of xArray is multiplied by
@@ -383,7 +389,7 @@ void doubleMultiplyByDiagonalRademacherMat(double *xArray,
  * + `xArray` Pointer to the first element of the array to be
  * modified. Must be a 3d array (e.g. N x D x C)
  * + `rademArray` A 3d array to multiply against xArray
- * of shape (1, D, C)
+ * of shape (a, D, C)
  * + `reshapedDim1` The length of dim2 of xArray (e.g. D in
  * N x D x C)
  * + `reshapedDim2` The length of dim3 of xArray (e.g. C in
@@ -392,20 +398,20 @@ void doubleMultiplyByDiagonalRademacherMat(double *xArray,
  * the array is split into blocks such that each thread
  * modifies its own subset of the rows.
  * + `endRow` The last row to modify.
- * + `repeat` Corresponds to m from the above.
+ * + `startPosition` Where to start in radem.
  * 
  * ## Returns:
  * Operations are in place so nothing is returned.
  */
-void doubleConv1dMultiplyByRadem(double *xArray,
+void floatConv1dMultiplyByRadem(float *xArray,
                         int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition){
     int j, k;
-    double normConstant = log2(reshapedDim2) / 2;
+    float normConstant = log2(reshapedDim2) / 2;
     normConstant = 1 / pow(2, normConstant);
     int rowStride = reshapedDim1 * reshapedDim2;
-    double *xElement;
+    float *xElement;
     int8_t *rademElement;
 
     for (int i = startRow; i < endRow; i++){
@@ -416,6 +422,71 @@ void doubleConv1dMultiplyByRadem(double *xArray,
                 *xElement *= *rademElement * normConstant;
                 rademElement++;
                 xElement++;
+            }
+        }
+    }
+}
+
+
+
+/*!
+ * # floatConv1dRademAndCopy
+ *
+ * Multiplies an input 3d array xArray by a 3d array rademArray assumed
+ * to represent a stack of diagonal matrices, WHILE copying into a second
+ * array of the same size as xArray. rademArray should
+ * be of shape (3, 1, C * m) if xArray is of shape (N, D, C)
+ * where m is an integer corresponding to the number of blocks
+ * of random features that need to be generated.
+ * Thus each element (i, j, k) of the copy of xArray is multiplied by
+ * element (start, 0, p * C + k) of rademArray where p is an iterator
+ * that is increased while p < m. Function assumes caller has
+ * verified all dimensions. The array is also multiplied by
+ * the normalization constant for the Hadamard transform.
+ *
+ * ## Args:
+ *
+ * + `xArray` Pointer to the first element of the input array.
+ * Must be a 3d array (e.g. N x D x C)
+ * + `copyBuffer` Pointer to the first element of the array to be
+ * modified. Must be the same size as xArray.
+ * + `rademArray` A 3d array to multiply against xArray
+ * of shape (1, D, C)
+ * + `reshapedDim1` The length of dim2 of xArray (e.g. D in
+ * N x D x C)
+ * + `reshapedDim2` The length of dim3 of xArray (e.g. C in
+ * N x D x C)
+ * + `startRow` The first row to modify. When multithreading,
+ * the array is split into blocks such that each thread
+ * modifies its own subset of the rows.
+ * + `endRow` The last row to modify.
+ * + `startPosition` Where to start in radem.
+ * 
+ * ## Returns:
+ * Operations are in place so nothing is returned.
+ */
+void floatConv1dRademAndCopy(float *xArray,
+                        float *copyBuffer,
+                        int8_t *rademArray, int startRow,
+                        int endRow, int reshapedDim1,
+                        int reshapedDim2, int startPosition){
+    int j, k;
+    float normConstant = log2(reshapedDim2) / 2;
+    normConstant = 1 / pow(2, normConstant);
+    int rowStride = reshapedDim1 * reshapedDim2;
+    float *xElement, *bufferElement;
+    int8_t *rademElement;
+
+    for (int i = startRow; i < endRow; i++){
+        xElement = xArray + i * rowStride;
+        bufferElement = copyBuffer + i * rowStride;
+        for (j = 0; j < reshapedDim1; j++){
+	        rademElement = rademArray + startPosition;
+            for (k = 0; k < reshapedDim2; k++){
+                *bufferElement *= *rademElement * normConstant * *xElement;
+                rademElement++;
+                xElement++;
+                bufferElement++;
             }
         }
     }
