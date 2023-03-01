@@ -1,6 +1,8 @@
 """Wraps the C functions that perform the fastHadamardTransform on CPU,
 the structured orthogonal features or SORF operations on CPU and the
-fast Hadamard transform based SRHT on CPU.
+fast Hadamard transform based SRHT on CPU, and RF generation for
+the standard RBF kernel (and related).
+
 Also performs all of the bounds and safety checks needed to use these
 functions (the C functions do not do their own bounds checking). It
 is EXTREMELY important that this wrapper not be bypassed for this
@@ -38,7 +40,7 @@ cdef extern from "transform_functions.h" nogil:
             int zDim0, int zDim1, int numThreads)
 
 
-cdef extern from "rbf_ops/specialized_ops.h" nogil:
+cdef extern from "rbf_ops/rbf_ops.h" nogil:
     const char *rbfFeatureGenFloat_(float *cArray, int8_t *radem,
                 float *chiArr, double *outputArray,
                 double rbfNormConstant,

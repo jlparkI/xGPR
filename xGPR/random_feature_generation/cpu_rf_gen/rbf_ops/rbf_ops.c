@@ -1,5 +1,5 @@
 /*!
- * # specialized_ops.c
+ * # rbf_ops.c
  *
  * This module performs all major steps involved in feature generation for
  * RBF-type kernels, which includes RBF, Matern, ARD and MiniARD (and by extension
@@ -27,7 +27,7 @@
 #include <numpy/arrayobject.h>
 #include <pthread.h>
 #include <math.h>
-#include "specialized_ops.h"
+#include "rbf_ops.h"
 #include "../float_array_operations.h"
 #include "../double_array_operations.h"
 

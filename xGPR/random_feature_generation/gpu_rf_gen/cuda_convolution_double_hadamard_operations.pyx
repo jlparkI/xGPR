@@ -1,5 +1,11 @@
 """Handles hadamard transform-based convolution operations for sequences and graphs
-if the input array is an array of doubles."""
+if the input array is an array of doubles.
+
+Also performs all of the bounds and safety checks needed to use these
+functions (the C functions do not do their own bounds checking). It
+is EXTREMELY important that this wrapper not be bypassed for this
+reason -- it double checks all of the array dimensions, types,
+is data contiguous etc. before calling the wrapped C functions."""
 import os
 import numpy as np
 cimport numpy as np

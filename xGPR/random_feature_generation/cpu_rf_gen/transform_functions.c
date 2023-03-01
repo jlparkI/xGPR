@@ -1,9 +1,10 @@
 /*!
  * # transform_functions.c
  *
- * This module performs the fast Hadamard transform on a 3d array
- * or the structured orthogonal features (SORF) operation on a 3d
- * array. It includes the following functions:
+ * This module uses the "low-level" functions in array_operations to perform
+ * fast Hadamard transforms, SORF and SRHT operations on a variety of different
+ * array shapes.
+ *
  * + fastHadamard3dFloatArray_
  * Performs the unnormalized fast Hadamard on a 3d array of floats using multithreading.
  * + fastHadamard3dDoubleArray_

@@ -970,7 +970,7 @@ void doubleRBFPostProcess(double *reshapedX, double *chiArr,
         int startRow, int endRow, int repeatNum){
     int i, j, k, lenOutputRow, chiStart, outputStart;
     double prodVal;
-    double *xIn, *xOutSin, *xOutCos, *chiIn;
+    double *xIn, *xOut, *chiIn;
 
     lenOutputRow = 2 * numFreqs;
     chiStart = repeatNum * reshapedDim2;
@@ -979,15 +979,14 @@ void doubleRBFPostProcess(double *reshapedX, double *chiArr,
     xIn = reshapedX + startRow * reshapedDim1 * reshapedDim2;
 
     for (i=startRow; i < endRow; i++){
-        xOutCos = outputArray + i * lenOutputRow + outputStart;
-        xOutSin = xOutCos + reshapedDim2;
+        xOut = outputArray + i * lenOutputRow + outputStart;
         chiIn = chiArr + chiStart;
 
         for (k=0; k < reshapedDim1; k++){
             for (j=0; j < reshapedDim2; j++){
                 prodVal = *xIn * chiIn[j];
-                xOutCos[j] += cos(prodVal);
-                xOutSin[j] += sin(prodVal);
+                xOut[j] += cos(prodVal);
+                xOut[j+reshapedDim2] += sin(prodVal);
                 xIn++;
             }
         }
@@ -1025,7 +1024,7 @@ void floatRBFPostProcess(float *reshapedX, float *chiArr,
         int startRow, int endRow, int repeatNum){
     int i, j, k, lenOutputRow, outputStart, chiStart;
     float prodVal;
-    double *xOutSin, *xOutCos;
+    double *xOut;
     float *xIn, *chiIn;
 
     lenOutputRow = 2 * numFreqs;
@@ -1035,15 +1034,14 @@ void floatRBFPostProcess(float *reshapedX, float *chiArr,
     xIn = reshapedX + startRow * reshapedDim1 * reshapedDim2;
 
     for (i=startRow; i < endRow; i++){
-        xOutCos = outputArray + i * lenOutputRow + outputStart;
-        xOutSin = xOutCos + reshapedDim2;
+        xOut = outputArray + i * lenOutputRow + outputStart;
         chiIn = chiArr + chiStart;
 
         for (k=0; k < reshapedDim1; k++){
             for (j=0; j < reshapedDim2; j++){
                 prodVal = *xIn * chiIn[j];
-                xOutCos[j] += cosf(prodVal);
-                xOutSin[j] += sinf(prodVal);
+                xOut[j] += cosf(prodVal);
+                xOut[j+reshapedDim2] += sinf(prodVal);
                 xIn++;
             }
         }
@@ -1086,8 +1084,7 @@ void doubleRBFPostGrad(double *reshapedX, double *chiArr,
         int repeatNum, double sigma){
     int i, j, k, lenOutputRow, outputStart, chiStart;
     double prodVal, gradVal, cosVal, sinVal;
-    double *xIn, *xOutSin, *xOutCos, *chiIn;
-    double *gradOutSin, *gradOutCos;
+    double *xIn, *xOut, *chiIn, *gradOut;
 
     lenOutputRow = 2 * numFreqs;
     chiStart = repeatNum * reshapedDim2;
@@ -1096,12 +1093,10 @@ void doubleRBFPostGrad(double *reshapedX, double *chiArr,
     xIn = reshapedX + startRow * reshapedDim1 * reshapedDim2;
 
     for (i=startRow; i < endRow; i++){
-        xOutCos = outputArray + i * lenOutputRow + outputStart;
-        xOutSin = xOutCos + reshapedDim2;
+        xOut = outputArray + i * lenOutputRow + outputStart;
         chiIn = chiArr + chiStart;
 
-        gradOutCos = gradientArray + i * lenOutputRow + outputStart;
-        gradOutSin = gradOutCos + reshapedDim2;
+        gradOut = gradientArray + i * lenOutputRow + outputStart;
 
         for (k=0; k < reshapedDim1; k++){
             for (j=0; j < reshapedDim2; j++){
@@ -1109,10 +1104,10 @@ void doubleRBFPostGrad(double *reshapedX, double *chiArr,
                 prodVal = gradVal * sigma;
                 cosVal = cos(prodVal);
                 sinVal = sin(prodVal);
-                xOutCos[j] += cosVal;
-                xOutSin[j] += sinVal;
-                gradOutCos[j] += -sinVal * gradVal;
-                gradOutSin[j] += cosVal * gradVal;
+                xOut[j] += cosVal;
+                xOut[j+reshapedDim2] += sinVal;
+                gradOut[j] += -sinVal * gradVal;
+                gradOut[j+reshapedDim2] += cosVal * gradVal;
                 xIn++;
             }
         }
@@ -1153,7 +1148,7 @@ void floatRBFPostGrad(float *reshapedX, float *chiArr,
         int repeatNum, float sigma){
     int i, j, k, lenOutputRow, outputStart, chiStart;
     float prodVal, gradVal, cosVal, sinVal;
-    double *xOutSin, *xOutCos, *gradOutSin, *gradOutCos;
+    double *xOut, *gradOut;
     float *xIn, *chiIn;
 
     lenOutputRow = 2 * numFreqs;
@@ -1163,10 +1158,8 @@ void floatRBFPostGrad(float *reshapedX, float *chiArr,
     xIn = reshapedX + startRow * reshapedDim1 * reshapedDim2;
 
     for (i=startRow; i < endRow; i++){
-        xOutCos = outputArray + i * lenOutputRow + outputStart;
-        xOutSin = xOutCos + reshapedDim2;
-        gradOutCos = gradientArray + i * lenOutputRow + outputStart;
-        gradOutSin = gradOutCos + reshapedDim2;
+        xOut = outputArray + i * lenOutputRow + outputStart;
+        gradOut = gradientArray + i * lenOutputRow + outputStart;
         chiIn = chiArr + chiStart;
 
         for (k=0; k < reshapedDim1; k++){
@@ -1175,10 +1168,10 @@ void floatRBFPostGrad(float *reshapedX, float *chiArr,
                 prodVal = gradVal * sigma;
                 cosVal = cosf(prodVal);
                 sinVal = sinf(prodVal);
-                xOutCos[j] += cosVal;
-                xOutSin[j] += sinVal;
-                gradOutCos[j] += -sinVal * gradVal;
-                gradOutSin[j] += cosVal * gradVal;
+                xOut[j] += cosVal;
+                xOut[j+reshapedDim2] += sinVal;
+                gradOut[j] += -sinVal * gradVal;
+                gradOut[j+reshapedDim2] += cosVal * gradVal;
                 xIn++;
             }
         }

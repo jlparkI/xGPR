@@ -77,10 +77,15 @@ class FastConv1d:
                     "must be an integer multiple of the number of "
                     "desired convolution widths.")
 
+        if mode == "maxpool_loc":
+            subtract_mean = True
+        else:
+            subtract_mean = False
+
         self.f_per_kernel = int(num_features / len(conv_width))
         self.conv_kernel = [FHTMaxpoolConv1dFeatureExtractor(seq_width,
                             self.f_per_kernel, random_seed, device = device,
-                            conv_width = c, mode = mode) for c in conv_width]
+                            conv_width = c, subtract_mean = subtract_mean) for c in conv_width]
         self.device = device
 
         self.seq_width = seq_width

@@ -117,7 +117,6 @@ class GPRegressionBaseclass():
         self.double_precision_fht = double_precision_fht
 
 
-
     def pre_prediction_checks(self, input_x, get_var):
         """Checks the input data to predict_scores to ensure validity.
 
@@ -580,7 +579,7 @@ class GPRegressionBaseclass():
         return self._double_precision_fht
 
 
-    @num_threads.setter
+    @double_precision_fht.setter
     def double_precision_fht(self, value):
         """Setter for the double_precision_fht attribute."""
         self._double_precision_fht = value

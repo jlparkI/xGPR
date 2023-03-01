@@ -1,5 +1,5 @@
-#ifndef SPECIALIZED_OPS_H
-#define SPECIALIZED_OPS_H
+#ifndef RBF_OPS_H
+#define RBF_OPS_H
 
 #include <Python.h>
 #include <numpy/arrayobject.h>

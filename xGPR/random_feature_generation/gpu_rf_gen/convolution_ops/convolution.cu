@@ -83,35 +83,36 @@ __global__ void doubleConv1dRademAndCopy(double *inputArray, double *sinFeatures
 
 
 
-//Performs the final steps in feature generation for the GraphConv1d
-//(GraphRBF) kernel.
-__global__ void floatGraphRBFPostProcess(float *sinFeatures, float *cosFeatures,
+//Performs the final steps in feature generation for RBF-based convolution
+//kernels.
+__global__ void floatConvRBFPostProcess(float *sinFeatures, float *cosFeatures,
             float *chiArr, int dim2, int startPosition, int numElements)
 {
     int j = blockDim.x * blockIdx.x + threadIdx.x;
     float *rVal = chiArr + startPosition + (j & (dim2 - 1));
     float chiProd;
 
-    if (j < numElements)
+    if (j < numElements){
         chiProd = sinFeatures[j] * *rVal;
         sinFeatures[j] = sinf(chiProd);
         cosFeatures[j] = cosf(chiProd);
+    }
 }
 
 
-//Performs the final steps in feature generation for the GraphConv1d
-//(GraphRBF) kernel.
-__global__ void doubleGraphRBFPostProcess(double *sinFeatures, double *cosFeatures,
+//Performs the final steps in feature generation for RBF-based convolution kernels.
+__global__ void doubleConvRBFPostProcess(double *sinFeatures, double *cosFeatures,
             double *chiArr, int dim2, int startPosition, int numElements)
 {
     int j = blockDim.x * blockIdx.x + threadIdx.x;
     double *rVal = chiArr + startPosition + (j & (dim2 - 1));
     double chiProd;
 
-    if (j < numElements)
+    if (j < numElements){
         chiProd = sinFeatures[j] * *rVal;
         sinFeatures[j] = sin(chiProd);
         cosFeatures[j] = cos(chiProd);
+    }
 }
 
 
@@ -246,7 +247,7 @@ const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
 
     //Multiply by chiArr; take the sine and cosine of elements of
     //sinFeatures, and store the cosine in cosFeatures.
-    floatGraphRBFPostProcess<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(sinFeatures,
+    floatConvRBFPostProcess<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(sinFeatures,
             cosFeatures, chiArr, reshapedDim2, startPosition, numElements);
 
     return "no_error";
@@ -294,7 +295,7 @@ const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
 
     //Multiply by chiArr; take the sine and cosine of elements of
     //sinFeatures, and store the cosine in cosFeatures.
-    doubleGraphRBFPostProcess<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(sinFeatures,
+    doubleConvRBFPostProcess<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(sinFeatures,
             cosFeatures, chiArr, reshapedDim2, startPosition, numElements);
 
     return "no_error";

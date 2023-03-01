@@ -1,6 +1,8 @@
 /*
 * Contains specialized functions for generating random features for
-* the RBF and ARD kernels. The input array should already live on GPU.
+* the RBF and related kernels. It makes use of the hadamard transform functions
+* implemented under array_operations.h, so only the pieces specific
+* to the kernel need to be implemented here.
 */
 
 #include <cuda.h>
@@ -9,7 +11,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "../double_array_operations.h"
-#include "double_specialized_ops.h"
+#include "double_rbf_ops.h"
 #include <cuda_profiler_api.h>
 
 

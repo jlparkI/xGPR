@@ -1,6 +1,6 @@
 /*
 * Contains specialized functions for generating random features for
-* specific kernels. It makes use of the hadamard transform functions
+* the RBF and related kernels. It makes use of the hadamard transform functions
 * implemented under array_operations.h, so only the pieces specific
 * to the kernel need to be implemented here.
 */
@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "../float_array_operations.h"
-#include "float_specialized_ops.h"
+#include "float_rbf_ops.h"
 #include <cuda_profiler_api.h>
 
 

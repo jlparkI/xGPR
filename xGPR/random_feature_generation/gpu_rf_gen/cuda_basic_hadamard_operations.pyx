@@ -1,5 +1,11 @@
 """Handles basic hadamard transform based operations, primarily
-SORF, SRHT and RBF / Matern feature generation."""
+SORF, SRHT and RBF / Matern feature generation.
+
+Also performs all of the bounds and safety checks needed to use these
+functions (the C functions do not do their own bounds checking). It
+is EXTREMELY important that this wrapper not be bypassed for this
+reason -- it double checks all of the array dimensions, types,
+is data contiguous etc. before calling the wrapped C functions."""
 import os
 import numpy as np
 cimport numpy as np
@@ -15,28 +21,28 @@ cdef extern from "float_array_operations.h" nogil:
     const char *floatCudaSORF3d(float *npArray, np.int8_t *radem, 
                     int dim0, int dim1, int dim2)
     const char *floatCudaSRHT2d(float *npArray, 
-                    int8_t *radem, int dim0, int dim1);
+                    int8_t *radem, int dim0, int dim1)
 
 cdef extern from "double_array_operations.h" nogil:
     const char *doubleCudaSORF3d(double *npArray, np.int8_t *radem, 
                     int dim0, int dim1, int dim2)
     const char *doubleCudaSRHT2d(double *npArray, 
-                    int8_t *radem, int dim0, int dim1);
+                    int8_t *radem, int dim0, int dim1)
 
 
-cdef extern from "rbf_ops/double_specialized_ops.h" nogil:
+cdef extern from "rbf_ops/double_rbf_ops.h" nogil:
     const char *doubleRBFFeatureGen(double *cArray, int8_t *radem,
                 double *chiArr, double *outputArray,
                 double rbfNormConstant,
                 int dim0, int dim1, int dim2,
-                int numFreqs);
+                int numFreqs)
 
-cdef extern from "rbf_ops/float_specialized_ops.h" nogil:
+cdef extern from "rbf_ops/float_rbf_ops.h" nogil:
     const char *floatRBFFeatureGen(float *cArray, int8_t *radem,
                 float *chiArr, double *outputArray,
                 double rbfNormConstant,
                 int dim0, int dim1, int dim2,
-                int numFreqs);
+                int numFreqs)
 
 
 

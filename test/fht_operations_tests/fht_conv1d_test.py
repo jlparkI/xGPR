@@ -316,7 +316,7 @@ def check_results(gt_array, test_array, precision):
     to use different tolerances for 32-bit vs 64 since 32-bit
     can vary slightly."""
     if precision == "float":
-        return np.allclose(gt_array, test_array, rtol=1e-5, atol=1e-5)
+        return np.allclose(gt_array, test_array, rtol=1e-6, atol=1e-6)
     else:
         return np.allclose(gt_array, test_array)
 

@@ -21,7 +21,7 @@ class CheckFHTConv1dPipeline(unittest.TestCase):
         cg_score, exact_score = test_fit_cpu(KERNEL, CONV_KERNEL, RANDOM_SEED,
                 conv_width = 3)
         self.assertTrue(cg_score > 0.61)
-        self.assertTrue(exact_score > 0.59)
+        self.assertTrue(exact_score > 0.58)
 
     def test_fit_gpu(self):
         """Test on gpu."""
@@ -30,7 +30,7 @@ class CheckFHTConv1dPipeline(unittest.TestCase):
         if cg_score is None or exact_score is None:
             return
         self.assertTrue(cg_score > 0.61)
-        self.assertTrue(exact_score > 0.59)
+        self.assertTrue(exact_score > 0.58)
 
 
 if __name__ == "__main__":

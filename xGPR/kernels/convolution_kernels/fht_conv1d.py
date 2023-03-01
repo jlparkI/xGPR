@@ -6,14 +6,14 @@ import numpy as np
 from scipy.stats import chi
 try:
     import cupy as cp
-    from cuda_convolution_double_hadamard_operations import doubleGpuConv1dTransform
-    from cuda_convolution_float_hadamard_operations import floatGpuConv1dTransform
+    from cuda_convolution_double_hadamard_operations import doubleGpuConv1dFGen, doubleGpuConvGrad
+    from cuda_convolution_float_hadamard_operations import floatGpuConv1dFGen, floatGpuConvGrad
 except:
     pass
 
 from ..kernel_baseclass import KernelBaseclass
-from cpu_convolution_double_hadamard_operations import doubleCpuConv1dTransform
-from cpu_convolution_float_hadamard_operations import floatCpuConv1dTransform
+from cpu_convolution_double_hadamard_operations import doubleCpuConv1dFGen, doubleCpuConvGrad
+from cpu_convolution_float_hadamard_operations import floatCpuConv1dFGen, floatCpuConvGrad
 
 
 class FHTConv1d(KernelBaseclass):
@@ -46,15 +46,13 @@ class FHTConv1d(KernelBaseclass):
         chi_arr: A diagonal array whose elements are drawn from the chi
             distribution. Ensures the marginals of the matrix resulting
             from S H D1 H D2 H D3 are correct.
-        conv_func: A reference to either CPUConv1dTransform or
-            GPUConv1dTransform, both Cython functions in compiled
-            code, as appropriate based on the current device.
+        conv_func: A reference to the random feature generation function
+            appropriate for the current device.
+        grad_func: A reference to the random feature generation & gradient
+            calculation function appropriate for the current device.
         stride_tricks: A reference to cp.lib.stride_tricks.as_strided
             or np.lib.stride_tricks.as_strided, as appropriate based
             on the current device.
-        contiguous_array: A reference to cp.ascontiguousarray or
-            np.ascontiguousarray, as appropriate based on the current
-            device.
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
@@ -113,8 +111,8 @@ class FHTConv1d(KernelBaseclass):
                             random_state = random_seed)
 
         self.conv_func = None
+        self.grad_func = None
         self.stride_tricks = None
-        self.contiguous_array = None
         self.device = device
 
 
@@ -123,18 +121,19 @@ class FHTConv1d(KernelBaseclass):
         """Called by parent class when device is changed. Moves
         some of the object parameters to the appropriate device
         and updates self.conv_func, self.stride_tricks and
-        self.contiguous_array, which are convenience references
+        self.grad_func, which are convenience references
         to the numpy / cupy versions of functions required
         for generating features."""
         if new_device == "gpu":
             if self.double_precision:
-                self.conv_func = doubleGpuConv1dTransform
+                self.conv_func = doubleGpuConv1dFGen
+                self.grad_func = doubleGpuConvGrad
             else:
-                self.conv_func = floatGpuConv1dTransform
+                self.conv_func = floatGpuConv1dFGen
+                self.grad_func = floatGpuConvGrad
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
             self.stride_tricks = cp.lib.stride_tricks.as_strided
-            self.contiguous_array = cp.ascontiguousarray
         else:
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
@@ -142,11 +141,12 @@ class FHTConv1d(KernelBaseclass):
             else:
                 self.chi_arr = self.chi_arr.astype(self.dtype)
             if self.double_precision:
-                self.conv_func = doubleCpuConv1dTransform
+                self.conv_func = doubleCpuConv1dFGen
+                self.grad_func = doubleCpuConvGrad
             else:
-                self.conv_func = floatCpuConv1dTransform
+                self.conv_func = floatCpuConv1dFGen
+                self.grad_func = floatCpuConvGrad
             self.stride_tricks = np.lib.stride_tricks.as_strided
-            self.contiguous_array = np.ascontiguousarray
             self.chi_arr = self.chi_arr.astype(self.dtype)
 
 
@@ -178,10 +178,10 @@ class FHTConv1d(KernelBaseclass):
                             self.num_slides, self.dim2_no_padding),
                             strides=(input_x.strides[0], input_x.shape[2] * input_x.strides[2],
                                 input_x.strides[2]))
-        reshaped_x[:,:,:self.dim2_no_padding] = self.contiguous_array(x_strided)
+        reshaped_x[:,:,:self.dim2_no_padding] = x_strided * self.hyperparams[2]
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr, self.num_threads,
-                self.hyperparams[2], mode = "conv")
-        return xtrans[:,:self.num_rffs] * self.hyperparams[1]
+                self.hyperparams[1])
+        return xtrans[:,:self.num_rffs]
 
 
     def kernel_specific_set_hyperparams(self):
@@ -219,14 +219,11 @@ class FHTConv1d(KernelBaseclass):
                             self.num_slides, self.dim2_no_padding),
                             strides=(input_x.strides[0], input_x.shape[2] *
                                 input_x.strides[2], input_x.strides[2]))
-        reshaped_x[:,:,:self.dim2_no_padding] = self.contiguous_array(x_strided)
-        dz_dsigma = self.conv_func(reshaped_x, self.radem_diag,
+        reshaped_x[:,:,:self.dim2_no_padding] = x_strided
+        dz_dsigma = self.grad_func(reshaped_x, self.radem_diag,
                 output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
-                mode = "conv_gradient")
-        output_x *= self.hyperparams[1]
-        dz_dsigma *= self.hyperparams[1]
+                self.hyperparams[1])
 
         output_x = output_x[:,:self.num_rffs]
-        dz_dsigma = dz_dsigma[:,:self.num_rffs]
-        return output_x, dz_dsigma.reshape((dz_dsigma.shape[0],
-                            dz_dsigma.shape[1], 1))
+        dz_dsigma = dz_dsigma[:,:self.num_rffs,:]
+        return output_x, dz_dsigma

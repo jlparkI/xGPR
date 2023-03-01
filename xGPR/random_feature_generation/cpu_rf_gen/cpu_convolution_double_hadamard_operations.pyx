@@ -1,6 +1,5 @@
-"""Wraps the C functions that perform the fastHadamardTransform on CPU,
-the structured orthogonal features or SORF operations on CPU and the
-fast Hadamard transform based convolution operations on CPU.
+"""Wraps the C functions that generate random features for convolution
+kernels & related kernels, for double-precision arithmetic.
 Also performs all of the bounds and safety checks needed to use these
 functions (the C functions do not do their own bounds checking). It
 is EXTREMELY important that this wrapper not be bypassed for this

@@ -1,5 +1,5 @@
-#ifndef FLOAT_CUDA_SPECIALIZED_OPERATIONS_H
-#define FLOAT_CUDA_SPECIALIZED_OPERATIONS_H
+#ifndef FLOAT_CUDA_RBF_SPEC_OPERATIONS_H
+#define FLOAT_CUDA_RBF_SPEC_OPERATIONS_H
 
 const char *floatRBFFeatureGen(float *cArray, int8_t *radem,
                 float *chiArr, double *outputArray,

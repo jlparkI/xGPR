@@ -8,11 +8,11 @@ import numpy as np
 from scipy.stats import chi
 try:
     import cupy as cp
-    from cuda_convolution_float_hadamard_operations import floatGpuConv1dTransform
+    from cuda_convolution_float_hadamard_operations import floatGpuConv1dMaxpool
 except:
     pass
 
-from cpu_convolution_double_hadamard_operations import doubleCpuConv1dTransform
+from cpu_convolution_float_hadamard_operations import floatCpuConv1dMaxpool
 
 
 class FHTMaxpoolConv1dFeatureExtractor():
@@ -45,14 +45,13 @@ class FHTMaxpoolConv1dFeatureExtractor():
         stride_tricks: A reference to cp.lib.stride_tricks.as_strided
             or np.lib.stride_tricks.as_strided, as appropriate based
             on the current device.
-        contiguous_array: A reference to cp.ascontiguousarray or
-            np.ascontiguousarray, as appropriate based on the current
-            device.
-        mode (str): One of "maxpool", "maxpool_loc". Defaults to 'maxpool'.
+        subtract_mean (bool): Indicates whether mean should be subtracted.
+        num_threads (int): Number of threads to use if running on CPU;
+            ignored if running on GPU.
     """
 
     def __init__(self, seqwidth, num_rffs, random_seed = 123, device = "cpu",
-                    conv_width = 9, mode = "maxpool"):
+                    conv_width = 9, subtract_mean = False, num_threads = 2):
         """Constructor for FHT_Conv1d.
 
         Args:
@@ -63,14 +62,14 @@ class FHTMaxpoolConv1dFeatureExtractor():
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'gpu'. Indicates the starting device.
             conv_width (int): The width of the convolution kernel. Defaults to 9.
-            mode (str): One of "maxpool", "maxpool_loc". Defaults to 'maxpool'.
+            subtract_mean (bool): Indicates whether mean should be subtracted.
+            num_threads (int): Number of threads to use if running on CPU;
+                ignored if running on GPU.
 
         Raises:
             ValueError: A ValueError is raised if the dimensions of the input are
                 inappropriate given the conv_width.
         """
-        if mode not in ["maxpool_loc", "maxpool"]:
-            raise ValueError("Unrecognized mode supplied to the FHT feature extractor.")
         rng = np.random.default_rng(random_seed)
         self.conv_width = conv_width
 
@@ -87,11 +86,12 @@ class FHTMaxpoolConv1dFeatureExtractor():
                                 replace=True)
         self.chi_arr = chi.rvs(df=self.padded_dims, size=self.init_calc_featsize,
                             random_state = random_seed)
+
+        self.num_threads = num_threads
         self.conv_func = None
         self.stride_tricks = None
-        self.contiguous_array = None
+        self.subtract_mean = subtract_mean
         self.device = device
-        self.mode = mode
 
 
     def kernel_specific_set_device(self, new_device):
@@ -100,18 +100,17 @@ class FHTMaxpoolConv1dFeatureExtractor():
         and updates convenience references to numpy / cupy
         functions used for generating features."""
         if new_device == "gpu":
-            self.conv_func = floatGpuConv1dTransform
+            self.conv_func = floatGpuConv1dMaxpool
             self.radem_diag = cp.asarray(self.radem_diag)
-            self.chi_arr = cp.asarray(self.chi_arr).astype(cp.float32)
+            self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
             self.stride_tricks = cp.lib.stride_tricks.as_strided
-            self.contiguous_array = cp.ascontiguousarray
         else:
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
-                self.chi_arr = cp.asnumpy(self.chi_arr).astype(np.float64)
-            self.conv_func = doubleCpuConv1dTransform
+                self.chi_arr = cp.asnumpy(self.chi_arr)
+            self.chi_arr = self.chi_arr.astype(self.dtype)
+            self.conv_func = floatCpuConv1dMaxpool
             self.stride_tricks = np.lib.stride_tricks.as_strided
-            self.contiguous_array = np.ascontiguousarray
 
 
     def transform_x(self, input_x):
@@ -136,9 +135,9 @@ class FHTMaxpoolConv1dFeatureExtractor():
                             self.dim2_no_padding),
                             strides=(input_x.strides[0], input_x.shape[2] *
                                 input_x.strides[2], input_x.strides[2]))
-        reshaped_x[:,:,:self.dim2_no_padding] = self.contiguous_array(x_strided)
+        reshaped_x[:,:,:self.dim2_no_padding] = x_strided
         self.conv_func(reshaped_x, self.radem_diag,
-                output_x, self.chi_arr, 2, 1.0, mode = self.mode)
+                output_x, self.chi_arr, self.num_threads, self.subtract_mean)
         output_x = output_x[:,:self.num_rffs]
         return output_x
 
@@ -168,12 +167,10 @@ class FHTMaxpoolConv1dFeatureExtractor():
         self.zero_arr) are set as references to either cupy or numpy functions.
         This avoids having to write two sets of functions (one for cupy, one for
         numpy) for each gradient calculation when the steps involved are the same.
-        Also note that cupy uses float32, which is 5-10x faster on GPU; on CPU,
-        float32 provides a much more modest benefit and float64 is used instead.
         """
         if value == "cpu":
             self.zero_arr = np.zeros
-            self.dtype = np.float64
+            self.dtype = np.float32
             self.out_type = np.float64
         elif value == "gpu":
             self.zero_arr = cp.zeros

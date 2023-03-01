@@ -81,7 +81,7 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
     cpu_conv1d_op = os.path.join(cpu_fast_transform_path,
                     "convolution_ops", "conv1d_operations.c")
     cpu_spec_ops = os.path.join(cpu_fast_transform_path,
-                    "rbf_ops", "specialized_ops.c")
+                    "rbf_ops", "rbf_ops.c")
 
     cpu_basic_op_wrapper = os.path.join(cpu_fast_transform_path,
                     "cpu_basic_hadamard_operations.pyx")
@@ -265,6 +265,8 @@ def main():
 
     os.chdir(os.path.join(setup_fpath, "xGPR", "random_feature_generation",
                 "gpu_rf_gen"))
+    if "libarray_operations.a" in os.listdir():
+        os.remove("libarray_operations.a")
 
     os.chdir(os.path.join(setup_fpath, "xGPR", "fitting_toolkit"))
     if "sgd_fitting_toolkit.c" in os.listdir():

@@ -6,14 +6,14 @@ import numpy as np
 from scipy.stats import chi
 try:
     import cupy as cp
-    from cuda_convolution_double_hadamard_operations import doubleGpuGraphConv1dTransform
-    from cuda_convolution_float_hadamard_operations import floatGpuGraphConv1dTransform
+    from cuda_convolution_double_hadamard_operations import doubleGpuConv1dFGen, doubleGpuConvGrad
+    from cuda_convolution_float_hadamard_operations import floatGpuConv1dFGen, floatGpuConvGrad
 except:
     pass
 
 from ..kernel_baseclass import KernelBaseclass
-from cpu_convolution_double_hadamard_operations import doubleCpuGraphConv1dTransform
-from cpu_convolution_float_hadamard_operations import floatCpuGraphConv1dTransform
+from cpu_convolution_double_hadamard_operations import doubleCpuConv1dFGen, doubleCpuConvGrad
+from cpu_convolution_float_hadamard_operations import floatCpuConv1dFGen, floatCpuConvGrad
 
 
 class GraphFHTConv1d(KernelBaseclass):
@@ -37,9 +37,10 @@ class GraphFHTConv1d(KernelBaseclass):
         chi_arr: A diagonal array whose elements are drawn from the chi
             distribution. Ensures the marginals of the matrix resulting
             from S H D1 H D2 H D3 are correct.
-        conv_func: A reference to either CPUConv1dTransform or
-            GPUConv1dTransform, both Cython functions in compiled
-            code, as appropriate based on the current device.
+        conv_func: A reference to the random feature generation function
+            appropriate for the current device.
+        grad_func: A reference to the random feature generation & gradient
+            calculation function appropriate for the current device.
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
@@ -89,6 +90,7 @@ class GraphFHTConv1d(KernelBaseclass):
 
 
         self.conv_func = None
+        self.grad_func = None
         self.device = device
 
 
@@ -101,9 +103,11 @@ class GraphFHTConv1d(KernelBaseclass):
         for generating features."""
         if new_device == "gpu":
             if self.double_precision:
-                self.conv_func = doubleGpuGraphConv1dTransform
+                self.conv_func = doubleGpuConv1dFGen
+                self.grad_func = doubleGpuConvGrad
             else:
-                self.conv_func = floatGpuGraphConv1dTransform
+                self.conv_func = floatGpuConv1dFGen
+                self.grad_func = floatGpuConvGrad
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
         else:
@@ -113,9 +117,11 @@ class GraphFHTConv1d(KernelBaseclass):
             else:
                 self.chi_arr = self.chi_arr.astype(self.dtype)
             if self.double_precision:
-                self.conv_func = doubleCpuGraphConv1dTransform
+                self.conv_func = doubleCpuConv1dFGen
+                self.grad_func = doubleCpuConvGrad
             else:
-                self.conv_func = floatCpuGraphConv1dTransform
+                self.conv_func = floatCpuConv1dFGen
+                self.grad_func = floatCpuConvGrad
             self.chi_arr = self.chi_arr.astype(self.dtype)
 
 
@@ -144,9 +150,9 @@ class GraphFHTConv1d(KernelBaseclass):
         xtrans = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
         reshaped_x = self.zero_arr((input_x.shape[0], input_x.shape[1],
                                 self.padded_dims), self.dtype)
-        reshaped_x[:,:,:input_x.shape[2]] = input_x
+        reshaped_x[:,:,:input_x.shape[2]] = input_x * self.hyperparams[2]
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
-                self.num_threads, self.hyperparams[2], self.hyperparams[1])
+                self.num_threads, self.hyperparams[1])
         return xtrans[:,:self.num_rffs]
 
 
@@ -173,7 +179,7 @@ class GraphFHTConv1d(KernelBaseclass):
         reshaped_x = self.zero_arr((input_x.shape[0], input_x.shape[1],
                                 self.padded_dims), self.dtype)
         reshaped_x[:,:,:input_x.shape[2]] = input_x
-        dz_dsigma = self.conv_func(reshaped_x, self.radem_diag,
+        dz_dsigma = self.grad_func(reshaped_x, self.radem_diag,
                 output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
-                self.hyperparams[1], mode = "gradient")
-        return output_x[:,:self.num_rffs], dz_dsigma[:,:self.num_rffs]
+                self.hyperparams[1])
+        return output_x[:,:self.num_rffs], dz_dsigma[:,:self.num_rffs,:]

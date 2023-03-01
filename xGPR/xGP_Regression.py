@@ -86,8 +86,10 @@ class xGPRegression(GPRegressionBaseclass):
                 Defaults to False.
         """
         super().__init__(training_rffs, fitting_rffs, variance_rffs,
-                        kernel_choice, device, kernel_specific_params,
-                        verbose, num_threads, double_precision_fht)
+                        kernel_choice, device = device,
+                        kernel_specific_params = kernel_specific_params,
+                        verbose = verbose, num_threads = num_threads,
+                        double_precision_fht = double_precision_fht)
 
 
 

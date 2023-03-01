@@ -1,5 +1,11 @@
 """Handles convolution-type hadamard transform based operations for graphs
-and sequences if the input array is an array of floats."""
+and sequences if the input array is an array of floats.
+
+Also performs all of the bounds and safety checks needed to use these
+functions (the C functions do not do their own bounds checking). It
+is EXTREMELY important that this wrapper not be bypassed for this
+reason -- it double checks all of the array dimensions, types,
+is data contiguous etc. before calling the wrapped C functions."""
 import numpy as np
 cimport numpy as np
 cimport cython
@@ -231,7 +237,6 @@ def floatGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
                     cosFeaturesPtr, chiArrPtr, reshapedX.shape[0], reshapedX.shape[1], 
                     reshapedX.shape[2], i * reshapedX.shape[2],
                     radem.shape[2])
-
         if errCode.decode("UTF-8") != "no_error":
             raise Exception("Fatal error encountered while performing FHT RF generation.")
 
@@ -243,7 +248,6 @@ def floatGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
         cutoff2 += 2 * reshapedX.shape[2]
 
     outputArray *= scalingTerm
-
 
 
 
