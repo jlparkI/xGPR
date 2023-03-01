@@ -23,6 +23,16 @@
  * Performs all steps required to generate random features for RBF-based
  * convolution kernels (FHTConv1d, GraphConv1d, ARD variants of GraphConv1d).
  *
+ * + doubleConvRBFGrad_
+ * Performs all steps required to generate random features for RBF-based
+ * convolution kernels (FHTConv1d, GraphConv1d, ARD variants of GraphConv1d)
+ * and additionally calculate the gradient w/r/t lengthscale.
+ *
+ * + floatConvRBFGrad_
+ * Performs all steps required to generate random features for RBF-based
+ * convolution kernels (FHTConv1d, GraphConv1d, ARD variants of GraphConv1d)
+ * and additionally calculate the gradient w/r/t lengthscale.
+ * 
  * + FloatThreadConv1d
  * Called once by doubleConv1dPrep_ for each thread.
  *
@@ -37,12 +47,28 @@
  * Called once for each thread when generating RBF-based convolution
  * features.
  *
+ * + FloatThreadConvRBFGrad
+ * Called once for each thread when generating RBF-based convolution
+ * features with additional gradient calculation.
+ *
+ * + DoubleThreadConvRBFGrad
+ * Called once for each thread when generating RBF-based convolution
+ * features with additional gradient calculation.
+ * 
  * + floatRBFGenPostProcess
  * Performs the last step in RBF-based convolution feature generation.
  *
  * + doubleRBFGenPostProcess
  * Performs the last step in RBF-based convolution feature generation.
  *
+ * + floatRBFGenGrad
+ * Performs the last step in RBF-based convolution feature generation
+ * and gradient calculation.
+ *
+ * + doubleRBFGenGrad
+ * Performs the last step in RBF-based convolution feature generation
+ * and gradient calculation.
+ * 
  * Functions from float_ and double_ array_operations.c are called to
  * perform the Hadamard transform and diagonal matrix multiplications.
  */
@@ -254,7 +280,6 @@ const char *floatConv1dPrep_(int8_t *radem, float *reshapedX,
  * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
  * + `reshapedDim2` The last dimension of reshapedX
- * + `startPosition` Where to start when reading through radem.
  * + `numFreqs` The number of frequencies to sample.
  * numFreqs must be equal to shape[2] of radem (m * C).
  *
@@ -265,7 +290,7 @@ const char *doubleConvRBFFeatureGen_(int8_t *radem, double *reshapedX,
             double *copyBuffer, double *chiArr, double *outputArray,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
-            int startPosition, int numFreqs)
+            int numFreqs)
 {
     if (numThreads > reshapedDim0)
         numThreads = reshapedDim0;
@@ -286,7 +311,6 @@ const char *doubleConvRBFFeatureGen_(int8_t *radem, double *reshapedX,
     //We assume here that numFreqs is an integer multiple of reshapedDim2.
     //Caller must check this -- the Cython wrapper does.
     for (i=0; i < numThreads; i++){
-        th_args[i].startPosition = startPosition;
         th_args[i].startRow = i * chunkSize;
         th_args[i].endRow = (i + 1) * chunkSize;
         if (th_args[i].endRow > reshapedDim0)
@@ -349,7 +373,6 @@ const char *doubleConvRBFFeatureGen_(int8_t *radem, double *reshapedX,
  * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
  * + `reshapedDim2` The last dimension of reshapedX
- * + `startPosition` Where to start when reading through radem.
  * + `numFreqs` The number of frequencies to sample.
  * numFreqs must be equal to shape[2] of radem (m * C).
  *
@@ -360,7 +383,7 @@ const char *floatConvRBFFeatureGen_(int8_t *radem, float *reshapedX,
             float *copyBuffer, float *chiArr, double *outputArray,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
-            int startPosition, int numFreqs)
+            int numFreqs)
 {
     if (numThreads > reshapedDim0)
         numThreads = reshapedDim0;
@@ -381,7 +404,6 @@ const char *floatConvRBFFeatureGen_(int8_t *radem, float *reshapedX,
     //We assume here that numFreqs is an integer multiple of reshapedDim2.
     //Caller must check this -- the Cython wrapper does.
     for (i=0; i < numThreads; i++){
-        th_args[i].startPosition = startPosition;
         th_args[i].startRow = i * chunkSize;
         th_args[i].endRow = (i + 1) * chunkSize;
         if (th_args[i].endRow > reshapedDim0)
@@ -445,7 +467,6 @@ const char *floatConvRBFFeatureGen_(int8_t *radem, float *reshapedX,
  * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
  * + `reshapedDim2` The last dimension of reshapedX
- * + `startPosition` Where to start when reading through radem.
  * + `numFreqs` The number of frequencies to sample.
  * numFreqs must be equal to shape[2] of radem (m * C).
  *
@@ -454,10 +475,10 @@ const char *floatConvRBFFeatureGen_(int8_t *radem, float *reshapedX,
  */
 const char *doubleConvRBFGrad_(int8_t *radem, double *reshapedX,
             double *copyBuffer, double *chiArr, double *outputArray,
-            double *gradientArray,
+            double *gradientArray, double sigma,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
-            int startPosition, int numFreqs)
+            int numFreqs)
 {
     if (numThreads > reshapedDim0)
         numThreads = reshapedDim0;
@@ -478,7 +499,6 @@ const char *doubleConvRBFGrad_(int8_t *radem, double *reshapedX,
     //We assume here that numFreqs is an integer multiple of reshapedDim2.
     //Caller must check this -- the Cython wrapper does.
     for (i=0; i < numThreads; i++){
-        th_args[i].startPosition = startPosition;
         th_args[i].startRow = i * chunkSize;
         th_args[i].endRow = (i + 1) * chunkSize;
         if (th_args[i].endRow > reshapedDim0)
@@ -492,6 +512,7 @@ const char *doubleConvRBFGrad_(int8_t *radem, double *reshapedX,
         th_args[i].copyBuffer = copyBuffer;
         th_args[i].outputArray = outputArray;
         th_args[i].gradientArray = gradientArray;
+        th_args[i].sigma = sigma;
     }
 
     for (i=0; i < numThreads; i++){
@@ -544,7 +565,6 @@ const char *doubleConvRBFGrad_(int8_t *radem, double *reshapedX,
  * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
  * + `reshapedDim2` The last dimension of reshapedX
- * + `startPosition` Where to start when reading through radem.
  * + `numFreqs` The number of frequencies to sample.
  * numFreqs must be equal to shape[2] of radem (m * C).
  *
@@ -553,10 +573,10 @@ const char *doubleConvRBFGrad_(int8_t *radem, double *reshapedX,
  */
 const char *floatConvRBFGrad_(int8_t *radem, float *reshapedX,
             float *copyBuffer, float *chiArr, double *outputArray,
-            double *gradientArray,
+            double *gradientArray, float sigma,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
-            int startPosition, int numFreqs)
+            int numFreqs)
 {
     if (numThreads > reshapedDim0)
         numThreads = reshapedDim0;
@@ -577,7 +597,6 @@ const char *floatConvRBFGrad_(int8_t *radem, float *reshapedX,
     //We assume here that numFreqs is an integer multiple of reshapedDim2.
     //Caller must check this -- the Cython wrapper does.
     for (i=0; i < numThreads; i++){
-        th_args[i].startPosition = startPosition;
         th_args[i].startRow = i * chunkSize;
         th_args[i].endRow = (i + 1) * chunkSize;
         if (th_args[i].endRow > reshapedDim0)
@@ -591,6 +610,7 @@ const char *floatConvRBFGrad_(int8_t *radem, float *reshapedX,
         th_args[i].copyBuffer = copyBuffer;
         th_args[i].outputArray = outputArray;
         th_args[i].gradientArray = gradientArray;
+        th_args[i].sigma = sigma;
     }
 
     for (i=0; i < numThreads; i++){
@@ -717,36 +737,43 @@ void *floatThreadConv1d(void *sharedArgs){
  */
 void *doubleThreadConvRBFGen(void *sharedArgs){
     struct ThreadConvRBFDoubleArgs *thArgs = (struct ThreadConvRBFDoubleArgs *)sharedArgs;
-    
-    doubleConv1dRademAndCopy(thArgs->reshapedXArray,
+    int i, numRepeats, startPosition = 0;
+    numRepeats = (thArgs->numFreqs +
+            thArgs->reshapedDim2 - 1) / thArgs->reshapedDim2;
+
+    for (i=0; i < numRepeats; i++){
+        doubleConv1dRademAndCopy(thArgs->reshapedXArray,
                     thArgs->copyBuffer,
                     thArgs->rademArray, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
-                    thArgs->reshapedDim2, thArgs->startPosition);
-    doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
+                    thArgs->reshapedDim2, startPosition);
+        doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
-    doubleConv1dMultiplyByRadem(thArgs->copyBuffer,
+        doubleConv1dMultiplyByRadem(thArgs->copyBuffer,
                     thArgs->rademArray + thArgs->numFreqs,
                     thArgs->startRow, thArgs->endRow,
                     thArgs->reshapedDim1, thArgs->reshapedDim2,
-                    thArgs->startPosition);
-    doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
+                    startPosition);
+        doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
     
-    doubleConv1dMultiplyByRadem(thArgs->copyBuffer,
+        doubleConv1dMultiplyByRadem(thArgs->copyBuffer,
                     thArgs->rademArray + 2 * thArgs->numFreqs,
                     thArgs->startRow, thArgs->endRow,
                     thArgs->reshapedDim1, thArgs->reshapedDim2,
-                    thArgs->startPosition);
-    doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
+                    startPosition);
+        doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
-    doubleRBFGenPostProcess(thArgs->copyBuffer, thArgs->chiArr,
-        thArgs->outputArray, thArgs->reshapedDim0, thArgs->reshapedDim1,
-        thArgs->reshapedDim2, thArgs->startPosition, thArgs->numFreqs,
-        thArgs->startRow, thArgs->endRow);
+        doubleRBFPostProcess(thArgs->copyBuffer, thArgs->chiArr,
+            thArgs->outputArray, thArgs->reshapedDim1,
+            thArgs->reshapedDim2, thArgs->numFreqs, thArgs->startRow,
+            thArgs->endRow, i);
+
+        startPosition += thArgs->reshapedDim2;
+    }
     return NULL;
 }
 
@@ -765,36 +792,43 @@ void *doubleThreadConvRBFGen(void *sharedArgs){
  */
 void *floatThreadConvRBFGen(void *sharedArgs){
     struct ThreadConvRBFFloatArgs *thArgs = (struct ThreadConvRBFFloatArgs *)sharedArgs;
-    
-    floatConv1dRademAndCopy(thArgs->reshapedXArray,
+    int i, numRepeats, startPosition = 0;
+    numRepeats = (thArgs->numFreqs +
+            thArgs->reshapedDim2 - 1) / thArgs->reshapedDim2;
+
+    for (i=0; i < numRepeats; i++){
+        floatConv1dRademAndCopy(thArgs->reshapedXArray,
                     thArgs->copyBuffer,
                     thArgs->rademArray, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
-                    thArgs->reshapedDim2, thArgs->startPosition);
-    floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
+                    thArgs->reshapedDim2, startPosition);
+        floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
-    floatConv1dMultiplyByRadem(thArgs->copyBuffer,
+        floatConv1dMultiplyByRadem(thArgs->copyBuffer,
                     thArgs->rademArray + thArgs->numFreqs,
                     thArgs->startRow, thArgs->endRow,
                     thArgs->reshapedDim1, thArgs->reshapedDim2,
-                    thArgs->startPosition);
-    floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
+                    startPosition);
+        floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
     
-    floatConv1dMultiplyByRadem(thArgs->copyBuffer,
+        floatConv1dMultiplyByRadem(thArgs->copyBuffer,
                     thArgs->rademArray + 2 * thArgs->numFreqs,
                     thArgs->startRow, thArgs->endRow,
                     thArgs->reshapedDim1, thArgs->reshapedDim2,
-                    thArgs->startPosition);
-    floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
+                    startPosition);
+        floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
-    floatRBFGenPostProcess(thArgs->copyBuffer, thArgs->chiArr,
-        thArgs->outputArray, thArgs->reshapedDim0, thArgs->reshapedDim1,
-        thArgs->reshapedDim2, thArgs->startPosition, thArgs->numFreqs,
-        thArgs->startRow, thArgs->endRow);
+        floatRBFPostProcess(thArgs->copyBuffer, thArgs->chiArr,
+            thArgs->outputArray, thArgs->reshapedDim1,
+            thArgs->reshapedDim2, thArgs->numFreqs, thArgs->startRow,
+            thArgs->endRow, i);
+        
+        startPosition += thArgs->reshapedDim2;
+    }
     return NULL;
 }
 
@@ -813,36 +847,43 @@ void *floatThreadConvRBFGen(void *sharedArgs){
  */
 void *doubleThreadConvRBFGrad(void *sharedArgs){
     struct ThreadConvRBFDoubleArgs *thArgs = (struct ThreadConvRBFDoubleArgs *)sharedArgs;
-    
-    doubleConv1dRademAndCopy(thArgs->reshapedXArray,
+    int i, numRepeats, startPosition = 0;
+    numRepeats = (thArgs->numFreqs +
+            thArgs->reshapedDim2 - 1) / thArgs->reshapedDim2;
+
+    for (i=0; i < numRepeats; i++){
+        doubleConv1dRademAndCopy(thArgs->reshapedXArray,
                     thArgs->copyBuffer,
                     thArgs->rademArray, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
-                    thArgs->reshapedDim2, thArgs->startPosition);
-    doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
+                    thArgs->reshapedDim2, startPosition);
+        doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
-    doubleConv1dMultiplyByRadem(thArgs->copyBuffer,
+        doubleConv1dMultiplyByRadem(thArgs->copyBuffer,
                     thArgs->rademArray + thArgs->numFreqs,
                     thArgs->startRow, thArgs->endRow,
                     thArgs->reshapedDim1, thArgs->reshapedDim2,
-                    thArgs->startPosition);
-    doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
+                    startPosition);
+        doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
     
-    doubleConv1dMultiplyByRadem(thArgs->copyBuffer,
+        doubleConv1dMultiplyByRadem(thArgs->copyBuffer,
                     thArgs->rademArray + 2 * thArgs->numFreqs,
                     thArgs->startRow, thArgs->endRow,
                     thArgs->reshapedDim1, thArgs->reshapedDim2,
-                    thArgs->startPosition);
-    doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
+                    startPosition);
+        doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
-    doubleRBFGenPostProcess(thArgs->copyBuffer, thArgs->chiArr,
-        thArgs->outputArray, thArgs->reshapedDim0, thArgs->reshapedDim1,
-        thArgs->reshapedDim2, thArgs->startPosition, thArgs->numFreqs,
-        thArgs->startRow, thArgs->endRow);
+        doubleRBFPostGrad(thArgs->copyBuffer, thArgs->chiArr,
+            thArgs->outputArray, thArgs->gradientArray, thArgs->reshapedDim1,
+            thArgs->reshapedDim2, thArgs->numFreqs, thArgs->startRow, 
+            thArgs->endRow, i, thArgs->sigma);
+
+        startPosition += thArgs->reshapedDim2;
+    }
     return NULL;
 }
 
@@ -861,41 +902,48 @@ void *doubleThreadConvRBFGrad(void *sharedArgs){
  */
 void *floatThreadConvRBFGrad(void *sharedArgs){
     struct ThreadConvRBFFloatArgs *thArgs = (struct ThreadConvRBFFloatArgs *)sharedArgs;
-    
-    floatConv1dRademAndCopy(thArgs->reshapedXArray,
+    int i, numRepeats, startPosition = 0;
+    numRepeats = (thArgs->numFreqs +
+            thArgs->reshapedDim2 - 1) / thArgs->reshapedDim2;
+
+    for (i=0; i < numRepeats; i++){
+        floatConv1dRademAndCopy(thArgs->reshapedXArray,
                     thArgs->copyBuffer,
                     thArgs->rademArray, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
-                    thArgs->reshapedDim2, thArgs->startPosition);
-    floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
+                    thArgs->reshapedDim2, startPosition);
+        floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
-    floatConv1dMultiplyByRadem(thArgs->copyBuffer,
+        floatConv1dMultiplyByRadem(thArgs->copyBuffer,
                     thArgs->rademArray + thArgs->numFreqs,
                     thArgs->startRow, thArgs->endRow,
                     thArgs->reshapedDim1, thArgs->reshapedDim2,
-                    thArgs->startPosition);
-    floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
+                    startPosition);
+        floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
     
-    floatConv1dMultiplyByRadem(thArgs->copyBuffer,
+        floatConv1dMultiplyByRadem(thArgs->copyBuffer,
                     thArgs->rademArray + 2 * thArgs->numFreqs,
                     thArgs->startRow, thArgs->endRow,
                     thArgs->reshapedDim1, thArgs->reshapedDim2,
-                    thArgs->startPosition);
-    floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
+                    startPosition);
+        floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
-    floatRBFGenPostProcess(thArgs->copyBuffer, thArgs->chiArr,
-        thArgs->outputArray, thArgs->reshapedDim0, thArgs->reshapedDim1,
-        thArgs->reshapedDim2, thArgs->startPosition, thArgs->numFreqs,
-        thArgs->startRow, thArgs->endRow);
+        floatRBFPostGrad(thArgs->copyBuffer, thArgs->chiArr,
+            thArgs->outputArray, thArgs->gradientArray, thArgs->reshapedDim1,
+            thArgs->reshapedDim2, thArgs->numFreqs, thArgs->startRow,
+            thArgs->endRow, i, thArgs->sigma);
+        
+        startPosition += thArgs->reshapedDim2;
+    }
     return NULL;
 }
 
 /*!
- * # doubleRBFGenPostProcess
+ * # doubleRBFPostProcess
  *
  * Performs the last steps in RBF-based convolution kernel feature
  * generation.
@@ -911,31 +959,35 @@ void *floatThreadConvRBFGrad(void *sharedArgs){
  * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
  * + `reshapedDim2` The last dimension of reshapedX
- * + `startPosition` Where to start when reading through radem.
  * + `numFreqs` The number of frequencies to sample.
  * + `startRow` The first row of the input to work on
  * + `endRow` The last row of the input to work on
+ * + `repeatNum` The repeat number
  */
-void doubleRBFGenPostProcess(double *reshapedX, double *chiArr,
-        double *outputArray, int reshapedDim0, int reshapedDim1,
-        int reshapedDim2, int startPosition, int numFreqs,
-        int startRow, int endRow){
-    int i, j, k, lenOutputRow;
+void doubleRBFPostProcess(double *reshapedX, double *chiArr,
+        double *outputArray, int reshapedDim1,
+        int reshapedDim2, int numFreqs,
+        int startRow, int endRow, int repeatNum){
+    int i, j, k, lenOutputRow, chiStart, outputStart;
     double prodVal;
     double *xIn, *xOutSin, *xOutCos, *chiIn;
 
     lenOutputRow = 2 * numFreqs;
+    chiStart = repeatNum * reshapedDim2;
+    outputStart = 2 * repeatNum * reshapedDim2;
+
+    xIn = reshapedX + startRow * reshapedDim1 * reshapedDim2;
 
     for (i=startRow; i < endRow; i++){
-        xIn = reshapedX + i * reshapedDim1 * reshapedDim2;
-        for (j=startPosition; j < startPosition + reshapedDim2; j++){
-            xOutCos = outputArray + i * lenOutputRow + startPosition;
-            xOutSin = xOutCos + reshapedDim2;
-            chiIn = chiArr + startPosition;
-            for (k=0; k < reshapedDim1; k++){
-                prodVal = *xIn * chiIn[k];
-                *xOutCos += cos(prodVal);
-                *xOutSin += sin(prodVal);
+        xOutCos = outputArray + i * lenOutputRow + outputStart;
+        xOutSin = xOutCos + reshapedDim2;
+        chiIn = chiArr + chiStart;
+
+        for (k=0; k < reshapedDim1; k++){
+            for (j=0; j < reshapedDim2; j++){
+                prodVal = *xIn * chiIn[j];
+                xOutCos[j] += cos(prodVal);
+                xOutSin[j] += sin(prodVal);
                 xIn++;
             }
         }
@@ -946,7 +998,7 @@ void doubleRBFGenPostProcess(double *reshapedX, double *chiArr,
 
 
 /*!
- * # floatRBFGenPostProcess
+ * # floatRBFPostProcess
  *
  * Performs the last steps in RBF-based convolution kernel feature
  * generation.
@@ -962,32 +1014,36 @@ void doubleRBFGenPostProcess(double *reshapedX, double *chiArr,
  * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
  * + `reshapedDim2` The last dimension of reshapedX
- * + `startPosition` Where to start when reading through radem.
  * + `numFreqs` The number of frequencies to sample.
  * + `startRow` The first row of the input to work on
  * + `endRow` The last row of the input to work on
+ * + `repeatNum` The repeat number
  */
-void floatRBFGenPostProcess(float *reshapedX, float *chiArr,
-        double *outputArray, int reshapedDim0, int reshapedDim1,
-        int reshapedDim2, int startPosition, int numFreqs,
-        int startRow, int endRow){
-    int i, j, k, lenOutputRow;
-    double prodVal;
+void floatRBFPostProcess(float *reshapedX, float *chiArr,
+        double *outputArray, int reshapedDim1,
+        int reshapedDim2, int numFreqs,
+        int startRow, int endRow, int repeatNum){
+    int i, j, k, lenOutputRow, outputStart, chiStart;
+    float prodVal;
     double *xOutSin, *xOutCos;
     float *xIn, *chiIn;
 
     lenOutputRow = 2 * numFreqs;
+    chiStart = repeatNum * reshapedDim2;
+    outputStart = 2 * repeatNum * reshapedDim2;
+
+    xIn = reshapedX + startRow * reshapedDim1 * reshapedDim2;
 
     for (i=startRow; i < endRow; i++){
-        xIn = reshapedX + i * reshapedDim1 * reshapedDim2;
-        for (j=startPosition; j < startPosition + reshapedDim2; j++){
-            xOutCos = outputArray + i * lenOutputRow + startPosition;
-            xOutSin = xOutCos + reshapedDim2;
-            chiIn = chiArr + startPosition;
-            for (k=0; k < reshapedDim1; k++){
-                prodVal = *xIn * chiIn[k];
-                *xOutCos += cosf(prodVal);
-                *xOutSin += sinf(prodVal);
+        xOutCos = outputArray + i * lenOutputRow + outputStart;
+        xOutSin = xOutCos + reshapedDim2;
+        chiIn = chiArr + chiStart;
+
+        for (k=0; k < reshapedDim1; k++){
+            for (j=0; j < reshapedDim2; j++){
+                prodVal = *xIn * chiIn[j];
+                xOutCos[j] += cosf(prodVal);
+                xOutSin[j] += sinf(prodVal);
                 xIn++;
             }
         }
@@ -998,7 +1054,7 @@ void floatRBFGenPostProcess(float *reshapedX, float *chiArr,
 
 
 /*!
- * # doubleRBFGenGrad
+ * # doubleRBFPostGrad
  *
  * Performs the last steps in RBF-based convolution kernel feature
  * generation, while additionally calculating the gradient w/r/t
@@ -1017,33 +1073,46 @@ void floatRBFGenPostProcess(float *reshapedX, float *chiArr,
  * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
  * + `reshapedDim2` The last dimension of reshapedX
- * + `startPosition` Where to start when reading through radem.
  * + `numFreqs` The number of frequencies to sample.
  * + `startRow` The first row of the input to work on
  * + `endRow` The last row of the input to work on
+ * + `repeatNum` The repeat number
+ * + `sigma` The lengthscale
  */
-void doubleRBFGenGrad(double *reshapedX, double *chiArr,
+void doubleRBFPostGrad(double *reshapedX, double *chiArr,
         double *outputArray, double *gradientArray,
-        int reshapedDim0, int reshapedDim1,
-        int reshapedDim2, int startPosition, int numFreqs,
-        int startRow, int endRow){
-    int i, j, k, lenOutputRow;
-    double prodVal;
+        int reshapedDim1, int reshapedDim2,
+        int numFreqs, int startRow, int endRow,
+        int repeatNum, double sigma){
+    int i, j, k, lenOutputRow, outputStart, chiStart;
+    double prodVal, gradVal, cosVal, sinVal;
     double *xIn, *xOutSin, *xOutCos, *chiIn;
     double *gradOutSin, *gradOutCos;
 
     lenOutputRow = 2 * numFreqs;
+    chiStart = repeatNum * reshapedDim2;
+    outputStart = 2 * repeatNum * reshapedDim2;
+
+    xIn = reshapedX + startRow * reshapedDim1 * reshapedDim2;
 
     for (i=startRow; i < endRow; i++){
-        xIn = reshapedX + i * reshapedDim1 * reshapedDim2;
-        for (j=startPosition; j < startPosition + reshapedDim2; j++){
-            xOutCos = outputArray + i * lenOutputRow + startPosition;
-            xOutSin = xOutCos + reshapedDim2;
-            chiIn = chiArr + startPosition;
-            for (k=0; k < reshapedDim1; k++){
-                prodVal = *xIn * chiIn[k];
-                *xOutCos += cos(prodVal);
-                *xOutSin += sin(prodVal);
+        xOutCos = outputArray + i * lenOutputRow + outputStart;
+        xOutSin = xOutCos + reshapedDim2;
+        chiIn = chiArr + chiStart;
+
+        gradOutCos = gradientArray + i * lenOutputRow + outputStart;
+        gradOutSin = gradOutCos + reshapedDim2;
+
+        for (k=0; k < reshapedDim1; k++){
+            for (j=0; j < reshapedDim2; j++){
+                gradVal = *xIn * chiIn[j];
+                prodVal = gradVal * sigma;
+                cosVal = cos(prodVal);
+                sinVal = sin(prodVal);
+                xOutCos[j] += cosVal;
+                xOutSin[j] += sinVal;
+                gradOutCos[j] += -sinVal * gradVal;
+                gradOutSin[j] += cosVal * gradVal;
                 xIn++;
             }
         }
@@ -1054,7 +1123,7 @@ void doubleRBFGenGrad(double *reshapedX, double *chiArr,
 
 
 /*!
- * # floatRBFGenGrad
+ * # floatRBFPostGrad
  *
  * Performs the last steps in RBF-based convolution kernel feature
  * generation, while additionally calculating the gradient w/r/t
@@ -1071,36 +1140,47 @@ void doubleRBFGenGrad(double *reshapedX, double *chiArr,
  * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
  * + `reshapedDim2` The last dimension of reshapedX
- * + `startPosition` Where to start when reading through radem.
  * + `numFreqs` The number of frequencies to sample.
  * + `startRow` The first row of the input to work on
  * + `endRow` The last row of the input to work on
+ * + `repeatNum` The repeat number
+ * + `sigma` The lengthscale
  */
-void floatRBFGenGrad(float *reshapedX, float *chiArr,
+void floatRBFPostGrad(float *reshapedX, float *chiArr,
         double *outputArray, double *gradientArray,
-        int reshapedDim0, int reshapedDim1,
-        int reshapedDim2, int startPosition, int numFreqs,
-        int startRow, int endRow){
-    int i, j, k, lenOutputRow;
-    double prodVal;
+        int reshapedDim1, int reshapedDim2,
+        int numFreqs, int startRow, int endRow,
+        int repeatNum, float sigma){
+    int i, j, k, lenOutputRow, outputStart, chiStart;
+    float prodVal, gradVal, cosVal, sinVal;
     double *xOutSin, *xOutCos, *gradOutSin, *gradOutCos;
     float *xIn, *chiIn;
 
     lenOutputRow = 2 * numFreqs;
+    chiStart = repeatNum * reshapedDim2;
+    outputStart = 2 * repeatNum * reshapedDim2;
+
+    xIn = reshapedX + startRow * reshapedDim1 * reshapedDim2;
 
     for (i=startRow; i < endRow; i++){
-        xIn = reshapedX + i * reshapedDim1 * reshapedDim2;
-        for (j=startPosition; j < startPosition + reshapedDim2; j++){
-            xOutCos = outputArray + i * lenOutputRow + startPosition;
-            xOutSin = xOutCos + reshapedDim2;
-            chiIn = chiArr + startPosition;
-            for (k=0; k < reshapedDim1; k++){
-                prodVal = *xIn * chiIn[k];
-                *xOutCos += cosf(prodVal);
-                *xOutSin += sinf(prodVal);
+        xOutCos = outputArray + i * lenOutputRow + outputStart;
+        xOutSin = xOutCos + reshapedDim2;
+        gradOutCos = gradientArray + i * lenOutputRow + outputStart;
+        gradOutSin = gradOutCos + reshapedDim2;
+        chiIn = chiArr + chiStart;
+
+        for (k=0; k < reshapedDim1; k++){
+            for (j=0; j < reshapedDim2; j++){
+                gradVal = *xIn * chiIn[j];
+                prodVal = gradVal * sigma;
+                cosVal = cosf(prodVal);
+                sinVal = sinf(prodVal);
+                xOutCos[j] += cosVal;
+                xOutSin[j] += sinVal;
+                gradOutCos[j] += -sinVal * gradVal;
+                gradOutSin[j] += cosVal * gradVal;
                 xIn++;
             }
         }
     }
 }
-

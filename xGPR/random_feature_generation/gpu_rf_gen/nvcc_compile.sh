@@ -9,7 +9,7 @@ nvcc --compiler-options '-fPIC'  \
 nvcc --compiler-options '-fPIC'  \
     -c -o float_spec_temp.o rbf_ops/float_specialized_ops.cu
 nvcc --compiler-options '-fPIC'  \
-    -c -o polyfht_temp.o poly_ops/poly_fht.cu
+    -c -o polyfht_temp.o polynomial_ops/poly_fht.cu
 nvcc --compiler-options '-fPIC'  \
     -c -o conv_temp.o convolution_ops/convolution.cu
 

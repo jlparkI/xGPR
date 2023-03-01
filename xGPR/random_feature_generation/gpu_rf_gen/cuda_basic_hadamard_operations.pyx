@@ -24,14 +24,14 @@ cdef extern from "double_array_operations.h" nogil:
                     int8_t *radem, int dim0, int dim1);
 
 
-cdef extern from os.path.join("rbf_ops", "double_specialized_ops.h") nogil:
+cdef extern from "rbf_ops/double_specialized_ops.h" nogil:
     const char *doubleRBFFeatureGen(double *cArray, int8_t *radem,
                 double *chiArr, double *outputArray,
                 double rbfNormConstant,
                 int dim0, int dim1, int dim2,
                 int numFreqs);
 
-cdef extern from os.path.join("rbf_ops", "float_specialized_ops.h") nogil:
+cdef extern from "rbf_ops/float_specialized_ops.h" nogil:
     const char *floatRBFFeatureGen(float *cArray, int8_t *radem,
                 float *chiArr, double *outputArray,
                 double rbfNormConstant,

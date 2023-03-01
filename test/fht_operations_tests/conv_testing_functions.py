@@ -100,7 +100,7 @@ def get_features(xdata, kernel_width, dim2,
             counter += 1
             s_counter += 1
         counter += dim2
-    features *= np.sqrt(1 / radem.shape[2])
+    features = features * np.sqrt(1 / radem.shape[2])
     return features[:,:(2 * num_freqs)]
 
 

@@ -17,16 +17,23 @@ ctypedef stdint.int8_t cint8
 
 
 
-cdef extern from "conv1d_operations.h" nogil:
+cdef extern from "convolution_ops/conv1d_operations.h" nogil:
     const char *floatConv1dPrep_(int8_t *radem, float *reshapedX,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
             int startPosition, int numFreqs)
     const char *floatConvRBFFeatureGen_(int8_t *radem, float *reshapedX,
-            float *chiArr, double *outputArray,
+            float *copyBuffer, float *chiArr, double *outputArray,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
-            int startPosition, int numFreqs)
+            int numFreqs)
+    const char *floatConvRBFGrad_(int8_t *radem, float *reshapedX,
+            float *copyBuffer, float *chiArr, double *outputArray,
+            double *gradientArray, float sigma,
+            int numThreads, int reshapedDim0,
+            int reshapedDim1, int reshapedDim2,
+            int numFreqs)
+
 
 cdef extern from "transform_functions.h" nogil:
     const char *SORFFloatBlockTransform_(float *Z, int8_t *radem, int zDim0,
@@ -39,7 +46,7 @@ def floatCpuConv1dMaxpool(np.ndarray[np.float32_t, ndim=3] reshapedX,
                 np.ndarray[np.int8_t, ndim=3] radem,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[np.float32_t, ndim=1] chiArr,
-                int numThreads, str mode):
+                int numThreads, bint subtractMean = False):
     """Uses wrapped C extensions to perform random feature generation
     with ReLU activation and maxpooling.
 
@@ -58,13 +65,8 @@ def floatCpuConv1dMaxpool(np.ndarray[np.float32_t, ndim=3] reshapedX,
         num_threads (int): This argument is so that this function has
             the same interface as the CPU SORF Transform. It is not
             needed for the GPU transform and is ignored.
-        mode (str): One of 'maxpool', 'maxpool_loc'.
-            Determines the type of activation function and pooling that
-            is performed.
-
-    Returns:
-        gradient (np.ndarray): A float32 array of shape (N x R) if
-            mode is "conv_gradient"; otherwise nothing.
+        subtractMean (bool): If True, subtract the mean of each row from
+            that row.
     """
     cdef const char *errCode
     cdef int i, startPosition, cutoff
@@ -75,9 +77,6 @@ def floatCpuConv1dMaxpool(np.ndarray[np.float32_t, ndim=3] reshapedX,
 
     reshapedXCopy = reshapedX.copy()
     
-    if mode not in ["maxpool", "maxpool_loc"]:
-        raise ValueError("Invalid mode supplied for convolution.")
-
     if reshapedX.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
     if reshapedX.shape[0] != outputArray.shape[0]:
@@ -120,7 +119,7 @@ def floatCpuConv1dMaxpool(np.ndarray[np.float32_t, ndim=3] reshapedX,
         
         reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
         outputArray[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
-        if mode == "maxpool_loc":
+        if subtractMean:
             outputArray[:,startPosition:cutoff] -= reshapedXCopy.mean(axis=1)
 
         cutoff += reshapedX.shape[2]
@@ -161,14 +160,11 @@ def floatCpuConv1dFGen(np.ndarray[np.float32_t, ndim=3] reshapedX,
 
     Returns:
         gradient (np.ndarray); An array of shape output.shape[0] x output.shape[1] x 1.
-            Only returned if mode == "gradient"; otherwise, nothing is returned.
     """
     cdef const char *errCode
     cdef np.ndarray[np.float32_t, ndim=3] reshapedXCopy = np.zeros((reshapedX.shape[0],
-                        reshapedX.shape[1], reshapedX.shape[2]))
+                        reshapedX.shape[1], reshapedX.shape[2]), dtype=np.float32)
     cdef double scalingTerm
-    cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
-    cdef int i
 
     if reshapedX.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
@@ -198,13 +194,13 @@ def floatCpuConv1dFGen(np.ndarray[np.float32_t, ndim=3] reshapedX,
     scalingTerm = np.sqrt(1 / <double>radem.shape[2])
     scalingTerm *= beta_
 
-    for i in range(num_repeats):
-        errCode = floatConvRBFFeatureGen_(&radem[0,0,0], &reshapedX[0,0,0],
-                &reshapedXCopy[0,0,0], &chiArr[0], &outputArray[0,0], numThreads, reshapedX.shape[0],
-                reshapedX.shape[1], reshapedX.shape[2], i * reshapedX.shape[2], radem.shape[2])
+    errCode = floatConvRBFFeatureGen_(&radem[0,0,0], &reshapedX[0,0,0],
+                &reshapedXCopy[0,0,0], &chiArr[0], &outputArray[0,0],
+                numThreads, reshapedX.shape[0],
+                reshapedX.shape[1], reshapedX.shape[2], radem.shape[2])
 
-        if errCode.decode("UTF-8") != "no_error":
-            raise Exception("Fatal error encountered while performing convolution.")
+    if errCode.decode("UTF-8") != "no_error":
+        raise Exception("Fatal error encountered while performing convolution.")
 
     outputArray *= scalingTerm
 
@@ -244,12 +240,10 @@ def floatCpuConvGrad(np.ndarray[np.float32_t, ndim=3] reshapedX,
         gradient (np.ndarray); An array of shape output.shape[0] x output.shape[1] x 1.
     """
     cdef const char *errCode
-    cdef np.ndarray[np.float32_t, ndim=3] reshapedXCopy = reshapedX.copy()
-    cdef np.ndarray[np.float32_t, ndim=3] featureMod
-    cdef np.ndarray[np.float64_t, ndim=3] gradient
-    cdef float scalingTerm
-    cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
-    cdef int startPosition, cutoff, startPos2, cutoff2, i, j
+    cdef np.ndarray[np.float32_t, ndim=3] reshapedXCopy = np.zeros((reshapedX.shape[0], reshapedX.shape[1],
+                        reshapedX.shape[2]), dtype=np.float32)
+    cdef np.ndarray[np.float64_t, ndim=3] gradient = np.zeros((outputArray.shape[0], outputArray.shape[1], 1))
+    cdef double scalingTerm
 
     if reshapedX.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
@@ -276,38 +270,18 @@ def floatCpuConvGrad(np.ndarray[np.float32_t, ndim=3] reshapedX,
         raise ValueError("One or more arguments to cpuGraphConv1dTransform is not "
                 "C contiguous.")
 
-    featureMod = np.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]), dtype=np.float32)
-    startPosition, cutoff = 0, reshapedX.shape[2]
-    startPos2, cutoff2 = reshapedX.shape[2], cutoff + reshapedX.shape[2]
-    scalingTerm = np.sqrt(1 / <float>radem.shape[2])
+    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
     scalingTerm *= beta_
 
-    gradient = np.zeros((outputArray.shape[0], outputArray.shape[1], 1))
-
-    for i in range(num_repeats):
-        reshapedXCopy[:] = reshapedX * sigma
-
-        errCode = floatConv1dPrep_(&radem[0,0,0],
-                    &reshapedXCopy[0,0,0], numThreads,
-                    reshapedX.shape[0], reshapedX.shape[1], 
-                    reshapedX.shape[2], i * reshapedX.shape[2],
+    errCode = floatConvRBFGrad_(&radem[0,0,0], &reshapedX[0,0,0],
+                    &reshapedXCopy[0,0,0], &chiArr[0], &outputArray[0,0],
+                    &gradient[0,0,0], sigma,
+                    numThreads, reshapedX.shape[0],
+                    reshapedX.shape[1], reshapedX.shape[2],
                     radem.shape[2])
 
-        if errCode.decode("UTF-8") != "no_error":
-            raise Exception("Fatal error encountered while performing graph convolution.")
-        reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
-
-        gradient[:,startPosition:cutoff,0] = (-np.sin(reshapedXCopy) * reshapedXCopy /
-                                            sigma).sum(axis=1)
-        gradient[:,startPos2:cutoff2,0] = (np.cos(reshapedXCopy) * reshapedXCopy /
-                                        sigma).sum(axis=1)
-
-        outputArray[:,startPosition:cutoff] = np.sum(np.cos(reshapedXCopy), axis=1)
-        outputArray[:,startPos2:cutoff2] = np.sum(np.sin(reshapedXCopy), axis=1)
-        cutoff += 2 * reshapedX.shape[2]
-        startPosition += 2 * reshapedX.shape[2]
-        startPos2 += 2 * reshapedX.shape[2]
-        cutoff2 += 2 * reshapedX.shape[2]
+    if errCode.decode("UTF-8") != "no_error":
+        raise Exception("Fatal error encountered while performing graph convolution.")
 
     outputArray *= scalingTerm
     gradient *= scalingTerm

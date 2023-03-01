@@ -103,7 +103,6 @@ const char *floatPolyFHTPrep_(int8_t *radem, float *reshapedX,
     void *retval[numThreads];
     pthread_t thread_id[numThreads];
     int chunkSize = (reshapedDim0 + numThreads - 1) / numThreads;
-    int repeat;
    
     //We assume here that ZDim1 is an integer multiple
     //of reshapedDim2 (caller must check this -- the
@@ -194,7 +193,6 @@ const char *floatPolyConvFHTPrep_(int8_t *radem, float *reshapedX,
     void *retval[numThreads];
     pthread_t thread_id[numThreads];
     int chunkSize = (reshapedDim0 + numThreads - 1) / numThreads;
-    int repeat;
    
     //We assume here that ZDim1 is an integer multiple
     //of reshapedDim2 (caller must check this -- the

@@ -483,7 +483,7 @@ void floatConv1dRademAndCopy(float *xArray,
         for (j = 0; j < reshapedDim1; j++){
 	        rademElement = rademArray + startPosition;
             for (k = 0; k < reshapedDim2; k++){
-                *bufferElement *= *rademElement * normConstant * *xElement;
+                *bufferElement = *rademElement * normConstant * *xElement;
                 rademElement++;
                 xElement++;
                 bufferElement++;

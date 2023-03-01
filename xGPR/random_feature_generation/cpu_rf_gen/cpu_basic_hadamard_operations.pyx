@@ -38,7 +38,7 @@ cdef extern from "transform_functions.h" nogil:
             int zDim0, int zDim1, int numThreads)
 
 
-cdef extern from "specialized_ops.h" nogil:
+cdef extern from "rbf_ops/specialized_ops.h" nogil:
     const char *rbfFeatureGenFloat_(float *cArray, int8_t *radem,
                 float *chiArr, double *outputArray,
                 double rbfNormConstant,

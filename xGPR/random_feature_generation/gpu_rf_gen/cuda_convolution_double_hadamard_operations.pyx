@@ -11,11 +11,16 @@ import math
 from libc.stdint cimport int8_t
 
 
-cdef extern from os.path.join("convolution_ops", "convolution.h") nogil:
+cdef extern from "convolution_ops/convolution.h" nogil:
     const char *doubleConv1dPrep(int8_t *radem,
                 double *reshapedx, int reshapeddim0, 
                 int reshapeddim1, int reshapeddim2,
                 int startposition, int numfreqs)
+    const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
+                double *sinFeatures, double *cosFeatures,
+                double *chiArr, int reshapedDim0, 
+                int reshapedDim1, int reshapedDim2, int startPosition,
+                int numFreqs)
 
 cdef extern from "double_array_operations.h" nogil:
     const char *doubleCudaSORF3d(double *npArray, np.int8_t *radem, 
@@ -26,7 +31,7 @@ cdef extern from "double_array_operations.h" nogil:
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def doubleGpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
-                int numThreads, str mode):
+                int numThreads, bint subtractMean = False):
     """Uses wrapped C extensions to perform random feature generation
     with ReLU activation and maxpooling.
 
@@ -45,9 +50,8 @@ def doubleGpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
         num_threads (int): This argument is so that this function has
             the same interface as the CPU SORF Transform. It is not
             needed for the GPU transform and is ignored.
-        mode (str): One of 'maxpool', 'maxpool_loc'.
-            Determines the type of activation function and pooling that
-            is performed.
+        subtractMean (bool): If True, subtract the mean of each row from
+            that row.
     """
     cdef const char *errCode
     cdef int i, startPosition, cutoff
@@ -55,9 +59,6 @@ def doubleGpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
     cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
     reshapedXCopy = reshapedX.copy()
     
-    if mode not in ["maxpool", "maxpool_loc"]:
-        raise ValueError("Invalid mode supplied for convolution.")
-
     if reshapedX.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
     if reshapedX.shape[0] != outputArray.shape[0]:
@@ -114,7 +115,7 @@ def doubleGpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
         
         reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
         outputArray[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
-        if mode == "maxpool_loc":
+        if subtractMean:
             outputArray[:,startPosition:cutoff] -= reshapedXCopy.mean(axis=1)
 
         cutoff += reshapedX.shape[2]
@@ -152,15 +153,11 @@ def doubleGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
 
     Returns:
         gradient (cp.ndarray); An array of shape output.shape[0] x output.shape[1] x 1.
-            Only returned if mode == "gradient"; otherwise, nothing is returned.
     """
     cdef const char *errCode
     cdef double scalingTerm
     cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
     cdef int startPosition, cutoff, startPos2, cutoff2, i, j
-
-    if mode not in ["standard", "gradient"]:
-        raise ValueError("Invalid mode supplied for convolution.")
 
     if len(chiArr.shape) != 1 or len(radem.shape) != 3 or len(reshapedX.shape) != 3:
         raise ValueError("chiArr should be a 1d array. radem and reshapedX should be 3d arrays.")
@@ -213,6 +210,8 @@ def doubleGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
  
     cdef uintptr_t addr_radem = radem.data.ptr
     cdef int8_t *radem_ptr = <int8_t*>addr_radem
+    cdef uintptr_t addr_chi = chiArr.data.ptr
+    cdef double *chiArrPtr = <double*>addr_chi
 
 
     startPosition, cutoff = 0, reshapedX.shape[2]
@@ -221,16 +220,17 @@ def doubleGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
     scalingTerm *= beta_
 
     for i in range(num_repeats):
-        errCode = doubleGraphRBFFeatureGen(radem_ptr, reshapedXPtr, sinFeaturesPtr,
-                    cosFeaturesPtr, chiArrPtr, reshapedX.shape[0], reshapedX.shape[1], 
-                    reshapedX.shape[2], i * reshapedX.shape[2],
-                    radem.shape[2])
+        errCode = doubleConvRBFFeatureGen(radem_ptr, reshapedXPtr,
+                    sinFeaturesPtr, cosFeaturesPtr,
+                    chiArrPtr, reshapedX.shape[0], 
+                    reshapedX.shape[1], reshapedX.shape[2],
+                    i * reshapedX.shape[2], radem.shape[2])
 
         if errCode.decode("UTF-8") != "no_error":
             raise Exception("Fatal error encountered while performing FHT RF generation.")
 
-        outputArray[:,startPosition:cutoff] = cp.sum(cos_features, axis=1)
-        outputArray[:,startPos2:cutoff2] = cp.sum(sin_features, axis=1)
+        outputArray[:,startPosition:cutoff] = cp.sum(cosFeatures, axis=1)
+        outputArray[:,startPos2:cutoff2] = cp.sum(sinFeatures, axis=1)
         cutoff += 2 * reshapedX.shape[2]
         startPosition += 2 * reshapedX.shape[2]
         startPos2 += 2 * reshapedX.shape[2]
