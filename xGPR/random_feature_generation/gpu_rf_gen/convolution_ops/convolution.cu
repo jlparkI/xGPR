@@ -92,7 +92,7 @@ __global__ void doubleConv1dRademAndCopy(double *inputArray, double *featureArra
 __global__ void floatConvRBFPostProcessKernel(float *featureArray, float *chiArr,
             double *outputArray, int dim1, int dim2,
             int outputDim1, int startPosition, int numElements,
-            int log2dim2)
+            int log2dim2, double scalingTerm)
 {
     int i;
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -101,15 +101,17 @@ __global__ void floatConvRBFPostProcessKernel(float *featureArray, float *chiArr
     int inputLoc = row * dim1 * dim2 + column;
     int outputLoc = row * outputDim1 + column + 2 * startPosition;
     float *chiVal = chiArr + startPosition + column;
-    float chiProd;
+    float chiProd, sinVal = 0, cosVal = 0;
 
     if (tid < numElements){
         for (i=0; i < dim1; i++){
             chiProd = *chiVal * featureArray[inputLoc];
-            outputArray[outputLoc] += cosf(chiProd);
-            outputArray[outputLoc + dim2] += sinf(chiProd);
+            cosVal += cosf(chiProd);
+            sinVal += sinf(chiProd);
             inputLoc += dim2;
         }
+        outputArray[outputLoc] = cosVal * scalingTerm;
+        outputArray[outputLoc + dim2] = sinVal * scalingTerm;
     }
 }
 
@@ -121,7 +123,7 @@ __global__ void floatConvRBFPostProcessKernel(float *featureArray, float *chiArr
 __global__ void doubleConvRBFPostProcessKernel(double *featureArray, double *chiArr,
             double *outputArray, int dim1, int dim2,
             int outputDim1, int startPosition, int numElements,
-            int log2dim2)
+            int log2dim2, double scalingTerm)
 {
     int i;
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -130,15 +132,17 @@ __global__ void doubleConvRBFPostProcessKernel(double *featureArray, double *chi
     int inputLoc = row * dim1 * dim2 + column;
     int outputLoc = row * outputDim1 + column + 2 * startPosition;
     double *chiVal = chiArr + startPosition + column;
-    double chiProd;
+    double chiProd, sinVal = 0, cosVal = 0;
 
     if (tid < numElements){
         for (i=0; i < dim1; i++){
             chiProd = *chiVal * featureArray[inputLoc];
-            outputArray[outputLoc] += cos(chiProd);
-            outputArray[outputLoc + dim2] += sin(chiProd);
+            cosVal += cos(chiProd);
+            sinVal += sin(chiProd);
             inputLoc += dim2;
         }
+        outputArray[outputLoc] = cosVal * scalingTerm;
+        outputArray[outputLoc + dim2] = sinVal * scalingTerm;
     }
 }
 
@@ -241,7 +245,7 @@ const char *doubleConv1dPrep(int8_t *radem, double *reshapedX, int reshapedDim0,
 const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
             float *featureArray, float *chiArr, double *outputArray,     
             int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int numFreqs){
+            int numFreqs, double scalingTerm){
 
     int numElements = reshapedDim0 * reshapedDim1 * reshapedDim2;
     //This is the Hadamard normalization constant.
@@ -278,10 +282,11 @@ const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
         floatCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
 
         //Multiply by chiArr; take the sine and cosine of elements of
-        //featureArray, and store the cosine in cosFeatures.
+        //featureArray, multiply by scalingTerm, and transfer to outputArray.
         rbfConvFloatPostProcess(featureArray, chiArr,
             outputArray, reshapedDim0, reshapedDim1,
-            reshapedDim2, startPosition, numFreqs);
+            reshapedDim2, startPosition, numFreqs,
+            scalingTerm);
     }
 
     return "no_error";
@@ -296,7 +301,7 @@ const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
 const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
                 double *featureArray, double *chiArr, double *outputArray,
                 int reshapedDim0, int reshapedDim1, int reshapedDim2,
-                int numFreqs){
+                int numFreqs, double scalingTerm){
 
     int numElements = reshapedDim0 * reshapedDim1 * reshapedDim2;
     //This is the Hadamard normalization constant.
@@ -333,10 +338,11 @@ const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
         doubleCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
 
         //Multiply by chiArr; take the sine and cosine of elements of
-        //featureArray, and transfer to output.
+        //featureArray, multiply by scalingTerm, and transfer to output.
         rbfConvDoublePostProcess(featureArray, chiArr,
             outputArray, reshapedDim0, reshapedDim1,
-            reshapedDim2, startPosition, numFreqs);
+            reshapedDim2, startPosition, numFreqs,
+            scalingTerm);
     }
 
     return "no_error";
@@ -348,7 +354,8 @@ const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
 //for RBF-based kernels with float input data.
 void rbfConvFloatPostProcess(float *featureArray, float *chiArr,
         double *outputArray, int reshapedDim0, int reshapedDim1,
-        int reshapedDim2, int startPosition, int numFreqs){
+        int reshapedDim2, int startPosition, int numFreqs,
+        double scalingTerm){
     int numElements = reshapedDim0 * reshapedDim2;
     int blockRepeats = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     int outputDim1 = 2 * numFreqs;
@@ -356,7 +363,8 @@ void rbfConvFloatPostProcess(float *featureArray, float *chiArr,
 
     floatConvRBFPostProcessKernel<<<blockRepeats, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
             outputArray, reshapedDim1, reshapedDim2,
-            outputDim1, startPosition, numElements, log2dim2);
+            outputDim1, startPosition, numElements, log2dim2,
+            scalingTerm);
 }
 
 
@@ -366,7 +374,8 @@ void rbfConvFloatPostProcess(float *featureArray, float *chiArr,
 //for RBF-based kernels with float input data.
 void rbfConvDoublePostProcess(double *featureArray, double *chiArr,
         double *outputArray, int reshapedDim0, int reshapedDim1,
-        int reshapedDim2, int startPosition, int numFreqs){
+        int reshapedDim2, int startPosition, int numFreqs,
+        double scalingTerm){
     int numElements = reshapedDim0 * reshapedDim2;
     int blockRepeats = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     int outputDim1 = 2 * numFreqs;
@@ -374,5 +383,6 @@ void rbfConvDoublePostProcess(double *featureArray, double *chiArr,
 
     doubleConvRBFPostProcessKernel<<<blockRepeats, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
             outputArray, reshapedDim1, reshapedDim2,
-            outputDim1, startPosition, numElements, log2dim2);
+            outputDim1, startPosition, numElements, log2dim2,
+            scalingTerm);
 }

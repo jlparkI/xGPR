@@ -24,7 +24,7 @@ cdef extern from "convolution_ops/convolution.h" nogil:
     const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
             float *featureArray, float *chiArr, double *outputArray,     
             int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int numFreqs);
+            int numFreqs, double scalingTerm);
 
 
 cdef extern from "float_array_operations.h" nogil:
@@ -230,11 +230,9 @@ def floatGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
 
     errCode = floatConvRBFFeatureGen(radem_ptr, reshapedXPtr, featureArrayPtr,
                     chiArrPtr, outputArrayPtr, reshapedX.shape[0], reshapedX.shape[1], 
-                    reshapedX.shape[2], radem.shape[2])
+                    reshapedX.shape[2], radem.shape[2], scalingTerm)
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing FHT RF generation.")
-
-    outputArray *= scalingTerm
 
 
 
