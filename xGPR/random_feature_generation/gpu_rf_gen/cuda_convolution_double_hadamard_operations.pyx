@@ -22,8 +22,15 @@ cdef extern from "convolution_ops/convolution.h" nogil:
                 double *reshapedx, int reshapeddim0, 
                 int reshapeddim1, int reshapeddim2,
                 int startposition, int numfreqs)
+
+cdef extern from "convolution_ops/rbf_convolution.h" nogil:
     const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
                 double *featureArray, double *chiArr, double *outputArray,
+                int reshapedDim0, int reshapedDim1, int reshapedDim2,
+                int numFreqs, double scalingTerm);
+    const char *doubleConvRBFFeatureGrad(int8_t *radem, double *reshapedX,
+                double *featureArray, double *chiArr, double *outputArray,
+                double *gradientArray, double sigma,
                 int reshapedDim0, int reshapedDim1, int reshapedDim2,
                 int numFreqs, double scalingTerm);
 
@@ -260,10 +267,7 @@ def doubleGpuConvGrad(reshapedX, radem, outputArray, chiArr,
         gradient (cp.ndarray); An array of shape output.shape[0] x output.shape[1] x 1.
     """
     cdef const char *errCode
-    reshapedXCopy = reshapedX.copy()
     cdef double scalingTerm
-    cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
-    cdef int startPosition, cutoff, startPos2, cutoff2, i, j
 
     if len(chiArr.shape) != 1 or len(radem.shape) != 3 or len(reshapedX.shape) != 3:
         raise ValueError("chiArr should be a 1d array. radem and reshapedX should be 3d arrays.")
@@ -301,44 +305,38 @@ def doubleGpuConvGrad(reshapedX, radem, outputArray, chiArr,
         or not chiArr.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
 
-    cdef uintptr_t addr_reshapedCopy = reshapedXCopy.data.ptr
-    cdef double *reshapedXCopyPtr = <double*>addr_reshapedCopy
- 
-    cdef uintptr_t addr_radem = radem.data.ptr
-    cdef int8_t *radem_ptr = <int8_t*>addr_radem
-
-
-    startPosition, cutoff = 0, reshapedX.shape[2]
-    startPos2, cutoff2 = reshapedX.shape[2], cutoff + reshapedX.shape[2]
-    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
-    scalingTerm *= beta_
 
     gradient = cp.zeros((outputArray.shape[0], outputArray.shape[1], 1), dtype=cp.float64)
 
-    for i in range(num_repeats):
-        reshapedXCopy[:] = reshapedX * sigma
-        errCode = doubleConv1dPrep(radem_ptr,
-                    reshapedXCopyPtr, reshapedX.shape[0], reshapedX.shape[1], 
-                    reshapedX.shape[2], i * reshapedX.shape[2],
-                    radem.shape[2])
-        if errCode.decode("UTF-8") != "no_error":
-            raise Exception("Fatal error encountered while performing FHT RF generation.")
-        reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
+    featureArray = cp.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]),
+                            dtype = cp.float64)
 
-        gradient[:,startPosition:cutoff,0] = (-cp.sin(reshapedXCopy) * reshapedXCopy /
-                                            sigma).sum(axis=1)
-        gradient[:,startPos2:cutoff2,0] = (cp.cos(reshapedXCopy) * reshapedXCopy /
-                                        sigma).sum(axis=1)
+    cdef uintptr_t addr_reshapedX = reshapedX.data.ptr
+    cdef double *reshapedXPtr = <double*>addr_reshapedX
+    cdef uintptr_t addr_featureArray = featureArray.data.ptr
+    cdef double *featureArrayPtr = <double*>addr_featureArray
+ 
+    cdef uintptr_t addr_radem = radem.data.ptr
+    cdef int8_t *radem_ptr = <int8_t*>addr_radem
+    cdef uintptr_t addr_chi = chiArr.data.ptr
+    cdef double *chiArrPtr = <double*>addr_chi
 
-        outputArray[:,startPosition:cutoff] = cp.sum(cp.cos(reshapedXCopy), axis=1)
-        outputArray[:,startPos2:cutoff2] = cp.sum(cp.sin(reshapedXCopy), axis=1)
-        cutoff += 2 * reshapedX.shape[2]
-        startPosition += 2 * reshapedX.shape[2]
-        startPos2 += 2 * reshapedX.shape[2]
-        cutoff2 += 2 * reshapedX.shape[2]
+    cdef uintptr_t addr_outputArray = outputArray.data.ptr
+    cdef double *outputArrayPtr = <double*>addr_outputArray
+    cdef uintptr_t addr_gradientArray = gradient.data.ptr
+    cdef double *gradientArrayPtr = <double*>addr_gradientArray
 
-    outputArray *= scalingTerm
-    gradient *= scalingTerm
+
+    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
+    scalingTerm *= beta_
+    
+    errCode = doubleConvRBFFeatureGrad(radem_ptr, reshapedXPtr,
+                featureArrayPtr, chiArrPtr, outputArrayPtr,
+                gradientArrayPtr, sigma,
+                reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2],
+                radem.shape[2], scalingTerm);
+    if errCode.decode("UTF-8") != "no_error":
+        raise Exception("Fatal error encountered while performing FHT RF generation.")
     return gradient
 
 
