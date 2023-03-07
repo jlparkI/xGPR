@@ -23,10 +23,9 @@ cdef extern from "convolution_ops/convolution.h" nogil:
                 int reshapeddim1, int reshapeddim2,
                 int startposition, int numfreqs)
     const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
-                double *sinFeatures, double *cosFeatures,
-                double *chiArr, int reshapedDim0, 
-                int reshapedDim1, int reshapedDim2, int startPosition,
-                int numFreqs)
+                double *featureArray, double *chiArr, double *outputArray,
+                int reshapedDim0, int reshapedDim1, int reshapedDim2,
+                int numFreqs);
 
 cdef extern from "double_array_operations.h" nogil:
     const char *doubleCudaSORF3d(double *npArray, np.int8_t *radem, 
@@ -162,8 +161,6 @@ def doubleGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
     """
     cdef const char *errCode
     cdef double scalingTerm
-    cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
-    cdef int startPosition, cutoff, startPos2, cutoff2, i, j
 
     if len(chiArr.shape) != 1 or len(radem.shape) != 3 or len(reshapedX.shape) != 3:
         raise ValueError("chiArr should be a 1d array. radem and reshapedX should be 3d arrays.")
@@ -202,47 +199,36 @@ def doubleGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
         or not chiArr.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
 
-    sinFeatures = cp.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]),
-                            dtype = cp.float64)
-    cosFeatures = cp.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]),
+    featureArray = cp.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]),
                             dtype = cp.float64)
 
     cdef uintptr_t addr_reshapedX = reshapedX.data.ptr
     cdef double *reshapedXPtr = <double*>addr_reshapedX
-    cdef uintptr_t addr_sinFeatures = sinFeatures.data.ptr
-    cdef double *sinFeaturesPtr = <double*>addr_sinFeatures
-    cdef uintptr_t addr_cosFeatures = cosFeatures.data.ptr
-    cdef double *cosFeaturesPtr = <double*>addr_cosFeatures
+    cdef uintptr_t addr_featureArray = featureArray.data.ptr
+    cdef double *featureArrayPtr = <double*>addr_featureArray
  
     cdef uintptr_t addr_radem = radem.data.ptr
     cdef int8_t *radem_ptr = <int8_t*>addr_radem
     cdef uintptr_t addr_chi = chiArr.data.ptr
     cdef double *chiArrPtr = <double*>addr_chi
 
+    cdef uintptr_t addr_outputArray = outputArray.data.ptr
+    cdef double *outputArrayPtr = <double*>addr_outputArray
 
-    startPosition, cutoff = 0, reshapedX.shape[2]
-    startPos2, cutoff2 = reshapedX.shape[2], cutoff + reshapedX.shape[2]
+
     scalingTerm = np.sqrt(1 / <double>radem.shape[2])
     scalingTerm *= beta_
 
-    for i in range(num_repeats):
-        errCode = doubleConvRBFFeatureGen(radem_ptr, reshapedXPtr,
-                    sinFeaturesPtr, cosFeaturesPtr,
-                    chiArrPtr, reshapedX.shape[0], 
-                    reshapedX.shape[1], reshapedX.shape[2],
-                    i * reshapedX.shape[2], radem.shape[2])
+    errCode = doubleConvRBFFeatureGen(radem_ptr, reshapedXPtr,
+                    featureArrayPtr, chiArrPtr, outputArrayPtr,
+                    reshapedX.shape[0], reshapedX.shape[1],
+                    reshapedX.shape[2], radem.shape[2])
 
-        if errCode.decode("UTF-8") != "no_error":
-            raise Exception("Fatal error encountered while performing FHT RF generation.")
-
-        outputArray[:,startPosition:cutoff] = cp.sum(cosFeatures, axis=1)
-        outputArray[:,startPos2:cutoff2] = cp.sum(sinFeatures, axis=1)
-        cutoff += 2 * reshapedX.shape[2]
-        startPosition += 2 * reshapedX.shape[2]
-        startPos2 += 2 * reshapedX.shape[2]
-        cutoff2 += 2 * reshapedX.shape[2]
+    if errCode.decode("UTF-8") != "no_error":
+        raise Exception("Fatal error encountered while performing FHT RF generation.")
 
     outputArray *= scalingTerm
+
 
 
 

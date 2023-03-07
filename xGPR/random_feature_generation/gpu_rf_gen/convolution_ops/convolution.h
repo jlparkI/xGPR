@@ -10,13 +10,20 @@ const char *doubleConv1dPrep(int8_t *radem, double *reshapedX, int reshapedDim0,
                 int numFreqs);
 
 const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
-            float *sinFeatures, float *cosFeatures, float *chiArr,        
+            float *featureArray, float *chiArr, double *outputArray,     
             int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int startPosition, int numFreqs);
+            int numFreqs);
 
 const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
-                double *sinFeatures, double *cosFeatures,
-                double *chiArr, int reshapedDim0, 
-                int reshapedDim1, int reshapedDim2, int startPosition,
+                double *featureArray, double *chiArr, double *outputArray,
+                int reshapedDim0, int reshapedDim1, int reshapedDim2,
                 int numFreqs);
+
+void rbfConvFloatPostProcess(float *featureArray, float *chiArr,
+        double *outputArray, int reshapedDim0, int reshapedDim1,
+        int reshapedDim2, int startPosition, int numFreqs);
+
+void rbfConvDoublePostProcess(double *featureArray, double *chiArr,
+        double *outputArray, int reshapedDim0, int reshapedDim1,
+        int reshapedDim2, int startPosition, int numFreqs);
 #endif

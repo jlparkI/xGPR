@@ -11,11 +11,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <cub/cub.cuh>
 #include "../float_array_operations.h"
 #include "../double_array_operations.h"
 #include "convolution.h"
 
 #define DEFAULT_THREADS_PER_BLOCK 256
+#define DEFAULT_THREADS_PER_BLREDUCE 32
+
 
 
 
@@ -53,8 +56,8 @@ __global__ void doubleConv1dMultiplyByRadem(double *cArray, int8_t *rademArray,
 
 //Performs an elementwise multiplication by a diagonal matrix populated with
 //elements from a Rademacher distribution, while also multiplying by the
-//Hadamard norm constant and copying into the sinFeatures array.
-__global__ void floatConv1dRademAndCopy(float *inputArray, float *sinFeatures,
+//Hadamard norm constant and copying into the featureArray array.
+__global__ void floatConv1dRademAndCopy(float *inputArray, float *featureArray,
             int8_t *rademArray, int dim2, int startPosition,
             int numElements, float normConstant)
 {
@@ -62,14 +65,14 @@ __global__ void floatConv1dRademAndCopy(float *inputArray, float *sinFeatures,
     int8_t *rVal = rademArray + startPosition + (j & (dim2 - 1));
     
     if (j < numElements)
-        sinFeatures[j] = inputArray[j] * *rVal * normConstant;
+        featureArray[j] = inputArray[j] * *rVal * normConstant;
 }
 
 
 //Performs an elementwise multiplication by a diagonal matrix populated with
 //elements from a Rademacher distribution, while also multiplying by the
-//Hadamard norm constant and copying into the sinFeatures array.
-__global__ void doubleConv1dRademAndCopy(double *inputArray, double *sinFeatures,
+//Hadamard norm constant and copying into the featureArray array.
+__global__ void doubleConv1dRademAndCopy(double *inputArray, double *featureArray,
             int8_t *rademArray, int dim2, int startPosition,
             int numElements, double normConstant)
 {
@@ -77,44 +80,67 @@ __global__ void doubleConv1dRademAndCopy(double *inputArray, double *sinFeatures
     int8_t *rVal = rademArray + startPosition + (j & (dim2 - 1));
     
     if (j < numElements)
-        sinFeatures[j] = inputArray[j] * *rVal * normConstant;
+        featureArray[j] = inputArray[j] * *rVal * normConstant;
 }
 
 
 
 
 //Performs the final steps in feature generation for RBF-based convolution
-//kernels.
-__global__ void floatConvRBFPostProcess(float *sinFeatures, float *cosFeatures,
-            float *chiArr, int dim2, int startPosition, int numElements)
+//kernels -- multiplying by chiArr, taking sine or cosine and adding
+//to the appropriate elements of outputArray.
+__global__ void floatConvRBFPostProcessKernel(float *featureArray, float *chiArr,
+            double *outputArray, int dim1, int dim2,
+            int outputDim1, int startPosition, int numElements,
+            int log2dim2)
 {
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
-    float *rVal = chiArr + startPosition + (j & (dim2 - 1));
+    int i;
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int column = (tid & (dim2 - 1));
+    int row = (tid >> log2dim2);
+    int inputLoc = row * dim1 * dim2 + column;
+    int outputLoc = row * outputDim1 + column + 2 * startPosition;
+    float *chiVal = chiArr + startPosition + column;
     float chiProd;
 
-    if (j < numElements){
-        chiProd = sinFeatures[j] * *rVal;
-        sinFeatures[j] = sinf(chiProd);
-        cosFeatures[j] = cosf(chiProd);
+    if (tid < numElements){
+        for (i=0; i < dim1; i++){
+            chiProd = *chiVal * featureArray[inputLoc];
+            outputArray[outputLoc] += cosf(chiProd);
+            outputArray[outputLoc + dim2] += sinf(chiProd);
+            inputLoc += dim2;
+        }
     }
 }
 
 
-//Performs the final steps in feature generation for RBF-based convolution kernels.
-__global__ void doubleConvRBFPostProcess(double *sinFeatures, double *cosFeatures,
-            double *chiArr, int dim2, int startPosition, int numElements)
+
+//Performs the final steps in feature generation for RBF-based convolution
+//kernels -- multiplying by chiArr, taking sine or cosine and adding
+//to the appropriate elements of outputArray.
+__global__ void doubleConvRBFPostProcessKernel(double *featureArray, double *chiArr,
+            double *outputArray, int dim1, int dim2,
+            int outputDim1, int startPosition, int numElements,
+            int log2dim2)
 {
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
-    double *rVal = chiArr + startPosition + (j & (dim2 - 1));
+    int i;
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int column = (tid & (dim2 - 1));
+    int row = (tid >> log2dim2);
+    int inputLoc = row * dim1 * dim2 + column;
+    int outputLoc = row * outputDim1 + column + 2 * startPosition;
+    double *chiVal = chiArr + startPosition + column;
     double chiProd;
 
-    if (j < numElements){
-        chiProd = sinFeatures[j] * *rVal;
-        sinFeatures[j] = sin(chiProd);
-        cosFeatures[j] = cos(chiProd);
+    if (tid < numElements){
+        for (i=0; i < dim1; i++){
+            chiProd = *chiVal * featureArray[inputLoc];
+            outputArray[outputLoc] += cos(chiProd);
+            outputArray[outputLoc + dim2] += sin(chiProd);
+            inputLoc += dim2;
+        }
     }
 }
-
 
 
 
@@ -213,9 +239,9 @@ const char *doubleConv1dPrep(int8_t *radem, double *reshapedX, int reshapedDim0,
 //random features are stored in two arrays supplied by caller,
 //who can then either sum or further modify as appropriate.
 const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
-            float *sinFeatures, float *cosFeatures, float *chiArr,        
+            float *featureArray, float *chiArr, double *outputArray,     
             int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int startPosition, int numFreqs){
+            int numFreqs){
 
     int numElements = reshapedDim0 * reshapedDim1 * reshapedDim2;
     //This is the Hadamard normalization constant.
@@ -223,32 +249,40 @@ const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
     normConstant = 1 / pow(2, normConstant);
     int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / 
                 DEFAULT_THREADS_PER_BLOCK;
-    
-    //Copy input into sinFeatures while multiplying by first row of radem.
-    floatConv1dRademAndCopy<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX, 
-                        sinFeatures, radem, reshapedDim2, startPosition, numElements,
-                        normConstant);
-    //First H-transform.
-    floatCudaHTransform3d(sinFeatures, reshapedDim0, reshapedDim1, reshapedDim2);
 
-    //Multiply by second row of radem.
-    floatConv1dMultiplyByRadem<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(sinFeatures, 
+    int numRepeats = (numFreqs + reshapedDim2 - 1) / reshapedDim2;
+    int i, startPosition;
+
+    for (i=0; i < numRepeats; i++){
+        startPosition = i * reshapedDim2;
+
+        //Copy input into featureArray while multiplying by first row of radem.
+        floatConv1dRademAndCopy<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX, 
+                        featureArray, radem, reshapedDim2, startPosition, numElements,
+                        normConstant);
+        //First H-transform.
+        floatCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
+
+        //Multiply by second row of radem.
+        floatConv1dMultiplyByRadem<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
                         radem + numFreqs, reshapedDim2, startPosition, numElements,
                         normConstant);
-    //Second H-transform.
-    floatCudaHTransform3d(sinFeatures, reshapedDim0, reshapedDim1, reshapedDim2);
+        //Second H-transform.
+        floatCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
         
-    //Multiply by third row of radem.
-    floatConv1dMultiplyByRadem<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(sinFeatures, 
+        //Multiply by third row of radem.
+        floatConv1dMultiplyByRadem<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
                         radem + 2 * numFreqs, reshapedDim2, startPosition, numElements,
                         normConstant);
-    //Last H-transform.
-    floatCudaHTransform3d(sinFeatures, reshapedDim0, reshapedDim1, reshapedDim2);
+        //Last H-transform.
+        floatCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
 
-    //Multiply by chiArr; take the sine and cosine of elements of
-    //sinFeatures, and store the cosine in cosFeatures.
-    floatConvRBFPostProcess<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(sinFeatures,
-            cosFeatures, chiArr, reshapedDim2, startPosition, numElements);
+        //Multiply by chiArr; take the sine and cosine of elements of
+        //featureArray, and store the cosine in cosFeatures.
+        rbfConvFloatPostProcess(featureArray, chiArr,
+            outputArray, reshapedDim0, reshapedDim1,
+            reshapedDim2, startPosition, numFreqs);
+    }
 
     return "no_error";
 }
@@ -260,9 +294,8 @@ const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
 //random features are stored in two arrays supplied by caller,
 //who can then either sum or further modify as appropriate.
 const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
-                double *sinFeatures, double *cosFeatures,
-                double *chiArr, int reshapedDim0, 
-                int reshapedDim1, int reshapedDim2, int startPosition,
+                double *featureArray, double *chiArr, double *outputArray,
+                int reshapedDim0, int reshapedDim1, int reshapedDim2,
                 int numFreqs){
 
     int numElements = reshapedDim0 * reshapedDim1 * reshapedDim2;
@@ -271,32 +304,75 @@ const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
     normConstant = 1 / pow(2, normConstant);
     int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / 
                 DEFAULT_THREADS_PER_BLOCK;
-    
-    //Copy input into sinFeatures while multiplying by first row of radem.
-    doubleConv1dRademAndCopy<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX, 
-                        sinFeatures, radem, reshapedDim2, startPosition, numElements,
-                        normConstant);
-    //First H-transform.
-    doubleCudaHTransform3d(sinFeatures, reshapedDim0, reshapedDim1, reshapedDim2);
 
-    //Multiply by second row of radem.
-    doubleConv1dMultiplyByRadem<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(sinFeatures, 
+    int numRepeats = (numFreqs + reshapedDim2 - 1) / reshapedDim2;
+    int i, startPosition;
+
+    for (i=0; i < numRepeats; i++){
+        startPosition = i * reshapedDim2;
+    
+        //Copy input into featureArray while multiplying by first row of radem.
+        doubleConv1dRademAndCopy<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX, 
+                        featureArray, radem, reshapedDim2, startPosition, numElements,
+                        normConstant);
+        //First H-transform.
+        doubleCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
+
+        //Multiply by second row of radem.
+        doubleConv1dMultiplyByRadem<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
                         radem + numFreqs, reshapedDim2, startPosition, numElements,
                         normConstant);
-    //Second H-transform.
-    doubleCudaHTransform3d(sinFeatures, reshapedDim0, reshapedDim1, reshapedDim2);
+        //Second H-transform.
+        doubleCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
         
-    //Multiply by third row of radem.
-    doubleConv1dMultiplyByRadem<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(sinFeatures, 
+        //Multiply by third row of radem.
+        doubleConv1dMultiplyByRadem<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
                         radem + 2 * numFreqs, reshapedDim2, startPosition, numElements,
                         normConstant);
-    //Last H-transform.
-    doubleCudaHTransform3d(sinFeatures, reshapedDim0, reshapedDim1, reshapedDim2);
+        //Last H-transform.
+        doubleCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
 
-    //Multiply by chiArr; take the sine and cosine of elements of
-    //sinFeatures, and store the cosine in cosFeatures.
-    doubleConvRBFPostProcess<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(sinFeatures,
-            cosFeatures, chiArr, reshapedDim2, startPosition, numElements);
+        //Multiply by chiArr; take the sine and cosine of elements of
+        //featureArray, and transfer to output.
+        rbfConvDoublePostProcess(featureArray, chiArr,
+            outputArray, reshapedDim0, reshapedDim1,
+            reshapedDim2, startPosition, numFreqs);
+    }
 
     return "no_error";
+}
+
+
+
+//Carries out the final stages of feature generation
+//for RBF-based kernels with float input data.
+void rbfConvFloatPostProcess(float *featureArray, float *chiArr,
+        double *outputArray, int reshapedDim0, int reshapedDim1,
+        int reshapedDim2, int startPosition, int numFreqs){
+    int numElements = reshapedDim0 * reshapedDim2;
+    int blockRepeats = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
+    int outputDim1 = 2 * numFreqs;
+    int log2dim2 = log2(reshapedDim2);
+
+    floatConvRBFPostProcessKernel<<<blockRepeats, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
+            outputArray, reshapedDim1, reshapedDim2,
+            outputDim1, startPosition, numElements, log2dim2);
+}
+
+
+
+
+//Carries out the final stages of feature generation
+//for RBF-based kernels with float input data.
+void rbfConvDoublePostProcess(double *featureArray, double *chiArr,
+        double *outputArray, int reshapedDim0, int reshapedDim1,
+        int reshapedDim2, int startPosition, int numFreqs){
+    int numElements = reshapedDim0 * reshapedDim2;
+    int blockRepeats = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
+    int outputDim1 = 2 * numFreqs;
+    int log2dim2 = log2(reshapedDim2);
+
+    doubleConvRBFPostProcessKernel<<<blockRepeats, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
+            outputArray, reshapedDim1, reshapedDim2,
+            outputDim1, startPosition, numElements, log2dim2);
 }

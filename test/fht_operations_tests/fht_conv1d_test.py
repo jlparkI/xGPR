@@ -38,6 +38,11 @@ class TestConv1d(unittest.TestCase):
         for outcome in outcomes:
             self.assertTrue(outcome)
 
+        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma, precision = "float")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
         kernel_width = 5
         num_aas = 56
         aa_dim = 2
@@ -179,6 +184,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
 
     xdata = cp.asarray(xdata)
     reshaped_x = cp.asarray(reshaped_x)
+    features[:] = 0
     features = cp.asarray(features)
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
@@ -188,7 +194,6 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
         doubleGpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, 1.0)
 
     features = cp.asnumpy(features[:,:(2 * num_freqs)])
-    
     outcome_cuda = check_results(true_features, features[:,:(2 * num_freqs)], precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
@@ -232,6 +237,7 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
 
     xdata = cp.asarray(xdata)
     reshaped_x = cp.asarray(reshaped_x)
+    features[:] = 0
     features = cp.asarray(features)
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
@@ -288,6 +294,7 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
 
     xdata = cp.asarray(xdata)
     reshaped_x = cp.asarray(reshaped_x)
+    features[:] = 0
     features = cp.asarray(features)
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
