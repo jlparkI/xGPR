@@ -6,8 +6,8 @@ from math import ceil
 
 import numpy as np
 
-from cpu_basic_hadamard_operations import doubleCpuFastHadamardTransform as dFHT
-from cpu_basic_hadamard_operations import floatCpuFastHadamardTransform as fFHT
+from cpu_basic_operations import doubleCpuFastHadamardTransform as dFHT
+from cpu_basic_operations import floatCpuFastHadamardTransform as fFHT
 
 
 def get_initial_matrices_fht(ndatapoints, kernel_width, aa_dim, num_aas,

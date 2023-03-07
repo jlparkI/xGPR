@@ -42,6 +42,36 @@ __global__ void rbfFeatureGenLastStepFloats(float *cArray, double *outputArray,
     }
 }
 
+
+//Performs the last step in gradient / feature generation for RBF (NOT ARD)
+//kernels.
+__global__ void rbfGradLastStepFloats(float *cArray, double *outputArray,
+            float *chiArr, double *gradientArray, float sigma, int numFreqs,
+            int inputElementsPerRow, int numElements, double normConstant)
+{
+    int j = blockDim.x * blockIdx.x + threadIdx.x;
+    int chiArrPosition, inputPosition, outputRow, outputPosition;
+    float outputVal, sinVal, cosVal;
+
+    chiArrPosition = j % numFreqs;
+    outputRow = (j / numFreqs);
+    inputPosition = outputRow * inputElementsPerRow + chiArrPosition;
+    outputPosition = outputRow * 2 * numFreqs + chiArrPosition;
+
+    outputVal = chiArr[chiArrPosition] * cArray[inputPosition];
+    if (j < numElements)
+    {
+        cosVal = normConstant * cosf(outputVal * sigma);
+        sinVal = normConstant * sinf(outputVal * sigma);
+        outputArray[outputPosition] = cosVal;
+        outputArray[outputPosition + numFreqs] = sinVal;
+        gradientArray[outputPosition] = -outputVal * sinVal;
+        gradientArray[outputPosition + numFreqs] = outputVal * cosVal;
+    }
+}
+
+
+
 //Performs an elementwise multiplication of a [c,M,P] array against the
 //[N,M,P] input array or a [P] array against the [N,P] input array.
 //Note that the last dimensions of these must be the
@@ -102,6 +132,57 @@ const char *floatRBFFeatureGen(float *cArray, int8_t *radem,
     blocksPerGrid = (numOutputElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     rbfFeatureGenLastStepFloats<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, outputArray,
                     chiArr, numFreqs, numElementsPerRow, numOutputElements, rbfNormConstant);
+
+    //cudaProfilerStop();
+    return "no_error";
+}
+
+
+
+//This function generates random features for RBF kernels ONLY
+//(NOT ARD), and simultaneously generates the gradient, storing
+//it in a separate array.
+const char *floatRBFFeatureGrad(float *cArray, int8_t *radem,
+                float *chiArr, double *outputArray,
+                double *gradientArray, double rbfNormConstant,
+                float sigma, int dim0, int dim1, int dim2,
+                int numFreqs){
+    int numElementsPerRow = dim1 * dim2;
+    int numElements = dim1 * dim2 * dim0;
+    //This is the Hadamard normalization constant.
+    float normConstant = log2(dim2) / 2;
+    normConstant = 1 / pow(2, normConstant);
+    int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
+    int numOutputElements = numFreqs * dim0;
+    //cudaProfilerStart();
+
+    //Multiply by D1.
+    floatSpecMultByDiagRademMat<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem, 
+                                 numElementsPerRow, numElements, normConstant);
+    
+    //First H-transform.
+    floatCudaHTransform3d(cArray, dim0, dim1, dim2);
+    
+    //Multiply by D2.
+    floatSpecMultByDiagRademMat<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + numElementsPerRow,
+                                 numElementsPerRow, numElements, normConstant);
+
+    //Second H-transform.
+    floatCudaHTransform3d(cArray, dim0, dim1, dim2);
+    
+    //Multiply by D3.
+    floatSpecMultByDiagRademMat<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + 2 * numElementsPerRow,
+                                 numElementsPerRow, numElements, normConstant);
+    
+    //Last H-transform.
+    floatCudaHTransform3d(cArray, dim0, dim1, dim2); 
+
+
+    //Generate output features in-place in the output array.
+    blocksPerGrid = (numOutputElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
+    rbfGradLastStepFloats<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, outputArray,
+                    chiArr, gradientArray, sigma, numFreqs,
+                    numElementsPerRow, numOutputElements, rbfNormConstant);
 
     //cudaProfilerStop();
     return "no_error";

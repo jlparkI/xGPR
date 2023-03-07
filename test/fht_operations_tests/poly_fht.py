@@ -9,18 +9,18 @@ import unittest
 import numpy as np
 from scipy.stats import chi
 
-from cpu_basic_hadamard_operations import doubleCpuFastHadamardTransform as dFHT
-from cpu_basic_hadamard_operations import floatCpuFastHadamardTransform as fFHT
-from cpu_convolution_float_hadamard_operations import floatCpuGraphPolyFHT
-from cpu_convolution_double_hadamard_operations import doubleCpuGraphPolyFHT
-from cpu_convolution_float_hadamard_operations import floatCpuPolyFHT
-from cpu_convolution_double_hadamard_operations import doubleCpuPolyFHT
+from cpu_basic_operations import doubleCpuFastHadamardTransform as dFHT
+from cpu_basic_operations import floatCpuFastHadamardTransform as fFHT
+from cpu_convolution_float import floatCpuGraphPolyFHT
+from cpu_convolution_double import doubleCpuGraphPolyFHT
+from cpu_convolution_float import floatCpuPolyFHT
+from cpu_convolution_double import doubleCpuPolyFHT
 
 try:
-    from cuda_convolution_float_hadamard_operations import floatGpuGraphPolyFHT
-    from cuda_convolution_double_hadamard_operations import doubleGpuGraphPolyFHT
-    from cuda_convolution_float_hadamard_operations import floatGpuPolyFHT
-    from cuda_convolution_double_hadamard_operations import doubleGpuPolyFHT
+    from cuda_convolution_float import floatGpuGraphPolyFHT
+    from cuda_convolution_double import doubleGpuGraphPolyFHT
+    from cuda_convolution_float import floatGpuPolyFHT
+    from cuda_convolution_double import doubleGpuPolyFHT
     import cupy as cp
 except:
     pass
@@ -142,7 +142,6 @@ def run_evaluation(ndatapoints, num_feats, num_freqs,
         outcome_cuda = np.allclose(features, true_features, rtol=1e-4, atol=1e-4)
     else:
         outcome_cuda = np.allclose(features, true_features)
-
     print(f"Does result ON CUDA match for ndatapoints={ndatapoints}, "
             f"num_aas={num_feats}, polydegree={polydegree},"
             f"kernel {kernel_type}?\n{outcome_cuda}")

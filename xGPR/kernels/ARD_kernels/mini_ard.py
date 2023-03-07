@@ -5,17 +5,17 @@ from math import ceil
 
 import numpy as np
 from scipy.stats import chi
-from cpu_basic_hadamard_operations import doubleCpuSORFTransform as dSORF
-from cpu_basic_hadamard_operations import floatCpuSORFTransform as fSORF
-from cpu_basic_hadamard_operations import doubleCpuRBFFeatureGen as dRBF
-from cpu_basic_hadamard_operations import floatCpuRBFFeatureGen as fRBF
+from cpu_basic_operations import doubleCpuSORFTransform as dSORF
+from cpu_basic_operations import floatCpuSORFTransform as fSORF
+from cpu_rbf_operations import doubleCpuRBFFeatureGen as dRBF
+from cpu_rbf_operations import floatCpuRBFFeatureGen as fRBF
 
 try:
     import cupy as cp
-    from cuda_basic_hadamard_operations import doubleCudaPySORFTransform as dCudaSORF
-    from cuda_basic_hadamard_operations import floatCudaPySORFTransform as fCudaSORF
-    from cuda_basic_hadamard_operations import doubleCudaRBFFeatureGen as dCudaRBF
-    from cuda_basic_hadamard_operations import floatCudaRBFFeatureGen as fCudaRBF
+    from cuda_basic_operations import doubleCudaPySORFTransform as dCudaSORF
+    from cuda_basic_operations import floatCudaPySORFTransform as fCudaSORF
+    from cuda_rbf_operations import doubleCudaRBFFeatureGen as dCudaRBF
+    from cuda_rbf_operations import floatCudaRBFFeatureGen as fCudaRBF
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass
@@ -202,7 +202,7 @@ class MiniARD(KernelBaseclass):
 
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_freqs, self.num_threads)
+                self.hyperparams[1], self.num_threads)
         return output_x
 
 

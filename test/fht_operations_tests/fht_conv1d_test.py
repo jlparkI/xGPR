@@ -7,14 +7,14 @@ import sys
 import unittest
 import numpy as np
 
-from cpu_convolution_double_hadamard_operations import doubleCpuConv1dFGen, doubleCpuConvGrad, doubleCpuConv1dMaxpool
-from cpu_convolution_float_hadamard_operations import floatCpuConv1dFGen, floatCpuConvGrad, floatCpuConv1dMaxpool
-#try:
-from cuda_convolution_double_hadamard_operations import doubleGpuConv1dFGen, doubleGpuConvGrad, doubleGpuConv1dMaxpool
-from cuda_convolution_float_hadamard_operations import floatGpuConv1dFGen, floatGpuConvGrad, floatGpuConv1dMaxpool
-import cupy as cp
-#except:
-#    pass
+from cpu_convolution_double import doubleCpuConv1dFGen, doubleCpuConvGrad, doubleCpuConv1dMaxpool
+from cpu_convolution_float import floatCpuConv1dFGen, floatCpuConvGrad, floatCpuConv1dMaxpool
+try:
+    from cuda_convolution_double import doubleGpuConv1dFGen, doubleGpuConvGrad, doubleGpuConv1dMaxpool
+    from cuda_convolution_float import floatGpuConv1dFGen, floatGpuConvGrad, floatGpuConv1dMaxpool
+    import cupy as cp
+except:
+    pass
 
 from conv_testing_functions import get_initial_matrices_fht, get_features
 from conv_testing_functions import get_features_maxpool, get_features_with_gradient

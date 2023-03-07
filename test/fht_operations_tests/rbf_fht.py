@@ -6,15 +6,15 @@ import timeit
 from math import ceil
 import numpy as np
 from scipy.stats import chi
-from cpu_basic_hadamard_operations import doubleCpuRBFFeatureGen as dRBF
-from cpu_basic_hadamard_operations import floatCpuRBFFeatureGen as fRBF
+from cpu_rbf_operations import doubleCpuRBFFeatureGen as dRBF
+from cpu_rbf_operations import floatCpuRBFFeatureGen as fRBF
 
-from cpu_basic_hadamard_operations import doubleCpuSORFTransform as dSORF
-from cpu_basic_hadamard_operations import floatCpuSORFTransform as fSORF
+from cpu_basic_operations import doubleCpuSORFTransform as dSORF
+from cpu_basic_operations import floatCpuSORFTransform as fSORF
 
 try:
-    from cuda_basic_hadamard_operations import doubleCudaRBFFeatureGen as dCudaRBF
-    from cuda_basic_hadamard_operations import floatCudaRBFFeatureGen as fCudaRBF
+    from cuda_rbf_operations import doubleCudaRBFFeatureGen as dCudaRBF
+    from cuda_rbf_operations import floatCudaRBFFeatureGen as fCudaRBF
     import cupy as cp
 except:
     pass
@@ -81,11 +81,11 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
 
     temp_test = test_array.copy()
     double_output = np.zeros((test_array.shape[0], num_freqs * 2))
-    dRBF(temp_test, double_output, radem, chi_arr, beta_value, num_freqs, 2)
+    dRBF(temp_test, double_output, radem, chi_arr, beta_value, 2)
 
     temp_test = test_float.copy()
     float_output = np.zeros((test_array.shape[0], num_freqs * 2))
-    fRBF(temp_test, float_output, radem, chi_float, beta_value, num_freqs, 2)
+    fRBF(temp_test, float_output, radem, chi_float, beta_value, 2)
 
     if "cupy" in sys.modules:
         cuda_test_array = cp.asarray(test_array)
@@ -97,9 +97,9 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
         cuda_float_output = cp.zeros((test_array.shape[0], num_freqs * 2))
 
         dCudaRBF(cuda_test_array, cuda_double_output, radem,
-                chi_arr, beta_value, num_freqs, 2)
+                chi_arr, beta_value, 2)
         fCudaRBF(cuda_test_float, cuda_float_output, radem,
-                chi_float, beta_value, num_freqs, 2)
+                chi_float, beta_value, 2)
 
 
     outcome_d = np.allclose(gt_double, double_output)

@@ -5,23 +5,23 @@ import sys
 import unittest
 import numpy as np
 from scipy.linalg import hadamard
-from cpu_basic_hadamard_operations import doubleCpuFastHadamardTransform as dFHT
-from cpu_basic_hadamard_operations import floatCpuFastHadamardTransform as fFHT
+from cpu_basic_operations import doubleCpuFastHadamardTransform as dFHT
+from cpu_basic_operations import floatCpuFastHadamardTransform as fFHT
 
-from cpu_basic_hadamard_operations import doubleCpuFastHadamardTransform2D as dFHT2D
-from cpu_basic_hadamard_operations import floatCpuFastHadamardTransform2D as fFHT2D
+from cpu_basic_operations import doubleCpuFastHadamardTransform2D as dFHT2D
+from cpu_basic_operations import floatCpuFastHadamardTransform2D as fFHT2D
 
-from cpu_basic_hadamard_operations import doubleCpuSORFTransform as dSORF
-from cpu_basic_hadamard_operations import floatCpuSORFTransform as fSORF
+from cpu_basic_operations import doubleCpuSORFTransform as dSORF
+from cpu_basic_operations import floatCpuSORFTransform as fSORF
 
-from cpu_basic_hadamard_operations import doubleCpuSRHT as dSRHT
-from cpu_basic_hadamard_operations import floatCpuSRHT as fSRHT
+from cpu_basic_operations import doubleCpuSRHT as dSRHT
+from cpu_basic_operations import floatCpuSRHT as fSRHT
 
 try:
-    from cuda_basic_hadamard_operations import doubleCudaPySORFTransform as dCudaSORF
-    from cuda_basic_hadamard_operations import floatCudaPySORFTransform as fCudaSORF
-    from cuda_basic_hadamard_operations import doubleCudaSRHT as dCudaSRHT
-    from cuda_basic_hadamard_operations import floatCudaSRHT as fCudaSRHT
+    from cuda_basic_operations import doubleCudaPySORFTransform as dCudaSORF
+    from cuda_basic_operations import floatCudaPySORFTransform as fCudaSORF
+    from cuda_basic_operations import doubleCudaSRHT as dCudaSRHT
+    from cuda_basic_operations import floatCudaSRHT as fCudaSRHT
     import cupy as cp
 except:
     pass

@@ -32,6 +32,8 @@ __global__ void rbfFeatureGenLastStepDoubles(double *cArray, double *outputArray
     chiArrPosition = j % numFreqs;
     outputRow = (j / numFreqs);
     inputPosition = outputRow * inputElementsPerRow + chiArrPosition;
+    //Multiply by 2 here since we store both the sine and cosine
+    //of the feature in the output array.
     outputPosition = outputRow * 2 * numFreqs + chiArrPosition;
 
     outputVal = chiArr[chiArrPosition] * cArray[inputPosition];
@@ -41,6 +43,39 @@ __global__ void rbfFeatureGenLastStepDoubles(double *cArray, double *outputArray
         outputArray[outputPosition + numFreqs] = normConstant * sin(outputVal);
     }
 }
+
+
+
+//Performs the last step in gradient / feature generation for RBF (NOT ARD)
+//kernels.
+__global__ void rbfGradLastStepDoubles(double *cArray, double *outputArray,
+            double *chiArr, double *gradientArray, double sigma, int numFreqs,
+            int inputElementsPerRow, int numElements, double normConstant)
+{
+    int j = blockDim.x * blockIdx.x + threadIdx.x;
+    int chiArrPosition, inputPosition, outputRow, outputPosition;
+    double outputVal, sinVal, cosVal;
+
+    chiArrPosition = j % numFreqs;
+    outputRow = (j / numFreqs);
+    inputPosition = outputRow * inputElementsPerRow + chiArrPosition;
+    //Multiply by 2 here since we store both the sine and cosine
+    //of the feature in the output array.
+    outputPosition = outputRow * 2 * numFreqs + chiArrPosition;
+
+    outputVal = chiArr[chiArrPosition] * cArray[inputPosition];
+    if (j < numElements)
+    {
+        cosVal = normConstant * cos(outputVal * sigma);
+        sinVal = normConstant * sin(outputVal * sigma);
+        outputArray[outputPosition] = cosVal;
+        outputArray[outputPosition + numFreqs] = sinVal;
+        gradientArray[outputPosition] = -outputVal * sinVal;
+        gradientArray[outputPosition + numFreqs] = outputVal * cosVal;
+    }
+}
+
+
 
 //Performs an elementwise multiplication of a [c,M,P] array against the
 //[N,M,P] input array or a [P] array against the [N,P] input array.
@@ -102,6 +137,58 @@ const char *doubleRBFFeatureGen(double *cArray, int8_t *radem,
     blocksPerGrid = (numOutputElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     rbfFeatureGenLastStepDoubles<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, outputArray,
                     chiArr, numFreqs, numElementsPerRow, numOutputElements, rbfNormConstant);
+
+    //cudaProfilerStop();
+    return "no_error";
+}
+
+
+
+//This function generates random features for RBF kernels ONLY
+//(NOT ARD), and simultaneously generates the gradient, storing
+//it in a separate array.
+const char *doubleRBFFeatureGrad(double *cArray, int8_t *radem,
+                double *chiArr, double *outputArray,
+                double *gradientArray, double rbfNormConstant,
+                double sigma, int dim0, int dim1, int dim2,
+                int numFreqs){
+
+    int numElementsPerRow = dim1 * dim2;
+    int numElements = dim1 * dim2 * dim0;
+    //This is the Hadamard normalization constant.
+    double normConstant = log2(dim2) / 2;
+    normConstant = 1 / pow(2, normConstant);
+    int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
+    int numOutputElements = numFreqs * dim0;
+    //cudaProfilerStart();
+
+    //Multiply by D1.
+    doubleSpecMultByDiagRademMat<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem, 
+                                 numElementsPerRow, numElements, normConstant);
+    
+    //First H-transform.
+    doubleCudaHTransform3d(cArray, dim0, dim1, dim2);
+    
+    //Multiply by D2.
+    doubleSpecMultByDiagRademMat<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + numElementsPerRow,
+                                 numElementsPerRow, numElements, normConstant);
+
+    //Second H-transform.
+    doubleCudaHTransform3d(cArray, dim0, dim1, dim2);
+    
+    //Multiply by D3.
+    doubleSpecMultByDiagRademMat<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + 2 * numElementsPerRow,
+                                 numElementsPerRow, numElements, normConstant);
+    
+    //Last H-transform.
+    doubleCudaHTransform3d(cArray, dim0, dim1, dim2); 
+
+
+    //Generate output features in-place in the output array.
+    blocksPerGrid = (numOutputElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
+    rbfGradLastStepDoubles<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, outputArray,
+                    chiArr, gradientArray, sigma, numFreqs,
+                    numElementsPerRow, numOutputElements, rbfNormConstant);
 
     //cudaProfilerStop();
     return "no_error";

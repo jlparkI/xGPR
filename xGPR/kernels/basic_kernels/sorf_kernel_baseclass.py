@@ -9,17 +9,17 @@ from math import ceil
 
 import numpy as np
 from scipy.stats import chi
-from cpu_basic_hadamard_operations import doubleCpuSORFTransform as dSORF
-from cpu_basic_hadamard_operations import floatCpuSORFTransform as fSORF
-from cpu_basic_hadamard_operations import doubleCpuRBFFeatureGen as dRBF
-from cpu_basic_hadamard_operations import floatCpuRBFFeatureGen as fRBF
+from cpu_rbf_operations import doubleCpuRBFFeatureGen as dRBF
+from cpu_rbf_operations import floatCpuRBFFeatureGen as fRBF
+from cpu_rbf_operations import doubleCpuRBFGrad as dRBFGrad
+from cpu_rbf_operations import floatCpuRBFGrad as fRBFGrad
 
 try:
     import cupy as cp
-    from cuda_basic_hadamard_operations import doubleCudaPySORFTransform as dCudaSORF
-    from cuda_basic_hadamard_operations import floatCudaPySORFTransform as fCudaSORF
-    from cuda_basic_hadamard_operations import doubleCudaRBFFeatureGen as dCudaRBF
-    from cuda_basic_hadamard_operations import floatCudaRBFFeatureGen as fCudaRBF
+    from cuda_rbf_operations import doubleCudaRBFFeatureGen as dCudaRBF
+    from cuda_rbf_operations import floatCudaRBFFeatureGen as fCudaRBF
+    from cuda_rbf_operations import doubleCudaRBFGrad as dCudaRBFGrad
+    from cuda_rbf_operations import floatCudaRBFGrad as fCudaRBFGrad
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass
@@ -45,12 +45,10 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         chi_arr: A diagonal array whose elements are drawn from the chi
             distribution. Ensures the marginals of the matrix resulting
             from S H D1 H D2 H D3 are correct.
-        sorf_transform: A reference to the Cython function that wraps the
-            C code which generates the random features.
-        cosfunc: A convenience reference to either cp.cos or np.cos,
-            as appropriate for current device.
-        sinfunc: A convenience reference to either cp.sin or np.sin,
-            as appropriate for current device.
+        feature_gen: A reference to the wrapped C function that generates
+            features.
+        gradfun: A reference to the wrapped C function that calculates
+            gradients.
     """
 
     def __init__(self, num_rffs, xdim, num_threads = 2,
@@ -102,35 +100,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
                             random_state = random_seed)
 
         self.feature_gen = fRBF
-        self.sinfunc = None
-        self.cosfunc = None
-        self.sorf_transform = fSORF
-
-
-    def pretransform_x(self, input_x):
-        """Random feature generation for this class
-        is divided into two steps. The first is
-        the SORF transform, here called 'pretransform', which does not
-        involve kernel hyperparameters and therefore is not kernel-specific.
-        This first step is performed by this function.
-
-        Args:
-            input_x: A cupy or numpy array depending on self.device
-                containing the input data.
-
-        Returns:
-            output_x: A cupy or numpy array depending on self.device
-                containing the results of the SORF operation. Note
-                that num_freqs rffs are generated, not num_rffs.
-        """
-        output_x = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
-                            dtype = self.dtype)
-        output_x[:,:,:self.xdim[1]] = input_x[:,None,:]
-        self.sorf_transform(output_x, self.radem_diag, self.num_threads)
-        output_x = output_x.reshape((output_x.shape[0], output_x.shape[1] *
-                        output_x.shape[2]))[:,:self.num_freqs]
-        output_x *= self.chi_arr[None,:]
-        return output_x
+        self.gradfun = fRBFGrad
 
 
 
@@ -141,13 +111,11 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         convenience references to np.cos / np.sin or cp.cos
         / cp.sin."""
         if new_device == "cpu":
-            self.cosfunc = np.cos
-            self.sinfunc = np.sin
             if self.double_precision:
-                self.sorf_transform = dSORF
+                self.gradfun = dRBFGrad
                 self.feature_gen = dRBF
             else:
-                self.sorf_transform = fSORF
+                self.gradfun = fRBFGrad
                 self.feature_gen = fRBF
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
@@ -155,36 +123,14 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             self.chi_arr = self.chi_arr.astype(self.dtype)
         else:
             if self.double_precision:
-                self.sorf_transform = dCudaSORF
+                self.gradfun = dCudaRBFGrad
                 self.feature_gen = dCudaRBF
             else:
-                self.sorf_transform = fCudaSORF
+                self.gradfun = fCudaRBFGrad
                 self.feature_gen = fCudaRBF
-            self.cosfunc = cp.cos
-            self.sinfunc = cp.sin
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
 
-
-    def finish_transform(self, input_x):
-        """Random feature generation is divided into two steps. The
-        first is shared between all SORF fixed-vector kernels and
-        involves the structured orthogonal random features or SORF
-        operation. The second is kernel-specific and involves the
-        kernel's activation function. This second step is performed
-        by finish_transform.
-
-        Args:
-            input_x: Either a cupy or numpy array containing the input.
-
-        Returns:
-            xtrans: A cupy or numpy array containing the generated features.
-        """
-        xtrans = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
-        xtrans[:,:input_x.shape[1]] = self.cosfunc(input_x * self.hyperparams[2])
-        xtrans[:,input_x.shape[1]:] = self.sinfunc(input_x * self.hyperparams[2])
-        xtrans *= (self.hyperparams[1] * np.sqrt(2 / self.num_rffs))
-        return xtrans
 
 
     def transform_x(self, input_x):
@@ -202,7 +148,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         xtrans[:,:,:self.xdim[1]] = input_x[:,None,:] * self.hyperparams[2]
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_freqs, self.num_threads)
+                self.hyperparams[1], self.num_threads)
         return output_x
 
 
@@ -232,10 +178,10 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             dz_dsigma: A cupy or numpy array containing the derivative of
                 output_x with respect to the kernel-specific hyperparameters.
         """
-        input_x = self.pretransform_x(input_x)
-        output_x = self.finish_transform(input_x)
-        dz_dsigma = self.empty((input_x.shape[0], self.num_rffs, 1),
-                                    dtype = self.out_type)
-        dz_dsigma[:,:input_x.shape[1], 0] = -output_x[:,input_x.shape[1]:] * input_x
-        dz_dsigma[:,input_x.shape[1]:, 0] = output_x[:,:input_x.shape[1]] * input_x
+        xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
+                            dtype = self.dtype)
+        xtrans[:,:,:self.xdim[1]] = input_x[:,None,:]
+        output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
+        dz_dsigma = self.gradfun(xtrans, output_x, self.radem_diag, self.chi_arr,
+                self.hyperparams[1], self.hyperparams[2], self.num_threads)
         return output_x, dz_dsigma

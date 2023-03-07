@@ -7,4 +7,10 @@ const char *floatRBFFeatureGen(float *cArray, int8_t *radem,
                 int dim0, int dim1, int dim2,
                 int numFreqs);
 
+const char *floatRBFFeatureGrad(float *cArray, int8_t *radem,
+                float *chiArr, double *outputArray,
+                double *gradientArray, double rbfNormConstant,
+                float sigma, int dim0, int dim1, int dim2,
+                int numFreqs);
+
 #endif

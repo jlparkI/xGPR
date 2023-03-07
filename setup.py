@@ -80,37 +80,58 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
                     "polynomial_ops", "poly_fht_operations.c")
     cpu_conv1d_op = os.path.join(cpu_fast_transform_path,
                     "convolution_ops", "conv1d_operations.c")
-    cpu_spec_ops = os.path.join(cpu_fast_transform_path,
-                    "rbf_ops", "rbf_ops.c")
+    cpu_conv1d_rbf_op = os.path.join(cpu_fast_transform_path,
+                    "convolution_ops", "rbf_convolution.c")
+    cpu_float_spec_ops = os.path.join(cpu_fast_transform_path,
+                    "rbf_ops", "float_rbf_ops.c")
+    cpu_double_spec_ops = os.path.join(cpu_fast_transform_path,
+                    "rbf_ops", "double_rbf_ops.c")
 
     cpu_basic_op_wrapper = os.path.join(cpu_fast_transform_path,
-                    "cpu_basic_hadamard_operations.pyx")
+                    "cpu_basic_operations.pyx")
+    cpu_rbf_op_wrapper = os.path.join(cpu_fast_transform_path,
+                    "cpu_rbf_operations.pyx")
     cpu_conv_double_wrapper = os.path.join(cpu_fast_transform_path,
-                    "cpu_convolution_double_hadamard_operations.pyx")
+                    "cpu_convolution_double.pyx")
     cpu_conv_float_wrapper = os.path.join(cpu_fast_transform_path,
-                    "cpu_convolution_float_hadamard_operations.pyx")
+                    "cpu_convolution_float.pyx")
 
-    cpu_basic_op_ext = Extension("cpu_basic_hadamard_operations",
+    cpu_basic_op_ext = Extension("cpu_basic_operations",
                     sources = [cpu_transform_functions,
                         cpu_float_array_op, cpu_double_array_op,
-                        cpu_basic_op_wrapper, cpu_spec_ops],
+                        cpu_basic_op_wrapper],
                 language="c", include_dirs=[numpy.get_include(),
                             cpu_fast_transform_path])
-    cpu_conv_double_ext = Extension("cpu_convolution_double_hadamard_operations",
+
+    cpu_rbf_op_ext = Extension("cpu_rbf_operations",
+                    sources = [cpu_transform_functions,
+                        cpu_float_array_op, cpu_double_array_op,
+                        cpu_rbf_op_wrapper, cpu_float_spec_ops,
+                        cpu_double_spec_ops],
+                language="c", include_dirs=[numpy.get_include(),
+                            cpu_fast_transform_path])
+
+    cpu_conv_double_ext = Extension("cpu_convolution_double",
                     sources = [cpu_double_array_op, cpu_poly_fht,
-                        cpu_conv1d_op, cpu_conv_double_wrapper,
+                        cpu_conv1d_op, cpu_conv1d_rbf_op,
+                        cpu_conv_double_wrapper,
                         cpu_float_array_op, cpu_transform_functions],
                 language="c", include_dirs=[numpy.get_include(),
                             cpu_fast_transform_path])
-    cpu_conv_float_ext = Extension("cpu_convolution_float_hadamard_operations",
+
+    cpu_conv_float_ext = Extension("cpu_convolution_float",
                     sources = [cpu_float_array_op, cpu_poly_fht,
-                        cpu_conv1d_op, cpu_conv_float_wrapper,
+                        cpu_conv1d_op, cpu_conv1d_rbf_op,
+                        cpu_conv_float_wrapper,
                         cpu_double_array_op, cpu_transform_functions],
                 language="c", include_dirs=[numpy.get_include(),
                             cpu_fast_transform_path])
 
-    return [cpu_basic_op_ext, cpu_conv_double_ext, cpu_conv_float_ext], \
-            [cpu_basic_op_wrapper, cpu_conv_double_wrapper, cpu_conv_float_wrapper]
+    extensions = [cpu_basic_op_ext, cpu_rbf_op_ext, cpu_conv_double_ext,
+            cpu_conv_float_ext]
+    wrappers = [cpu_basic_op_wrapper, cpu_rbf_op_wrapper, cpu_conv_double_wrapper,
+            cpu_conv_float_wrapper]
+    return extensions, wrappers
 
 
 
@@ -125,10 +146,8 @@ def setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA = False)
     #has to be compiled by NVCC. Right now we call a shell script to
     #arrange some details of the library construction. (TODO: needs to
     #be cross-platform!)
-    failure = False
     if NO_CUDA:
-        failure = True
-        return [], failure, []
+        return [], []
     cuda_hadamard_path = os.path.join(setup_fpath, "xGPR", "random_feature_generation",
             "gpu_rf_gen")
     os.chdir(cuda_hadamard_path)
@@ -137,14 +156,13 @@ def setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA = False)
 
     if "libarray_operations.a" not in os.listdir():
         os.chdir(setup_fpath)
-        failure = True
-        return [], failure, []
+        return [], []
     else:
         os.chdir(setup_fpath)
-        cuda_htransform_basic_path = os.path.join(cuda_hadamard_path,
-                            "cuda_basic_hadamard_operations.pyx")
-        cuda_hadamard_basic_ext = Extension("cuda_basic_hadamard_operations",
-                sources=[cuda_htransform_basic_path],
+        cuda_basic_path = os.path.join(cuda_hadamard_path,
+                            "cuda_basic_operations.pyx")
+        cuda_basic_ext = Extension("cuda_basic_operations",
+                sources=[cuda_basic_path],
                 language="c++",
                 libraries=["array_operations", "cudart_static"],
                 library_dirs = [cuda_hadamard_path, os.path.join(CUDA_PATH,
@@ -153,10 +171,11 @@ def setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA = False)
                                     "include")],
                 extra_link_args = ["-lrt"],
                 )
-        cuda_htransform_conv_double_path = os.path.join(cuda_hadamard_path,
-                            "cuda_convolution_double_hadamard_operations.pyx")
-        cuda_hadamard_conv_double_ext = Extension("cuda_convolution_double_hadamard_operations",
-                sources=[cuda_htransform_conv_double_path],
+
+        cuda_conv_double_path = os.path.join(cuda_hadamard_path,
+                            "cuda_convolution_double.pyx")
+        cuda_conv_double_ext = Extension("cuda_convolution_double",
+                sources=[cuda_conv_double_path],
                 language="c++",
                 libraries=["array_operations", "cudart_static"],
                 library_dirs = [cuda_hadamard_path, os.path.join(CUDA_PATH,
@@ -165,10 +184,11 @@ def setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA = False)
                                     "include")],
                 extra_link_args = ["-lrt"],
                 )
-        cuda_htransform_conv_float_path = os.path.join(cuda_hadamard_path,
-                            "cuda_convolution_float_hadamard_operations.pyx")
-        cuda_hadamard_conv_float_ext = Extension("cuda_convolution_float_hadamard_operations",
-                sources=[cuda_htransform_conv_float_path],
+
+        cuda_conv_float_path = os.path.join(cuda_hadamard_path,
+                            "cuda_convolution_float.pyx")
+        cuda_conv_float_ext = Extension("cuda_convolution_float",
+                sources=[cuda_conv_float_path],
                 language="c++",
                 libraries=["array_operations", "cudart_static"],
                 library_dirs = [cuda_hadamard_path, os.path.join(CUDA_PATH,
@@ -177,15 +197,31 @@ def setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA = False)
                                     "include")],
                 extra_link_args = ["-lrt"],
                 )
-        return [cuda_hadamard_basic_ext, cuda_hadamard_conv_double_ext,
-                cuda_hadamard_conv_float_ext], failure, \
-                [cuda_htransform_basic_path, cuda_htransform_conv_double_path,
-                        cuda_htransform_conv_float_path]
+
+        cuda_rbf_path = os.path.join(cuda_hadamard_path,
+                            "cuda_rbf_operations.pyx")
+        cuda_rbf_ext = Extension("cuda_rbf_operations",
+                sources=[cuda_rbf_path],
+                language="c++",
+                libraries=["array_operations", "cudart_static"],
+                library_dirs = [cuda_hadamard_path, os.path.join(CUDA_PATH,
+                                    "lib64")],
+                include_dirs = [numpy.get_include(), os.path.join(CUDA_PATH,
+                                    "include")],
+                extra_link_args = ["-lrt"],
+                )
+
+        extensions = [cuda_basic_ext, cuda_conv_double_ext, cuda_conv_float_ext,
+                cuda_rbf_ext]
+        paths = [cuda_basic_path, cuda_conv_double_path, cuda_conv_float_path,
+                cuda_rbf_path]
+        return extensions, paths
 
 
 def get_kernel_tools_extensions(setup_fpath):
     """Get extension paths for cython files used for
-    matrix-based convolutions."""
+    matrix-based convolutions. These are deprecated and
+    will be removed in a future version."""
     kernel_tools_path = os.path.join(setup_fpath, "xGPR",
                 "kernels", "kernel_tools.pyx")
     kernel_tools_ext = Extension("kernel_tools",
@@ -203,14 +239,14 @@ def main():
     ext_modules += get_kernel_tools_extensions(setup_fpath)
 
     cpu_fht_ext, cpu_fht_files = setup_cpu_fast_hadamard_extensions(setup_fpath)
-    fht_cuda_ext, cuda_build_failure, gpu_fht_files = \
+    fht_cuda_ext, gpu_fht_files = \
             setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA)
 
     ext_modules += fht_cuda_ext
     ext_modules += cpu_fht_ext
 
 
-    if cuda_build_failure:
+    if len(fht_cuda_ext) == 0:
         print("Construction of the cudaHadamardTransform extension failed! "
             "xGPR will run in CPU-only mode.")
 

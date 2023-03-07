@@ -8,11 +8,11 @@ import numpy as np
 from scipy.stats import chi
 try:
     import cupy as cp
-    from cuda_convolution_float_hadamard_operations import floatGpuConv1dMaxpool
+    from cuda_convolution_float import floatGpuConv1dMaxpool
 except:
     pass
 
-from cpu_convolution_float_hadamard_operations import floatCpuConv1dMaxpool
+from cpu_convolution_float import floatCpuConv1dMaxpool
 
 
 class FHTMaxpoolConv1dFeatureExtractor():

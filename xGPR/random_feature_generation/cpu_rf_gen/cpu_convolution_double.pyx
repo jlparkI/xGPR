@@ -20,6 +20,8 @@ cdef extern from "convolution_ops/conv1d_operations.h" nogil:
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
             int startPosition, int numFreqs);
+
+cdef extern from "convolution_ops/rbf_convolution.h" nogil:
     const char *doubleConvRBFFeatureGen_(int8_t *radem, double *reshapedX,
             double *copyBuffer, double *chiArr, double *outputArray,
             int numThreads, int reshapedDim0,

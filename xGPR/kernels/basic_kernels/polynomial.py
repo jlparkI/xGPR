@@ -6,14 +6,14 @@ import numpy as np
 from scipy.stats import chi
 try:
     import cupy as cp
-    from cuda_convolution_double_hadamard_operations import doubleGpuPolyFHT
-    from cuda_convolution_float_hadamard_operations import floatGpuPolyFHT
+    from cuda_convolution_double import doubleGpuPolyFHT
+    from cuda_convolution_float import floatGpuPolyFHT
 except:
     pass
 
 from ..kernel_baseclass import KernelBaseclass
-from cpu_convolution_double_hadamard_operations import doubleCpuPolyFHT
-from cpu_convolution_float_hadamard_operations import floatCpuPolyFHT
+from cpu_convolution_double import doubleCpuPolyFHT
+from cpu_convolution_float import floatCpuPolyFHT
 
 
 class Polynomial(KernelBaseclass):

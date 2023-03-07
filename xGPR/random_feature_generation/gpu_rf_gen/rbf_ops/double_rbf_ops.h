@@ -7,4 +7,10 @@ const char *doubleRBFFeatureGen(double *cArray, int8_t *radem,
                 int dim0, int dim1, int dim2,
                 int numFreqs);
 
+const char *doubleRBFFeatureGrad(double *cArray, int8_t *radem,
+                double *chiArr, double *outputArray,
+                double *gradientArray, double rbfNormConstant,
+                double sigma, int dim0, int dim1, int dim2,
+                int numFreqs);
+
 #endif
