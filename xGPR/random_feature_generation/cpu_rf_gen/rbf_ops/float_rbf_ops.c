@@ -1,5 +1,5 @@
 /*!
- * # rbf_ops.c
+ * # float_rbf_ops.c
  *
  * This module performs all major steps involved in feature generation for
  * RBF-type kernels, which includes RBF, Matern, ARD and MiniARD (and by extension

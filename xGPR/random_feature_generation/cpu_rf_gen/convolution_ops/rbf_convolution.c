@@ -276,6 +276,7 @@ const char *floatConvRBFFeatureGen_(int8_t *radem, float *reshapedX,
  * + `chiArr` A diagonal array that will be multiplied against the output
  * of the SORF operation. Must be of shape m * C.
  * + `outputArray` The output array. Must be of shape N x 2 * m * C.
+ * + `sigma` The lengthscale hyperparameter.
  * + `gradientArray` The array in which the gradient will be stored.
  * + `numThreads` The number of threads to use
  * + `reshapedDim0` The first dimension of reshapedX
@@ -375,6 +376,7 @@ const char *doubleConvRBFGrad_(int8_t *radem, double *reshapedX,
  * of the SORF operation. Must be of shape m * C.
  * + `outputArray` The output array. Must be of shape N x 2 * m * C.
  * + `gradientArray` The array in which the gradient will be stored.
+ * + `sigma` The lengthscale hyperparameter.
  * + `numThreads` The number of threads to use
  * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
@@ -683,7 +685,6 @@ void *floatThreadConvRBFGrad(void *sharedArgs){
  * that will be multipled against reshapedX.
  * + `outputArray` A pointer to the first element of the array in which
  * the output will be stored.
- * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
  * + `reshapedDim2` The last dimension of reshapedX
  * + `numFreqs` The number of frequencies to sample.
@@ -737,7 +738,6 @@ void doubleRBFPostProcess(double *reshapedX, double *chiArr,
  * that will be multipled against reshapedX.
  * + `outputArray` A pointer to the first element of the array in which
  * the output will be stored.
- * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
  * + `reshapedDim2` The last dimension of reshapedX
  * + `numFreqs` The number of frequencies to sample.
@@ -795,14 +795,13 @@ void floatRBFPostProcess(float *reshapedX, float *chiArr,
  * the output will be stored.
  * + `gradientArray` A pointer to the first element of the array in which
  * the gradient will be stored.
- * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
  * + `reshapedDim2` The last dimension of reshapedX
  * + `numFreqs` The number of frequencies to sample.
  * + `startRow` The first row of the input to work on
  * + `endRow` The last row of the input to work on
  * + `repeatNum` The repeat number
- * + `sigma` The lengthscale
+ * + `sigma` The lengthscale hyperparameter
  */
 void doubleRBFPostGrad(double *reshapedX, double *chiArr,
         double *outputArray, double *gradientArray,
@@ -859,14 +858,13 @@ void doubleRBFPostGrad(double *reshapedX, double *chiArr,
  * that will be multipled against reshapedX.
  * + `outputArray` A pointer to the first element of the array in which
  * the output will be stored.
- * + `reshapedDim0` The first dimension of reshapedX
  * + `reshapedDim1` The second dimension of reshapedX
  * + `reshapedDim2` The last dimension of reshapedX
  * + `numFreqs` The number of frequencies to sample.
  * + `startRow` The first row of the input to work on
  * + `endRow` The last row of the input to work on
  * + `repeatNum` The repeat number
- * + `sigma` The lengthscale
+ * + `sigma` The lengthscale hyperparameter
  */
 void floatRBFPostGrad(float *reshapedX, float *chiArr,
         double *outputArray, double *gradientArray,
