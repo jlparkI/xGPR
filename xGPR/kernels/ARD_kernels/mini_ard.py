@@ -5,17 +5,14 @@ from math import ceil
 
 import numpy as np
 from scipy.stats import chi
-from cpu_basic_operations import doubleCpuSORFTransform as dSORF
-from cpu_basic_operations import floatCpuSORFTransform as fSORF
-from cpu_rbf_operations import doubleCpuRBFFeatureGen as dRBF
-from cpu_rbf_operations import floatCpuRBFFeatureGen as fRBF
+from cpu_basic_operations import doubleCpuFastHadamardTransform2D as dFHT2d
+from cpu_rbf_operations import doubleCpuRBFFeatureGen, doubleCpuMiniARDGrad
+from cpu_rbf_operations import floatCpuRBFFeatureGen, floatCpuMiniARDGrad
 
 try:
     import cupy as cp
-    from cuda_basic_operations import doubleCudaPySORFTransform as dCudaSORF
-    from cuda_basic_operations import floatCudaPySORFTransform as fCudaSORF
-    from cuda_rbf_operations import doubleCudaRBFFeatureGen as dCudaRBF
-    from cuda_rbf_operations import floatCudaRBFFeatureGen as fCudaRBF
+    from cuda_rbf_operations import doubleCudaRBFFeatureGen, doubleCudaMiniARDGrad
+    from cuda_rbf_operations import floatCudaRBFFeatureGen, floatCudaMiniARDGrad
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass
@@ -108,13 +105,14 @@ class MiniARD(KernelBaseclass):
 
         #Converts the hyperparameters into a "full" array of the
         #same length as padded dims, just as if this were an ARD.
+        #Also, store the positions that map to different hparams.
         self.full_ard_weights = np.zeros((xdim[-1]))
+        self.ard_position_key = np.zeros((xdim[-1]), dtype=np.int32)
         self.kernel_specific_set_hyperparams()
 
-        self.feature_gen = fRBF
-        self.sinfunc = None
-        self.cosfunc = None
-        self.sorf_transform = fSORF
+        self.feature_gen = floatCpuRBFFeatureGen
+        self.grad_fun = floatCpuMiniARDGrad
+        self.precomputed_weights = None
         self.device = device
 
 
@@ -150,32 +148,33 @@ class MiniARD(KernelBaseclass):
         convenience references to np.cos / np.sin or cp.cos
         / cp.sin."""
         if new_device == "cpu":
-            self.cosfunc = np.cos
-            self.sinfunc = np.sin
             if self.double_precision:
-                self.sorf_transform = dSORF
-                self.feature_gen = dRBF
+                self.grad_fun = doubleCpuMiniARDGrad
+                self.feature_gen = doubleCpuRBFFeatureGen
             else:
-                self.sorf_transform = fSORF
-                self.feature_gen = fRBF
+                self.grad_fun = floatCpuMiniARDGrad
+                self.feature_gen = floatCpuRBFFeatureGen
             if not isinstance(self.radem_diag, np.ndarray):
+                if self.precomputed_weights is not None:
+                    self.precomputed_weights = cp.asnumpy(self.precomputed_weights)
                 self.radem_diag = cp.asnumpy(self.radem_diag)
                 self.full_ard_weights = cp.asnumpy(self.full_ard_weights).astype(self.dtype)
                 self.chi_arr = cp.asnumpy(self.chi_arr)
+                self.ard_position_key = cp.asnumpy(self.ard_position_key)
             self.chi_arr = self.chi_arr.astype(self.dtype)
         else:
             if self.double_precision:
-                self.sorf_transform = dCudaSORF
-                self.feature_gen = dCudaRBF
+                self.grad_fun = doubleCudaMiniARDGrad
+                self.feature_gen = doubleCudaRBFFeatureGen
             else:
-                self.sorf_transform = fCudaSORF
-                self.feature_gen = fCudaRBF
-            self.cosfunc = cp.cos
-            self.sinfunc = cp.sin
+                self.grad_fun = floatCudaMiniARDGrad
+                self.feature_gen = floatCudaRBFFeatureGen
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
+            if self.precomputed_weights is not None:
+                self.precomputed_weights = cp.asarray(self.precomputed_weights)
             self.full_ard_weights = cp.asarray(self.full_ard_weights).astype(self.dtype)
-
+            self.ard_position_key = cp.asarray(self.ard_position_key)
 
 
     def kernel_specific_set_hyperparams(self):
@@ -183,9 +182,12 @@ class MiniARD(KernelBaseclass):
         to repopulate an array it will use when generating random
         features."""
         self.full_ard_weights[:] = 0
+        self.ard_position_key[:] = 0
         for i in range(1, self.split_pts.shape[0]):
             self.full_ard_weights[self.split_pts[i-1]:self.split_pts[i]] = \
                     self.hyperparams[i + 1]
+            self.ard_position_key[self.split_pts[i-1]:self.split_pts[i]] = i - 1
+
 
     def transform_x(self, input_x):
         """Generates random features for an input array.
@@ -206,6 +208,55 @@ class MiniARD(KernelBaseclass):
         return output_x
 
 
+    def precompute_weights(self):
+        """The kernel does not automatically generate precomputed weights,
+        because for generating features during fitting or prediction,
+        these are not necessary and would increase model size unnecessarily.
+        Only during gradient calculations are they required. The first time
+        the kernel is asked to generate a gradient, then, it will precompute
+        and store weights. This is not ideal but was easier to implement
+        than having caller decide whether kernel is ARD and if so whether
+        it should precompute weights on initialization. TODO: Find a
+        simpler approach.
+
+        Note that precomputing weights is only helpful for ARD kernels
+        because of the much greater complexity of calculating the gradient
+        using FHT only."""
+        precomp_weights = []
+        #Currently the FHT-2d only operation is only implemented for
+        #CPU. Since the precompute weights operation is only performed
+        #once, it has not been a high priority for optimization.
+        #TODO: Add this for GPU, and transfer the operations under
+        #this function to C / Cuda code.
+        if self.device == "gpu":
+            self.radem_diag = cp.asnumpy(self.radem_diag)
+            self.chi_arr = cp.asnumpy(self.chi_arr)
+
+        norm_constant = np.log2(self.padded_dims) / 2.0
+        norm_constant = 1.0 / (2.0**norm_constant)
+
+        for i in range(self.nblocks):
+            ident_mat = np.eye(self.padded_dims)
+            ident_mat *= self.radem_diag[0:1,i,:] * norm_constant
+            dFHT2d(ident_mat, self.num_threads)
+            ident_mat *= self.radem_diag[1:2,i,:] * norm_constant
+            dFHT2d(ident_mat, self.num_threads)
+            ident_mat *= self.radem_diag[2:3,i,:] * norm_constant
+            dFHT2d(ident_mat, self.num_threads)
+            ident_mat *= self.chi_arr[i*self.padded_dims:
+                    (i+1)*self.padded_dims]
+            precomp_weights.append(ident_mat.T[:,:self.xdim[-1]])
+
+        self.precomputed_weights = np.vstack(precomp_weights)[:self.num_freqs,:]
+        if not self.double_precision:
+            self.precomputed_weights = self.precomputed_weights.astype(np.float32)
+
+        self.precomputed_weights = np.ascontiguousarray(self.precomputed_weights)
+        if self.device == "gpu":
+            self.radem_diag = cp.asarray(self.radem_diag)
+            self.precomputed_weights = cp.asarray(self.precomputed_weights)
+            self.chi_arr = cp.asarray(self.chi_arr)
+
 
     def kernel_specific_gradient(self, input_x):
         """Since all kernels share the beta and lambda hyperparameters,
@@ -223,37 +274,15 @@ class MiniARD(KernelBaseclass):
             dz_dsigma: A cupy or numpy array containing the derivative of
                 output_x with respect to the kernel-specific hyperparameters.
         """
-        #TODO: The gradient calculation as implemented here is inefficient.
-        #We can make it much more efficient, especially for cases where
-        #we just want the derivative @ a vector. Rewrite this.
-        dz_dsigma = self.empty((input_x.shape[0], self.num_rffs,
-                    self.split_pts.shape[0] - 1), dtype = self.dtype)
-        x_sorf = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
-                            dtype = self.dtype)
-        x_sorf[:,:,:self.xdim[1]] = (input_x * self.full_ard_weights[None,:])[:,None,:]
-
-        self.sorf_transform(x_sorf, self.radem_diag, self.num_threads)
-        x_feat = x_sorf.reshape((x_sorf.shape[0], x_sorf.shape[1] *
-                        x_sorf.shape[2]))[:,:self.num_freqs]
-        x_feat *= self.chi_arr[None,:]
-
-        xtrans = self.empty((x_sorf.shape[0], self.num_rffs), self.out_type)
-        xtrans[:,:self.num_freqs] = self.cosfunc(x_feat)
-        xtrans[:,self.num_freqs:] = self.sinfunc(x_feat)
-
-        for i in range(1, self.split_pts.shape[0]):
-            x_sorf[:] = 0
-            x_sorf[:, :, self.split_pts[i-1]:self.split_pts[i]] = \
-                    input_x[:,None,self.split_pts[i-1]:self.split_pts[i]]
-            self.sorf_transform(x_sorf, self.radem_diag, self.num_threads)
-            x_feat[:] = x_sorf.reshape((x_sorf.shape[0], x_sorf.shape[1] *
-                        x_sorf.shape[2]))[:,:self.num_freqs]
-            x_feat *= self.chi_arr[None,:]
-            dz_dsigma[:,:self.num_freqs, i - 1] = \
-                    -xtrans[:,self.num_freqs:] * x_feat
-            dz_dsigma[:,self.num_freqs:, i - 1] = \
-                    xtrans[:,:self.num_freqs] * x_feat
-
-        xtrans *= (self.hyperparams[1] * np.sqrt(2 / self.num_rffs))
-        dz_dsigma *= (self.hyperparams[1] * np.sqrt(2 / self.num_rffs))
+        if self.precomputed_weights is None:
+            self.precompute_weights()
+        xtrans = self.transform_x(input_x)
+        x_retyped = self.zero_arr(input_x.shape, dtype = self.dtype)
+        x_retyped[:] = input_x
+        import pdb
+        pdb.set_trace()
+        dz_dsigma = self.grad_fun(x_retyped, xtrans, self.precomputed_weights,
+                        self.ard_position_key, self.num_threads)
+        import pdb
+        pdb.set_trace()
         return xtrans, dz_dsigma

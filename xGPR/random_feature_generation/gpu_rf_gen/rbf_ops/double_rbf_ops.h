@@ -13,4 +13,9 @@ const char *doubleRBFFeatureGrad(double *cArray, int8_t *radem,
                 double sigma, int dim0, int dim1, int dim2,
                 int numFreqs);
 
+const char *ardCudaDoubleGrad(double *inputX, double *randomFeats,
+                double *precompWeights, int32_t *sigmaMap,
+                double *gradient, int dim0, int dim1,
+                int numLengthscales, int numFreqs);
+
 #endif

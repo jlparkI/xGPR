@@ -13,7 +13,7 @@ from libc cimport stdint
 import cupy as cp
 from libc.stdint cimport uintptr_t
 import math
-from libc.stdint cimport int8_t
+from libc.stdint cimport int8_t, int32_t
 
 
 
@@ -28,6 +28,10 @@ cdef extern from "rbf_ops/double_rbf_ops.h" nogil:
                 double *gradientArray, double rbfNormConstant,
                 double sigma, int dim0, int dim1, int dim2,
                 int numFreqs);
+    const char *ardCudaDoubleGrad(double *inputX, double *randomFeats,
+                double *precompWeights, int32_t *sigmaMap,
+                double *gradient, int dim0, int dim1,
+                int numLengthscales, int numFreqs);
 
 cdef extern from "rbf_ops/float_rbf_ops.h" nogil:
     const char *floatRBFFeatureGen(float *cArray, int8_t *radem,
@@ -40,6 +44,10 @@ cdef extern from "rbf_ops/float_rbf_ops.h" nogil:
                 double *gradientArray, double rbfNormConstant,
                 float sigma, int dim0, int dim1, int dim2,
                 int numFreqs);
+    const char *ardCudaFloatGrad(float *inputX, double *randomFeats,
+                float *precompWeights, int32_t *sigmaMap,
+                double *gradient, int dim0, int dim1,
+                int numLengthscales, int numFreqs);
 
 
 @cython.boundscheck(False)
@@ -372,4 +380,163 @@ def floatCudaRBFGrad(inputArray, outputArray, radem,
                 inputArray.shape[2], chiArr.shape[0]);
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered in doubleCudaRBFFeatureGen.")
+    return gradient
+
+
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def doubleCudaMiniARDGrad(inputX, randomFeats, precompWeights,
+                sigmaMap, int numThreads):
+    """Performs gradient calculations for the MiniARD kernel, using
+    pregenerated features and precomputed weights.
+
+    Args:
+        inputX (np.ndarray): The original input data.
+        randomFeats (np.ndarray): The random features generated using the FHT-
+            based procedure.
+        precompWeights (np.ndarray): The FHT-rf gen procedure applied to an
+            identity matrix.
+        sigmaMap (np.ndarray): An array mapping which lengthscales correspond
+            to which positions in the input.
+        numThreads (int): Number of threads to run.
+
+    Raises:
+        ValueError: A ValueError is raised if unexpected or unacceptable inputs
+            are supplied.
+
+    Returns:
+        gradient (np.ndarray): An array of shape (N x 2 * numFreqs x 1) containing
+            the gradient w/r/t sigma.
+    """
+    cdef const char *errCode
+    cdef float logdim
+    cdef double rbfNormConstant
+    cdef int numLengthscales = sigmaMap.max() + 1
+    gradient = cp.zeros((randomFeats.shape[0],
+                        randomFeats.shape[1], numLengthscales))
+
+    if len(inputX.shape) != 2 or len(randomFeats.shape) != 2 or \
+            len(precompWeights.shape) != 2 or len(sigmaMap.shape) != 1:
+        raise ValueError("The input arrays to a wrapped RBF feature gen function have incorrect "
+                "shapes.")
+
+    if inputX.shape[0] == 0:
+        raise ValueError("There must be at least one datapoint.")
+    if inputX.shape[0] != randomFeats.shape[0] or precompWeights.shape[1] != inputX.shape[1]:
+        raise ValueError("Incorrect array dims passed to a wrapped RBF "
+                    "feature gen function.")
+    if randomFeats.shape[1] != 2 * precompWeights.shape[0] or sigmaMap.shape[0] != precompWeights.shape[1]:
+        raise ValueError("Incorrect array dims passed to a wrapped RBF "
+                    "feature gen function.")
+
+    if not inputX.flags["C_CONTIGUOUS"] or not randomFeats.flags["C_CONTIGUOUS"] or not \
+            precompWeights.flags["C_CONTIGUOUS"] or not sigmaMap.flags["C_CONTIGUOUS"]:
+        raise ValueError("One or more arguments to a wrapped RBF feature gen function is not "
+                "C contiguous.")
+
+    if not inputX.dtype == "float64" or not precompWeights.dtype == "float64" or \
+            not randomFeats.dtype == "float64" or not sigmaMap.dtype == "int32":
+        raise ValueError("The input arrays to a wrapped RBF feature gen function have incorrect "
+                "types.")
+    
+    cdef uintptr_t addr_input = inputX.data.ptr
+    cdef double *inputX_ptr = <double*>addr_input
+    cdef uintptr_t addr_random_feats = randomFeats.data.ptr
+    cdef double *randomFeats_ptr = <double*>addr_random_feats
+
+    cdef uintptr_t addr_sigma_map = sigmaMap.data.ptr
+    cdef int32_t *sigmaMap_ptr = <int32_t*>addr_sigma_map
+    cdef uintptr_t addr_grad = gradient.data.ptr
+    cdef double *gradient_ptr = <double*>addr_grad
+    cdef uintptr_t addr_precomp_weights = precompWeights.data.ptr
+    cdef double *precompWeights_ptr = <double*>addr_precomp_weights
+
+    errCode = ardCudaDoubleGrad(inputX_ptr, randomFeats_ptr,
+                precompWeights_ptr, sigmaMap_ptr, gradient_ptr,
+                inputX.shape[0], inputX.shape[1],
+                gradient.shape[2], precompWeights.shape[0])
+    if errCode.decode("UTF-8") != "no_error":
+        raise Exception("Fatal error encountered in RBF feature gen.")
+    return gradient
+
+
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def floatCudaMiniARDGrad(inputX, randomFeats, precompWeights,
+                sigmaMap, int numThreads):
+    """Performs gradient calculations for the MiniARD kernel, using
+    pregenerated features and precomputed weights.
+
+    Args:
+        inputX (np.ndarray): The original input data.
+        randomFeats (np.ndarray): The random features generated using the FHT-
+            based procedure.
+        precompWeights (np.ndarray): The FHT-rf gen procedure applied to an
+            identity matrix.
+        sigmaMap (np.ndarray): An array mapping which lengthscales correspond
+            to which positions in the input.
+        numThreads (int): Number of threads to run.
+
+    Raises:
+        ValueError: A ValueError is raised if unexpected or unacceptable inputs
+            are supplied.
+
+    Returns:
+        gradient (np.ndarray): An array of shape (N x 2 * numFreqs x 1) containing
+            the gradient w/r/t sigma.
+    """
+    cdef const char *errCode
+    cdef float logdim
+    cdef double rbfNormConstant
+    cdef int numLengthscales = sigmaMap.max() + 1
+    gradient = cp.zeros((randomFeats.shape[0],
+                        randomFeats.shape[1], numLengthscales))
+
+    if len(inputX.shape) != 2 or len(randomFeats.shape) != 2 or \
+            len(precompWeights.shape) != 2 or len(sigmaMap.shape) != 1:
+        raise ValueError("The input arrays to a wrapped RBF feature gen function have incorrect "
+                "shapes.")
+
+    if inputX.shape[0] == 0:
+        raise ValueError("There must be at least one datapoint.")
+    if inputX.shape[0] != randomFeats.shape[0] or precompWeights.shape[1] != inputX.shape[1]:
+        raise ValueError("Incorrect array dims passed to a wrapped RBF "
+                    "feature gen function.")
+    if randomFeats.shape[1] != 2 * precompWeights.shape[0] or sigmaMap.shape[0] != precompWeights.shape[1]:
+        raise ValueError("Incorrect array dims passed to a wrapped RBF "
+                    "feature gen function.")
+
+    if not inputX.flags["C_CONTIGUOUS"] or not randomFeats.flags["C_CONTIGUOUS"] or not \
+            precompWeights.flags["C_CONTIGUOUS"] or not sigmaMap.flags["C_CONTIGUOUS"]:
+        raise ValueError("One or more arguments to a wrapped RBF feature gen function is not "
+                "C contiguous.")
+
+    if not inputX.dtype == "float32" or not precompWeights.dtype == "float32" or \
+            not randomFeats.dtype == "float64" or not sigmaMap.dtype == "int32":
+        raise ValueError("The input arrays to a wrapped RBF feature gen function have incorrect "
+                "types.")
+
+    cdef uintptr_t addr_input = inputX.data.ptr
+    cdef float *inputX_ptr = <float*>addr_input
+    cdef uintptr_t addr_random_feats = randomFeats.data.ptr
+    cdef double *randomFeats_ptr = <double*>addr_random_feats
+
+    cdef uintptr_t addr_sigma_map = sigmaMap.data.ptr
+    cdef int32_t *sigmaMap_ptr = <int32_t*>addr_sigma_map
+    cdef uintptr_t addr_grad = gradient.data.ptr
+    cdef double *gradient_ptr = <double*>addr_grad
+    cdef uintptr_t addr_precomp_weights = precompWeights.data.ptr
+    cdef float *precompWeights_ptr = <float*>addr_precomp_weights
+
+    errCode = ardCudaFloatGrad(inputX_ptr, randomFeats_ptr,
+                precompWeights_ptr, sigmaMap_ptr, gradient_ptr,
+                inputX.shape[0], inputX.shape[1],
+                gradient.shape[2], precompWeights.shape[0])
+
+    if errCode.decode("UTF-8") != "no_error":
+        raise Exception("Fatal error encountered in RBF feature gen.")
     return gradient

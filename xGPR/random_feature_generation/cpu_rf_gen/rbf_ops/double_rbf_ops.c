@@ -16,21 +16,32 @@
  * AND generates the gradient info (stored in a separate array). For non-ARD
  * kernels only.
  *
+ * + ardDoubleGrad_
+ * Performs gradient calculations ONLY for an ARD kernel for which features have
+ * already been generated (e.g. using rbfFeatureGen functions).
+ *
  * + ThreadRBFGenDouble
  * Performs operations for a single thread of the feature generation operation.
  *
  * + ThreadRBFDoubleGrad
  * Performs operations for a single thread of the gradient / feature operation.
  * 
+ * + ThreadARDDoubleGrad
+ * Performs operations for a single thread of the ARD gradient-only calculation.
+ *
  * + rbfDoubleFeatureGenLastStep_
  * Performs the final operations involved in the feature generation for doubles.
  *
  * + rbfDoubleGradLastStep_
  * Performs the final operations involved in feature / gradient calc for doubles.
+ *
+ * + ardDoubleGradCalcs
+ * Performs the key operations involved in gradient-only calc for ARD.
  */
 #include <Python.h>
 #include <numpy/arrayobject.h>
 #include <pthread.h>
+#include <stdint.h>
 #include <math.h>
 #include "double_rbf_ops.h"
 #include "../float_array_operations.h"
@@ -216,6 +227,84 @@ const char *rbfDoubleGrad_(double *cArray, int8_t *radem,
 
 
 
+/*!
+ * # ardDoubleGrad_
+ *
+ * Performs gradient-only calculations for the mini ARD kernel.
+ *
+ * ## Args:
+ *
+ * + `inputX` Pointer to the first element of the raw input data,
+ * an (N x D) array.
+ * + `randomFeatures` Pointer to first element of the array containing
+ * the pregenerated features, an (N x 2 * C) array.
+ * + `precompWeights` Pointer to first element of the array containing
+ * the precomputed weights, a (C x D) array.
+ * + `sigmaMap` Pointer to first element of the array containing a mapping
+ * from positions to lengthscales, a (D) array.
+ * + `gradient` Pointer to first element of the array in which the gradient
+ * will be stored, an (N x 2 * C) array.
+ * + `dim0` shape[0] of input X
+ * + `dim1` shape[1] of input X
+ * + `numLengthscales` shape[2] of gradient
+ * + `numFreqs` shape[0] of precompWeights
+ * + `numThreads` The number of threads to use.
+ */
+const char *ardDoubleGrad_(double *inputX, double *randomFeatures,
+        double *precompWeights, int32_t *sigmaMap, double *gradient,
+        int dim0, int dim1, int numLengthscales,
+        int numFreqs, int numThreads){
+    if (numThreads > dim0)
+        numThreads = dim0;
+
+    struct ThreadARDDoubleGradArgs *th_args = malloc(numThreads * sizeof(struct ThreadARDDoubleGradArgs));
+    if (th_args == NULL){
+        PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful!");
+        return "error";
+    }
+    int i, threadFlags[numThreads];
+    int iret[numThreads];
+    void *retval[numThreads];
+    pthread_t thread_id[numThreads];
+    
+    int chunkSize = (dim0 + numThreads - 1) / numThreads;
+
+    for (i=0; i < numThreads; i++){
+        th_args[i].startPosition = i * chunkSize;
+        th_args[i].endPosition = (i + 1) * chunkSize;
+        if (th_args[i].endPosition > dim0)
+            th_args[i].endPosition = dim0;
+        th_args[i].inputX = inputX;
+        th_args[i].dim1 = dim1;
+        th_args[i].precompWeights = precompWeights;
+        th_args[i].randomFeats = randomFeatures;
+        th_args[i].gradientArray = gradient;
+        th_args[i].sigmaMap = sigmaMap;
+        th_args[i].numFreqs = numFreqs;
+        th_args[i].numLengthscales = numLengthscales;
+    }
+    
+    for (i=0; i < numThreads; i++){
+        iret[i] = pthread_create(&thread_id[i], NULL, ThreadARDDoubleGrad, &th_args[i]);
+        if (iret[i]){
+            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            return "error";
+        }
+    }
+    for (i=0; i < numThreads; i++)
+        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
+    
+    for (i=0; i < numThreads; i++){
+        if (threadFlags[i] != 0){
+            free(th_args);
+            return "error";
+        }
+    }
+    free(th_args);
+    return "no_error";
+}
+
+
 
 /*!
  * # ThreadRBFGenDouble
@@ -307,6 +396,28 @@ void *ThreadRBFDoubleGrad(void *rowArgs){
     return NULL;
 }
 
+
+/*!
+ * # ThreadARDDoubleGrad
+ *
+ * Performs ARD gradient-only calculations using pregenerated
+ * features and weights.
+ *
+ * ## Args:
+ *
+ * + `rowArgs` a void pointer to a ThreadARDGradArgs struct.
+ * Contains all the arrays and info (e.g. startRow, endRow) needed
+ * to process the chunk of the array belonging to this thread.
+ */
+void *ThreadARDDoubleGrad(void *rowArgs){
+    struct ThreadARDDoubleGradArgs *thArgs = (struct ThreadARDDoubleGradArgs *)rowArgs;
+    ardDoubleGradCalcs_(thArgs->inputX, thArgs->randomFeats,
+                    thArgs->precompWeights, thArgs->sigmaMap,
+                    thArgs->gradientArray, thArgs->startPosition,
+                    thArgs->endPosition, thArgs->dim1,
+                    thArgs->numLengthscales, thArgs->numFreqs);
+    return NULL;
+}
 
 
 
@@ -400,5 +511,74 @@ void rbfDoubleGradLastStep_(double *xArray, double *chiArray,
             gradientElement++;
             xElement++;
         }
+    }
+}
+
+
+
+
+/*!
+ * # ardDoubleGradCalcs_
+ *
+ * Performs the key calculations for the miniARD gradient.
+ *
+ * ## Args:
+ *
+ * + `inputX` Pointer to the first element of the input array.
+ * + `randomFeatures` Pointer to first element of random feature array.
+ * + `precompWeights` Pointer to first element of precomputed weights.
+ * + `sigmaMap` Pointer to first element of the array containing a
+ * mapping from positions to lengthscales.
+ * + `gradient` Pointer to the output array.
+ * + `startRow` The starting row for this thread to work on.
+ * + `endRow` The ending row for this thread to work on.
+ * + `dim1` shape[1] of input array
+ * + `numLengthscales` shape[2] of gradient
+ * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
+ */
+void ardDoubleGradCalcs_(double *inputX, double *randomFeatures,
+        double *precompWeights, int32_t *sigmaMap, double *gradient,
+        int startRow, int endRow, int dim1, int numLengthscales,
+        int numFreqs){
+    int i, j, k, gradPosition, currentLscale;
+    int gradIncrement = numFreqs * numLengthscales;
+    int gradRowSize = 2 * gradIncrement;
+    double *xElement, *precompWeight;
+    double *gradientElement, *randomFeature, gradVal;
+
+    xElement = inputX + startRow * dim1;
+    gradPosition = startRow * gradRowSize;
+
+    for (i=startRow; i < endRow; i++){
+        precompWeight = precompWeights;
+
+        for (j=0; j < numFreqs; j++){
+            for (k=0; k < dim1; k++){
+                currentLscale = sigmaMap[k] + gradPosition;
+                gradVal = xElement[k] * *precompWeight;
+                gradient[currentLscale] += gradVal;
+                gradient[currentLscale + gradIncrement] -= gradVal;
+                precompWeight++;
+            }
+            gradPosition += numLengthscales;
+        }
+        xElement += dim1;
+        gradPosition += gradIncrement;
+    }
+
+    gradientElement = gradient + startRow * gradRowSize;
+    randomFeature = randomFeatures + startRow * 2 * numFreqs;
+
+    for (i=startRow; i < endRow; i++){
+        for (j=0; j < numFreqs; j++){
+            for (k=0; k < numLengthscales; k++){
+                *gradientElement *= randomFeature[numFreqs];
+                gradientElement[gradIncrement] *= *randomFeature;
+                gradientElement++;
+            }
+            randomFeature++;
+        }
+        gradientElement += gradIncrement;
+        randomFeature += numFreqs;
     }
 }

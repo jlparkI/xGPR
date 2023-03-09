@@ -34,6 +34,19 @@ struct ThreadRBFDoubleGradArgs {
 };
 
 
+struct ThreadARDDoubleGradArgs {
+    int dim1;
+    double *inputX;
+    double *precompWeights;
+    double *randomFeats;
+    double *gradientArray;
+    int32_t *sigmaMap;
+    int startPosition, endPosition;
+    int numFreqs;
+    int numLengthscales;
+};
+
+
 const char *rbfFeatureGenDouble_(double *cArray, int8_t *radem,
                 double *chiArr, double *outputArray,
                 double rbfNormConstant,
@@ -47,9 +60,15 @@ const char *rbfDoubleGrad_(double *cArray, int8_t *radem,
                 int dim0, int dim1, int dim2,
                 int numFreqs, int numThreads);
 
+const char *ardDoubleGrad_(double *inputX, double *randomFeatures,
+        double *precompWeights, int32_t *sigmaMap, double *gradient,
+        int dim0, int dim1, int numLengthscales,
+        int numFreqs, int numThreads);
+
 
 void *ThreadRBFGenDouble(void *rowArgs);
 void *ThreadRBFDoubleGrad(void *rowArgs);
+void *ThreadARDDoubleGrad(void *rowArgs);
 
 
 void rbfDoubleFeatureGenLastStep_(double *xArray, double *chiArray,
@@ -62,5 +81,10 @@ void rbfDoubleGradLastStep_(double *xArray, double *chiArray,
         double normConstant, double sigma,
         int startRow, int endRow, int dim1,
         int dim2, int numFreqs);
+
+void ardDoubleGradCalcs_(double *inputX, double *randomFeatures,
+        double *precompWeights, int32_t *sigmaMap, double *gradient,
+        int startRow, int endRow, int dim1, int numLengthscales,
+        int numFreqs);
 
 #endif

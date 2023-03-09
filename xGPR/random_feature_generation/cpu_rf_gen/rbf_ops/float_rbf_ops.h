@@ -33,6 +33,19 @@ struct ThreadRBFFloatGradArgs {
     float sigma;
 };
 
+
+struct ThreadARDFloatGradArgs {
+    int dim1;
+    float *inputX;
+    float *precompWeights;
+    double *randomFeats;
+    double *gradientArray;
+    int32_t *sigmaMap;
+    int startPosition, endPosition;
+    int numFreqs;
+    int numLengthscales;
+};
+
 const char *rbfFeatureGenFloat_(float *cArray, int8_t *radem,
                 float *chiArr, double *outputArray,
                 double rbfNormConstant,
@@ -46,9 +59,15 @@ const char *rbfFloatGrad_(float *cArray, int8_t *radem,
                 int dim0, int dim1, int dim2,
                 int numFreqs, int numThreads);
 
+const char *ardFloatGrad_(float *inputX, double *randomFeatures,
+        float *precompWeights, int32_t *sigmaMap, double *gradient,
+        int dim0, int dim1, int numLengthscales,
+        int numFreqs, int numThreads);
+
 
 void *ThreadRBFGenFloat(void *rowArgs);
 void *ThreadRBFFloatGrad(void *rowArgs);
+void *ThreadARDFloatGrad(void *rowArgs);
 
 
 void rbfFloatFeatureGenLastStep_(float *xArray, float *chiArray,
@@ -61,5 +80,10 @@ void rbfFloatGradLastStep_(float *xArray, float *chiArray,
         double normConstant, float sigma,
         int startRow, int endRow, int dim1,
         int dim2, int numFreqs);
+
+void ardFloatGradCalcs_(float *inputX, double *randomFeatures,
+        float *precompWeights, int32_t *sigmaMap, double *gradient,
+        int startRow, int endRow, int dim1, int numLengthscales,
+        int numFreqs);
 
 #endif

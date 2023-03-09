@@ -19,6 +19,26 @@
 #define MAX_BASE_LEVEL_TRANSFORM 1024
 
 
+
+//Performs an elementwise multiplication of a [c,M,P] array against the
+//[N,M,P] input array or a [P] array against the [N,P] input array.
+//Note that the last dimensions of these must be the
+//same, and this function does not check this -- caller must check. Note that
+//we mutiiply by the Hadamard normalization constant here.
+__global__ void floatSpecMultByDiagRademMat(float *cArray, int8_t *rademArray,
+			int numElementsPerRow, int numElements, float normConstant)
+{
+    int j = blockDim.x * blockIdx.x + threadIdx.x;
+    int rVal, position;
+    
+    position = j % numElementsPerRow;
+    rVal = rademArray[position];
+    if (j < numElements)
+        cArray[j] = cArray[j] * rVal * normConstant;
+}
+
+
+
 //Performs the last step in the random feature generation for the
 //RBF / MiniARD kernels.
 __global__ void rbfFeatureGenLastStepFloats(float *cArray, double *outputArray,
@@ -72,22 +92,70 @@ __global__ void rbfGradLastStepFloats(float *cArray, double *outputArray,
 
 
 
-//Performs an elementwise multiplication of a [c,M,P] array against the
-//[N,M,P] input array or a [P] array against the [N,P] input array.
-//Note that the last dimensions of these must be the
-//same, and this function does not check this -- caller must check. Note that
-//we mutiiply by the Hadamard normalization constant here.
-__global__ void floatSpecMultByDiagRademMat(float *cArray, int8_t *rademArray,
-			int numElementsPerRow, int numElements, float normConstant)
-{
+//Performs the first piece of the gradient calculation for ARD kernels
+//only -- multiplying the input data by the precomputed weight matrix
+//and summing over rows that correspond to specific lengthscales.
+__global__ void ardFloatGradSetup(double *gradientArray,
+        float *precomputedWeights, float *inputX, int32_t *sigmaMap,
+        int dim1, int numSetupElements, int gradIncrement,
+        int numFreqs, int numLengthscales){
+
+    int i, sigmaLoc;
     int j = blockDim.x * blockIdx.x + threadIdx.x;
-    int rVal, position;
-    
-    position = j % numElementsPerRow;
-    rVal = rademArray[position];
-    if (j < numElements)
-        cArray[j] = cArray[j] * rVal * normConstant;
+    //TODO: We are using multiple mod & integer divisions here --
+    //find a more efficient way to implement this, mod and integer
+    //division are expensive on GPU. Unfortunately these #s are not
+    //necessarily powers of 2 in the current implementation.
+    int precompWRow = (j % numFreqs);
+    int gradRow = (j / numFreqs) / numFreqs;
+
+    float *precompWElement = precomputedWeights + precompWRow * dim1;
+    float *inputXElement = inputX + gradRow * dim1;
+    double *gradientElement = gradientArray + (gradRow * numFreqs + precompWRow) * numLengthscales;
+    float outVal;
+
+    if (j < numSetupElements){
+        for (i=0; i < dim1; i++){
+            sigmaLoc = sigmaMap[i];
+            outVal = precompWElement[i] * inputXElement[i];
+            gradientElement[sigmaLoc] -= outVal;
+            gradientElement[sigmaLoc + gradIncrement] += outVal;
+        }
+    }
 }
+
+
+
+
+
+//Multiplies the gradient array by the appropriate elements of the random
+//feature array when calculating the gradient for ARD kernels only.
+__global__ void ardFloatGradRFMultiply(double *gradientArray, double *randomFeats,
+        int numRFElements, int numFreqs, int gradIncrement,
+        int numLengthscales)
+{
+    int i;
+    int j = blockDim.x * blockIdx.x + threadIdx.x;
+    int rowNum = j / numFreqs, colNum = j % numFreqs;
+    int gradPosition = rowNum * gradIncrement * 2;
+    int rfPosition = rowNum * numFreqs * 2 + colNum;
+    double rfVal, rfOffsetVal;
+    
+
+    if (j < numRFElements){
+        rfVal = -randomFeats[rfPosition];
+        rfOffsetVal = randomFeats[rfPosition + numFreqs];
+
+        for (i=0; i < numLengthscales; i++)
+            gradientArray[gradPosition + i] *= rfOffsetVal;
+
+        gradPosition += gradIncrement;
+        for (i=0; i < numLengthscales; i++)
+            gradientArray[gradPosition + i] *= rfVal;
+    }
+}
+
+
 
 
 //This function generates random features for RBF / ARD kernels, if the
@@ -185,5 +253,34 @@ const char *floatRBFFeatureGrad(float *cArray, int8_t *radem,
                     numElementsPerRow, numOutputElements, rbfNormConstant);
 
     //cudaProfilerStop();
+    return "no_error";
+}
+
+
+
+//This function generates the gradient ONLY for ARD ONLY,
+//using random features that have already been generated
+//and precomputed weights that take the place of the H-transforms
+//we would otherwise need to perform.
+const char *ardCudaFloatGrad(float *inputX, double *randomFeats,
+                float *precompWeights, int32_t *sigmaMap,
+                double *gradient, int dim0, int dim1,
+                int numLengthscales, int numFreqs){
+
+    int numRFElements = dim0 * numFreqs;
+    int gradIncrement = numFreqs * numLengthscales;
+    int numPrecompW = dim1 * numFreqs;
+    int numSetupElements = numPrecompW;
+    int blocksPerGrid;
+
+
+    blocksPerGrid = (numSetupElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
+    ardFloatGradSetup<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(gradient, precompWeights, inputX,
+            sigmaMap, dim1, numSetupElements, gradIncrement, numFreqs, numLengthscales);
+
+    blocksPerGrid = (numRFElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
+    ardFloatGradRFMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(gradient, randomFeats,
+                numRFElements, numFreqs, gradIncrement, numLengthscales);
+
     return "no_error";
 }
