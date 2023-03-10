@@ -97,30 +97,31 @@ __global__ void rbfGradLastStepFloats(float *cArray, double *outputArray,
 //and summing over rows that correspond to specific lengthscales.
 __global__ void ardFloatGradSetup(double *gradientArray,
         float *precomputedWeights, float *inputX, int32_t *sigmaMap,
-        int dim1, int numSetupElements, int gradIncrement,
-        int numFreqs, int numLengthscales){
+        double *sigmaVals, double *randomFeatures,
+        int dim1, int numSetupElements,
+        int gradIncrement, int numFreqs,
+        int numLengthscales){
 
     int i, sigmaLoc;
     int j = blockDim.x * blockIdx.x + threadIdx.x;
-    //TODO: We are using multiple mod & integer divisions here --
-    //find a more efficient way to implement this, mod and integer
-    //division are expensive on GPU. Unfortunately these #s are not
-    //necessarily powers of 2 in the current implementation.
     int precompWRow = (j % numFreqs);
-    int gradRow = (j / numFreqs) / numFreqs;
+    int gradRow = j / numFreqs;
 
     float *precompWElement = precomputedWeights + precompWRow * dim1;
     float *inputXElement = inputX + gradRow * dim1;
-    double *gradientElement = gradientArray + (gradRow * numFreqs + precompWRow) * numLengthscales;
+    double *gradientElement = gradientArray + (gradRow * numFreqs * 2 + precompWRow) * numLengthscales;
+    double *randomFeature = randomFeatures + gradRow * numFreqs * 2 + precompWRow;
+    double rfVal = 0;
     float outVal;
 
     if (j < numSetupElements){
         for (i=0; i < dim1; i++){
             sigmaLoc = sigmaMap[i];
             outVal = precompWElement[i] * inputXElement[i];
-            gradientElement[sigmaLoc] -= outVal;
-            gradientElement[sigmaLoc + gradIncrement] += outVal;
+            gradientElement[sigmaLoc] += outVal;
+            rfVal += sigmaVals[i] * outVal;
         }
+        *randomFeature = rfVal;
     }
 }
 
@@ -132,26 +133,27 @@ __global__ void ardFloatGradSetup(double *gradientArray,
 //feature array when calculating the gradient for ARD kernels only.
 __global__ void ardFloatGradRFMultiply(double *gradientArray, double *randomFeats,
         int numRFElements, int numFreqs, int gradIncrement,
-        int numLengthscales)
-{
+        int numLengthscales, double rbfNormConstant){
     int i;
     int j = blockDim.x * blockIdx.x + threadIdx.x;
     int rowNum = j / numFreqs, colNum = j % numFreqs;
-    int gradPosition = rowNum * gradIncrement * 2;
+    int gradPosition = rowNum * gradIncrement * 2 + colNum * numLengthscales;
     int rfPosition = rowNum * numFreqs * 2 + colNum;
-    double rfVal, rfOffsetVal;
+    double rfVal, cosVal, sinVal;
     
 
     if (j < numRFElements){
-        rfVal = -randomFeats[rfPosition];
-        rfOffsetVal = randomFeats[rfPosition + numFreqs];
+        rfVal = randomFeats[rfPosition];
+        cosVal = cos(rfVal) * rbfNormConstant;
+        sinVal = sin(rfVal) * rbfNormConstant;
+        randomFeats[rfPosition] = cosVal;
+        randomFeats[rfPosition + numFreqs] = sinVal;
 
-        for (i=0; i < numLengthscales; i++)
-            gradientArray[gradPosition + i] *= rfOffsetVal;
-
-        gradPosition += gradIncrement;
-        for (i=0; i < numLengthscales; i++)
-            gradientArray[gradPosition + i] *= rfVal;
+        for (i=0; i < numLengthscales; i++){
+            rfVal = gradientArray[gradPosition + i];
+            gradientArray[gradPosition + i] = -rfVal * sinVal;
+            gradientArray[gradPosition + i + gradIncrement] = rfVal * cosVal;
+        }
     }
 }
 
@@ -264,23 +266,24 @@ const char *floatRBFFeatureGrad(float *cArray, int8_t *radem,
 //we would otherwise need to perform.
 const char *ardCudaFloatGrad(float *inputX, double *randomFeats,
                 float *precompWeights, int32_t *sigmaMap,
-                double *gradient, int dim0, int dim1,
-                int numLengthscales, int numFreqs){
+                double *sigmaVals, double *gradient, int dim0,
+                int dim1, int numLengthscales, int numFreqs,
+                double rbfNormConstant){
 
     int numRFElements = dim0 * numFreqs;
     int gradIncrement = numFreqs * numLengthscales;
-    int numPrecompW = dim1 * numFreqs;
-    int numSetupElements = numPrecompW;
+    int numSetupElements = dim0 * numFreqs;
     int blocksPerGrid;
 
 
     blocksPerGrid = (numSetupElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     ardFloatGradSetup<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(gradient, precompWeights, inputX,
-            sigmaMap, dim1, numSetupElements, gradIncrement, numFreqs, numLengthscales);
+            sigmaMap, sigmaVals, randomFeats, dim1, numSetupElements,
+            gradIncrement, numFreqs, numLengthscales);
 
     blocksPerGrid = (numRFElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     ardFloatGradRFMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(gradient, randomFeats,
-                numRFElements, numFreqs, gradIncrement, numLengthscales);
+                numRFElements, numFreqs, gradIncrement, numLengthscales, rbfNormConstant);
 
     return "no_error";
 }

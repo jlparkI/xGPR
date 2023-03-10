@@ -230,18 +230,23 @@ const char *rbfFloatGrad_(float *cArray, int8_t *radem,
  * the precomputed weights, a (C x D) array.
  * + `sigmaMap` Pointer to first element of the array containing a mapping
  * from positions to lengthscales, a (D) array.
+ * + `sigmaVals` Pointer to first element of shape (D) array containing the
+ * per-feature lengthscales.
  * + `gradient` Pointer to first element of the array in which the gradient
  * will be stored, an (N x 2 * C) array.
  * + `dim0` shape[0] of input X
  * + `dim1` shape[1] of input X
  * + `numLengthscales` shape[2] of gradient
  * + `numFreqs` shape[0] of precompWeights
+ * + `rbfNormConstant` A value by which all outputs are multipled.
+ * Should be beta hparam * sqrt(1 / numFreqs). Is calculated by
+ * caller.
  * + `numThreads` The number of threads to use.
  */
 const char *ardFloatGrad_(float *inputX, double *randomFeatures,
-        float *precompWeights, int32_t *sigmaMap, double *gradient,
-        int dim0, int dim1, int numLengthscales,
-        int numFreqs, int numThreads){
+        float *precompWeights, int32_t *sigmaMap, double *sigmaVals,
+        double *gradient, int dim0, int dim1, int numLengthscales,
+        int numFreqs, double rbfNormConstant, int numThreads){
     if (numThreads > dim0)
         numThreads = dim0;
 
@@ -268,8 +273,10 @@ const char *ardFloatGrad_(float *inputX, double *randomFeatures,
         th_args[i].randomFeats = randomFeatures;
         th_args[i].gradientArray = gradient;
         th_args[i].sigmaMap = sigmaMap;
+        th_args[i].sigmaVals = sigmaVals;
         th_args[i].numFreqs = numFreqs;
         th_args[i].numLengthscales = numLengthscales;
+        th_args[i].rbfNormConstant = rbfNormConstant;
     }
     
     for (i=0; i < numThreads; i++){
@@ -400,9 +407,12 @@ void *ThreadARDFloatGrad(void *rowArgs){
     struct ThreadARDFloatGradArgs *thArgs = (struct ThreadARDFloatGradArgs *)rowArgs;
     ardFloatGradCalcs_(thArgs->inputX, thArgs->randomFeats,
                     thArgs->precompWeights, thArgs->sigmaMap,
-                    thArgs->gradientArray, thArgs->startPosition,
+                    thArgs->sigmaVals, thArgs->gradientArray,
+                    thArgs->startPosition,
                     thArgs->endPosition, thArgs->dim1,
-                    thArgs->numLengthscales, thArgs->numFreqs);
+                    thArgs->numLengthscales,
+                    thArgs->rbfNormConstant,
+                    thArgs->numFreqs);
     return NULL;
 }
 
@@ -518,25 +528,33 @@ void rbfFloatGradLastStep_(float *xArray, float *chiArray,
  * + `precompWeights` Pointer to first element of precomputed weights.
  * + `sigmaMap` Pointer to first element of the array containing a
  * mapping from positions to lengthscales.
+ * + `sigmaVals` Pointer to first element of shape (D) array containing the
+ * per-feature lengthscales.
  * + `gradient` Pointer to the output array.
  * + `startRow` The starting row for this thread to work on.
  * + `endRow` The ending row for this thread to work on.
  * + `dim1` shape[1] of input array
  * + `numLengthscales` shape[2] of gradient
+ * + `rbfNormConstant` A value by which all outputs are multipled.
+ * Should be beta hparam * sqrt(1 / numFreqs). Is calculated by
+ * caller.
  * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
  */
 void ardFloatGradCalcs_(float *inputX, double *randomFeatures,
-        float *precompWeights, int32_t *sigmaMap, double *gradient,
-        int startRow, int endRow, int dim1, int numLengthscales,
+        float *precompWeights, int32_t *sigmaMap, double *sigmaVals,
+        double *gradient, int startRow, int endRow, int dim1,
+        int numLengthscales, double rbfNormConstant,
         int numFreqs){
     int i, j, k, gradPosition, currentLscale;
     int gradIncrement = numFreqs * numLengthscales;
     int gradRowSize = 2 * gradIncrement;
-    float *xElement, *precompWeight;
-    double *gradientElement, *randomFeature, gradVal;
+    float *xElement, *precompWeight, dotProd;
+    double *gradientElement, *randomFeature;
+    double gradVal, sinVal, cosVal;
 
     xElement = inputX + startRow * dim1;
     gradPosition = startRow * gradRowSize;
+    randomFeature = randomFeatures + startRow * numFreqs * 2;
 
     for (i=startRow; i < endRow; i++){
         precompWeight = precompWeights;
@@ -544,15 +562,17 @@ void ardFloatGradCalcs_(float *inputX, double *randomFeatures,
         for (j=0; j < numFreqs; j++){
             for (k=0; k < dim1; k++){
                 currentLscale = sigmaMap[k] + gradPosition;
-                gradVal = xElement[k] * *precompWeight;
-                gradient[currentLscale] += gradVal;
-                gradient[currentLscale + gradIncrement] -= gradVal;
+                dotProd = xElement[k] * *precompWeight;
+                gradient[currentLscale] += dotProd;
+                *randomFeature += sigmaVals[k] * dotProd;
                 precompWeight++;
             }
             gradPosition += numLengthscales;
+            randomFeature++;
         }
         xElement += dim1;
         gradPosition += gradIncrement;
+        randomFeature += numFreqs;
     }
 
     gradientElement = gradient + startRow * gradRowSize;
@@ -560,9 +580,15 @@ void ardFloatGradCalcs_(float *inputX, double *randomFeatures,
 
     for (i=startRow; i < endRow; i++){
         for (j=0; j < numFreqs; j++){
+            cosVal = cos(*randomFeature) * rbfNormConstant;
+            sinVal = sin(*randomFeature) * rbfNormConstant;
+            *randomFeature = cosVal;
+            randomFeature[numFreqs] = sinVal;
+
             for (k=0; k < numLengthscales; k++){
-                *gradientElement *= randomFeature[numFreqs];
-                gradientElement[gradIncrement] *= *randomFeature;
+                gradVal = *gradientElement;
+                *gradientElement = -sinVal * gradVal;
+                gradientElement[gradIncrement] = cosVal * gradVal;
                 gradientElement++;
             }
             randomFeature++;

@@ -173,7 +173,7 @@ class MiniARD(KernelBaseclass):
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
             if self.precomputed_weights is not None:
                 self.precomputed_weights = cp.asarray(self.precomputed_weights)
-            self.full_ard_weights = cp.asarray(self.full_ard_weights).astype(self.dtype)
+            self.full_ard_weights = cp.asarray(self.full_ard_weights)
             self.ard_position_key = cp.asarray(self.ard_position_key)
 
 
@@ -276,13 +276,10 @@ class MiniARD(KernelBaseclass):
         """
         if self.precomputed_weights is None:
             self.precompute_weights()
-        xtrans = self.transform_x(input_x)
         x_retyped = self.zero_arr(input_x.shape, dtype = self.dtype)
         x_retyped[:] = input_x
-        import pdb
-        pdb.set_trace()
+        xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         dz_dsigma = self.grad_fun(x_retyped, xtrans, self.precomputed_weights,
-                        self.ard_position_key, self.num_threads)
-        import pdb
-        pdb.set_trace()
+                self.ard_position_key, self.full_ard_weights,
+                self.hyperparams[1], self.num_threads)
         return xtrans, dz_dsigma
