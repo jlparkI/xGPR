@@ -8,6 +8,8 @@ import numpy as np
 from scipy.stats import chi
 from cpu_rbf_operations import doubleCpuRBFFeatureGen as dRBF
 from cpu_rbf_operations import floatCpuRBFFeatureGen as fRBF
+from cpu_rbf_operations import doubleCpuRBFGrad as dRBFGrad
+from cpu_rbf_operations import floatCpuRBFGrad as fRBFGrad
 
 from cpu_basic_operations import doubleCpuSORFTransform as dSORF
 from cpu_basic_operations import floatCpuSORFTransform as fSORF
@@ -15,6 +17,8 @@ from cpu_basic_operations import floatCpuSORFTransform as fSORF
 try:
     from cuda_rbf_operations import doubleCudaRBFFeatureGen as dCudaRBF
     from cuda_rbf_operations import floatCudaRBFFeatureGen as fCudaRBF
+    from cuda_rbf_operations import doubleCudaRBFGrad as dCudaRBFGrad
+    from cuda_rbf_operations import floatCudaRBFGrad as fCudaRBFGrad
     import cupy as cp
 except:
     pass
@@ -41,6 +45,21 @@ class TestRBFFeatureGen(unittest.TestCase):
         outcomes = run_rbf_test((512,856), 500, beta_value = 1.105)
         for outcome in outcomes:
             self.assertTrue(outcome)
+
+    def test_rbf_grad_calc(self):
+        """Tests RBF gradient calc for CPU and if available GPU."""
+        outcomes = run_rbf_grad_test((10,50), 2000, beta_value = 1.84)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        outcomes = run_rbf_grad_test((1000,232), 1000, beta_value = 0.606)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        outcomes = run_rbf_grad_test((512,856), 500, beta_value = 1.105)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
 
 def time_test():
     """Compare speed of the two variants."""
@@ -76,8 +95,8 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
     test_array, test_float, radem, \
             chi_arr, chi_float = setup_rbf_test(xdim, num_freqs, random_seed)
 
-    gt_double = generate_double_rbf_values(test_array, radem, chi_arr, beta_value)
-    gt_float = generate_float_rbf_values(test_float, radem, chi_float, beta_value)
+    gt_double, _ = generate_double_rbf_values(test_array, radem, chi_arr, beta_value)
+    gt_float, _ = generate_float_rbf_values(test_float, radem, chi_float, beta_value)
 
     temp_test = test_array.copy()
     double_output = np.zeros((test_array.shape[0], num_freqs * 2))
@@ -86,6 +105,7 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
     temp_test = test_float.copy()
     float_output = np.zeros((test_array.shape[0], num_freqs * 2))
     fRBF(temp_test, float_output, radem, chi_float, beta_value, 2)
+
 
     if "cupy" in sys.modules:
         cuda_test_array = cp.asarray(test_array)
@@ -118,6 +138,74 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
             f"{xdim}, {num_freqs}? {outcome_cuda_f}\n*******")
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f
     return outcome_d, outcome_f
+
+
+
+
+def run_rbf_grad_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
+    """A helper function that tests the Cython wrapper which both
+    generates RFs and calculates the gradient for specified input params."""
+
+    test_array, test_float, radem, \
+            chi_arr, chi_float = setup_rbf_test(xdim, num_freqs, random_seed)
+
+    gt_double, gt_double_grad = generate_double_rbf_values(test_array, radem, chi_arr, beta_value)
+    gt_float, gt_float_grad = generate_float_rbf_values(test_float, radem, chi_float, beta_value)
+
+    temp_test = test_array.copy()
+    double_output = np.zeros((test_array.shape[0], num_freqs * 2))
+    double_grad = dRBFGrad(temp_test, double_output, radem, chi_arr,
+            beta_value, sigmaHparam = 1.0, numThreads = 2)
+
+    temp_test = test_float.copy()
+    float_output = np.zeros((test_array.shape[0], num_freqs * 2))
+    float_grad = fRBFGrad(temp_test, float_output, radem, chi_float,
+            beta_value, sigmaHparam = 1.0, numThreads = 2)
+
+    if "cupy" in sys.modules:
+        cuda_test_array = cp.asarray(test_array)
+        cuda_test_float = cp.asarray(test_float)
+        radem = cp.asarray(radem)
+        chi_arr = cp.asarray(chi_arr)
+        chi_float = cp.asarray(chi_float)
+        cuda_double_output = cp.zeros((test_array.shape[0], num_freqs * 2))
+        cuda_float_output = cp.zeros((test_array.shape[0], num_freqs * 2))
+
+        cuda_double_grad = dCudaRBFGrad(cuda_test_array, cuda_double_output, radem,
+                chi_arr, beta_value, sigmaHparam = 1.0, numThreads = 2)
+        cuda_float_grad = fCudaRBFGrad(cuda_test_float, cuda_float_output, radem,
+                chi_float, beta_value, sigmaHparam = 1.0, numThreads = 2)
+
+    outcome_d = np.allclose(gt_double, double_output)
+    outcome_f = np.allclose(gt_float, float_output)
+    outcome_grad_d = np.allclose(gt_double_grad, double_grad)
+    outcome_grad_f = np.allclose(gt_float_grad, float_grad)
+    print("**********\nDid the Grad Calc C extension provide the correct result for RBF of "
+            f"{xdim}, {num_freqs}? {outcome_d}\n*******")
+    print("**********\nDid the Grad Calc C extension provide the correct result for RBF of "
+            f"{xdim}, {num_freqs}? {outcome_f}\n*******")
+    print("**********\nDid the Grad Calc C extension provide the correct result for the "
+            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_grad_d}\n*******")
+    print("**********\nDid the Grad Calc C extension provide the correct result for the "
+            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_grad_f}\n*******")
+
+    if "cupy" in sys.modules:
+        outcome_cuda_d = np.allclose(gt_double, cuda_double_output)
+        outcome_cuda_f = np.allclose(gt_float, cuda_float_output)
+        outcome_cuda_grad_d = np.allclose(gt_double_grad, cuda_double_grad)
+        outcome_cuda_grad_f = np.allclose(gt_float_grad, cuda_float_grad)
+        print("**********\nDid the cuda extension provide the correct result for RBF of "
+            f"{xdim}, {num_freqs}? {outcome_cuda_d}\n*******")
+        print("**********\nDid the cuda extension provide the correct result for RBF of "
+            f"{xdim}, {num_freqs}? {outcome_cuda_f}\n*******")
+        print("**********\nDid the Grad Calc cuda extension provide the correct result for the "
+            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_d}\n*******")
+        print("**********\nDid the Grad Calc cuda extension provide the correct result for the "
+            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_f}\n*******")
+        return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f, \
+                outcome_grad_d, outcome_grad_f, outcome_cuda_grad_d, \
+                outcome_cuda_grad_f
+    return outcome_d, outcome_f, outcome_grad_d, outcome_grad_f
 
 
 
@@ -159,7 +247,13 @@ def generate_double_rbf_values(test_array, radem, chi_arr, beta):
     xtrans[:,:chi_arr.shape[0]] = np.cos(pretrans_x)
     xtrans[:,chi_arr.shape[0]:] = np.sin(pretrans_x)
     xtrans *= (beta * np.sqrt(1 / chi_arr.shape[0]))
-    return xtrans
+
+    gradient = np.zeros((test_array.shape[0], chi_arr.shape[0] * 2, 1))
+    gradient[:,:chi_arr.shape[0],0] = -xtrans[:,chi_arr.shape[0]:] * \
+            pretrans_x
+    gradient[:,chi_arr.shape[0]:,0] = xtrans[:,:chi_arr.shape[0]] * \
+            pretrans_x
+    return xtrans, gradient
 
 
 def generate_float_rbf_values(test_array, radem, chi_arr, beta):
@@ -175,7 +269,13 @@ def generate_float_rbf_values(test_array, radem, chi_arr, beta):
     xtrans[:,:chi_arr.shape[0]] = np.cos(pretrans_x)
     xtrans[:,chi_arr.shape[0]:] = np.sin(pretrans_x)
     xtrans *= (beta * np.sqrt(1 / chi_arr.shape[0]))
-    return xtrans
+
+    gradient = np.zeros((test_array.shape[0], chi_arr.shape[0] * 2, 1))
+    gradient[:,:chi_arr.shape[0],0] = -xtrans[:,chi_arr.shape[0]:] * \
+            pretrans_x
+    gradient[:,chi_arr.shape[0]:,0] = xtrans[:,:chi_arr.shape[0]] * \
+            pretrans_x
+    return xtrans, gradient
 
 
 if __name__ == "__main__":
