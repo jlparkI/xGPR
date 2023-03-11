@@ -1,5 +1,5 @@
 """Wraps the C functions that generate features for RBF / Matern / ARD
-kernels and calculate gradients for RBF / Matern kernels.
+kernels and calculate gradients for the same.
 
 Also performs all of the bounds and safety checks needed to use these
 functions (the C functions do not do their own bounds checking). It

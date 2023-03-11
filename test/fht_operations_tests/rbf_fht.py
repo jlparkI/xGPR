@@ -61,32 +61,6 @@ class TestRBFFeatureGen(unittest.TestCase):
             self.assertTrue(outcome)
 
 
-def time_test():
-    """Compare speed of the two variants."""
-    ntests = 10
-    block_setup = f"""
-import numpy as np
-random_seed = 123
-from __main__ import setup_rbf_test
-_, test_float, radem, _, chi_float = setup_rbf_test((1000,512), 2000, 123)
-from __main__ import generate_float_rbf_values
-"""
-    time_taken = timeit.timeit("generate_float_rbf_values(test_float, radem, chi_float, 1.0)", setup=block_setup,
-                number=ntests)
-    print(f"Time for old variant: {1e6 * time_taken / ntests}")
-    block_setup = f"""
-import numpy as np
-from cpu_basic_hadamard_operations import floatCpuRBFFeatureGen as fRBF
-random_seed = 123
-from __main__ import setup_rbf_test
-_, test_float, radem, _, chi_float = setup_rbf_test((1000,512), 2000, 123)
-float_out = np.zeros((1000,4000))
-"""
-    time_taken = timeit.timeit("fRBF(test_float, float_out, radem, chi_float, 1.0, 2000, 3)", setup=block_setup,
-                number=ntests)
-    print(f"Time for new variant: {1e6 * time_taken / ntests}")
-
-
 
 def run_rbf_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
     """A helper function that runs the RBF test for
@@ -279,5 +253,4 @@ def generate_float_rbf_values(test_array, radem, chi_arr, beta):
 
 
 if __name__ == "__main__":
-    #time_test()
     unittest.main()

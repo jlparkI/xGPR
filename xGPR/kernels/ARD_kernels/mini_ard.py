@@ -235,6 +235,9 @@ class MiniARD(KernelBaseclass):
         norm_constant = np.log2(self.padded_dims) / 2.0
         norm_constant = 1.0 / (2.0**norm_constant)
 
+        padded_chi_arr = np.zeros((self.nblocks * self.padded_dims))
+        padded_chi_arr[:self.chi_arr.shape[0]] = self.chi_arr
+
         for i in range(self.nblocks):
             ident_mat = np.eye(self.padded_dims)
             ident_mat *= self.radem_diag[0:1,i,:] * norm_constant
@@ -243,8 +246,9 @@ class MiniARD(KernelBaseclass):
             dFHT2d(ident_mat, self.num_threads)
             ident_mat *= self.radem_diag[2:3,i,:] * norm_constant
             dFHT2d(ident_mat, self.num_threads)
-            ident_mat *= self.chi_arr[i*self.padded_dims:
-                    (i+1)*self.padded_dims]
+
+            ident_mat *= padded_chi_arr[i*self.padded_dims:(i+1)*self.padded_dims]
+
             precomp_weights.append(ident_mat.T[:,:self.xdim[-1]])
 
         self.precomputed_weights = np.vstack(precomp_weights)[:self.num_freqs,:]
