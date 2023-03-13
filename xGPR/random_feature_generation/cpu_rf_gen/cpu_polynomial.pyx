@@ -22,7 +22,7 @@ cdef extern from "convolution_ops/conv1d_operations.h" nogil:
             int startPosition, int numFreqs)
 
 
-cdef extern from "transform_functions.h" nogil:
+cdef extern from "basic_ops/transform_functions.h" nogil:
     const char *SORFFloatBlockTransform_(float *Z, int8_t *radem, int zDim0,
             int zDim1, int zDim2, int numThreads)
 

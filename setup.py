@@ -71,15 +71,17 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
     cpu_fast_transform_path = os.path.join(setup_fpath, "xGPR",
                 "random_feature_generation", "cpu_rf_gen")
     cpu_transform_functions = os.path.join(cpu_fast_transform_path,
-                    "transform_functions.c")
+                    "basic_ops", "transform_functions.c")
     cpu_float_array_op = os.path.join(cpu_fast_transform_path,
-                    "float_array_operations.c")
+                    "shared_fht_functions", "float_array_operations.c")
     cpu_double_array_op = os.path.join(cpu_fast_transform_path,
-                    "double_array_operations.c")
+                    "shared_fht_functions", "double_array_operations.c")
     cpu_conv1d_op = os.path.join(cpu_fast_transform_path,
                     "convolution_ops", "conv1d_operations.c")
     cpu_conv1d_rbf_op = os.path.join(cpu_fast_transform_path,
                     "convolution_ops", "rbf_convolution.c")
+    cpu_conv1d_ard_op = os.path.join(cpu_fast_transform_path,
+                    "convolution_ops", "ard_convolution.c")
     cpu_float_spec_ops = os.path.join(cpu_fast_transform_path,
                     "rbf_ops", "float_rbf_ops.c")
     cpu_double_spec_ops = os.path.join(cpu_fast_transform_path,
@@ -96,7 +98,8 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
                         cpu_transform_functions,
                         cpu_float_array_op, cpu_double_array_op,
                         cpu_float_spec_ops, cpu_double_spec_ops,
-                        cpu_conv1d_op, cpu_conv1d_rbf_op],
+                        cpu_conv1d_op, cpu_conv1d_rbf_op,
+                        cpu_conv1d_ard_op],
                 language="c", include_dirs=[numpy.get_include(),
                             cpu_fast_transform_path])
     return [cpu_basic_op_ext], [cpu_basic_op_wrapper]

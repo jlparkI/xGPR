@@ -1,8 +1,6 @@
 #ifndef FLOAT_ARRAY_OPERATIONS_H
 #define FLOAT_ARRAY_OPERATIONS_H
 
-#include <Python.h>
-#include <numpy/arrayobject.h>
 
 void floatTransformRows3D(float *xArray, int startRow, int endRow,
                     int dim1, int dim2);

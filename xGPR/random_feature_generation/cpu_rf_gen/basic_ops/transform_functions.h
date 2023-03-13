@@ -1,13 +1,35 @@
 #ifndef TRANSFORM_FUNCTIONS_H
 #define TRANSFORM_FUNCTIONS_H
 
-#include <Python.h>
-#include <numpy/arrayobject.h>
 
-#define VALID_INPUTS 0
-#define INVALID_INPUTS 1
-#define EPS_TOLERANCE 0.0
-#define MAX_THREADS 8
+struct ThreadSORFFloatArrayArgs {
+    int dim1, dim2;
+    float *arrayStart;
+    int startPosition, endPosition;
+    int8_t *rademArray;
+};
+
+
+struct Thread3DFloatArrayArgs {
+    int dim1, dim2;
+    float *arrayStart;
+    int startPosition, endPosition;
+};
+
+struct ThreadSORFDoubleArrayArgs {
+    int dim1, dim2;
+    double *arrayStart;
+    int startPosition, endPosition;
+    int8_t *rademArray;
+};
+
+
+struct Thread3DDoubleArrayArgs {
+    int dim1, dim2;
+    double *arrayStart;
+    int startPosition, endPosition;
+};
+
 
 const char *fastHadamard3dFloatArray_(float *Z, int zDim0, int zDim1, int zDim2,
                         int numThreads);

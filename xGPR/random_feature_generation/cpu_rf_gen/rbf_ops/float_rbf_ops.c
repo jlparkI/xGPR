@@ -16,6 +16,10 @@
  * generates the gradient info (stored in a separate array). For non-ARD
  * kernels only.
  *
+ * + ardFloatGrad_
+ * Performs gradient and feature generation calculations for an RBF ARD kernel.
+ * Slower than rbfFeatureGen, so use only if gradient is required.
+ *
  * + ThreadRBFGenFloat
  * Performs operations for a single thread of the feature generation operation.
  *
@@ -29,12 +33,11 @@
  * Performs the final operations involved in feature / gradient calc for floats.
  */
 #include <Python.h>
-#include <numpy/arrayobject.h>
 #include <pthread.h>
 #include <math.h>
 #include "float_rbf_ops.h"
-#include "../float_array_operations.h"
-#include "../double_array_operations.h"
+#include "../shared_fht_functions/float_array_operations.h"
+#include "../shared_fht_functions/double_array_operations.h"
 
 
 #define VALID_INPUTS 0
@@ -224,8 +227,8 @@ const char *rbfFloatGrad_(float *cArray, int8_t *radem,
  *
  * + `inputX` Pointer to the first element of the raw input data,
  * an (N x D) array.
- * + `randomFeatures` Pointer to first element of the array containing
- * the pregenerated features, an (N x 2 * C) array.
+ * + `randomFeatures` Pointer to first element of the array in which random
+ * features will be stored, an (N x 2 * C) array.
  * + `precompWeights` Pointer to first element of the array containing
  * the precomputed weights, a (C x D) array.
  * + `sigmaMap` Pointer to first element of the array containing a mapping

@@ -17,8 +17,8 @@
  * kernels only.
  *
  * + ardDoubleGrad_
- * Performs gradient calculations ONLY for an ARD kernel for which features have
- * already been generated (e.g. using rbfFeatureGen functions).
+ * Performs gradient and feature generation calculations for an RBF ARD kernel.
+ * Slower than rbfFeatureGen, so use only if gradient is required.
  *
  * + ThreadRBFGenDouble
  * Performs operations for a single thread of the feature generation operation.
@@ -39,13 +39,12 @@
  * Performs the key operations involved in gradient-only calc for ARD.
  */
 #include <Python.h>
-#include <numpy/arrayobject.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <math.h>
 #include "double_rbf_ops.h"
-#include "../float_array_operations.h"
-#include "../double_array_operations.h"
+#include "../shared_fht_functions/float_array_operations.h"
+#include "../shared_fht_functions/double_array_operations.h"
 
 
 #define VALID_INPUTS 0
@@ -236,8 +235,8 @@ const char *rbfDoubleGrad_(double *cArray, int8_t *radem,
  *
  * + `inputX` Pointer to the first element of the raw input data,
  * an (N x D) array.
- * + `randomFeatures` Pointer to first element of the array containing
- * the pregenerated features, an (N x 2 * C) array.
+ * + `randomFeatures` Pointer to first element of the array in which
+ * random features will be stored, an (N x 2 * C) array.
  * + `precompWeights` Pointer to first element of the array containing
  * the precomputed weights, a (C x D) array.
  * + `sigmaMap` Pointer to first element of the array containing a mapping

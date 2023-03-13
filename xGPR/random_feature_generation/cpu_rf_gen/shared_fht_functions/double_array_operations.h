@@ -1,8 +1,6 @@
 #ifndef DOUBLE_ARRAY_OPERATIONS_H
 #define DOUBLE_ARRAY_OPERATIONS_H
 
-#include <Python.h>
-#include <numpy/arrayobject.h>
 
 void doubleTransformRows3D(double *xArray, int startRow, int endRow,
                     int dim1, int dim2);

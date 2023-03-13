@@ -1,13 +1,6 @@
 #ifndef FLOAT_RBF_OPS_H
 #define FLOAT_RBF_OPS_H
 
-#include <Python.h>
-#include <numpy/arrayobject.h>
-
-#define VALID_INPUTS 0
-#define INVALID_INPUTS 1
-#define EPS_TOLERANCE 0.0
-#define MAX_THREADS 8
 
 struct ThreadRBFFloatArgs {
     int dim1, dim2;

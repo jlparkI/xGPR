@@ -49,12 +49,10 @@
  * Performs operations for a single thread of the fast Hadamard 2d for doubles.
  */
 #include <Python.h>
-#include <numpy/arrayobject.h>
 #include <pthread.h>
-#include "thread_args.h"
 #include "transform_functions.h"
-#include "float_array_operations.h"
-#include "double_array_operations.h"
+#include "../shared_fht_functions/float_array_operations.h"
+#include "../shared_fht_functions/double_array_operations.h"
 
 
 #define VALID_INPUTS 0

@@ -15,7 +15,7 @@ from libc.stdint cimport int8_t
 import math
 
 
-cdef extern from "transform_functions.h" nogil:
+cdef extern from "basic_ops/transform_functions.h" nogil:
     const char *fastHadamard3dFloatArray_(float *Z, int zDim0, int zDim1, int zDim2,
                         int numThreads)
     const char *fastHadamard3dDoubleArray_(double *Z, int zDim0, int zDim1, int zDim2,

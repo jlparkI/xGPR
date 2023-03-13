@@ -1,11 +1,6 @@
 #ifndef CONV1D_OPERATIONS_H
 #define CONV1D_OPERATIONS_H
 
-#define VALID_INPUTS 0
-#define INVALID_INPUTS 1
-#define EPS_TOLERANCE 0.0
-#define MAX_THREADS 8
-
 struct ThreadConv1dDoubleArgs {
     int startPosition;
     int reshapedDim1, reshapedDim2;

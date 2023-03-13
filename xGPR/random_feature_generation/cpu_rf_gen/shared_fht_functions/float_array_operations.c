@@ -28,6 +28,8 @@
  * array while performing the diagonal matrix multiplication.
  */
 
+#include <stdint.h>
+#include <math.h>
 #include "float_array_operations.h"
 
 

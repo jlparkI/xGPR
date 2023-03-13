@@ -57,14 +57,11 @@
  * perform the Hadamard transform and diagonal matrix multiplications.
  */
 #include <Python.h>
-#include <numpy/arrayobject.h>
 #include <pthread.h>
 #include <math.h>
-#include <stdio.h>
-#include <string.h>
 #include "rbf_convolution.h"
-#include "../double_array_operations.h"
-#include "../float_array_operations.h"
+#include "../shared_fht_functions/double_array_operations.h"
+#include "../shared_fht_functions/float_array_operations.h"
 
 
 

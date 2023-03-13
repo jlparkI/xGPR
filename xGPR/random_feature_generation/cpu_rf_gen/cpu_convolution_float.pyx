@@ -9,7 +9,7 @@ import numpy as np
 cimport numpy as np
 cimport cython
 from libc cimport stdint
-from libc.stdint cimport int8_t
+from libc.stdint cimport int8_t, int32_t
 import math
 
 
@@ -32,6 +32,14 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
             int numFreqs)
+
+    
+cdef extern from "convolution_ops/ard_convolution.h" nogil:
+    const char *graphARDFloatGrad_(float *inputX, double *randomFeatures,
+            float *precompWeights, int32_t *sigmaMap, double *sigmaVals,
+            double *gradient, int dim0, int dim1, int dim2,
+            int numLengthscales, int numFreqs, double rbfNormConstant,
+            int numThreads);
 
 
 @cython.boundscheck(False)
@@ -279,4 +287,71 @@ def floatCpuConvGrad(np.ndarray[np.float32_t, ndim=3] reshapedX,
 
     outputArray *= scalingTerm
     gradient *= scalingTerm
+    return gradient
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def floatCpuGraphMiniARDGrad(np.ndarray[np.float32_t, ndim=3] inputX,
+                np.ndarray[np.float64_t, ndim=2] randomFeats,
+                np.ndarray[np.float32_t, ndim=2] precompWeights,
+                np.ndarray[np.int32_t, ndim=1] sigmaMap,
+                np.ndarray[np.float64_t, ndim=1] sigmaVals,
+                double betaHparam, int numThreads):
+    """Performs gradient calculations for the GraphMiniARD kernel, using
+    pregenerated features and precomputed weights.
+
+    Args:
+        inputX (np.ndarray): The original input data.
+        randomFeats (np.ndarray): The random features generated using the FHT-
+            based procedure.
+        precompWeights (np.ndarray): The FHT-rf gen procedure applied to an
+            identity matrix.
+        sigmaMap (np.ndarray): An array mapping which lengthscales correspond
+            to which positions in the input.
+        sigmaVals (np.ndarray): The lengthscale values, in an array of the same
+            dimensionality as the input.
+        betaHparam (double): The amplitude hyperparameter.
+        numThreads (int): Number of threads to run.
+
+    Raises:
+        ValueError: A ValueError is raised if unexpected or unacceptable inputs
+            are supplied.
+
+    Returns:
+        gradient (np.ndarray): An array of shape (N x 2 * numFreqs x 1) containing
+            the gradient w/r/t sigma.
+    """
+    cdef const char *errCode
+    cdef float logdim
+    cdef double rbfNormConstant
+    cdef np.ndarray[np.float64_t, ndim=3] gradient = np.zeros((randomFeats.shape[0],
+                        randomFeats.shape[1], sigmaMap.max() + 1))
+
+    if inputX.shape[0] == 0:
+        raise ValueError("There must be at least one datapoint.")
+    if inputX.shape[0] != randomFeats.shape[0] or precompWeights.shape[1] != inputX.shape[2]:
+        raise ValueError("Incorrect array dims passed to a wrapped RBF "
+                    "feature gen function.")
+    if randomFeats.shape[1] != 2 * precompWeights.shape[0] or sigmaMap.shape[0] != \
+            precompWeights.shape[1] or sigmaVals.shape[0] != sigmaMap.shape[0]:
+        raise ValueError("Incorrect array dims passed to a wrapped RBF "
+                    "feature gen function.")
+
+    if not inputX.flags["C_CONTIGUOUS"] or not randomFeats.flags["C_CONTIGUOUS"] or not \
+            precompWeights.flags["C_CONTIGUOUS"] or not sigmaMap.flags["C_CONTIGUOUS"] \
+            or not sigmaVals.flags["C_CONTIGUOUS"]:
+        raise ValueError("One or more arguments to a wrapped RBF feature gen function is not "
+                "C contiguous.")
+
+    rbfNormConstant = betaHparam * np.sqrt(1 / <double>precompWeights.shape[0])
+
+    errCode = graphARDFloatGrad_(&inputX[0,0,0], &randomFeats[0,0],
+                &precompWeights[0,0], &sigmaMap[0], &sigmaVals[0],
+                &gradient[0,0,0], inputX.shape[0], inputX.shape[1],
+                inputX.shape[2],
+                gradient.shape[2], precompWeights.shape[0],
+                rbfNormConstant, numThreads)
+    if errCode.decode("UTF-8") != "no_error":
+        raise Exception("Fatal error encountered in RBF feature gen.")
     return gradient

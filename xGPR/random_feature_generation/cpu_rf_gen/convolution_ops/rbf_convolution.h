@@ -1,11 +1,6 @@
 #ifndef RBF_CONVOLUTION_H
 #define RBF_CONVOLUTION_H
 
-#define VALID_INPUTS 0
-#define INVALID_INPUTS 1
-#define EPS_TOLERANCE 0.0
-#define MAX_THREADS 8
-
 
 struct ThreadConvRBFFloatArgs {
     int reshapedDim1, reshapedDim2;
