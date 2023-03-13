@@ -420,7 +420,7 @@ void *ThreadARDFloatGrad(void *rowArgs){
 
 /*!
  * # rbfFloatFeatureGenLastStep_
- *
+ 
  * Performs the last steps in RBF feature generation.
  *
  * ## Args:
@@ -548,9 +548,9 @@ void ardFloatGradCalcs_(float *inputX, double *randomFeatures,
     int i, j, k, gradPosition, currentLscale;
     int gradIncrement = numFreqs * numLengthscales;
     int gradRowSize = 2 * gradIncrement;
-    float *xElement, *precompWeight, dotProd;
+    float *xElement, *precompWeight;
     double *gradientElement, *randomFeature;
-    double gradVal, sinVal, cosVal;
+    double gradVal, sinVal, cosVal, dotProd, g1, g2;
 
     xElement = inputX + startRow * dim1;
     gradPosition = startRow * gradRowSize;

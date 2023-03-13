@@ -579,9 +579,11 @@ void ardDoubleGradCalcs_(double *inputX, double *randomFeatures,
                 precompWeight++;
             }
             gradPosition += numLengthscales;
+            randomFeature++;
         }
         xElement += dim1;
         gradPosition += gradIncrement;
+        randomFeature += numFreqs;
     }
 
     gradientElement = gradient + startRow * gradRowSize;

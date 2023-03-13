@@ -226,7 +226,7 @@ def doubleCpuRBFGrad(np.ndarray[np.float64_t, ndim=3] inputArray,
     cdef const char *errCode
     cdef float logdim
     cdef double rbfNormConstant
-    cdef np.ndarray[np.float64_t, ndim=3] gradient = np.empty((outputArray.shape[0],
+    cdef np.ndarray[np.float64_t, ndim=3] gradient = np.zeros((outputArray.shape[0],
                         outputArray.shape[1], 1))
 
     if inputArray.shape[0] == 0:
@@ -448,7 +448,7 @@ def floatCpuMiniARDGrad(np.ndarray[np.float32_t, ndim=2] inputX,
     cdef const char *errCode
     cdef float logdim
     cdef double rbfNormConstant
-    cdef np.ndarray[np.float64_t, ndim=3] gradient = np.empty((randomFeats.shape[0],
+    cdef np.ndarray[np.float64_t, ndim=3] gradient = np.zeros((randomFeats.shape[0],
                         randomFeats.shape[1], sigmaMap.max() + 1))
 
     if inputX.shape[0] == 0:

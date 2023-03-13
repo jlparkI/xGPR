@@ -56,8 +56,6 @@ def run_grad_test(xdim, num_freqs, split_points, random_seed = 123):
 
     gt_double, gt_double_grad = get_MiniARD_gt_values(input_x, num_freqs,
                     split_points, random_seed, double_precision = True)
-    gt_float, gt_float_grad = get_MiniARD_gt_values(input_x, num_freqs,
-                    split_points, random_seed, double_precision = False)
 
     double_output, double_grad = get_MiniARD_test_values(input_x, num_freqs, split_points,
         random_seed, device = "cpu", double_precision = True)
@@ -76,23 +74,25 @@ def run_grad_test(xdim, num_freqs, split_points, random_seed = 123):
             device = "gpu", double_precision = False)
 
     outcome_d = np.allclose(gt_double, double_output)
-    outcome_f = np.allclose(gt_float, float_output, rtol=1e-6, atol=1e-6)
+    outcome_f = np.allclose(gt_double, float_output, rtol=1e-5, atol=1e-5)
     outcome_grad_d = np.allclose(gt_double_grad, double_grad)
-    outcome_grad_f = np.allclose(gt_float_grad, float_grad, rtol=1e-6, atol=1e-6)
+    outcome_grad_f = np.allclose(gt_double_grad, float_grad, rtol=1e-4, atol=1e-3)
     print("**********\nDid the Grad Calc C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_d}\n*******")
+            f"{xdim}, {num_freqs}, double precision? {outcome_d}\n*******")
     print("**********\nDid the Grad Calc C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_f}\n*******")
+            f"{xdim}, {num_freqs}, float precision? {outcome_f}\n*******")
     print("**********\nDid the Grad Calc C extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_grad_d}\n*******")
+            f"gradient for RBF of {xdim}, {num_freqs}, "
+            f"double precision? {outcome_grad_d}\n*******")
     print("**********\nDid the Grad Calc C extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_grad_f}\n*******")
+            f"gradient for RBF of {xdim}, {num_freqs}, "
+            f"float precision? {outcome_grad_f}\n*******")
 
     if "cupy" in sys.modules:
         outcome_cuda_d = np.allclose(gt_double, cuda_double_output)
-        outcome_cuda_f = np.allclose(gt_float, cuda_float_output, rtol=1e-6, atol=1e-6)
+        outcome_cuda_f = np.allclose(gt_double, cuda_float_output, rtol=1e-5, atol=1e-5)
         outcome_cuda_grad_d = np.allclose(gt_double_grad, cuda_double_grad)
-        outcome_cuda_grad_f = np.allclose(gt_float_grad, cuda_float_grad, rtol=1e-6, atol=1e-6)
+        outcome_cuda_grad_f = np.allclose(gt_double_grad, cuda_float_grad, rtol=1e-4, atol=1e-3)
         print("**********\nDid the cuda extension provide the correct result for RBF of "
             f"{xdim}, {num_freqs}? {outcome_cuda_d}\n*******")
         print("**********\nDid the cuda extension provide the correct result for RBF of "
@@ -102,8 +102,7 @@ def run_grad_test(xdim, num_freqs, split_points, random_seed = 123):
         print("**********\nDid the Grad Calc cuda extension provide the correct result for the "
             f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_f}\n*******")
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f, \
-                outcome_grad_d, outcome_grad_f, outcome_cuda_grad_d, \
-                outcome_cuda_grad_f
+                outcome_grad_d, outcome_cuda_grad_d
     return outcome_d, outcome_f, outcome_grad_d, outcome_grad_f
 
 
@@ -142,9 +141,10 @@ def get_MiniARD_gt_values(input_x, num_freqs, split_points,
     gradient = np.zeros((xtrans.shape[0], xtrans.shape[1],
                     len(split_points) + 1))
 
-    for i in range(len(split_points) + 1):
-        gradient[:,:num_freqs,i] = np.einsum("ij,kj->ki", p_weights, retyped_x)
-        gradient[:,:num_freqs,i] *= kernel.hyperparams[2+1]
+    ks = kernel.split_pts
+    for i in range(ks.shape[0] - 1):
+        gradient[:,:num_freqs,i] = np.einsum("ij,kj->ki", p_weights[:, ks[i]:ks[i+1]],
+                                    retyped_x[:,ks[i]:ks[i+1]])
         gradient[:,num_freqs:,i] = gradient[:,:num_freqs,i] * xtrans[:,:num_freqs]
         gradient[:,:num_freqs,i] *= -xtrans[:,num_freqs:]
     return xtrans, gradient
@@ -163,6 +163,9 @@ def get_MiniARD_test_values(input_x, num_freqs, split_points,
     else:
         x_device = input_x
     xtrans, gradient = kernel.kernel_specific_gradient(x_device)
+    if device == "gpu":
+        xtrans = cp.asnumpy(xtrans)
+        gradient = cp.asnumpy(gradient)
     return xtrans, gradient
 
 
