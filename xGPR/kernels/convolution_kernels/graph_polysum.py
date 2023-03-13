@@ -7,14 +7,14 @@ import numpy as np
 from scipy.stats import chi
 try:
     import cupy as cp
-    from cuda_convolution_double import doubleGpuGraphPolyFHT
-    from cuda_convolution_float import floatGpuGraphPolyFHT
+    from cuda_rf_gen_module import doubleGpuGraphPolyFHT
+    from cuda_rf_gen_module import floatGpuGraphPolyFHT
 except:
     pass
 
 from ..kernel_baseclass import KernelBaseclass
-from cpu_convolution_double import doubleCpuGraphPolyFHT
-from cpu_convolution_float import floatCpuGraphPolyFHT
+from cpu_rf_gen_module import doubleCpuGraphPolyFHT
+from cpu_rf_gen_module import floatCpuGraphPolyFHT
 
 
 class GraphPolySum(KernelBaseclass):

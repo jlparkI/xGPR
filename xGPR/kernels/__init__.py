@@ -12,6 +12,7 @@ from .convolution_kernels.graph_fht_conv1d import GraphFHTConv1d
 from .convolution_kernels.graph_polysum import GraphPolySum
 
 from .ARD_kernels.mini_ard import MiniARD
+from .ARD_kernels.graph_mini_ard import GraphMiniARD
 
 KERNEL_NAME_TO_CLASS = {"RBF":RBF,
         "Matern":Matern,
@@ -21,4 +22,5 @@ KERNEL_NAME_TO_CLASS = {"RBF":RBF,
         "Poly":Polynomial,
         "GraphPoly":GraphPolySum,
         "MiniARD":MiniARD,
-        "Conv1d":MMConv1d}
+        "Conv1d":MMConv1d,
+        "GraphMiniARD":GraphMiniARD}

@@ -9,21 +9,22 @@ import unittest
 import numpy as np
 from scipy.stats import chi
 
-from cpu_basic_operations import doubleCpuFastHadamardTransform as dFHT
-from cpu_basic_operations import floatCpuFastHadamardTransform as fFHT
-from cpu_convolution_float import floatCpuGraphPolyFHT
-from cpu_convolution_double import doubleCpuGraphPolyFHT
-from cpu_convolution_float import floatCpuPolyFHT
-from cpu_convolution_double import doubleCpuPolyFHT
+from cpu_rf_gen_module import doubleCpuFastHadamardTransform as dFHT
+from cpu_rf_gen_module import floatCpuFastHadamardTransform as fFHT
+from cpu_rf_gen_module import floatCpuGraphPolyFHT
+from cpu_rf_gen_module import doubleCpuGraphPolyFHT
+from cpu_rf_gen_module import floatCpuPolyFHT
+from cpu_rf_gen_module import doubleCpuPolyFHT
 
 try:
-    from cuda_convolution_float import floatGpuGraphPolyFHT
-    from cuda_convolution_double import doubleGpuGraphPolyFHT
-    from cuda_convolution_float import floatGpuPolyFHT
-    from cuda_convolution_double import doubleGpuPolyFHT
-    import cupy as cp
+    from cuda_rf_gen_module import floatGpuGraphPolyFHT
+    from cuda_rf_gen_module import doubleGpuGraphPolyFHT
+    from cuda_rf_gen_module import floatGpuPolyFHT
+    from cuda_rf_gen_module import doubleGpuPolyFHT
 except:
     pass
+
+import cupy as cp
 
 
 class TestPolyFHT(unittest.TestCase):

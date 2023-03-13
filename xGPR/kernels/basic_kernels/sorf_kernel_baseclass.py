@@ -9,17 +9,17 @@ from math import ceil
 
 import numpy as np
 from scipy.stats import chi
-from cpu_rbf_operations import doubleCpuRBFFeatureGen as dRBF
-from cpu_rbf_operations import floatCpuRBFFeatureGen as fRBF
-from cpu_rbf_operations import doubleCpuRBFGrad as dRBFGrad
-from cpu_rbf_operations import floatCpuRBFGrad as fRBFGrad
+from cpu_rf_gen_module import doubleCpuRBFFeatureGen as dRBF
+from cpu_rf_gen_module import floatCpuRBFFeatureGen as fRBF
+from cpu_rf_gen_module import doubleCpuRBFGrad as dRBFGrad
+from cpu_rf_gen_module import floatCpuRBFGrad as fRBFGrad
 
 try:
     import cupy as cp
-    from cuda_rbf_operations import doubleCudaRBFFeatureGen as dCudaRBF
-    from cuda_rbf_operations import floatCudaRBFFeatureGen as fCudaRBF
-    from cuda_rbf_operations import doubleCudaRBFGrad as dCudaRBFGrad
-    from cuda_rbf_operations import floatCudaRBFGrad as fCudaRBFGrad
+    from cuda_rf_gen_module import doubleCudaRBFFeatureGen as dCudaRBF
+    from cuda_rf_gen_module import floatCudaRBFFeatureGen as fCudaRBF
+    from cuda_rf_gen_module import doubleCudaRBFGrad as dCudaRBFGrad
+    from cuda_rf_gen_module import floatCudaRBFGrad as fCudaRBFGrad
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass

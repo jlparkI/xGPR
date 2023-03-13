@@ -6,14 +6,14 @@ import numpy as np
 from scipy.stats import chi
 try:
     import cupy as cp
-    from cuda_convolution_double import doubleGpuConv1dFGen, doubleGpuConvGrad
-    from cuda_convolution_float import floatGpuConv1dFGen, floatGpuConvGrad
+    from cuda_rf_gen_module import doubleGpuConv1dFGen, doubleGpuConvGrad
+    from cuda_rf_gen_module import floatGpuConv1dFGen, floatGpuConvGrad
 except:
     pass
 
 from ..kernel_baseclass import KernelBaseclass
-from cpu_convolution_double import doubleCpuConv1dFGen, doubleCpuConvGrad
-from cpu_convolution_float import floatCpuConv1dFGen, floatCpuConvGrad
+from cpu_rf_gen_module import doubleCpuConv1dFGen, doubleCpuConvGrad
+from cpu_rf_gen_module import floatCpuConv1dFGen, floatCpuConvGrad
 
 
 class FHTConv1d(KernelBaseclass):

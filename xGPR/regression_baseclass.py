@@ -600,7 +600,7 @@ class GPRegressionBaseclass():
             raise ValueError("You have specified the gpu fit mode but CuPy is "
                 "not installed. Currently CPU only fitting is available.")
 
-        if "cuda_basic_operations" not in sys.modules and value == "gpu":
+        if "cuda_rf_gen_module" not in sys.modules and value == "gpu":
             raise ValueError("You have specified the gpu fit mode but the "
                 "cudaHadamardTransform module is not installed / "
                 "does not appear to have installed correctly. "

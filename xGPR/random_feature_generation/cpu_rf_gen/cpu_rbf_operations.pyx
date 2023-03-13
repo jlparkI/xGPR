@@ -13,8 +13,6 @@ from libc cimport stdint
 from libc.stdint cimport int8_t, int32_t
 import math
 
-ctypedef stdint.int8_t cint8
-
 
 cdef extern from "rbf_ops/float_rbf_ops.h" nogil:
     const char *rbfFeatureGenFloat_(float *cArray, int8_t *radem,

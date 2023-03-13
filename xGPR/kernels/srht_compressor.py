@@ -5,11 +5,11 @@ more manageable space for hyperparameter tuning purposes."""
 from math import ceil
 
 import numpy as np
-from cpu_basic_operations import floatCpuSRHT, doubleCpuSRHT
+from cpu_rf_gen_module import floatCpuSRHT, doubleCpuSRHT
 
 try:
     import cupy as cp
-    from cuda_basic_operations import floatCudaSRHT, doubleCudaSRHT
+    from cuda_rf_gen_module import floatCudaSRHT, doubleCudaSRHT
 except:
     pass
 

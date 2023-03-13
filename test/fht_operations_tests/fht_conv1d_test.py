@@ -7,11 +7,11 @@ import sys
 import unittest
 import numpy as np
 
-from cpu_convolution_double import doubleCpuConv1dFGen, doubleCpuConvGrad, doubleCpuConv1dMaxpool
-from cpu_convolution_float import floatCpuConv1dFGen, floatCpuConvGrad, floatCpuConv1dMaxpool
+from cpu_rf_gen_module import doubleCpuConv1dFGen, doubleCpuConvGrad, doubleCpuConv1dMaxpool
+from cpu_rf_gen_module import floatCpuConv1dFGen, floatCpuConvGrad, floatCpuConv1dMaxpool
 try:
-    from cuda_convolution_double import doubleGpuConv1dFGen, doubleGpuConvGrad, doubleGpuConv1dMaxpool
-    from cuda_convolution_float import floatGpuConv1dFGen, floatGpuConvGrad, floatGpuConv1dMaxpool
+    from cuda_rf_gen_module import doubleGpuConv1dFGen, doubleGpuConvGrad, doubleGpuConv1dMaxpool
+    from cuda_rf_gen_module import floatGpuConv1dFGen, floatGpuConvGrad, floatGpuConv1dMaxpool
     import cupy as cp
 except:
     pass

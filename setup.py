@@ -76,8 +76,6 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
                     "float_array_operations.c")
     cpu_double_array_op = os.path.join(cpu_fast_transform_path,
                     "double_array_operations.c")
-    cpu_poly_fht = os.path.join(cpu_fast_transform_path,
-                    "polynomial_ops", "poly_fht_operations.c")
     cpu_conv1d_op = os.path.join(cpu_fast_transform_path,
                     "convolution_ops", "conv1d_operations.c")
     cpu_conv1d_rbf_op = os.path.join(cpu_fast_transform_path,
@@ -89,49 +87,19 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
 
     cpu_basic_op_wrapper = os.path.join(cpu_fast_transform_path,
                     "cpu_basic_operations.pyx")
-    cpu_rbf_op_wrapper = os.path.join(cpu_fast_transform_path,
-                    "cpu_rbf_operations.pyx")
-    cpu_conv_double_wrapper = os.path.join(cpu_fast_transform_path,
-                    "cpu_convolution_double.pyx")
-    cpu_conv_float_wrapper = os.path.join(cpu_fast_transform_path,
-                    "cpu_convolution_float.pyx")
 
-    cpu_basic_op_ext = Extension("cpu_basic_operations",
-                    sources = [cpu_transform_functions,
+
+    cpu_basic_op_wrapper = os.path.join(cpu_fast_transform_path,
+                    "cpu_rf_gen_module.pyx")
+    cpu_basic_op_ext = Extension("cpu_rf_gen_module",
+                    sources = [cpu_basic_op_wrapper,
+                        cpu_transform_functions,
                         cpu_float_array_op, cpu_double_array_op,
-                        cpu_basic_op_wrapper],
+                        cpu_float_spec_ops, cpu_double_spec_ops,
+                        cpu_conv1d_op, cpu_conv1d_rbf_op],
                 language="c", include_dirs=[numpy.get_include(),
                             cpu_fast_transform_path])
-
-    cpu_rbf_op_ext = Extension("cpu_rbf_operations",
-                    sources = [cpu_transform_functions,
-                        cpu_float_array_op, cpu_double_array_op,
-                        cpu_rbf_op_wrapper, cpu_float_spec_ops,
-                        cpu_double_spec_ops],
-                language="c", include_dirs=[numpy.get_include(),
-                            cpu_fast_transform_path])
-
-    cpu_conv_double_ext = Extension("cpu_convolution_double",
-                    sources = [cpu_double_array_op, cpu_poly_fht,
-                        cpu_conv1d_op, cpu_conv1d_rbf_op,
-                        cpu_conv_double_wrapper,
-                        cpu_float_array_op, cpu_transform_functions],
-                language="c", include_dirs=[numpy.get_include(),
-                            cpu_fast_transform_path])
-
-    cpu_conv_float_ext = Extension("cpu_convolution_float",
-                    sources = [cpu_float_array_op, cpu_poly_fht,
-                        cpu_conv1d_op, cpu_conv1d_rbf_op,
-                        cpu_conv_float_wrapper,
-                        cpu_double_array_op, cpu_transform_functions],
-                language="c", include_dirs=[numpy.get_include(),
-                            cpu_fast_transform_path])
-
-    extensions = [cpu_basic_op_ext, cpu_rbf_op_ext, cpu_conv_double_ext,
-            cpu_conv_float_ext]
-    wrappers = [cpu_basic_op_wrapper, cpu_rbf_op_wrapper, cpu_conv_double_wrapper,
-            cpu_conv_float_wrapper]
-    return extensions, wrappers
+    return [cpu_basic_op_ext], [cpu_basic_op_wrapper]
 
 
 
@@ -159,9 +127,10 @@ def setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA = False)
         return [], []
     else:
         os.chdir(setup_fpath)
+
         cuda_basic_path = os.path.join(cuda_hadamard_path,
-                            "cuda_basic_operations.pyx")
-        cuda_basic_ext = Extension("cuda_basic_operations",
+                            "cuda_rf_gen_module.pyx")
+        cuda_basic_ext = Extension("cuda_rf_gen_module",
                 sources=[cuda_basic_path],
                 language="c++",
                 libraries=["array_operations", "cudart_static"],
@@ -171,51 +140,7 @@ def setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA = False)
                                     "include")],
                 extra_link_args = ["-lrt"],
                 )
-
-        cuda_conv_double_path = os.path.join(cuda_hadamard_path,
-                            "cuda_convolution_double.pyx")
-        cuda_conv_double_ext = Extension("cuda_convolution_double",
-                sources=[cuda_conv_double_path],
-                language="c++",
-                libraries=["array_operations", "cudart_static"],
-                library_dirs = [cuda_hadamard_path, os.path.join(CUDA_PATH,
-                                    "lib64")],
-                include_dirs = [numpy.get_include(), os.path.join(CUDA_PATH,
-                                    "include")],
-                extra_link_args = ["-lrt"],
-                )
-
-        cuda_conv_float_path = os.path.join(cuda_hadamard_path,
-                            "cuda_convolution_float.pyx")
-        cuda_conv_float_ext = Extension("cuda_convolution_float",
-                sources=[cuda_conv_float_path],
-                language="c++",
-                libraries=["array_operations", "cudart_static"],
-                library_dirs = [cuda_hadamard_path, os.path.join(CUDA_PATH,
-                                    "lib64")],
-                include_dirs = [numpy.get_include(), os.path.join(CUDA_PATH,
-                                    "include")],
-                extra_link_args = ["-lrt"],
-                )
-
-        cuda_rbf_path = os.path.join(cuda_hadamard_path,
-                            "cuda_rbf_operations.pyx")
-        cuda_rbf_ext = Extension("cuda_rbf_operations",
-                sources=[cuda_rbf_path],
-                language="c++",
-                libraries=["array_operations", "cudart_static"],
-                library_dirs = [cuda_hadamard_path, os.path.join(CUDA_PATH,
-                                    "lib64")],
-                include_dirs = [numpy.get_include(), os.path.join(CUDA_PATH,
-                                    "include")],
-                extra_link_args = ["-lrt"],
-                )
-
-        extensions = [cuda_basic_ext, cuda_conv_double_ext, cuda_conv_float_ext,
-                cuda_rbf_ext]
-        paths = [cuda_basic_path, cuda_conv_double_path, cuda_conv_float_path,
-                cuda_rbf_path]
-        return extensions, paths
+        return [cuda_basic_ext], [cuda_basic_path]
 
 
 def get_kernel_tools_extensions(setup_fpath):

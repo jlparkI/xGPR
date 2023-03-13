@@ -6,15 +6,15 @@ import timeit
 from math import ceil
 import numpy as np
 from xGPR.kernels.ARD_kernels.mini_ard import MiniARD
-from cpu_rbf_operations import doubleCpuMiniARDGrad as dMiniARDGrad
-from cpu_rbf_operations import floatCpuRBFGrad as fMiniARDGrad
+from cpu_rf_gen_module import doubleCpuMiniARDGrad as dMiniARDGrad
+from cpu_rf_gen_module import floatCpuRBFGrad as fMiniARDGrad
 
-from cpu_basic_operations import doubleCpuSORFTransform as dSORF
-from cpu_basic_operations import floatCpuSORFTransform as fSORF
+from cpu_rf_gen_module import doubleCpuSORFTransform as dSORF
+from cpu_rf_gen_module import floatCpuSORFTransform as fSORF
 
 try:
-    from cuda_rbf_operations import doubleCudaMiniARDGrad as dCudaMiniARDGrad
-    from cuda_rbf_operations import floatCudaMiniARDGrad as fCudaMiniARDGrad
+    from cuda_rf_gen_module import doubleCudaMiniARDGrad as dCudaMiniARDGrad
+    from cuda_rf_gen_module import floatCudaMiniARDGrad as fCudaMiniARDGrad
     import cupy as cp
 except:
     pass

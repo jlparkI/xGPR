@@ -1,6 +1,6 @@
-"""A 'mini-ARD' kernel that assigns one lengthscale per
-feature category for different feature types.
-Accepts only fixed vectors as input."""
+"""A 'mini-ARD' kernel for graph data that assigns one
+lengthscale per feature category for different feature types.
+Accepts only 3d arrays as input."""
 from math import ceil
 
 import numpy as np
@@ -18,8 +18,8 @@ except:
 from ..kernel_baseclass import KernelBaseclass
 
 
-class MiniARD(KernelBaseclass):
-    """The MiniARD is a subset of automatic relevance determination
+class GraphMiniARD(KernelBaseclass):
+    """The GraphMiniARD is a subset of automatic relevance determination
     (ARD), which assigns a lengthscale to every feature. MiniARD
     rather assigns a different lengthscale to each group of features
     (e.g. the first 20, the next 20 and so on), as specified by
@@ -73,15 +73,16 @@ class MiniARD(KernelBaseclass):
         """
         super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = True,
                 double_precision = double_precision)
-        if len(self.xdim) != 2:
-            raise ValueError("The dimensionality of the input is inappropriate for "
-                        "the kernel you have selected.")
+        if len(xdim) != 3:
+            raise ValueError("Tried to initialize the a graph kernel with a "
+                    "2d x-array! x should be a 3d array for graph data.")
         if "split_points" not in kernel_spec_parms:
-            raise ValueError("For the MiniARD kernel, 'kernel_specific_params' "
+            raise ValueError("For the GraphMiniARD kernel, 'kernel_specific_params' "
                     "must contain a list called 'split_points'.")
         if not isinstance(kernel_spec_parms["split_points"], list):
-            raise ValueError("For the MiniARD kernel, 'split_points' must "
+            raise ValueError("For the GraphMiniARD kernel, 'split_points' must "
                     "be a list.")
+
         self.split_pts = np.sort([0] + kernel_spec_parms["split_points"] + [xdim[1]])
         self.check_split_points(xdim)
 
@@ -90,28 +91,26 @@ class MiniARD(KernelBaseclass):
                 range(self.hyperparams.shape[0] - 2)]
         self.bounds = np.asarray(bounds)
 
-        self.padded_dims = 2**ceil(np.log2(max(xdim[-1], 2)))
+        rng = np.random.default_rng(random_seed)
+
+        self.padded_dims = 2**ceil(np.log2(max(xdim[2], 2)))
+        self.init_calc_freqsize = ceil(self.num_freqs / self.padded_dims) * \
+                        self.padded_dims
+        self.init_calc_featsize = 2 * self.init_calc_freqsize
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
-        rng = np.random.default_rng(random_seed)
-        if self.padded_dims < self.num_freqs:
-            self.nblocks = ceil(self.num_freqs / self.padded_dims)
-        else:
-            self.nblocks = 1
-        self.radem_diag = rng.choice(radem_array, size=(3, self.nblocks, self.padded_dims),
+
+        self.radem_diag = rng.choice(radem_array, size=(3, 1, self.init_calc_freqsize),
                                 replace=True)
-        self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
+        self.chi_arr = chi.rvs(df=self.padded_dims, size=self.init_calc_freqsize,
                             random_state = random_seed)
 
-        #Converts the hyperparameters into a "full" array of the
-        #same length as padded dims, just as if this were an ARD.
-        #Also, store the positions that map to different hparams.
         self.full_ard_weights = np.zeros((xdim[-1]))
         self.ard_position_key = np.zeros((xdim[-1]), dtype=np.int32)
         self.kernel_specific_set_hyperparams()
 
-        self.feature_gen = floatCpuRBFFeatureGen
-        self.grad_fun = floatCpuMiniARDGrad
+        self.conv_func = None
+        self.grad_func = None
         self.precomputed_weights = None
         self.device = device
 
@@ -149,11 +148,11 @@ class MiniARD(KernelBaseclass):
         / cp.sin."""
         if new_device == "cpu":
             if self.double_precision:
-                self.grad_fun = doubleCpuMiniARDGrad
-                self.feature_gen = doubleCpuRBFFeatureGen
+                self.grad_func = doubleCpuMiniARDGrad
+                self.conv_func = doubleCpuRBFFeatureGen
             else:
-                self.grad_fun = floatCpuMiniARDGrad
-                self.feature_gen = floatCpuRBFFeatureGen
+                self.grad_func = floatCpuMiniARDGrad
+                self.conv_func = floatCpuRBFFeatureGen
             if not isinstance(self.radem_diag, np.ndarray):
                 if self.precomputed_weights is not None:
                     self.precomputed_weights = cp.asnumpy(self.precomputed_weights)
@@ -164,11 +163,11 @@ class MiniARD(KernelBaseclass):
             self.chi_arr = self.chi_arr.astype(self.dtype)
         else:
             if self.double_precision:
-                self.grad_fun = doubleCudaMiniARDGrad
-                self.feature_gen = doubleCudaRBFFeatureGen
+                self.grad_func = doubleCudaMiniARDGrad
+                self.conv_func = doubleCudaRBFFeatureGen
             else:
-                self.grad_fun = floatCudaMiniARDGrad
-                self.feature_gen = floatCudaRBFFeatureGen
+                self.grad_func = floatCudaMiniARDGrad
+                self.conv_func = floatCudaRBFFeatureGen
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
             if self.precomputed_weights is not None:
@@ -198,14 +197,15 @@ class MiniARD(KernelBaseclass):
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
-        xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
-                            dtype = self.dtype)
-        xtrans[:,:,:self.xdim[1]] = (input_x * self.full_ard_weights[None,:])[:,None,:]
-
-        output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
-        self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads)
-        return output_x
+        if len(input_x.shape) != 3:
+            raise ValueError("Input X must be a 3d array.")
+        xtrans = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
+        reshaped_x = self.zero_arr((input_x.shape[0], input_x.shape[1],
+                                self.padded_dims), self.dtype)
+        reshaped_x[:,:,:input_x.shape[2]] = (input_x * self.full_ard_weights[None,None,:])
+        self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
+                self.num_threads, self.hyperparams[1])
+        return xtrans[:,:self.num_rffs]
 
 
     def precompute_weights(self):
@@ -283,7 +283,7 @@ class MiniARD(KernelBaseclass):
         x_retyped = self.zero_arr(input_x.shape, dtype = self.dtype)
         x_retyped[:] = input_x
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        dz_dsigma = self.grad_fun(x_retyped, xtrans, self.precomputed_weights,
+        dz_dsigma = self.grad_func(x_retyped, xtrans, self.precomputed_weights,
                 self.ard_position_key, self.full_ard_weights,
                 self.hyperparams[1], self.num_threads)
         return xtrans, dz_dsigma

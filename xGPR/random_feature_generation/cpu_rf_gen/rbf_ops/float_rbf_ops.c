@@ -550,7 +550,7 @@ void ardFloatGradCalcs_(float *inputX, double *randomFeatures,
     int gradRowSize = 2 * gradIncrement;
     float *xElement, *precompWeight;
     double *gradientElement, *randomFeature;
-    double gradVal, sinVal, cosVal, dotProd, g1, g2;
+    double gradVal, sinVal, cosVal, dotProd;
 
     xElement = inputX + startRow * dim1;
     gradPosition = startRow * gradRowSize;
