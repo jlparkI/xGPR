@@ -60,7 +60,6 @@ def floatCpuGraphPolyFHT(np.ndarray[np.float32_t, ndim=3] reshapedX,
     cdef const char *errCode
     cdef np.ndarray[np.float32_t, ndim=3] reshapedXCopy = reshapedX.copy()
     cdef np.ndarray[np.float32_t, ndim=3] preSumFeats = reshapedX.copy()
-    cdef float scalingTerm
     cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
     cdef int startPosition, cutoff, i, j
     
@@ -93,7 +92,6 @@ def floatCpuGraphPolyFHT(np.ndarray[np.float32_t, ndim=3] reshapedX,
         raise ValueError("One or more arguments is not C contiguous.")
 
     startPosition, cutoff = 0, reshapedX.shape[2]
-    scalingTerm = np.sqrt(1 / <float>radem.shape[2])
 
     for i in range(num_repeats):
         preSumFeats[:] = reshapedX
@@ -121,7 +119,6 @@ def floatCpuGraphPolyFHT(np.ndarray[np.float32_t, ndim=3] reshapedX,
         cutoff += reshapedX.shape[2]
         startPosition += reshapedX.shape[2]
 
-    outputArray *= scalingTerm
 
 
 
@@ -158,7 +155,6 @@ def floatCpuPolyFHT(np.ndarray[np.float32_t, ndim=3] reshapedX,
     """
     cdef const char *errCode
     cdef np.ndarray[np.float32_t, ndim=3] reshapedXCopy = reshapedX.copy()
-    cdef float scalingTerm
     cdef int j
     
     
@@ -185,7 +181,6 @@ def floatCpuPolyFHT(np.ndarray[np.float32_t, ndim=3] reshapedX,
         raise ValueError("One or more arguments is not C contiguous.")
 
 
-    scalingTerm = np.sqrt(1 / <float>radem.shape[2])
 
     outputArray[:] = reshapedX
     errCode = SORFFloatBlockTransform_(&outputArray[0,0,0], &radem[0,0,0],
@@ -204,7 +199,6 @@ def floatCpuPolyFHT(np.ndarray[np.float32_t, ndim=3] reshapedX,
         reshapedXCopy *= chiArr[j:j+1, :, :]
         outputArray *= reshapedXCopy
 
-    outputArray *= scalingTerm
 
 
 @cython.boundscheck(False)
@@ -239,7 +233,6 @@ def doubleCpuGraphPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
     cdef const char *errCode
     cdef np.ndarray[np.float64_t, ndim=3] reshapedXCopy = reshapedX.copy()
     cdef np.ndarray[np.float64_t, ndim=3] preSumFeats = reshapedX.copy()
-    cdef float scalingTerm
     cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
     cdef int startPosition, cutoff, i, j
     
@@ -272,7 +265,6 @@ def doubleCpuGraphPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
         raise ValueError("One or more arguments is not C contiguous.")
 
     startPosition, cutoff = 0, reshapedX.shape[2]
-    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
 
     for i in range(num_repeats):
         preSumFeats[:] = reshapedX
@@ -300,7 +292,6 @@ def doubleCpuGraphPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
         cutoff += reshapedX.shape[2]
         startPosition += reshapedX.shape[2]
 
-    outputArray *= scalingTerm
 
 
 
@@ -335,7 +326,6 @@ def doubleCpuPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
     """
     cdef const char *errCode
     cdef np.ndarray[np.float64_t, ndim=3] reshapedXCopy = reshapedX.copy()
-    cdef float scalingTerm
     cdef int j
     
     
@@ -361,7 +351,6 @@ def doubleCpuPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
         or not chiArr.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
 
-    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
 
     outputArray[:] = reshapedX
     errCode = SORFDoubleBlockTransform_(&outputArray[0,0,0], &radem[0,0,0],
@@ -380,5 +369,3 @@ def doubleCpuPolyFHT(np.ndarray[np.float64_t, ndim=3] reshapedX,
                         numThreads)
         reshapedXCopy *= chiArr[j:j+1, :, :]
         outputArray *= reshapedXCopy
-
-    outputArray *= scalingTerm

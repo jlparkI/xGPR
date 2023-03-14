@@ -60,7 +60,6 @@ def floatGpuGraphPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
     cdef const char *errCode
     reshapedXCopy = reshapedX.copy()
     preSumFeats = reshapedX.copy()
-    cdef float scalingTerm
     cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
     cdef int startPosition, cutoff, i, j
 
@@ -112,7 +111,6 @@ def floatGpuGraphPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
 
 
     startPosition, cutoff = 0, reshapedX.shape[2]
-    scalingTerm = np.sqrt(1 / <float>radem.shape[2])
 
     for i in range(num_repeats):
         preSumFeats[:] = reshapedX
@@ -136,8 +134,6 @@ def floatGpuGraphPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
 
         cutoff += reshapedX.shape[2]
         startPosition += reshapedX.shape[2]
-
-    outputArray *= scalingTerm
 
 
 
@@ -171,7 +167,6 @@ def floatGpuPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
     """
     cdef const char *errCode
     reshapedXCopy = reshapedX.copy()
-    cdef float scalingTerm
     cdef int j, k
 
     if len(chiArr.shape) != 3 or len(radem.shape) != 3 or len(reshapedX.shape) != 3:
@@ -216,8 +211,6 @@ def floatGpuPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
     cdef int8_t *radem_ptr = <int8_t*>addr_radem
 
 
-    scalingTerm = np.sqrt(1 / <float>radem.shape[2])
-
     outputArray[:] = reshapedX
     errCode = floatCudaSORF3d(outputArrayPtr, radem_ptr, outputArray.shape[0],
                 outputArray.shape[1], outputArray.shape[2])
@@ -233,8 +226,6 @@ def floatGpuPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
                 outputArray.shape[2])
         reshapedXCopy *= chiArr[j:j+1, :, :]
         outputArray *= reshapedXCopy
-
-    outputArray *= scalingTerm
 
 
 
@@ -269,7 +260,6 @@ def doubleGpuGraphPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
     cdef const char *errCode
     reshapedXCopy = reshapedX.copy()
     preSumFeats = reshapedX.copy()
-    cdef float scalingTerm
     cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
     cdef int startPosition, cutoff, i, j
 
@@ -321,7 +311,6 @@ def doubleGpuGraphPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
 
 
     startPosition, cutoff = 0, reshapedX.shape[2]
-    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
 
     for i in range(num_repeats):
         preSumFeats[:] = reshapedX
@@ -346,7 +335,6 @@ def doubleGpuGraphPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
         cutoff += reshapedX.shape[2]
         startPosition += reshapedX.shape[2]
 
-    outputArray *= scalingTerm
 
 
 
@@ -377,7 +365,6 @@ def doubleGpuPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
     """
     cdef const char *errCode
     reshapedXCopy = reshapedX.copy()
-    cdef double scalingTerm
     cdef int j
 
     if len(chiArr.shape) != 3 or len(radem.shape) != 3 or len(reshapedX.shape) != 3:
@@ -422,7 +409,6 @@ def doubleGpuPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
     cdef int8_t *radem_ptr = <int8_t*>addr_radem
 
 
-    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
 
     outputArray[:] = reshapedX
     errCode = doubleCudaSORF3d(outputArrayPtr, radem_ptr, outputArray.shape[0],
@@ -439,5 +425,3 @@ def doubleGpuPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
                 outputArray.shape[2])
         reshapedXCopy *= chiArr[j:j+1, :, :]
         outputArray *= reshapedXCopy
-
-    outputArray *= scalingTerm

@@ -147,13 +147,13 @@ class GraphFHTConv1d(KernelBaseclass):
         """
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
-        xtrans = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
+        xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         reshaped_x = self.zero_arr((input_x.shape[0], input_x.shape[1],
                                 self.padded_dims), self.dtype)
         reshaped_x[:,:,:input_x.shape[2]] = input_x * self.hyperparams[2]
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
                 self.num_threads, self.hyperparams[1])
-        return xtrans[:,:self.num_rffs]
+        return xtrans
 
 
 
@@ -175,11 +175,11 @@ class GraphFHTConv1d(KernelBaseclass):
         """
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
-        output_x = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
+        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         reshaped_x = self.zero_arr((input_x.shape[0], input_x.shape[1],
                                 self.padded_dims), self.dtype)
         reshaped_x[:,:,:input_x.shape[2]] = input_x
         dz_dsigma = self.grad_func(reshaped_x, self.radem_diag,
                 output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
                 self.hyperparams[1])
-        return output_x[:,:self.num_rffs], dz_dsigma[:,:self.num_rffs,:]
+        return output_x, dz_dsigma

@@ -1,6 +1,7 @@
 #ifndef RBF_CONVOLUTION_H
 #define RBF_CONVOLUTION_H
 
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
 
 struct ThreadConvRBFFloatArgs {
     int reshapedDim1, reshapedDim2;
@@ -13,6 +14,7 @@ struct ThreadConvRBFFloatArgs {
     int startRow, endRow;
     double *gradientArray;
     float sigma;
+    int rademShape2;
 };
 
 
@@ -27,6 +29,7 @@ struct ThreadConvRBFDoubleArgs {
     int startRow, endRow;
     double *gradientArray;
     double sigma;
+    int rademShape2;
 };
 
 
@@ -34,27 +37,27 @@ const char *doubleConvRBFFeatureGen_(int8_t *radem, double *reshapedX,
             double *copyBuffer, double *chiArr, double *outputArray,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
-            int numFreqs);
+            int numFreqs, int rademShape2);
 
 const char *floatConvRBFFeatureGen_(int8_t *radem, float *reshapedX,
             float *copyBuffer, float *chiArr, double *outputArray,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
-            int numFreqs);
+            int numFreqs, int rademShape2);
 
 const char *doubleConvRBFGrad_(int8_t *radem, double *reshapedX,
             double *copyBuffer, double *chiArr, double *outputArray,
             double *gradientArray, double sigma,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
-            int numFreqs);
+            int numFreqs, int rademShape2);
 
 const char *floatConvRBFGrad_(int8_t *radem, float *reshapedX,
             float *copyBuffer, float *chiArr, double *outputArray,
             double *gradientArray, float sigma,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
-            int numFreqs);
+            int numFreqs, int rademShape2);
 
 void *floatThreadConvRBFGen(void *sharedArgs);
 

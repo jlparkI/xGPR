@@ -26,17 +26,12 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
     const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
             float *featureArray, float *chiArr, double *outputArray,     
             int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int numFreqs, double scalingTerm);
+            int numFreqs, int rademShape2, double scalingTerm);
     const char *floatConvRBFFeatureGrad(int8_t *radem, float *reshapedX,
             float *featureArray, float *chiArr, double *outputArray,     
             double *gradientArray, double sigma,
             int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int numFreqs, double scalingTerm);
-
-
-cdef extern from "float_array_operations.h" nogil:
-    const char *floatCudaSORF3d(float *npArray, np.int8_t *radem, 
-                    int dim0, int dim1, int dim2)
+            int numFreqs, int rademShape2, double scalingTerm);
 
 
 @cython.boundscheck(False)
@@ -66,7 +61,6 @@ def floatGpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
     """
     cdef const char *errCode
     cdef int i, startPosition, cutoff
-    cdef float scalingTerm
     cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
     reshapedXCopy = reshapedX.copy()
     
@@ -121,7 +115,6 @@ def floatGpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
     cdef int8_t *radem_ptr = <int8_t*>addr_radem
     
     startPosition, cutoff = 0, reshapedX.shape[2]
-    scalingTerm = np.sqrt(1 / <float>radem.shape[2])
     
     for i in range(num_repeats):
         reshapedXCopy[:] = reshapedX
@@ -164,8 +157,7 @@ def floatGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
             Rademacher distribution. Shape must be (3 x D x C).
         outputArray (cp.ndarray): A numpy array in which the generated features will be
             stored. Is modified in-place.
-        chiArr (cp.ndarray): A stack of diagonal matrices stored as an
-            array of shape m * C drawn from a chi distribution.
+        chiArr (cp.ndarray): A stack of diagonal matrices drawn from a chi distribution.
         num_threads (int): Number of threads to use for FHT.
         beta (float): The amplitude.
 
@@ -187,12 +179,12 @@ def floatGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
                 "not agree.")
     if radem.shape[0] != 3 or radem.shape[1] != 1:
         raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
-    if outputArray.shape[1] != 2 * radem.shape[2]:
-        raise ValueError("outputArray.shape[1] must be 2 * radem.shape[2], which must be an integer multiple of "
-                    "the next power of 2 greater than the kernel width * X.shape[2].")
+
+    if outputArray.shape[1] % 2 != 0 or outputArray.shape[1] < 2:
+        raise ValueError("Shape of output array is not appropriate.")
     
-    if chiArr.shape[0] != radem.shape[2]:
-        raise ValueError("chiArr.shape[0] must == radem.shape[2].")
+    if 2 * chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
+        raise ValueError("Shape of output array and / or chiArr is inappropriate.")
 
     logdim = np.log2(reshapedX.shape[2])
     if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
@@ -229,12 +221,12 @@ def floatGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
     cdef double *outputArrayPtr = <double*>addr_outputArray
 
 
-    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
+    scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
     scalingTerm *= beta_
 
     errCode = floatConvRBFFeatureGen(radem_ptr, reshapedXPtr, featureArrayPtr,
                     chiArrPtr, outputArrayPtr, reshapedX.shape[0], reshapedX.shape[1], 
-                    reshapedX.shape[2], radem.shape[2], scalingTerm)
+                    reshapedX.shape[2], chiArr.shape[0], radem.shape[2], scalingTerm)
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing FHT RF generation.")
 
@@ -258,8 +250,7 @@ def floatGpuConvGrad(reshapedX, radem, outputArray, chiArr,
             Rademacher distribution. Shape must be (3 x D x C).
         outputArray (cp.ndarray): A numpy array in which the generated features will be
             stored. Is modified in-place.
-        chiArr (cp.ndarray): A stack of diagonal matrices stored as an
-            array of shape m * C drawn from a chi distribution.
+        chiArr (cp.ndarray): A stack of diagonal matrices drawn from a chi distribution.
         num_threads (int): Number of threads to use for FHT.
         sigma (float): The lengthscale.
         beta (float): The amplitude.
@@ -272,7 +263,7 @@ def floatGpuConvGrad(reshapedX, radem, outputArray, chiArr,
     """
     cdef const char *errCode
     reshapedXCopy = reshapedX.copy()
-    cdef float scalingTerm
+    cdef double scalingTerm
     cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
     cdef int startPosition, cutoff, startPos2, cutoff2, i, j
 
@@ -288,12 +279,13 @@ def floatGpuConvGrad(reshapedX, radem, outputArray, chiArr,
                 "not agree.")
     if radem.shape[0] != 3 or radem.shape[1] != 1:
         raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
-    if outputArray.shape[1] != 2 * radem.shape[2]:
-        raise ValueError("outputArray.shape[1] must be 2 * radem.shape[2], which must be an integer multiple of "
-                    "the next power of 2 greater than the kernel width * X.shape[2].")
+
+    if outputArray.shape[1] % 2 != 0 or outputArray.shape[1] < 2:
+        raise ValueError("Shape of output array is not appropriate.")
     
-    if chiArr.shape[0] != radem.shape[2]:
-        raise ValueError("chiArr.shape[0] must == radem.shape[2].")
+    if 2 * chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
+        raise ValueError("Shape of output array and / or chiArr is inappropriate.")
+
     logdim = np.log2(reshapedX.shape[2])
     if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
         raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
@@ -333,14 +325,14 @@ def floatGpuConvGrad(reshapedX, radem, outputArray, chiArr,
     cdef double *gradientArrayPtr = <double*>addr_gradientArray
 
 
-    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
+    scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
     scalingTerm *= beta_
 
     errCode = floatConvRBFFeatureGrad(radem_ptr, reshapedXPtr,
             featureArrayPtr, chiArrPtr, outputArrayPtr,     
             gradientArrayPtr, sigma,
             reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2],
-            radem.shape[2], scalingTerm);
+            chiArr.shape[0], radem.shape[2], scalingTerm);
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing FHT RF generation.")
     return gradient

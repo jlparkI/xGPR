@@ -4,8 +4,7 @@
 */
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdint.h>
 #include <math.h>
 #include "../float_array_operations.h"
 #include "../double_array_operations.h"
@@ -85,18 +84,15 @@ __global__ void doubleConv1dRBFRademAndCopy(double *inputArray, double *featureA
 //kernels -- multiplying by chiArr, taking sine or cosine and adding
 //to the appropriate elements of outputArray.
 __global__ void floatConvRBFPostProcessKernel(float *featureArray, float *chiArr,
-            double *outputArray, int dim1, int dim2,
-            int outputDim1, int startPosition, int numElements,
-            int log2dim2, double scalingTerm)
-{
+            double *outputArray, int dim1, int dim2, int numFreqs,
+            int startPosition, int numElements,
+            int endPosition, double scalingTerm){
     int i;
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    int column = (tid & (dim2 - 1));
-    int row = (tid >> log2dim2);
+    int column = tid % endPosition;
+    int row = tid / endPosition;
     int inputLoc = row * dim1 * dim2 + column;
-    //We multiply startPosition by 2 here because outputArray must have
-    //a block of cosine features followed by a block of sine features etc.
-    int outputLoc = row * outputDim1 + column + 2 * startPosition;
+    int outputLoc = row * 2 * numFreqs + column + startPosition;
     float *chiVal = chiArr + startPosition + column;
     float chiProd, sinSum = 0, cosSum = 0;
 
@@ -108,7 +104,7 @@ __global__ void floatConvRBFPostProcessKernel(float *featureArray, float *chiArr
             inputLoc += dim2;
         }
         outputArray[outputLoc] = cosSum * scalingTerm;
-        outputArray[outputLoc + dim2] = sinSum * scalingTerm;
+        outputArray[outputLoc + numFreqs] = sinSum * scalingTerm;
     }
 }
 
@@ -118,18 +114,16 @@ __global__ void floatConvRBFPostProcessKernel(float *featureArray, float *chiArr
 //kernels -- multiplying by chiArr, taking sine or cosine and adding
 //to the appropriate elements of outputArray.
 __global__ void doubleConvRBFPostProcessKernel(double *featureArray, double *chiArr,
-            double *outputArray, int dim1, int dim2,
-            int outputDim1, int startPosition, int numElements,
-            int log2dim2, double scalingTerm)
+            double *outputArray, int dim1, int dim2, int numFreqs,
+            int startPosition, int numElements,
+            int endPosition, double scalingTerm)
 {
     int i;
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    int column = (tid & (dim2 - 1));
-    int row = (tid >> log2dim2);
+    int column = tid % endPosition;
+    int row = tid / endPosition;
     int inputLoc = row * dim1 * dim2 + column;
-    //We multiply startPosition by 2 here because outputArray must have
-    //a block of cosine features followed by a block of sine features etc.
-    int outputLoc = row * outputDim1 + column + 2 * startPosition;
+    int outputLoc = row * 2 * numFreqs + column + startPosition;
     double *chiVal = chiArr + startPosition + column;
     double chiProd, sinSum = 0, cosSum = 0;
 
@@ -141,7 +135,7 @@ __global__ void doubleConvRBFPostProcessKernel(double *featureArray, double *chi
             inputLoc += dim2;
         }
         outputArray[outputLoc] = cosSum * scalingTerm;
-        outputArray[outputLoc + dim2] = sinSum * scalingTerm;
+        outputArray[outputLoc + numFreqs] = sinSum * scalingTerm;
     }
 }
 
@@ -153,19 +147,17 @@ __global__ void doubleConvRBFPostProcessKernel(double *featureArray, double *chi
 //to the appropriate elements of outputArray, then adding the same to the 
 //appropriate elements of gradientArray.
 __global__ void floatConvRBFGradProcessKernel(float *featureArray, float *chiArr,
-            double *outputArray, int dim1, int dim2,
-            int outputDim1, int startPosition, int numElements,
-            int log2dim2, double scalingTerm,
+            double *outputArray, int dim1, int dim2, int numFreqs,
+            int startPosition, int numElements,
+            int endPosition, double scalingTerm,
             double sigma, double *gradientArray)
 {
     int i;
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    int column = (tid & (dim2 - 1));
-    int row = (tid >> log2dim2);
+    int column = tid % endPosition;
+    int row = tid / endPosition;
     int inputLoc = row * dim1 * dim2 + column;
-    //We multiply startPosition by 2 here because outputArray must have
-    //a block of cosine features followed by a block of sine features etc.
-    int outputLoc = row * outputDim1 + column + 2 * startPosition;
+    int outputLoc = row * 2 * numFreqs + column + startPosition;
     float *chiVal = chiArr + startPosition + column;
     float chiProd, sinSum = 0, cosSum = 0, sinVal, cosVal;
     float gradSinVal = 0, gradCosVal = 0;
@@ -184,10 +176,10 @@ __global__ void floatConvRBFGradProcessKernel(float *featureArray, float *chiArr
             inputLoc += dim2;
         }
         outputArray[outputLoc] = cosSum * scalingTerm;
-        outputArray[outputLoc + dim2] = sinSum * scalingTerm;
+        outputArray[outputLoc + numFreqs] = sinSum * scalingTerm;
 
         gradientArray[outputLoc] = gradCosVal * scalingTerm;
-        gradientArray[outputLoc + dim2] = gradSinVal * scalingTerm;
+        gradientArray[outputLoc + numFreqs] = gradSinVal * scalingTerm;
     }
 }
 
@@ -198,19 +190,17 @@ __global__ void floatConvRBFGradProcessKernel(float *featureArray, float *chiArr
 //to the appropriate elements of outputArray, then adding the same to the 
 //appropriate elements of gradientArray.
 __global__ void doubleConvRBFGradProcessKernel(double *featureArray, double *chiArr,
-            double *outputArray, int dim1, int dim2,
-            int outputDim1, int startPosition, int numElements,
-            int log2dim2, double scalingTerm,
+            double *outputArray, int dim1, int dim2, int numFreqs,
+            int startPosition, int numElements,
+            int endPosition, double scalingTerm,
             double sigma, double *gradientArray)
 {
     int i;
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    int column = (tid & (dim2 - 1));
-    int row = (tid >> log2dim2);
+    int column = tid % endPosition;
+    int row = tid / endPosition;
     int inputLoc = row * dim1 * dim2 + column;
-    //We multiply startPosition by 2 here because outputArray must have
-    //a block of cosine features followed by a block of sine features etc.
-    int outputLoc = row * outputDim1 + column + 2 * startPosition;
+    int outputLoc = row * 2 * numFreqs + column + startPosition;
     double *chiVal = chiArr + startPosition + column;
     double chiProd, sinSum = 0, cosSum = 0, sinVal, cosVal;
     double gradSinVal = 0, gradCosVal = 0;
@@ -229,93 +219,11 @@ __global__ void doubleConvRBFGradProcessKernel(double *featureArray, double *chi
             inputLoc += dim2;
         }
         outputArray[outputLoc] = cosSum * scalingTerm;
-        outputArray[outputLoc + dim2] = sinSum * scalingTerm;
+        outputArray[outputLoc + numFreqs] = sinSum * scalingTerm;
 
         gradientArray[outputLoc] = gradCosVal * scalingTerm;
-        gradientArray[outputLoc + dim2] = gradSinVal * scalingTerm;
+        gradientArray[outputLoc + numFreqs] = gradSinVal * scalingTerm;
     }
-}
-
-
-
-//Carries out the final stages of feature generation
-//for RBF-based kernels with float input data by wrapping
-//the PostProcess kernel.
-void rbfConvFloatPostProcess(float *featureArray, float *chiArr,
-        double *outputArray, int reshapedDim0, int reshapedDim1,
-        int reshapedDim2, int startPosition, int numFreqs,
-        double scalingTerm){
-    int numElements = reshapedDim0 * reshapedDim2;
-    int blockRepeats = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
-    int outputDim1 = 2 * numFreqs;
-    int log2dim2 = log2(reshapedDim2);
-
-    floatConvRBFPostProcessKernel<<<blockRepeats, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
-            outputArray, reshapedDim1, reshapedDim2,
-            outputDim1, startPosition, numElements, log2dim2,
-            scalingTerm);
-}
-
-
-
-//Carries out the final stages of feature generation
-//for RBF-based kernels with double input data by wrapping
-//the PostProcess kernel.
-void rbfConvDoublePostProcess(double *featureArray, double *chiArr,
-        double *outputArray, int reshapedDim0, int reshapedDim1,
-        int reshapedDim2, int startPosition, int numFreqs,
-        double scalingTerm){
-    int numElements = reshapedDim0 * reshapedDim2;
-    int blockRepeats = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
-    int outputDim1 = 2 * numFreqs;
-    int log2dim2 = log2(reshapedDim2);
-
-    doubleConvRBFPostProcessKernel<<<blockRepeats, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
-            outputArray, reshapedDim1, reshapedDim2,
-            outputDim1, startPosition, numElements, log2dim2,
-            scalingTerm);
-}
-
-
-
-//Carries out the final stages of feature generation
-//for RBF-based kernels with float input data WHILE
-//generating the gradient information, by wrapping
-//the GradProcess kernel.
-void rbfConvFloatGradProcess(float *featureArray, float *chiArr,
-        double *outputArray, int reshapedDim0, int reshapedDim1,
-        int reshapedDim2, int startPosition, int numFreqs,
-        double scalingTerm, double sigma, double *gradientArray){
-    int numElements = reshapedDim0 * reshapedDim2;
-    int blockRepeats = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
-    int outputDim1 = 2 * numFreqs;
-    int log2dim2 = log2(reshapedDim2);
-
-    floatConvRBFGradProcessKernel<<<blockRepeats, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
-            outputArray, reshapedDim1, reshapedDim2,
-            outputDim1, startPosition, numElements, log2dim2,
-            scalingTerm, sigma, gradientArray);
-}
-
-
-
-//Carries out the final stages of feature generation
-//for RBF-based kernels with double input data WHILE
-//generating the gradient information, by wrapping
-//the GradProcess kernel.
-void rbfConvDoubleGradProcess(double *featureArray, double *chiArr,
-        double *outputArray, int reshapedDim0, int reshapedDim1,
-        int reshapedDim2, int startPosition, int numFreqs,
-        double scalingTerm, double sigma, double *gradientArray){
-    int numElements = reshapedDim0 * reshapedDim2;
-    int blockRepeats = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
-    int outputDim1 = 2 * numFreqs;
-    int log2dim2 = log2(reshapedDim2);
-
-    doubleConvRBFGradProcessKernel<<<blockRepeats, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
-            outputArray, reshapedDim1, reshapedDim2,
-            outputDim1, startPosition, numElements, log2dim2,
-            scalingTerm, sigma, gradientArray);
 }
 
 
@@ -326,7 +234,7 @@ void rbfConvDoubleGradProcess(double *featureArray, double *chiArr,
 const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
             float *featureArray, float *chiArr, double *outputArray,     
             int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int numFreqs, double scalingTerm){
+            int numFreqs, int rademShape2, double scalingTerm){
 
     int numElements = reshapedDim0 * reshapedDim1 * reshapedDim2;
     //This is the Hadamard normalization constant.
@@ -335,11 +243,16 @@ const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
     int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / 
                 DEFAULT_THREADS_PER_BLOCK;
 
+    int endPosition, numOutElements, outBlocks;
     int numRepeats = (numFreqs + reshapedDim2 - 1) / reshapedDim2;
     int i, startPosition;
 
     for (i=0; i < numRepeats; i++){
         startPosition = i * reshapedDim2;
+        endPosition = MIN((i + 1) * reshapedDim2, numFreqs);
+        endPosition -= i * reshapedDim2;
+        numOutElements = reshapedDim0 * endPosition;
+        outBlocks = (numOutElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
 
         //Copy input into featureArray while multiplying by first row of radem.
         floatConv1dRBFRademAndCopy<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX, 
@@ -350,24 +263,25 @@ const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
 
         //Multiply by second row of radem.
         floatConv1dRBFRademMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
-                        radem + numFreqs, reshapedDim2, startPosition, numElements,
+                        radem + rademShape2, reshapedDim2, startPosition, numElements,
                         normConstant);
         //Second H-transform.
         floatCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
         
         //Multiply by third row of radem.
         floatConv1dRBFRademMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
-                        radem + 2 * numFreqs, reshapedDim2, startPosition, numElements,
+                        radem + 2 * rademShape2, reshapedDim2, startPosition, numElements,
                         normConstant);
         //Last H-transform.
         floatCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
 
+
         //Multiply by chiArr; take the sine and cosine of elements of
         //featureArray, multiply by scalingTerm, and transfer to outputArray.
-        rbfConvFloatPostProcess(featureArray, chiArr,
-            outputArray, reshapedDim0, reshapedDim1,
-            reshapedDim2, startPosition, numFreqs,
-            scalingTerm);
+        floatConvRBFPostProcessKernel<<<outBlocks, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
+                outputArray, reshapedDim1, reshapedDim2, numFreqs,
+                startPosition, numOutElements, endPosition,
+                scalingTerm);
     }
 
     return "no_error";
@@ -380,20 +294,25 @@ const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
 const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
                 double *featureArray, double *chiArr, double *outputArray,
                 int reshapedDim0, int reshapedDim1, int reshapedDim2,
-                int numFreqs, double scalingTerm){
+                int numFreqs, int rademShape2, double scalingTerm){
 
     int numElements = reshapedDim0 * reshapedDim1 * reshapedDim2;
     //This is the Hadamard normalization constant.
-    float normConstant = log2(reshapedDim2) / 2;
+    double normConstant = log2(reshapedDim2) / 2;
     normConstant = 1 / pow(2, normConstant);
     int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / 
                 DEFAULT_THREADS_PER_BLOCK;
 
+    int endPosition, numOutElements, outBlocks;
     int numRepeats = (numFreqs + reshapedDim2 - 1) / reshapedDim2;
     int i, startPosition;
 
     for (i=0; i < numRepeats; i++){
         startPosition = i * reshapedDim2;
+        endPosition = MIN((i + 1) * reshapedDim2, numFreqs);
+        endPosition -= i * reshapedDim2;
+        numOutElements = reshapedDim0 * endPosition;
+        outBlocks = (numOutElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     
         //Copy input into featureArray while multiplying by first row of radem.
         doubleConv1dRBFRademAndCopy<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX, 
@@ -404,24 +323,24 @@ const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
 
         //Multiply by second row of radem.
         doubleConv1dRBFRademMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
-                        radem + numFreqs, reshapedDim2, startPosition, numElements,
+                        radem + rademShape2, reshapedDim2, startPosition, numElements,
                         normConstant);
         //Second H-transform.
         doubleCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
         
         //Multiply by third row of radem.
         doubleConv1dRBFRademMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
-                        radem + 2 * numFreqs, reshapedDim2, startPosition, numElements,
+                        radem + 2 * rademShape2, reshapedDim2, startPosition, numElements,
                         normConstant);
         //Last H-transform.
         doubleCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
 
         //Multiply by chiArr; take the sine and cosine of elements of
         //featureArray, multiply by scalingTerm, and transfer to output.
-        rbfConvDoublePostProcess(featureArray, chiArr,
-            outputArray, reshapedDim0, reshapedDim1,
-            reshapedDim2, startPosition, numFreqs,
-            scalingTerm);
+        doubleConvRBFPostProcessKernel<<<outBlocks, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
+                outputArray, reshapedDim1, reshapedDim2, numFreqs,
+                startPosition, numOutElements, endPosition,
+                scalingTerm);
     }
 
     return "no_error";
@@ -441,7 +360,7 @@ const char *floatConvRBFFeatureGrad(int8_t *radem, float *reshapedX,
             float *featureArray, float *chiArr, double *outputArray,     
             double *gradientArray, double sigma,
             int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int numFreqs, double scalingTerm){
+            int numFreqs, int rademShape2, double scalingTerm){
 
     int numElements = reshapedDim0 * reshapedDim1 * reshapedDim2;
     //This is the Hadamard normalization constant.
@@ -449,12 +368,17 @@ const char *floatConvRBFFeatureGrad(int8_t *radem, float *reshapedX,
     normConstant = 1 / pow(2, normConstant);
     int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / 
                 DEFAULT_THREADS_PER_BLOCK;
+    int numOutElements, outBlocks;
 
     int numRepeats = (numFreqs + reshapedDim2 - 1) / reshapedDim2;
-    int i, startPosition;
+    int i, startPosition, endPosition;
 
     for (i=0; i < numRepeats; i++){
         startPosition = i * reshapedDim2;
+        endPosition = MIN((i + 1) * reshapedDim2, numFreqs);
+        endPosition -= startPosition;
+        numOutElements = reshapedDim0 * endPosition;
+        outBlocks = (numOutElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
 
         //Copy input into featureArray while multiplying by first row of radem.
         floatConv1dRBFRademAndCopy<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX, 
@@ -465,14 +389,14 @@ const char *floatConvRBFFeatureGrad(int8_t *radem, float *reshapedX,
 
         //Multiply by second row of radem.
         floatConv1dRBFRademMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
-                        radem + numFreqs, reshapedDim2, startPosition, numElements,
+                        radem + rademShape2, reshapedDim2, startPosition, numElements,
                         normConstant);
         //Second H-transform.
         floatCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
         
         //Multiply by third row of radem.
         floatConv1dRBFRademMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
-                        radem + 2 * numFreqs, reshapedDim2, startPosition, numElements,
+                        radem + 2 * rademShape2, reshapedDim2, startPosition, numElements,
                         normConstant);
         //Last H-transform.
         floatCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
@@ -481,10 +405,10 @@ const char *floatConvRBFFeatureGrad(int8_t *radem, float *reshapedX,
         //featureArray, multiply by scalingTerm, transfer to output
         //AND at the same time calculate the gradient terms, using
         //them to populate gradientArray.
-        rbfConvFloatGradProcess(featureArray, chiArr,
-            outputArray, reshapedDim0, reshapedDim1,
-            reshapedDim2, startPosition, numFreqs,
-            scalingTerm, sigma, gradientArray);
+        floatConvRBFGradProcessKernel<<<outBlocks, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
+                outputArray, reshapedDim1, reshapedDim2, numFreqs,
+                startPosition, numOutElements, endPosition,
+                scalingTerm, sigma, gradientArray);
     }
 
     return "no_error";
@@ -503,20 +427,25 @@ const char *doubleConvRBFFeatureGrad(int8_t *radem, double *reshapedX,
                 double *featureArray, double *chiArr, double *outputArray,
                 double *gradientArray, double sigma,
                 int reshapedDim0, int reshapedDim1, int reshapedDim2,
-                int numFreqs, double scalingTerm){
+                int numFreqs, int rademShape2, double scalingTerm){
 
     int numElements = reshapedDim0 * reshapedDim1 * reshapedDim2;
     //This is the Hadamard normalization constant.
-    float normConstant = log2(reshapedDim2) / 2;
+    double normConstant = log2(reshapedDim2) / 2;
     normConstant = 1 / pow(2, normConstant);
     int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / 
                 DEFAULT_THREADS_PER_BLOCK;
+    int numOutElements, outBlocks;
 
     int numRepeats = (numFreqs + reshapedDim2 - 1) / reshapedDim2;
-    int i, startPosition;
+    int i, startPosition, endPosition;
 
     for (i=0; i < numRepeats; i++){
         startPosition = i * reshapedDim2;
+        endPosition = MIN((i + 1) * reshapedDim2, numFreqs);
+        endPosition -= startPosition;
+        numOutElements = reshapedDim0 * endPosition;
+        outBlocks = (numOutElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     
         //Copy input into featureArray while multiplying by first row of radem.
         doubleConv1dRBFRademAndCopy<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX, 
@@ -527,14 +456,14 @@ const char *doubleConvRBFFeatureGrad(int8_t *radem, double *reshapedX,
 
         //Multiply by second row of radem.
         doubleConv1dRBFRademMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
-                        radem + numFreqs, reshapedDim2, startPosition, numElements,
+                        radem + rademShape2, reshapedDim2, startPosition, numElements,
                         normConstant);
         //Second H-transform.
         doubleCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
         
         //Multiply by third row of radem.
         doubleConv1dRBFRademMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
-                        radem + 2 * numFreqs, reshapedDim2, startPosition, numElements,
+                        radem + 2 * rademShape2, reshapedDim2, startPosition, numElements,
                         normConstant);
         //Last H-transform.
         doubleCudaHTransform3d(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
@@ -543,10 +472,10 @@ const char *doubleConvRBFFeatureGrad(int8_t *radem, double *reshapedX,
         //featureArray, multiply by scalingTerm, transfer to output
         //AND at the same time calculate the gradient terms, using
         //them to populate gradientArray.
-        rbfConvDoubleGradProcess(featureArray, chiArr,
-            outputArray, reshapedDim0, reshapedDim1,
-            reshapedDim2, startPosition, numFreqs,
-            scalingTerm, sigma, gradientArray);
+        doubleConvRBFGradProcessKernel<<<outBlocks, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
+                outputArray, reshapedDim1, reshapedDim2, numFreqs,
+                startPosition, numOutElements, endPosition,
+                scalingTerm, sigma, gradientArray);
     }
 
     return "no_error";

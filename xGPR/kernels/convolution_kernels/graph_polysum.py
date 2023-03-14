@@ -148,7 +148,8 @@ class GraphPolySum(KernelBaseclass):
                             dtype = self.dtype)
         self.graph_poly_func(retyped_input, self.radem_diag,
                 self.chi_arr, output_x, self.polydegree, self.num_threads)
-        output_x = output_x[:,:self.num_rffs].astype(self.out_type) * self.hyperparams[1]
+        scaling_constant = self.hyperparams[1] * np.sqrt(1 / self.num_freqs)
+        output_x = output_x[:,:self.num_rffs].astype(self.out_type) * scaling_constant
         return output_x
 
 

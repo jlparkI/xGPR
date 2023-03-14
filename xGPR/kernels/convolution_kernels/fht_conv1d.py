@@ -169,7 +169,7 @@ class FHTConv1d(KernelBaseclass):
                     "kernel width.")
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
-        xtrans = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
+        xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         reshaped_x = self.zero_arr((input_x.shape[0], self.num_slides,
                                 self.padded_dims), self.dtype)
         #Stride tricks is a little dangerous. TODO: Find efficient non stride-tricks
@@ -181,7 +181,7 @@ class FHTConv1d(KernelBaseclass):
         reshaped_x[:,:,:self.dim2_no_padding] = x_strided * self.hyperparams[2]
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr, self.num_threads,
                 self.hyperparams[1])
-        return xtrans[:,:self.num_rffs]
+        return xtrans
 
 
     def kernel_specific_set_hyperparams(self):
@@ -224,6 +224,4 @@ class FHTConv1d(KernelBaseclass):
                 output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
                 self.hyperparams[1])
 
-        output_x = output_x[:,:self.num_rffs]
-        dz_dsigma = dz_dsigma[:,:self.num_rffs,:]
         return output_x, dz_dsigma

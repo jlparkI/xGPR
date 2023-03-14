@@ -24,13 +24,13 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
             double *copyBuffer, double *chiArr, double *outputArray,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
-            int numFreqs)
+            int numFreqs, int rademShape2)
     const char *doubleConvRBFGrad_(int8_t *radem, double *reshapedX,
             double *copyBuffer, double *chiArr, double *outputArray,
             double *gradientArray, double sigma,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
-            int numFreqs)
+            int numFreqs, int rademShape2)
 
 
 cdef extern from "convolution_ops/ard_convolution.h" nogil:
@@ -72,7 +72,6 @@ def doubleCpuConv1dMaxpool(np.ndarray[np.float64_t, ndim=3] reshapedX,
     """
     cdef const char *errCode
     cdef int i, startPosition, cutoff
-    cdef double scalingTerm
     cdef np.ndarray[np.float64_t, ndim=3] reshapedXCopy
     cdef np.ndarray[np.float64_t, ndim=2] gradient
     cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
@@ -109,7 +108,6 @@ def doubleCpuConv1dMaxpool(np.ndarray[np.float64_t, ndim=3] reshapedX,
         raise ValueError("One or more arguments is not C contiguous.")
 
     startPosition, cutoff = 0, reshapedX.shape[2]
-    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
 
     for i in range(num_repeats):
         reshapedXCopy[:] = reshapedX
@@ -174,32 +172,30 @@ def doubleCpuConv1dFGen(np.ndarray[np.float64_t, ndim=3] reshapedX,
                 "not agree.")
     if radem.shape[0] != 3 or radem.shape[1] != 1:
         raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
-    if outputArray.shape[1] != 2 * radem.shape[2]:
-        raise ValueError("outputArray.shape[1] must be 2 * radem.shape[2], which must be an integer multiple of "
-                    "the next power of 2 greater than the kernel width * X.shape[2].")
+    if outputArray.shape[1] % 2 != 0 or outputArray.shape[1] < 2:
+        raise ValueError("Shape of output array is not appropriate.")
     
-    if chiArr.shape[0] != radem.shape[2]:
-        raise ValueError("chiArr.shape[0] must == radem.shape[2].")
+    if 2 * chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
+        raise ValueError("Shape of output array and / or chiArr is inappropriate.")
+
     logdim = np.log2(reshapedX.shape[2])
     if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
         raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
     if not radem.shape[2] % reshapedX.shape[2] == 0:
-        raise ValueError("The number of sampled frequencies should be an integer multiple of "
-                "reshapedX.shape[2].")
+        raise ValueError("radem should be an integer multiple of shape[2].")
 
     if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
         or not chiArr.flags["C_CONTIGUOUS"]:
-        raise ValueError("One or more arguments to cpuGraphConv1dTransform is not "
-                "C contiguous.")
+        raise ValueError("One or more arguments is not C contiguous.")
 
-    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
+    scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
     scalingTerm *= beta_
 
     errCode = doubleConvRBFFeatureGen_(&radem[0,0,0], &reshapedX[0,0,0],
                 &reshapedXCopy[0,0,0], &chiArr[0], &outputArray[0,0],
                 numThreads, reshapedX.shape[0],
                 reshapedX.shape[1], reshapedX.shape[2],
-                radem.shape[2])
+                chiArr.shape[0], radem.shape[2])
 
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing graph convolution.")
@@ -216,9 +212,8 @@ def doubleCpuConvGrad(np.ndarray[np.float64_t, ndim=3] reshapedX,
                 np.ndarray[np.float64_t, ndim=1] chiArr,
                 int numThreads, double sigma,
                 double beta_):
-    """Uses the wrapped doubleConv1dPrep_ and numpy operations to perform
-    1d convolution on a sequence of vectors representing the nodes
-    of a graph.
+    """Performs feature generation for RBF-based convolution kernels while
+    also performing gradient calculations.
 
     Args:
         reshapedX (np.ndarray): Raw data reshaped so that a convolution can be
@@ -230,8 +225,7 @@ def doubleCpuConvGrad(np.ndarray[np.float64_t, ndim=3] reshapedX,
             Rademacher distribution. Shape must be (3 x D x C).
         outputArray (np.ndarray): A numpy array in which the generated features will be
             stored. Is modified in-place.
-        chiArr (np.ndarray): A stack of diagonal matrices stored as an
-            array of shape m * C drawn from a chi distribution.
+        chiArr (np.ndarray): A stack of diagonal matrices drawn from a chi distribution.
         num_threads (int): Number of threads to use for FHT.
         sigma (double): The lengthscale.
         beta_ (double): The amplitude.
@@ -256,25 +250,23 @@ def doubleCpuConvGrad(np.ndarray[np.float64_t, ndim=3] reshapedX,
                 "not agree.")
     if radem.shape[0] != 3 or radem.shape[1] != 1:
         raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
-    if outputArray.shape[1] != 2 * radem.shape[2]:
-        raise ValueError("outputArray.shape[1] must be 2 * radem.shape[2], which must be an integer multiple of "
-                    "the next power of 2 greater than the kernel width * X.shape[2].")
+    if outputArray.shape[1] % 2 != 0 or outputArray.shape[1] < 2:
+        raise ValueError("Shape of output array is not appropriate.")
     
-    if chiArr.shape[0] != radem.shape[2]:
-        raise ValueError("chiArr.shape[0] must == radem.shape[2].")
+    if 2 * chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
+        raise ValueError("Shape of output array and / or chiArr is inappropriate.")
+
     logdim = np.log2(reshapedX.shape[2])
     if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
         raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
     if not radem.shape[2] % reshapedX.shape[2] == 0:
-        raise ValueError("The number of sampled frequencies should be an integer multiple of "
-                "reshapedX.shape[2].")
+        raise ValueError("radem should be an integer multiple of shape[2].")
 
     if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
         or not chiArr.flags["C_CONTIGUOUS"]:
-        raise ValueError("One or more arguments to cpuGraphConv1dTransform is not "
-                "C contiguous.")
+        raise ValueError("One or more arguments is not C contiguous.")
 
-    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
+    scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
     scalingTerm *= beta_
 
     errCode = doubleConvRBFGrad_(&radem[0,0,0], &reshapedX[0,0,0],
@@ -282,91 +274,7 @@ def doubleCpuConvGrad(np.ndarray[np.float64_t, ndim=3] reshapedX,
                     &gradient[0,0,0], sigma,
                     numThreads, reshapedX.shape[0],
                     reshapedX.shape[1], reshapedX.shape[2],
-                    radem.shape[2])
-
-    if errCode.decode("UTF-8") != "no_error":
-        raise Exception("Fatal error encountered while performing graph convolution.")
-
-    outputArray *= scalingTerm
-    gradient *= scalingTerm
-    return gradient
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def doubleCpuConvGrad(np.ndarray[np.float64_t, ndim=3] reshapedX,
-                np.ndarray[np.int8_t, ndim=3] radem,
-                np.ndarray[np.float64_t, ndim=2] outputArray,
-                np.ndarray[np.float64_t, ndim=1] chiArr,
-                int numThreads, double sigma,
-                double beta_):
-    """Uses the wrapped doubleConv1dPrep_ and numpy operations to perform
-    1d convolution on a sequence of vectors representing the nodes
-    of a graph.
-
-    Args:
-        reshapedX (np.ndarray): Raw data reshaped so that a convolution can be
-            performed on it using orthogonal random features with the SORF
-            operation. This array is not modified in place -- rather the features
-            that are generated are stored in outputArray. Shape is (N x D x C) for 
-            N datapoints. C must be a power of 2.
-        radem (np.ndarray): A stack of diagonal matrices with elements drawn from the
-            Rademacher distribution. Shape must be (3 x D x C).
-        outputArray (np.ndarray): A numpy array in which the generated features will be
-            stored. Is modified in-place.
-        chiArr (np.ndarray): A stack of diagonal matrices stored as an
-            array of shape m * C drawn from a chi distribution.
-        num_threads (int): Number of threads to use for FHT.
-        sigma (double): The lengthscale.
-        beta_ (double): The amplitude.
-
-    Raises:
-        ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
-
-    Returns:
-        gradient (np.ndarray); An array of shape output.shape[0] x output.shape[1] x 1.
-    """
-    cdef const char *errCode
-    cdef np.ndarray[np.float64_t, ndim=3] reshapedXCopy = np.zeros((reshapedX.shape[0], reshapedX.shape[1],
-                        reshapedX.shape[2]))
-    cdef np.ndarray[np.float64_t, ndim=3] gradient = np.zeros((outputArray.shape[0], outputArray.shape[1], 1))
-    cdef double scalingTerm
-
-
-    if reshapedX.shape[0] == 0:
-        raise ValueError("There must be at least one datapoint.")
-    if reshapedX.shape[0] != outputArray.shape[0]:
-        raise ValueError("The number of datapoints in the outputs and the inputs do "
-                "not agree.")
-    if radem.shape[0] != 3 or radem.shape[1] != 1:
-        raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
-    if outputArray.shape[1] != 2 * radem.shape[2]:
-        raise ValueError("outputArray.shape[1] must be 2 * radem.shape[2], which must be an integer multiple of "
-                    "the next power of 2 greater than the kernel width * X.shape[2].")
-    
-    if chiArr.shape[0] != radem.shape[2]:
-        raise ValueError("chiArr.shape[0] must == radem.shape[2].")
-    logdim = np.log2(reshapedX.shape[2])
-    if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
-        raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
-    if not radem.shape[2] % reshapedX.shape[2] == 0:
-        raise ValueError("The number of sampled frequencies should be an integer multiple of "
-                "reshapedX.shape[2].")
-
-    if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
-        or not chiArr.flags["C_CONTIGUOUS"]:
-        raise ValueError("One or more arguments to cpuGraphConv1dTransform is not "
-                "C contiguous.")
-
-    scalingTerm = np.sqrt(1 / <double>radem.shape[2])
-    scalingTerm *= beta_
-
-    errCode = doubleConvRBFGrad_(&radem[0,0,0], &reshapedX[0,0,0],
-                    &reshapedXCopy[0,0,0], &chiArr[0], &outputArray[0,0],
-                    &gradient[0,0,0], sigma,
-                    numThreads, reshapedX.shape[0],
-                    reshapedX.shape[1], reshapedX.shape[2],
-                    radem.shape[2])
+                    chiArr.shape[0], radem.shape[2])
 
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing graph convolution.")

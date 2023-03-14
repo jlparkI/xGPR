@@ -26,12 +26,8 @@ class TestConv1d(unittest.TestCase):
 
     def test_conv1d(self):
         """Tests the FHT-based Conv1d C / Cuda functions."""
-        kernel_width = 9
-        num_aas = 23
-        aa_dim = 21
-        num_freqs = 1000
-        sigma = 1
-        ndatapoints = 124
+        kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 1000
+        sigma, ndatapoints = 1, 124
 
         outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma)
@@ -43,12 +39,8 @@ class TestConv1d(unittest.TestCase):
         for outcome in outcomes:
             self.assertTrue(outcome)
 
-        kernel_width = 5
-        num_aas = 56
-        aa_dim = 2
-        num_freqs = 62
-        sigma = 1
-        ndatapoints = 2000
+        kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
+        sigma, ndatapoints = 1, 2000
 
         outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma)
@@ -59,30 +51,41 @@ class TestConv1d(unittest.TestCase):
                     num_freqs, sigma, precision = "float")
         for outcome in outcomes:
             self.assertTrue(outcome)
+
+        kernel_width, num_aas, aa_dim, num_freqs = 7, 202, 105, 784
+        sigma, ndatapoints = 1, 38
+
+        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma, precision = "float")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
 
 
 
     def test_conv1d_gradients(self):
         """Tests the gradient calculations for the FHT-based Cuda / C functions."""
-        kernel_width = 9
-        num_aas = 23
-        aa_dim = 21
-        num_freqs = 128
-        sigma = 1
-        ndatapoints = 36
+        kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 128
+        sigma, ndatapoints = 1, 36
 
         outcomes = run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma)
         for outcome in outcomes:
             self.assertTrue(outcome)
 
-        kernel_width = 5
-        num_aas = 56
-        aa_dim = 2
-        num_freqs = 62
-        sigma = 1
-        ndatapoints = 1
+        outcomes = run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma, precision = "float")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
 
+
+        kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
+        sigma, ndatapoints = 1, 53
 
         outcomes = run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma)
@@ -98,28 +101,16 @@ class TestConv1d(unittest.TestCase):
     def test_conv1d_maxpool(self):
         """Tests the C / Cuda FHT-based convolution with global max pooling
         functions."""
-        kernel_width = 9
-        num_aas = 23
-        aa_dim = 21
-        num_freqs = 128
-        sigma = 1
-        ndatapoints = 124
+        kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 128
+        sigma, ndatapoints = 1, 124
         outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, mode = "maxpool")
         for outcome in outcomes:
             self.assertTrue(outcome)
 
-        kernel_width = 5
-        num_aas = 56
-        aa_dim = 2
-        num_freqs = 62
-        sigma = 1
-        ndatapoints = 2000
+        kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
+        sigma, ndatapoints = 1, 2000
 
-        outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, mode = "maxpool")
-        for outcome in outcomes:
-            self.assertTrue(outcome)
         outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, mode = "maxpool", precision = "float")
         for outcome in outcomes:
@@ -129,28 +120,16 @@ class TestConv1d(unittest.TestCase):
     def test_conv1d_maxpool_loc(self):
         """Tests the C / Cuda FHT-based convolution with global max pooling
         functions and with adjustment based on global mean pooling."""
-        kernel_width = 9
-        num_aas = 23
-        aa_dim = 21
-        num_freqs = 128
-        sigma = 1
-        ndatapoints = 124
+        kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 128
+        sigma, ndatapoints = 1, 124
         outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, mode = "maxpool_loc")
         for outcome in outcomes:
             self.assertTrue(outcome)
 
-        kernel_width = 5
-        num_aas = 56
-        aa_dim = 2
-        num_freqs = 62
-        sigma = 1
-        ndatapoints = 2000
+        kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
+        sigma, ndatapoints = 1, 2000
 
-        outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, mode = "maxpool_loc")
-        for outcome in outcomes:
-            self.assertTrue(outcome)
         outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, mode = "maxpool_loc", precision = "float")
         for outcome in outcomes:
@@ -172,8 +151,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     else:
         doubleCpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, 1.0)
 
-    out_features = features[:,:(2 * num_freqs)]
-    outcome = check_results(true_features, features[:,:(2 * num_freqs)], precision)
+    outcome = check_results(true_features, features, precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
         f"sigma: {sigma}, mode: RBF convolution, precision {precision}\n"
@@ -181,7 +159,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
 
     if "cupy" not in sys.modules:
         return outcome
-
+    backup_features = features.copy()
     xdata = cp.asarray(xdata)
     reshaped_x = cp.asarray(reshaped_x)
     features[:] = 0
@@ -193,8 +171,8 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     else:
         doubleGpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, 1.0)
 
-    features = cp.asnumpy(features[:,:(2 * num_freqs)])
-    outcome_cuda = check_results(true_features, features[:,:(2 * num_freqs)], precision)
+    features = cp.asnumpy(features)
+    outcome_cuda = check_results(true_features, features, precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
         f"sigma: {sigma}, mode: RBF convolution, precision {precision}\n"

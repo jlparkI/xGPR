@@ -142,7 +142,8 @@ class Polynomial(KernelBaseclass):
                 self.chi_arr, output_x, self.polydegree, self.num_threads)
         output_x = output_x.reshape((output_x.shape[0], output_x.shape[1] *
                         output_x.shape[2]))[:,:self.num_rffs].astype(self.out_type)
-        output_x *= self.hyperparams[1]
+        scaling_constant = self.hyperparams[1] * np.sqrt(1 / self.num_freqs)
+        output_x *= scaling_constant
         return output_x
 
 
