@@ -37,10 +37,8 @@ classification capabilities in a future version.
 
 xGPR uses a specific techinque to obtain fast and scalable approximations to a
 GP. This means that adding a novel kernel you have just cooked up to xGPR is
-not straightforward. This also means that xGPR is fairly limited when it
-comes to tuning kernels that have a large number of hyperparameters. If your
-use-case is evaluating novel kernels or fitting kernels with large numbers
-of hyperparameters xGPR may not be your best choice.
+not straightforward. If your use-case is evaluating novel kernels xGPR may
+not be your best choice.
 
 xGPR is an approximation to a Gaussian process (which is what enables it to
 achieve O(N) scaling). It is a good approximation, but no approximation

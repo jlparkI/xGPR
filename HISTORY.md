@@ -40,3 +40,10 @@ when no CUDA available.
 Fixed an additional bug causing errors when running
 with no CUDA available. CUDA-free operation now seems
 to work properly.
+
+### Version 0.1.0.0
+
+Added MiniARD and GraphMiniARD kernels. Extensive
+refactoring of random feature generation code,
+both for readability and speed. Removed deprecated
+Conv1d kernel.

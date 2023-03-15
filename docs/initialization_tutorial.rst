@@ -101,11 +101,17 @@ Start by creating a model:::
                         variance_rffs = 512, kernel_choice = "RBF",
                         device = "gpu", kernel_specific_params =
                         {"matern_nu":5/2, "conv_width":9, "polydegree":2},
-                        verbose = True)
+                        verbose = True, num_threads = 2)
 
 
 ``kernel_choice`` is the kernel. For a list of options, and for help choosing, see
-the Available Kernels section on the main page. 
+the Available Kernels section on the main page.
+
+``num_threads`` controls how many threads are used for random feature generation
+when running on CPU (if running on GPU, it is ignored). Setting this to a larger
+number than what can execute in parallel on your CPU will actually slow things down,
+so if in doubt, use the default.
+
 ``kernel_specific_params`` is a dictionary of parameters specific to certain
 kernels, e.g. Matern and 1d convolution. You only need to supply this
 if you're working with one of those kernels (and if you're not happy with

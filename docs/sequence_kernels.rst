@@ -34,8 +34,7 @@ comparisons.
 **Note:** The Conv1d kernel provided up through version 0.0.2.9
 is deprecated, and is no longer available from 0.1.0.0 forward.
 It provided the same functionality as FHTConv1d but was substantially
-slower on CPU and more memory-intensive. It was implemented primarily
-for comparison with FHTConv1d.
+slower on CPU.
 
 If we have a sequence (or time series) of length N and d = conv_width,
 to measure the similarity of two sequences A and B, these kernels take all the
@@ -46,15 +45,8 @@ described, of course, this kernel would be extremely inefficient. In xGPR,
 however, we implement this kernel in such a way we can achieve *linear
 scaling* in both number of datapoints and sequence length.
 
-The FHTConv1d and Conv1d kernels perform the same operation, but FHTConv1d
-is MUCH faster if there are many features per sequence element or the
-conv_width is large, whereas Conv1d may be slightly faster for
-small "conv_width" or number of features per sequence element. Also,
-for large numbers of random features, FHTConv1d is much more efficient. In
-general, then, prefer FHTConv1d. (Conv1d was originally implemented for
-testing and will be removed in a future release.)
-
-The chart below contrasts the performance of FHTConv1d, Conv1d and
+The chart below contrasts the performance of FHTConv1d, Conv1d
+(a deprecated comparator used during testing) and
 FastConv1d (a static layer kernel for sequences, see below) on some of the
 FLIP benchmarks (a protein sequence benchmark) and the TAPE benchmarks
 (similar), using one-hot encoded sequences as input and Spearman's r

@@ -160,7 +160,11 @@ any further!)
 
 There are currently three ``crude`` methods (plus an experimental
 method, addressed under experimental tuning methods on 
-the main page of the docs). Our prefered method is this:::
+the main page of the docs). If your kernel has more than 3 hyperparameters
+(e.g. one of the ARD kernels, say ``MiniARD`` or ``GraphMiniARD``) you
+have to use ``crude_lbfgs``, described shortly. For kernels with only
+2-3 hyperparameters (polynomial, RBF, Matern, GraphConv1d, FHTConv1d etc),
+our prefered method is this:::
 
   hparams, niter, best_score, scores = my_model.tune_hyperparams_crude_bayes(my_dataset,
                                      random_seed = 123,
@@ -257,7 +261,8 @@ of Gaussian processes, although we've found that it often takes 5-10x more
 iterations than ``crude_bayes`` or ``crude_grid`` (and thus 5-10x longer).
 It is less "finicky" than ``crude_bayes`` but not so foolproof as ``crude_grid``.
 As with the other methods, each iteration involves a pass over the
-dataset and a matrix decomposition. Here's an example of usage:::
+dataset and a matrix decomposition. This method is preferred for kernels
+with more than 3 hyperparameters, e.g. ARD kernels. Here's an example of usage:::
 
   hparams, niter, best_score = my_model.tune_hyperparams_crude_lbfgs(my_dataset, random_seed = 123,
                                      max_iter = 30, n_restarts = 1,
@@ -342,6 +347,9 @@ Here are the two currently supported options:::
              preconditioner_mode = "srht_2")
 
 
+Note that ``fine_bayes`` is only an option for kernels with < 5 hyperparameters.
+For ARD kernels with more hyperparameters, e.g. ``MiniARD`` or ``GraphMiniARD``
+with multiple split points, use ``fine_direct``.
 
 As you can see, there are a lot more available "knobs" to turn! This
 may look a little intimidating, but the good news is that many of
@@ -349,9 +357,10 @@ these can be left at default most of the time (default values are
 shown). Notice that for
 ``fine_direct`` we can supply a starting point (if none is supplied
 and the model has already been tuned, it will use the existing
-hyperparameters). ``fine_direct`` needs a decent starting point to work
-well. ``fine_bayes`` does not start from a single point, so it does not
-accept starting hyperparameters. It does however accept bounds,
+hyperparameters). We can either supply it with a starting point 
+acquired using a "crude" method from above, or randomly select several
+and start from these. ``fine_bayes`` does not start from a single point,
+so it does not accept starting hyperparameters. It does however accept bounds,
 and it's a really good idea to provide it with some bounds that are
 narrower than the default xGPR boundaries, which are too wide of a space
 for ``fine_bayes`` to search efficiently. See "A quick note on 
@@ -370,8 +379,7 @@ random features on the fly *if*:
 #. You are using a convolution kernel (especially if the sequences /
    graphs are long or large).
 #. You are tuning on CPU (in this case, using a pretransform_dir
-   is *highly* recommended.
-#. You have an SSD.
+   is recommended.
 
 Using a pretransform_dir is problematic if the number of random
 features you are using * the number of datapoints * 4 (bytes per
@@ -407,13 +415,7 @@ a bad idea to set it to a high number like 500).
 Finally, ``nmll_probes`` controls the accuracy of log-determinant
 approximation. Larger numbers
 tend to improve accuracy but with diminishing returns and with
-increased cost. 25 is usually fine in our experiments.
-
-``fine_bayes`` is better if the starting
-point is far from the optimum, because it's a global procedure. It may
-require 30-80 iterations to get a good result. ``fine_direct`` works very
-well if the starting point is decent, and may be able to improve
-substantially on the starting point in just 25-50 iterations.
+increased cost. 25 is fine in our experiments.
 
 Overall, tuning with approximate marginal likelihood is trickier than
 either crude or validation set tuning -- there are some knobs we can turn

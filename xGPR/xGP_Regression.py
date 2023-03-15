@@ -94,8 +94,6 @@ class xGPRegression(GPRegressionBaseclass):
 
 
 
-
-
     def predict(self, input_x, get_var = True,
             chunk_size = 2000):
         """Generate a predicted value for each
