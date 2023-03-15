@@ -45,5 +45,6 @@ to work properly.
 
 Added MiniARD and GraphMiniARD kernels. Extensive
 refactoring of random feature generation code,
-both for readability and speed. Removed deprecated
+both for readability and speed, and of model
+baseclass code, for readability. Removed deprecated
 Conv1d kernel.
