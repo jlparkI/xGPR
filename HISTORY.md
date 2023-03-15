@@ -41,6 +41,10 @@ Fixed an additional bug causing errors when running
 with no CUDA available. CUDA-free operation now seems
 to work properly.
 
+### Version 0.0.3.0
+
+Fixed bug causing errors on install in some Conda environments.
+
 ### Version 0.1.0.0
 
 Added MiniARD and GraphMiniARD kernels. Extensive
