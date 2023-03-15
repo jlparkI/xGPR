@@ -12,10 +12,11 @@ from utils.evaluate_model import evaluate_model
 
 
 def test_fit_cpu(kernel, conv_kernel, random_seed, conv_width = 3,
-            get_var = True):
+            get_var = True, conv_ard_kernel = False):
     """Test on CPU using preconditioned CG and exact."""
     _, train_dataset = build_test_dataset(conv_kernel = conv_kernel)
-    cpu_mod, _ = get_models(kernel, train_dataset.get_xdim(), conv_width)
+    cpu_mod, _ = get_models(kernel, train_dataset.get_xdim(), conv_width,
+                            conv_ard_kernel = conv_ard_kernel)
     cpu_mod.training_rffs = 512
     cpu_mod.fitting_rffs = 8192
     cpu_mod.verbose = False
@@ -55,10 +56,11 @@ def test_fit_cpu(kernel, conv_kernel, random_seed, conv_width = 3,
 
 
 def test_fit_gpu(kernel, conv_kernel, random_seed, conv_width = 3,
-            get_var = True):
+            get_var = True, conv_ard_kernel = False):
     """Test on GPU using preconditioned CG and exact fitting."""
     _, train_dataset = build_test_dataset(conv_kernel = conv_kernel)
-    _, gpu_mod = get_models(kernel, train_dataset.get_xdim(), conv_width)
+    _, gpu_mod = get_models(kernel, train_dataset.get_xdim(), conv_width,
+                            conv_ard_kernel = conv_ard_kernel)
     if gpu_mod is None:
         #If GPU not available, return immediately.
         return None, None
