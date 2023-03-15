@@ -52,3 +52,9 @@ refactoring of random feature generation code,
 both for readability and speed, and of model
 baseclass code, for readability. Removed deprecated
 Conv1d kernel.
+
+### Version 0.1.0.1
+
+sdist for version 0.1.0.0 did not include required
+.c / .cu files in error; corrected this error and
+updated sdist
