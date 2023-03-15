@@ -16,13 +16,13 @@ import math
 from libc.stdint cimport int8_t
 
 
-cdef extern from "float_array_operations.h" nogil:
+cdef extern from "basic_ops/float_array_operations.h" nogil:
     const char *floatCudaSORF3d(float *npArray, np.int8_t *radem, 
                     int dim0, int dim1, int dim2)
     const char *floatCudaSRHT2d(float *npArray, 
                     int8_t *radem, int dim0, int dim1)
 
-cdef extern from "double_array_operations.h" nogil:
+cdef extern from "basic_ops/double_array_operations.h" nogil:
     const char *doubleCudaSORF3d(double *npArray, np.int8_t *radem, 
                     int dim0, int dim1, int dim2)
     const char *doubleCudaSRHT2d(double *npArray, 

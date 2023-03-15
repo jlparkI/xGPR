@@ -85,7 +85,7 @@ class GraphFHTConv1d(KernelBaseclass):
 
         self.radem_diag = rng.choice(radem_array, size=(3, 1, self.init_calc_freqsize),
                                 replace=True)
-        self.chi_arr = chi.rvs(df=self.padded_dims, size=self.init_calc_freqsize,
+        self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
 
 

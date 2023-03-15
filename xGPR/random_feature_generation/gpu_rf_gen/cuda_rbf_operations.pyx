@@ -518,7 +518,7 @@ def floatCudaMiniARDGrad(inputX, randomFeats, precompWeights,
         raise ValueError("The input arrays to a wrapped RBF feature gen function have incorrect "
                 "shapes.")
 
-    if inputX.shape[0] == 0:
+    if inputX.shape[0] == 0 or inputX.shape[1] == 0:
         raise ValueError("There must be at least one datapoint.")
     if inputX.shape[0] != randomFeats.shape[0] or precompWeights.shape[1] != inputX.shape[1]:
         raise ValueError("Incorrect array dims passed to a wrapped RBF "

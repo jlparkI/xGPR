@@ -10,8 +10,8 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 #include <math.h>
-#include "../float_array_operations.h"
-#include "../double_array_operations.h"
+#include "../basic_ops/float_array_operations.h"
+#include "../basic_ops/double_array_operations.h"
 #include "convolution.h"
 
 #define DEFAULT_THREADS_PER_BLOCK 256
@@ -27,11 +27,11 @@
 __global__ void floatConv1dMultiplyByRadem(float *cArray, int8_t *rademArray,
 			int dim2, int startPosition, int numElements, float normConstant)
 {
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
-    int8_t *rVal = rademArray + startPosition + (j & (dim2 - 1));
+    int tid = blockDim.x * blockIdx.x + threadIdx.x;
+    int8_t *rVal = rademArray + startPosition + (tid & (dim2 - 1));
     
-    if (j < numElements)
-        cArray[j] = cArray[j] * *rVal * normConstant;
+    if (tid < numElements)
+        cArray[tid] = cArray[tid] * *rVal * normConstant;
 }
 
 
@@ -43,11 +43,11 @@ __global__ void floatConv1dMultiplyByRadem(float *cArray, int8_t *rademArray,
 __global__ void doubleConv1dMultiplyByRadem(double *cArray, int8_t *rademArray,
 			int dim2, int startPosition, int numElements, double normConstant)
 {
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
-    int8_t *rVal = rademArray + startPosition + (j & (dim2 - 1));
+    int tid = blockDim.x * blockIdx.x + threadIdx.x;
+    int8_t *rVal = rademArray + startPosition + (tid & (dim2 - 1));
     
-    if (j < numElements)
-        cArray[j] = cArray[j] * *rVal * normConstant;
+    if (tid < numElements)
+        cArray[tid] = cArray[tid] * *rVal * normConstant;
 }
 
 

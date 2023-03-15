@@ -9,15 +9,21 @@ RANDOM_STATE = 123
 
 
 def get_models(kernel_choice, xdim, conv_width = 3, training_rffs = 512,
-        fitting_rffs = 512):
+        fitting_rffs = 512, conv_ard_kernel = False):
     """Generates a CPU model and a GPU model with generic
     kernel settings."""
+    if not conv_ard_kernel:
+        split_pts = [21,42,63]
+    else:
+        split_pts = [10]
+
     cpu_mod = xGPReg(training_rffs = training_rffs, fitting_rffs = fitting_rffs,
                         kernel_choice = kernel_choice,
                         device = "cpu", double_precision_fht = False,
                         kernel_specific_params = {"matern_nu":5/2,
                             "conv_width":conv_width, "polydegree":2,
-                            "split_points":[21,42,63]})
+                            "split_points":split_pts})
+
     if "cupy" not in sys.modules:
         print("Cupy not installed -- skipping the CUDA test.")
         gpu_mod = None

@@ -241,7 +241,6 @@ def get_graph_features(xdata, radem, S, init_calc_freqsize,
         true_features[:,start:cutoff] = pre_sum_feats.sum(axis=1)
         start += xdata.shape[2]
         cutoff += xdata.shape[2]
-    true_features *= (1 / np.sqrt(radem.shape[2]))
     return true_features
 
 
@@ -274,7 +273,6 @@ def get_classic_features(xdata, radem, S, precision = "double"):
         x_updated *= S[j,:,:]
         true_features *= x_updated
 
-    true_features *= (1 / np.sqrt(radem.shape[2]))
     return true_features
 
 

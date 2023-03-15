@@ -9,7 +9,7 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 #include <math.h>
-#include "../float_array_operations.h"
+#include "../basic_ops/float_array_operations.h"
 #include "float_rbf_ops.h"
 #include <cuda_profiler_api.h>
 
@@ -27,13 +27,13 @@
 __global__ void floatSpecMultByDiagRademMat(float *cArray, int8_t *rademArray,
 			int numElementsPerRow, int numElements, float normConstant)
 {
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
+    int tid = blockDim.x * blockIdx.x + threadIdx.x;
     int rVal, position;
     
-    position = j % numElementsPerRow;
+    position = tid % numElementsPerRow;
     rVal = rademArray[position];
-    if (j < numElements)
-        cArray[j] = cArray[j] * rVal * normConstant;
+    if (tid < numElements)
+        cArray[tid] = cArray[tid] * rVal * normConstant;
 }
 
 
@@ -44,17 +44,17 @@ __global__ void rbfFeatureGenLastStepFloats(float *cArray, double *outputArray,
             float *chiArr, int numFreqs, int inputElementsPerRow,
             int numElements, double normConstant)
 {
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
+    int tid = blockDim.x * blockIdx.x + threadIdx.x;
     int chiArrPosition, inputPosition, outputRow, outputPosition;
     float outputVal;
 
-    chiArrPosition = j % numFreqs;
-    outputRow = (j / numFreqs);
+    chiArrPosition = tid % numFreqs;
+    outputRow = (tid / numFreqs);
     inputPosition = outputRow * inputElementsPerRow + chiArrPosition;
     outputPosition = outputRow * 2 * numFreqs + chiArrPosition;
 
     outputVal = chiArr[chiArrPosition] * cArray[inputPosition];
-    if (j < numElements)
+    if (tid < numElements)
     {
         outputArray[outputPosition] = normConstant * cosf(outputVal);
         outputArray[outputPosition + numFreqs] = normConstant * sinf(outputVal);
@@ -68,17 +68,17 @@ __global__ void rbfGradLastStepFloats(float *cArray, double *outputArray,
             float *chiArr, double *gradientArray, float sigma, int numFreqs,
             int inputElementsPerRow, int numElements, double normConstant)
 {
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
+    int tid = blockDim.x * blockIdx.x + threadIdx.x;
     int chiArrPosition, inputPosition, outputRow, outputPosition;
     float outputVal, sinVal, cosVal;
 
-    chiArrPosition = j % numFreqs;
-    outputRow = (j / numFreqs);
+    chiArrPosition = tid % numFreqs;
+    outputRow = (tid / numFreqs);
     inputPosition = outputRow * inputElementsPerRow + chiArrPosition;
     outputPosition = outputRow * 2 * numFreqs + chiArrPosition;
 
     outputVal = chiArr[chiArrPosition] * cArray[inputPosition];
-    if (j < numElements)
+    if (tid < numElements)
     {
         cosVal = normConstant * cosf(outputVal * sigma);
         sinVal = normConstant * sinf(outputVal * sigma);
@@ -102,9 +102,9 @@ __global__ void ardFloatGradSetup(double *gradientArray,
         int numLengthscales){
 
     int i, sigmaLoc;
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
-    int precompWRow = (j % numFreqs);
-    int gradRow = j / numFreqs;
+    int tid = blockDim.x * blockIdx.x + threadIdx.x;
+    int precompWRow = (tid % numFreqs);
+    int gradRow = tid / numFreqs;
 
     float *precompWElement = precomputedWeights + precompWRow * dim1;
     float *inputXElement = inputX + gradRow * dim1;
@@ -113,7 +113,7 @@ __global__ void ardFloatGradSetup(double *gradientArray,
     double rfVal = 0;
     float outVal;
 
-    if (j < numSetupElements){
+    if (tid < numSetupElements){
         for (i=0; i < dim1; i++){
             sigmaLoc = sigmaMap[i];
             outVal = precompWElement[i] * inputXElement[i];
@@ -134,14 +134,14 @@ __global__ void ardFloatGradRFMultiply(double *gradientArray, double *randomFeat
         int numRFElements, int numFreqs, int gradIncrement,
         int numLengthscales, double rbfNormConstant){
     int i;
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
-    int rowNum = j / numFreqs, colNum = j % numFreqs;
+    int tid = blockDim.x * blockIdx.x + threadIdx.x;
+    int rowNum = tid / numFreqs, colNum = tid % numFreqs;
     int gradPosition = rowNum * gradIncrement * 2 + colNum * numLengthscales;
     int rfPosition = rowNum * numFreqs * 2 + colNum;
     double rfVal, cosVal, sinVal;
     
 
-    if (j < numRFElements){
+    if (tid < numRFElements){
         rfVal = randomFeats[rfPosition];
         cosVal = cos(rfVal) * rbfNormConstant;
         sinVal = sin(rfVal) * rbfNormConstant;
@@ -259,9 +259,9 @@ const char *floatRBFFeatureGrad(float *cArray, int8_t *radem,
 
 
 
-//This function generates the gradient ONLY for ARD ONLY,
-//using random features that have already been generated
-//and precomputed weights that take the place of the H-transforms
+//This function generates the gradient and random features
+//for ARD kernels only, using precomputed weights that take
+//the place of the H-transforms
 //we would otherwise need to perform.
 const char *ardCudaFloatGrad(float *inputX, double *randomFeats,
                 float *precompWeights, int32_t *sigmaMap,

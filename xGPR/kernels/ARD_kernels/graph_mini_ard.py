@@ -6,13 +6,13 @@ from math import ceil
 import numpy as np
 from scipy.stats import chi
 from cpu_rf_gen_module import doubleCpuFastHadamardTransform2D as dFHT2d
-from cpu_rf_gen_module import doubleCpuRBFFeatureGen, doubleCpuMiniARDGrad
-from cpu_rf_gen_module import floatCpuRBFFeatureGen, floatCpuMiniARDGrad
+from cpu_rf_gen_module import doubleCpuConv1dFGen, doubleCpuGraphMiniARDGrad
+from cpu_rf_gen_module import floatCpuConv1dFGen, floatCpuGraphMiniARDGrad
 
 try:
     import cupy as cp
-    from cuda_rf_gen_module import doubleCudaRBFFeatureGen, doubleCudaMiniARDGrad
-    from cuda_rf_gen_module import floatCudaRBFFeatureGen, floatCudaMiniARDGrad
+    from cuda_rf_gen_module import doubleGpuConv1dFGen, doubleGpuGraphMiniARDGrad
+    from cuda_rf_gen_module import floatGpuConv1dFGen, floatGpuGraphMiniARDGrad
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass
@@ -83,7 +83,7 @@ class GraphMiniARD(KernelBaseclass):
             raise ValueError("For the GraphMiniARD kernel, 'split_points' must "
                     "be a list.")
 
-        self.split_pts = np.sort([0] + kernel_spec_parms["split_points"] + [xdim[1]])
+        self.split_pts = np.sort([0] + kernel_spec_parms["split_points"] + [xdim[2]])
         self.check_split_points(xdim)
 
         self.hyperparams = np.ones((1 + self.split_pts.shape[0]))
@@ -102,7 +102,7 @@ class GraphMiniARD(KernelBaseclass):
 
         self.radem_diag = rng.choice(radem_array, size=(3, 1, self.init_calc_freqsize),
                                 replace=True)
-        self.chi_arr = chi.rvs(df=self.padded_dims, size=self.init_calc_freqsize,
+        self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
 
         self.full_ard_weights = np.zeros((xdim[-1]))
@@ -132,8 +132,8 @@ class GraphMiniARD(KernelBaseclass):
                     "to 3 split points; you have supplied either more or less.")
         if self.split_pts[0] < 0:
             raise ValueError("The first split point must be > 0.")
-        if self.split_pts[-1] > xdim[1]:
-            raise ValueError("The last split point must be < shape[1] of the "
+        if self.split_pts[-1] > xdim[2]:
+            raise ValueError("The last split point must be < shape[2] of the "
                     "input data.")
         if np.diff(self.split_pts).min() == 0:
             raise ValueError("At least two of the split points supplied are "
@@ -148,11 +148,11 @@ class GraphMiniARD(KernelBaseclass):
         / cp.sin."""
         if new_device == "cpu":
             if self.double_precision:
-                self.grad_func = doubleCpuMiniARDGrad
-                self.conv_func = doubleCpuRBFFeatureGen
+                self.grad_func = doubleCpuGraphMiniARDGrad
+                self.conv_func = doubleCpuConv1dFGen
             else:
-                self.grad_func = floatCpuMiniARDGrad
-                self.conv_func = floatCpuRBFFeatureGen
+                self.grad_func = floatCpuGraphMiniARDGrad
+                self.conv_func = floatCpuConv1dFGen
             if not isinstance(self.radem_diag, np.ndarray):
                 if self.precomputed_weights is not None:
                     self.precomputed_weights = cp.asnumpy(self.precomputed_weights)
@@ -163,11 +163,11 @@ class GraphMiniARD(KernelBaseclass):
             self.chi_arr = self.chi_arr.astype(self.dtype)
         else:
             if self.double_precision:
-                self.grad_func = doubleCudaMiniARDGrad
-                self.conv_func = doubleCudaRBFFeatureGen
+                self.grad_func = doubleGpuGraphMiniARDGrad
+                self.conv_func = doubleGpuConv1dFGen
             else:
-                self.grad_func = floatCudaMiniARDGrad
-                self.conv_func = floatCudaRBFFeatureGen
+                self.grad_func = floatGpuGraphMiniARDGrad
+                self.conv_func = floatGpuConv1dFGen
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
             if self.precomputed_weights is not None:
@@ -180,6 +180,7 @@ class GraphMiniARD(KernelBaseclass):
         """Once hyperparameters have been reset, this kernel needs
         to repopulate an array it will use when generating random
         features."""
+        self.precomputed_weights = None
         self.full_ard_weights[:] = 0
         self.ard_position_key[:] = 0
         for i in range(1, self.split_pts.shape[0]):
@@ -199,13 +200,13 @@ class GraphMiniARD(KernelBaseclass):
         """
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
-        xtrans = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
+        xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         reshaped_x = self.zero_arr((input_x.shape[0], input_x.shape[1],
                                 self.padded_dims), self.dtype)
         reshaped_x[:,:,:input_x.shape[2]] = (input_x * self.full_ard_weights[None,None,:])
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
                 self.num_threads, self.hyperparams[1])
-        return xtrans[:,:self.num_rffs]
+        return xtrans
 
 
     def precompute_weights(self):
@@ -235,19 +236,21 @@ class GraphMiniARD(KernelBaseclass):
         norm_constant = np.log2(self.padded_dims) / 2.0
         norm_constant = 1.0 / (2.0**norm_constant)
 
-        padded_chi_arr = np.zeros((self.nblocks * self.padded_dims))
+        padded_chi_arr = np.zeros((self.init_calc_freqsize))
         padded_chi_arr[:self.chi_arr.shape[0]] = self.chi_arr
+        n_repeats = ceil(self.num_freqs / self.padded_dims)
 
-        for i in range(self.nblocks):
+        for i in range(n_repeats):
+            start, end = i * self.padded_dims, (i+1) * self.padded_dims
             ident_mat = np.eye(self.padded_dims)
-            ident_mat *= self.radem_diag[0:1,i,:] * norm_constant
+            ident_mat *= self.radem_diag[0:1,0,start:end] * norm_constant
             dFHT2d(ident_mat, self.num_threads)
-            ident_mat *= self.radem_diag[1:2,i,:] * norm_constant
+            ident_mat *= self.radem_diag[1:2,0,start:end] * norm_constant
             dFHT2d(ident_mat, self.num_threads)
-            ident_mat *= self.radem_diag[2:3,i,:] * norm_constant
+            ident_mat *= self.radem_diag[2:3,0,start:end] * norm_constant
             dFHT2d(ident_mat, self.num_threads)
 
-            ident_mat *= padded_chi_arr[i*self.padded_dims:(i+1)*self.padded_dims]
+            ident_mat *= padded_chi_arr[start:end]
 
             precomp_weights.append(ident_mat.T[:,:self.xdim[-1]])
 

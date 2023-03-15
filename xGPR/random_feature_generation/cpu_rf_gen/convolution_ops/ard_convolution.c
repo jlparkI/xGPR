@@ -238,15 +238,12 @@ const char *graphARDFloatGrad_(float *inputX, double *randomFeatures,
 void *DoubleThreadGraphARDGrad(void *sharedArgs){
     struct ThreadGraphARDDoubleGradArgs *thArgs =
         (struct ThreadGraphARDDoubleGradArgs *)sharedArgs;
-    int i, numRepeats, startPosition = 0;
-    numRepeats = (thArgs->numFreqs +
-            thArgs->dim2 - 1) / thArgs->dim2;
-
-    for (i=0; i < numRepeats; i++){
-        doubleGraphARDGradCalcs();
-
-        startPosition += thArgs->dim2;
-    }
+    doubleGraphARDGradCalcs(thArgs->inputX, thArgs->randomFeats,
+                thArgs->precompWeights, thArgs->sigmaMap,
+                thArgs->sigmaVals, thArgs->gradientArray,
+                thArgs->startPosition, thArgs->endPosition,
+                thArgs->dim1, thArgs->dim2, thArgs->numLengthscales,
+                thArgs->rbfNormConstant, thArgs->numFreqs);
     return NULL;
 }
 
@@ -267,15 +264,12 @@ void *DoubleThreadGraphARDGrad(void *sharedArgs){
 void *FloatThreadGraphARDGrad(void *sharedArgs){
     struct ThreadGraphARDFloatGradArgs *thArgs =
         (struct ThreadGraphARDFloatGradArgs *)sharedArgs;
-    int i, numRepeats, startPosition = 0;
-    numRepeats = (thArgs->numFreqs +
-            thArgs->dim2 - 1) / thArgs->dim2;
-
-    for (i=0; i < numRepeats; i++){
-        floatGraphARDGradCalcs();
-
-        startPosition += thArgs->dim2;
-    }
+    floatGraphARDGradCalcs(thArgs->inputX, thArgs->randomFeats,
+                thArgs->precompWeights, thArgs->sigmaMap,
+                thArgs->sigmaVals, thArgs->gradientArray,
+                thArgs->startPosition, thArgs->endPosition,
+                thArgs->dim1, thArgs->dim2, thArgs->numLengthscales,
+                thArgs->rbfNormConstant, thArgs->numFreqs);
     return NULL;
 }
 
@@ -316,25 +310,29 @@ void doubleGraphARDGradCalcs(double *inputX, double *randomFeatures,
     int gradRowSize = 2 * gradIncrement;
     double *xElement, *precompWeight;
     double *gradientElement, *randomFeature;
-    double gradVal, sinVal, cosVal, dotProd;
+    double gradVal, sinVal, cosVal, dotProd, rowSum;
 
     gradPosition = startRow * gradRowSize;
     randomFeature = randomFeatures + startRow * numFreqs * 2;
 
     for (i=startRow; i < endRow; i++){
-        precompWeight = precompWeights;
 
         for (j=0; j < numFreqs; j++){
             xElement = inputX + i * xRowLen;
             for (k=0; k < dim1; k++){
+                precompWeight = precompWeights + j * dim2;
+
+                rowSum = 0;
                 for (m=0; m < dim2; m++){
                     currentLscale = sigmaMap[m] + gradPosition;
                     dotProd = *xElement * *precompWeight;
                     gradient[currentLscale] += dotProd;
-                    *randomFeature += sigmaVals[m] * dotProd;
+                    rowSum += sigmaVals[m] * dotProd;
                     precompWeight++;
                     xElement++;
                 }
+                *randomFeature += cos(rowSum);
+                randomFeature[numFreqs] += sin(rowSum);
             }
             gradPosition += numLengthscales;
             randomFeature++;
@@ -348,8 +346,8 @@ void doubleGraphARDGradCalcs(double *inputX, double *randomFeatures,
 
     for (i=startRow; i < endRow; i++){
         for (j=0; j < numFreqs; j++){
-            cosVal = cos(*randomFeature) * rbfNormConstant;
-            sinVal = sin(*randomFeature) * rbfNormConstant;
+            cosVal = *randomFeature * rbfNormConstant;
+            sinVal = randomFeature[numFreqs] * rbfNormConstant;
             *randomFeature = cosVal;
             randomFeature[numFreqs] = sinVal;
 
@@ -367,6 +365,92 @@ void doubleGraphARDGradCalcs(double *inputX, double *randomFeatures,
 }
 
 
-void floatGraphARDGradCalcs(){
-}
+/*!
+ * # floatGraphARDGradCalcs
+ *
+ * Performs the key calculations for the GraphMiniARD gradient.
+ *
+ * ## Args:
+ *
+ * + `inputX` Pointer to the first element of the input array.
+ * + `randomFeatures` Pointer to first element of random feature array.
+ * + `precompWeights` Pointer to first element of precomputed weights.
+ * + `sigmaMap` Pointer to first element of the array containing a
+ * mapping from positions to lengthscales.
+ * + `sigmaVals` Pointer to first element of shape (D) array containing the
+ * per-feature lengthscales.
+ * + `gradient` Pointer to the output array.
+ * + `startRow` The starting row for this thread to work on.
+ * + `endRow` The ending row for this thread to work on.
+ * + `dim1` shape[1] of input array
+ * + `dim2` shape[2] of input array
+ * + `numLengthscales` shape[2] of gradient
+ * + `rbfNormConstant` A value by which all outputs are multipled.
+ * Should be beta hparam * sqrt(1 / numFreqs). Is calculated by
+ * caller.
+ * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
+ */
+void floatGraphARDGradCalcs(float *inputX, double *randomFeatures,
+        float *precompWeights, int32_t *sigmaMap, double *sigmaVals,
+        double *gradient, int startRow, int endRow, int dim1,
+        int dim2, int numLengthscales, double rbfNormConstant,
+        int numFreqs){
+    int i, j, k, m, gradPosition, currentLscale;
+    int xRowLen = dim1 * dim2;
+    int gradIncrement = numFreqs * numLengthscales;
+    int gradRowSize = 2 * gradIncrement;
+    float *xElement, *precompWeight;
+    double *gradientElement, *randomFeature;
+    double gradVal, sinVal, cosVal, dotProd, rowSum;
 
+    gradPosition = startRow * gradRowSize;
+    randomFeature = randomFeatures + startRow * numFreqs * 2;
+
+    for (i=startRow; i < endRow; i++){
+
+        for (j=0; j < numFreqs; j++){
+            xElement = inputX + i * xRowLen;
+            for (k=0; k < dim1; k++){
+                precompWeight = precompWeights + j * dim2;
+
+                rowSum = 0;
+                for (m=0; m < dim2; m++){
+                    currentLscale = sigmaMap[m] + gradPosition;
+                    dotProd = *xElement * *precompWeight;
+                    gradient[currentLscale] += dotProd;
+                    rowSum += sigmaVals[m] * dotProd;
+                    precompWeight++;
+                    xElement++;
+                }
+                *randomFeature += cos(rowSum);
+                randomFeature[numFreqs] += sin(rowSum);
+            }
+            gradPosition += numLengthscales;
+            randomFeature++;
+        }
+        gradPosition += gradIncrement;
+        randomFeature += numFreqs;
+    }
+
+    gradientElement = gradient + startRow * gradRowSize;
+    randomFeature = randomFeatures + startRow * 2 * numFreqs;
+
+    for (i=startRow; i < endRow; i++){
+        for (j=0; j < numFreqs; j++){
+            cosVal = *randomFeature * rbfNormConstant;
+            sinVal = randomFeature[numFreqs] * rbfNormConstant;
+            *randomFeature = cosVal;
+            randomFeature[numFreqs] = sinVal;
+
+            for (k=0; k < numLengthscales; k++){
+                gradVal = *gradientElement;
+                *gradientElement = -sinVal * gradVal;
+                gradientElement[gradIncrement] = cosVal * gradVal;
+                gradientElement++;
+            }
+            randomFeature++;
+        }
+        gradientElement += gradIncrement;
+        randomFeature += numFreqs;
+    }
+}

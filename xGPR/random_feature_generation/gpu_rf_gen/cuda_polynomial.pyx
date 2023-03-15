@@ -18,15 +18,22 @@ from libc.stdint cimport int8_t
 
 cdef extern from "convolution_ops/convolution.h" nogil:
     const char *floatConv1dPrep(int8_t *radem,
-                float *reshapedx, int reshapeddim0, 
-                int reshapeddim1, int reshapeddim2,
-                int startposition, int numfreqs)
+                float *reshapedX, int reshapedDim0, 
+                int reshapedDim1, int reshapedDim2,
+                int startPosition, int numFreqs)
+    const char *doubleConv1dPrep(int8_t *radem,
+                double *reshapedX, int reshapedDim0, 
+                int reshapedDim1, int reshapedDim2,
+                int startPosition, int numFreqs)
 
 
-cdef extern from "float_array_operations.h" nogil:
+cdef extern from "basic_ops/float_array_operations.h" nogil:
     const char *floatCudaSORF3d(float *npArray, np.int8_t *radem, 
                     int dim0, int dim1, int dim2)
 
+cdef extern from "basic_ops/double_array_operations.h" nogil:
+    const char *doubleCudaSORF3d(double *npArray, np.int8_t *radem, 
+                    int dim0, int dim1, int dim2)
 
 
 

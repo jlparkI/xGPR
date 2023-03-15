@@ -19,14 +19,16 @@ from utils.model_constructor import get_models
 RANDOM_STATE = 123
 
 
-def run_kernelspecific_test(kernel_choice, conv_kernel = False):
+def run_kernelspecific_test(kernel_choice, conv_kernel = False,
+                conv_ard_kernel = False):
     """Compares a numerical gradient with an exact gradient using
     generic hyperparameters and generic kernel settings. Also compare
     with the minibatch gradient, which is calculated a little
     differently."""
     online_data, _ = build_test_dataset(conv_kernel)
     xdata, ydata, _ = online_data.get_next_minibatch(2000)
-    cpu_mod, gpu_mod = get_models(kernel_choice, online_data.get_xdim())
+    cpu_mod, gpu_mod = get_models(kernel_choice, online_data.get_xdim(),
+                        conv_ard_kernel = conv_ard_kernel)
 
     eps = np.sqrt(np.finfo(np.float32).eps)
 

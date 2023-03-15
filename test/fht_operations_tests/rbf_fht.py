@@ -99,17 +99,17 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
     outcome_d = np.allclose(gt_double, double_output)
     outcome_f = np.allclose(gt_float, float_output)
     print("**********\nDid the C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_d}\n*******")
+            f"{xdim}, {num_freqs}? {outcome_d}")
     print("**********\nDid the C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_f}\n*******")
+            f"{xdim}, {num_freqs}? {outcome_f}")
 
     if "cupy" in sys.modules:
         outcome_cuda_d = np.allclose(gt_double, cuda_double_output)
         outcome_cuda_f = np.allclose(gt_float, cuda_float_output)
         print("**********\nDid the cuda extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_cuda_d}\n*******")
+            f"{xdim}, {num_freqs}? {outcome_cuda_d}")
         print("**********\nDid the cuda extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_cuda_f}\n*******")
+            f"{xdim}, {num_freqs}? {outcome_cuda_f}")
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f
     return outcome_d, outcome_f
 
@@ -155,13 +155,13 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
     outcome_grad_d = np.allclose(gt_double_grad, double_grad)
     outcome_grad_f = np.allclose(gt_float_grad, float_grad)
     print("**********\nDid the Grad Calc C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_d}\n*******")
+            f"{xdim}, {num_freqs}? {outcome_d}")
     print("**********\nDid the Grad Calc C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_f}\n*******")
+            f"{xdim}, {num_freqs}? {outcome_f}")
     print("**********\nDid the Grad Calc C extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_grad_d}\n*******")
+            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_grad_d}")
     print("**********\nDid the Grad Calc C extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_grad_f}\n*******")
+            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_grad_f}")
 
     if "cupy" in sys.modules:
         outcome_cuda_d = np.allclose(gt_double, cuda_double_output)
@@ -169,13 +169,13 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
         outcome_cuda_grad_d = np.allclose(gt_double_grad, cuda_double_grad)
         outcome_cuda_grad_f = np.allclose(gt_float_grad, cuda_float_grad)
         print("**********\nDid the cuda extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_cuda_d}\n*******")
+            f"{xdim}, {num_freqs}? {outcome_cuda_d}")
         print("**********\nDid the cuda extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_cuda_f}\n*******")
+            f"{xdim}, {num_freqs}? {outcome_cuda_f}")
         print("**********\nDid the Grad Calc cuda extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_d}\n*******")
+            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_d}")
         print("**********\nDid the Grad Calc cuda extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_f}\n*******")
+            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_f}")
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f, \
                 outcome_grad_d, outcome_grad_f, outcome_cuda_grad_d, \
                 outcome_cuda_grad_f

@@ -6,8 +6,8 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 #include <math.h>
-#include "../float_array_operations.h"
-#include "../double_array_operations.h"
+#include "../basic_ops/float_array_operations.h"
+#include "../basic_ops/double_array_operations.h"
 #include "rbf_convolution.h"
 
 #define DEFAULT_THREADS_PER_BLOCK 256
@@ -23,11 +23,11 @@
 __global__ void floatConv1dRBFRademMultiply(float *cArray, int8_t *rademArray,
 			int dim2, int startPosition, int numElements, float normConstant)
 {
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
-    int8_t *rVal = rademArray + startPosition + (j & (dim2 - 1));
+    int tid = blockDim.x * blockIdx.x + threadIdx.x;
+    int8_t *rVal = rademArray + startPosition + (tid & (dim2 - 1));
     
-    if (j < numElements)
-        cArray[j] = cArray[j] * *rVal * normConstant;
+    if (tid < numElements)
+        cArray[tid] = cArray[tid] * *rVal * normConstant;
 }
 
 
@@ -39,11 +39,11 @@ __global__ void floatConv1dRBFRademMultiply(float *cArray, int8_t *rademArray,
 __global__ void doubleConv1dRBFRademMultiply(double *cArray, int8_t *rademArray,
 			int dim2, int startPosition, int numElements, double normConstant)
 {
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
-    int8_t *rVal = rademArray + startPosition + (j & (dim2 - 1));
+    int tid = blockDim.x * blockIdx.x + threadIdx.x;
+    int8_t *rVal = rademArray + startPosition + (tid & (dim2 - 1));
     
-    if (j < numElements)
-        cArray[j] = cArray[j] * *rVal * normConstant;
+    if (tid < numElements)
+        cArray[tid] = cArray[tid] * *rVal * normConstant;
 }
 
 
@@ -55,11 +55,11 @@ __global__ void floatConv1dRBFRademAndCopy(float *inputArray, float *featureArra
             int8_t *rademArray, int dim2, int startPosition,
             int numElements, float normConstant)
 {
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
-    int8_t *rVal = rademArray + startPosition + (j & (dim2 - 1));
+    int tid = blockDim.x * blockIdx.x + threadIdx.x;
+    int8_t *rVal = rademArray + startPosition + (tid & (dim2 - 1));
     
-    if (j < numElements)
-        featureArray[j] = inputArray[j] * *rVal * normConstant;
+    if (tid < numElements)
+        featureArray[tid] = inputArray[tid] * *rVal * normConstant;
 }
 
 
@@ -70,11 +70,11 @@ __global__ void doubleConv1dRBFRademAndCopy(double *inputArray, double *featureA
             int8_t *rademArray, int dim2, int startPosition,
             int numElements, double normConstant)
 {
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
-    int8_t *rVal = rademArray + startPosition + (j & (dim2 - 1));
+    int tid = blockDim.x * blockIdx.x + threadIdx.x;
+    int8_t *rVal = rademArray + startPosition + (tid & (dim2 - 1));
     
-    if (j < numElements)
-        featureArray[j] = inputArray[j] * *rVal * normConstant;
+    if (tid < numElements)
+        featureArray[tid] = inputArray[tid] * *rVal * normConstant;
 }
 
 
@@ -142,10 +142,10 @@ __global__ void doubleConvRBFPostProcessKernel(double *featureArray, double *chi
 
 
 
-//Performs the final steps in feature AND gradient generation for RBF-based convolution
+//Performs the final steps in feature generation WITH simultaneous gradient
+//calculation for RBF-based convolution
 //kernels -- multiplying by chiArr, taking sine or cosine and adding
-//to the appropriate elements of outputArray, then adding the same to the 
-//appropriate elements of gradientArray.
+//to the appropriate elements of outputArray.
 __global__ void floatConvRBFGradProcessKernel(float *featureArray, float *chiArr,
             double *outputArray, int dim1, int dim2, int numFreqs,
             int startPosition, int numElements,
@@ -185,10 +185,10 @@ __global__ void floatConvRBFGradProcessKernel(float *featureArray, float *chiArr
 
 
 
-//Performs the final steps in feature AND gradient generation for RBF-based convolution
+//Performs the final steps in feature generation WITH simultaneous gradient
+//calculation for RBF-based convolution
 //kernels -- multiplying by chiArr, taking sine or cosine and adding
-//to the appropriate elements of outputArray, then adding the same to the 
-//appropriate elements of gradientArray.
+//to the appropriate elements of outputArray.
 __global__ void doubleConvRBFGradProcessKernel(double *featureArray, double *chiArr,
             double *outputArray, int dim1, int dim2, int numFreqs,
             int startPosition, int numElements,

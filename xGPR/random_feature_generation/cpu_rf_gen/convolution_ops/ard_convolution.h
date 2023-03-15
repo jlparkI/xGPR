@@ -48,9 +48,17 @@ const char *graphARDFloatGrad_(float *inputX, double *randomFeatures,
 void *DoubleThreadGraphARDGrad(void *sharedArgs);
 void *FloatThreadGraphARDGrad(void *sharedArgs);
 
-void doubleGraphARDGradCalcs();
 
+void doubleGraphARDGradCalcs(double *inputX, double *randomFeatures,
+        double *precompWeights, int32_t *sigmaMap, double *sigmaVals,
+        double *gradient, int startRow, int endRow, int dim1,
+        int dim2, int numLengthscales, double rbfNormConstant,
+        int numFreqs);
 
-void floatGraphARDGradCalcs();
+void floatGraphARDGradCalcs(float *inputX, double *randomFeatures,
+        float *precompWeights, int32_t *sigmaMap, double *sigmaVals,
+        double *gradient, int startRow, int endRow, int dim1,
+        int dim2, int numLengthscales, double rbfNormConstant,
+        int numFreqs);
 
 #endif
