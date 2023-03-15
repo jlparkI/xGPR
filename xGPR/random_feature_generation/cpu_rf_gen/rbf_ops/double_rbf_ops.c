@@ -119,6 +119,7 @@ const char *rbfFeatureGenDouble_(double *cArray, int8_t *radem,
         iret[i] = pthread_create(&thread_id[i], NULL, ThreadRBFGenDouble, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -208,6 +209,7 @@ const char *rbfDoubleGrad_(double *cArray, int8_t *radem,
         iret[i] = pthread_create(&thread_id[i], NULL, ThreadRBFDoubleGrad, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -294,6 +296,7 @@ const char *ardDoubleGrad_(double *inputX, double *randomFeatures,
         iret[i] = pthread_create(&thread_id[i], NULL, ThreadARDDoubleGrad, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -555,54 +558,43 @@ void ardDoubleGradCalcs_(double *inputX, double *randomFeatures,
         double *gradient, int startRow, int endRow, int dim1,
         int numLengthscales, double rbfNormConstant,
         int numFreqs){
-    int i, j, k, gradPosition, currentLscale;
+    int i, j, k;
     int gradIncrement = numFreqs * numLengthscales;
-    int gradRowSize = 2 * gradIncrement;
     double *xElement, *precompWeight, dotProd;
     double *gradientElement, *randomFeature;
-    double gradVal, sinVal, cosVal;
+    double gradVal, sinVal, cosVal, rfSum;
 
     xElement = inputX + startRow * dim1;
-    gradPosition = startRow * gradRowSize;
+    gradientElement = gradient + startRow * 2 * gradIncrement;
     randomFeature = randomFeatures + startRow * numFreqs * 2;
 
     for (i=startRow; i < endRow; i++){
         precompWeight = precompWeights;
 
         for (j=0; j < numFreqs; j++){
+            rfSum = 0;
+
             for (k=0; k < dim1; k++){
-                currentLscale = sigmaMap[k] + gradPosition;
                 dotProd = xElement[k] * *precompWeight;
-                gradient[currentLscale] += dotProd;
-                *randomFeature += sigmaVals[k] * dotProd;
+                gradientElement[sigmaMap[k]] += dotProd;
+                rfSum += sigmaVals[k] * dotProd;
                 precompWeight++;
             }
-            gradPosition += numLengthscales;
-            randomFeature++;
-        }
-        xElement += dim1;
-        gradPosition += gradIncrement;
-        randomFeature += numFreqs;
-    }
 
-    gradientElement = gradient + startRow * gradRowSize;
-    randomFeature = randomFeatures + startRow * 2 * numFreqs;
-
-    for (i=startRow; i < endRow; i++){
-        for (j=0; j < numFreqs; j++){
-            cosVal = cos(*randomFeature) * rbfNormConstant;
-            sinVal = sin(*randomFeature) * rbfNormConstant;
+            cosVal = rbfNormConstant * cos(rfSum);
+            sinVal = rbfNormConstant * sin(rfSum);
             *randomFeature = cosVal;
             randomFeature[numFreqs] = sinVal;
 
             for (k=0; k < numLengthscales; k++){
-                gradVal = *gradientElement;
-                *gradientElement = -sinVal * gradVal;
-                gradientElement[gradIncrement] = cosVal * gradVal;
-                gradientElement++;
+                gradVal = gradientElement[k];
+                gradientElement[k] = -gradVal * sinVal;
+                gradientElement[k + gradIncrement] = gradVal * cosVal;
             }
+            gradientElement += numLengthscales;
             randomFeature++;
         }
+        xElement += dim1;
         gradientElement += gradIncrement;
         randomFeature += numFreqs;
     }

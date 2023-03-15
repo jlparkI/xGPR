@@ -84,8 +84,7 @@ const char *fastHadamard3dFloatArray_(float *Z, int zDim0, int zDim1, int zDim2,
 
     struct Thread3DFloatArrayArgs *th_args = malloc(numThreads * sizeof(struct Thread3DFloatArrayArgs));
     if (th_args == NULL){
-        PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
-            "is likely about to crash.");
+        PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful!");
         return "error";
     }
     //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
@@ -111,6 +110,7 @@ const char *fastHadamard3dFloatArray_(float *Z, int zDim0, int zDim1, int zDim2,
         iret[i] = pthread_create(&thread_id[i], NULL, ThreadTransformRows3DFloat, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -180,6 +180,7 @@ const char *fastHadamard3dDoubleArray_(double *Z, int zDim0, int zDim1, int zDim
         iret[i] = pthread_create(&thread_id[i], NULL, ThreadTransformRows3DDouble, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -251,6 +252,7 @@ const char *fastHadamard2dFloatArray_(float *Z, int zDim0, int zDim1,
         iret[i] = pthread_create(&thread_id[i], NULL, ThreadTransformRows2DFloat, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -321,6 +323,7 @@ const char *fastHadamard2dDoubleArray_(double *Z, int zDim0, int zDim1,
         iret[i] = pthread_create(&thread_id[i], NULL, ThreadTransformRows2DDouble, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -393,6 +396,7 @@ const char *SORFFloatBlockTransform_(float *Z, int8_t *radem,
         iret[i] = pthread_create(&thread_id[i], NULL, ThreadSORFFloatRows3D, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -463,6 +467,7 @@ const char *SORFDoubleBlockTransform_(double *Z, int8_t *radem,
         iret[i] = pthread_create(&thread_id[i], NULL, ThreadSORFDoubleRows3D, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -538,6 +543,7 @@ const char *SRHTFloatBlockTransform_(float *Z, int8_t *radem,
         iret[i] = pthread_create(&thread_id[i], NULL, ThreadSRHTFloatRows2D, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -609,6 +615,7 @@ const char *SRHTDoubleBlockTransform_(double *Z, int8_t *radem,
         iret[i] = pthread_create(&thread_id[i], NULL, ThreadSRHTDoubleRows2D, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }

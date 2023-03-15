@@ -146,25 +146,12 @@ def setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA = False)
         return [cuda_basic_ext], [cuda_basic_path]
 
 
-def get_kernel_tools_extensions(setup_fpath):
-    """Get extension paths for cython files used for
-    matrix-based convolutions. These are deprecated and
-    will be removed in a future version."""
-    kernel_tools_path = os.path.join(setup_fpath, "xGPR",
-                "kernels", "kernel_tools.pyx")
-    kernel_tools_ext = Extension("kernel_tools",
-                sources=[kernel_tools_path],
-                language="c",
-                include_dirs = [numpy.get_include()])
-    return [kernel_tools_ext]
-
 
 
 def main():
     """Builds the package, including all currently used extensions."""
     setup_fpath, NO_CUDA, CUDA_PATH = initial_checks()
     ext_modules = get_conjugate_grad_extensions(setup_fpath)
-    ext_modules += get_kernel_tools_extensions(setup_fpath)
 
     cpu_fht_ext, cpu_fht_files = setup_cpu_fast_hadamard_extensions(setup_fpath)
     fht_cuda_ext, gpu_fht_files = \

@@ -100,6 +100,7 @@ const char *doubleConv1dPrep_(int8_t *radem, double *reshapedX,
         iret[i] = pthread_create(&thread_id[i], NULL, doubleThreadConv1d, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -185,6 +186,7 @@ const char *floatConv1dPrep_(int8_t *radem, float *reshapedX,
         iret[i] = pthread_create(&thread_id[i], NULL, floatThreadConv1d, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }

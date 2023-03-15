@@ -111,6 +111,7 @@ const char *graphARDDoubleGrad_(double *inputX, double *randomFeatures,
         iret[i] = pthread_create(&thread_id[i], NULL, DoubleThreadGraphARDGrad, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -203,6 +204,7 @@ const char *graphARDFloatGrad_(float *inputX, double *randomFeatures,
         iret[i] = pthread_create(&thread_id[i], NULL, FloatThreadGraphARDGrad, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }

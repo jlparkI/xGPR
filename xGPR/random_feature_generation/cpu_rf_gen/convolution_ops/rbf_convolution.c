@@ -142,6 +142,7 @@ const char *doubleConvRBFFeatureGen_(int8_t *radem, double *reshapedX,
         iret[i] = pthread_create(&thread_id[i], NULL, doubleThreadConvRBFGen, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -237,6 +238,7 @@ const char *floatConvRBFFeatureGen_(int8_t *radem, float *reshapedX,
         iret[i] = pthread_create(&thread_id[i], NULL, floatThreadConvRBFGen, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -337,6 +339,7 @@ const char *doubleConvRBFGrad_(int8_t *radem, double *reshapedX,
         iret[i] = pthread_create(&thread_id[i], NULL, doubleThreadConvRBFGrad, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
@@ -438,6 +441,7 @@ const char *floatConvRBFGrad_(int8_t *radem, float *reshapedX,
         iret[i] = pthread_create(&thread_id[i], NULL, floatThreadConvRBFGrad, &th_args[i]);
         if (iret[i]){
             PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
+            free(th_args);
             return "error";
         }
     }
