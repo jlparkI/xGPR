@@ -15,7 +15,7 @@ def get_models(kernel_choice, xdim, conv_width = 3, training_rffs = 512,
     if not conv_ard_kernel:
         split_pts = [21,42,63]
     else:
-        split_pts = [10]
+        split_pts = [8]
 
     cpu_mod = xGPReg(training_rffs = training_rffs, fitting_rffs = fitting_rffs,
                         kernel_choice = kernel_choice,

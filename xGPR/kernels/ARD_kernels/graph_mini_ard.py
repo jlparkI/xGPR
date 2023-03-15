@@ -180,7 +180,6 @@ class GraphMiniARD(KernelBaseclass):
         """Once hyperparameters have been reset, this kernel needs
         to repopulate an array it will use when generating random
         features."""
-        self.precomputed_weights = None
         self.full_ard_weights[:] = 0
         self.ard_position_key[:] = 0
         for i in range(1, self.split_pts.shape[0]):
