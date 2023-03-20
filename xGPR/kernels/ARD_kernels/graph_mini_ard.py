@@ -127,9 +127,9 @@ class GraphMiniARD(KernelBaseclass):
                 by user are not valid.
         """
         n_splits = self.split_pts.shape[0] - 2
-        if n_splits < 1 or n_splits > 3:
-            raise ValueError("The MiniARD kernel currently accepts from 1 "
-                    "to 3 split points; you have supplied either more or less.")
+        if n_splits < 1:
+            raise ValueError("There must be at least one split point in "
+                    "order to use a MiniARD.")
         if self.split_pts[0] < 0:
             raise ValueError("The first split point must be > 0.")
         if self.split_pts[-1] > xdim[2]:
