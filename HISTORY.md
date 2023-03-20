@@ -58,3 +58,8 @@ Conv1d kernel.
 sdist for version 0.1.0.0 did not include required
 .c / .cu files in error; corrected this error and
 updated sdist
+
+### Version 0.1.0.2
+
+Version 0.1.0.1 limited the number of split points a
+user could specify; this constraint has now been removed.
