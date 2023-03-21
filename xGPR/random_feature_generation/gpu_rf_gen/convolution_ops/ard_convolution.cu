@@ -122,9 +122,8 @@ __global__ void ardConvFloatGradSetup(double *gradientArray,
 
 
 
-//This function generates the gradient ONLY for ARD ONLY,
-//using random features that have already been generated
-//and precomputed weights that take the place of the H-transforms
+//This function generates the gradient and random features for ARD ONLY,
+//using precomputed weights that take the place of the H-transforms
 //we would otherwise need to perform.
 const char *ardConvCudaFloatGrad(float *inputX, double *randomFeats,
                 float *precompWeights, int32_t *sigmaMap,
@@ -159,9 +158,8 @@ const char *ardConvCudaFloatGrad(float *inputX, double *randomFeats,
 
 
 
-//This function generates the gradient ONLY for ARD ONLY,
-//using random features that have already been generated
-//and precomputed weights that take the place of the H-transforms
+//This function generates the gradient and random features for ARD ONLY,
+//using precomputed weights that take the place of the H-transforms
 //we would otherwise need to perform.
 const char *ardConvCudaDoubleGrad(double *inputX, double *randomFeats,
                 double *precompWeights, int32_t *sigmaMap,
