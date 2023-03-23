@@ -5,9 +5,9 @@ import numpy as np
 import cupy as cp
 import cupyx
 from scipy.fftpack import dct
-from cpu_basic_hadamard_operations import doubleCpuFastHadamardTransform as dFHT
-from cpu_basic_hadamard_operations import doubleCpuSORFTransform as dSORF
-from cuda_basic_hadamard_operations import floatCudaPySORFTransform as fCudaSORF
+from cpu_rf_gen_module import doubleCpuFastHadamardTransform as dFHT
+from cpu_rf_gen_module import doubleCpuSORFTransform as dSORF
+from cuda_rf_gen_module import floatCudaPySORFTransform as fCudaSORF
 
 
 #Running the CPU numpy test with too many columns is extremely
@@ -47,8 +47,8 @@ nthreads = {nthreads}
 import math
 import numpy as np
 from scipy.linalg import hadamard
-from cpu_basic_hadamard_operations import floatCpuFastHadamardTransform as dFHT
-from cpu_basic_hadamard_operations import floatCpuSORFTransform as dSORF
+from cpu_rf_gen_module import floatCpuFastHadamardTransform as dFHT
+from cpu_rf_gen_module import floatCpuSORFTransform as dSORF
 random_seed = 123
 rng = np.random.default_rng(random_seed)
 marr = rng.uniform(low=-10.0, high=10.0, size=({nrows},{nblocks},{ncols}))
@@ -65,8 +65,8 @@ from __main__ import fh3d_test"""
 nthreads = {nthreads}
 import numpy as np
 from scipy.linalg import hadamard
-from cpu_basic_hadamard_operations import floatCpuFastHadamardTransform as dFHT
-from cpu_basic_hadamard_operations import floatCpuSORFTransform as dSORF
+from cpu_rf_gen_module import floatCpuFastHadamardTransform as dFHT
+from cpu_rf_gen_module import floatCpuSORFTransform as dSORF
 random_seed = 123
 rng = np.random.default_rng(random_seed)
 marr = rng.uniform(low=-10.0, high=10.0, size=({nrows},{nblocks},{ncols}))

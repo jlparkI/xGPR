@@ -5,8 +5,8 @@ import numpy as np
 import cupy as cp
 import cupyx
 from scipy.stats import chi
-from cpu_convolution_float_hadamard_operations import floatCpuConv1dFGen, floatCpuGraphPolyFHT
-from cuda_convolution_float_hadamard_operations import floatGpuConv1dFGen, floatGpuGraphPolyFHT
+from cpu_rf_gen_module import floatCpuConv1dFGen, floatCpuGraphPolyFHT
+from cuda_rf_gen_module import floatGpuConv1dFGen, floatGpuGraphPolyFHT
 
 
 #Running the CPU numpy test with too many columns is extremely

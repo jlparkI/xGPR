@@ -20,14 +20,15 @@
 //float [N,M,S] input array. Note that the dimensions must be checked before calling
 //-- done by the wrapper -- and that only S elements of the appropriate row of
 //the [3, 1, P x S] array are used.
-__global__ void floatConv1dRBFRademMultiply(float *cArray, int8_t *rademArray,
+__global__ void floatConv1dRBFRademMultiply(float *cArray,
+            const int8_t *rademArray,
 			int dim2, int startPosition, int numElements, float normConstant)
 {
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    int8_t *rVal = rademArray + startPosition + (tid & (dim2 - 1));
+    int position = startPosition + (tid & (dim2 - 1));
     
     if (tid < numElements)
-        cArray[tid] = cArray[tid] * *rVal * normConstant;
+        cArray[tid] = cArray[tid] * rademArray[position] * normConstant;
 }
 
 
@@ -36,14 +37,15 @@ __global__ void floatConv1dRBFRademMultiply(float *cArray, int8_t *rademArray,
 //double [N,M,S] input array. Note that the dimensions must be checked before calling
 //-- done by the wrapper -- and that only S elements of the appropriate row of
 //the [3, 1, P x S] array are used.
-__global__ void doubleConv1dRBFRademMultiply(double *cArray, int8_t *rademArray,
+__global__ void doubleConv1dRBFRademMultiply(double *cArray,
+            const int8_t *rademArray,
 			int dim2, int startPosition, int numElements, double normConstant)
 {
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    int8_t *rVal = rademArray + startPosition + (tid & (dim2 - 1));
+    int position = startPosition + (tid & (dim2 - 1));
     
     if (tid < numElements)
-        cArray[tid] = cArray[tid] * *rVal * normConstant;
+        cArray[tid] = cArray[tid] * rademArray[position] * normConstant;
 }
 
 
@@ -51,30 +53,30 @@ __global__ void doubleConv1dRBFRademMultiply(double *cArray, int8_t *rademArray,
 //Performs an elementwise multiplication by a diagonal matrix populated with
 //elements from a Rademacher distribution, while also multiplying by the
 //Hadamard norm constant and copying into the featureArray array.
-__global__ void floatConv1dRBFRademAndCopy(float *inputArray, float *featureArray,
-            int8_t *rademArray, int dim2, int startPosition,
+__global__ void floatConv1dRBFRademAndCopy(const float *inputArray, float *featureArray,
+            const int8_t *rademArray, int dim2, int startPosition,
             int numElements, float normConstant)
 {
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    int8_t *rVal = rademArray + startPosition + (tid & (dim2 - 1));
+    int position = startPosition + (tid & (dim2 - 1));
     
     if (tid < numElements)
-        featureArray[tid] = inputArray[tid] * *rVal * normConstant;
+        featureArray[tid] = inputArray[tid] * rademArray[position] * normConstant;
 }
 
 
 //Performs an elementwise multiplication by a diagonal matrix populated with
 //elements from a Rademacher distribution, while also multiplying by the
 //Hadamard norm constant and copying into the featureArray array.
-__global__ void doubleConv1dRBFRademAndCopy(double *inputArray, double *featureArray,
-            int8_t *rademArray, int dim2, int startPosition,
+__global__ void doubleConv1dRBFRademAndCopy(const double *inputArray, double *featureArray,
+            const int8_t *rademArray, int dim2, int startPosition,
             int numElements, double normConstant)
 {
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    int8_t *rVal = rademArray + startPosition + (tid & (dim2 - 1));
+    int position = startPosition + (tid & (dim2 - 1));
     
     if (tid < numElements)
-        featureArray[tid] = inputArray[tid] * *rVal * normConstant;
+        featureArray[tid] = inputArray[tid] * rademArray[position] * normConstant;
 }
 
 
@@ -83,7 +85,7 @@ __global__ void doubleConv1dRBFRademAndCopy(double *inputArray, double *featureA
 //Performs the final steps in feature generation for RBF-based convolution
 //kernels -- multiplying by chiArr, taking sine or cosine and adding
 //to the appropriate elements of outputArray.
-__global__ void floatConvRBFPostProcessKernel(float *featureArray, float *chiArr,
+__global__ void floatConvRBFPostProcessKernel(const float *featureArray, float *chiArr,
             double *outputArray, int dim1, int dim2, int numFreqs,
             int startPosition, int numElements,
             int endPosition, double scalingTerm){
@@ -113,7 +115,7 @@ __global__ void floatConvRBFPostProcessKernel(float *featureArray, float *chiArr
 //Performs the final steps in feature generation for RBF-based convolution
 //kernels -- multiplying by chiArr, taking sine or cosine and adding
 //to the appropriate elements of outputArray.
-__global__ void doubleConvRBFPostProcessKernel(double *featureArray, double *chiArr,
+__global__ void doubleConvRBFPostProcessKernel(const double *featureArray, double *chiArr,
             double *outputArray, int dim1, int dim2, int numFreqs,
             int startPosition, int numElements,
             int endPosition, double scalingTerm)

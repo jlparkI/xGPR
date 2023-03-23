@@ -289,7 +289,7 @@ void doubleTransformRows2D(double *xArray, int startRow, int endRow,
  * Operations are in place so nothing is returned.
  */
 void doubleMultiplyByDiagonalRademacherMat2D(double *xArray,
-                    int8_t *rademArray,
+                    const int8_t *rademArray,
                     int dim1,
                     int startRow, int endRow){
     
@@ -298,14 +298,11 @@ void doubleMultiplyByDiagonalRademacherMat2D(double *xArray,
     normConstant = 1 / pow(2, normConstant);
     int rowStride = dim1;
     double *xElement;
-    int8_t *rademElement;
     
     for(i = startRow; i < endRow; i++){
-	    rademElement = rademArray;
         xElement = xArray + i * rowStride;
         for (j = 0; j < rowStride; j++){
-            *xElement *= *rademElement * normConstant;
-            rademElement++;
+            *xElement *= rademArray[j] * normConstant;
             xElement++;
         }
     }
@@ -345,7 +342,7 @@ void doubleMultiplyByDiagonalRademacherMat2D(double *xArray,
  * Operations are in place so nothing is returned.
  */
 void doubleMultiplyByDiagonalRademacherMat(double *xArray,
-                    int8_t *rademArray,
+                    const int8_t *rademArray,
                     int dim1, int dim2,
                     int startRow, int endRow){
     
@@ -354,14 +351,11 @@ void doubleMultiplyByDiagonalRademacherMat(double *xArray,
     normConstant = 1 / pow(2, normConstant);
     int rowStride = dim1 * dim2;
     double *xElement;
-    int8_t *rademElement;
     
     for(i = startRow; i < endRow; i++){
-	    rademElement = rademArray;
         xElement = xArray + i * rowStride;
         for (j = 0; j < rowStride; j++){
-            *xElement *= *rademElement * normConstant;
-            rademElement++;
+            *xElement *= rademArray[j] * normConstant;
             xElement++;
         }
     }
@@ -404,7 +398,7 @@ void doubleMultiplyByDiagonalRademacherMat(double *xArray,
  * Operations are in place so nothing is returned.
  */
 void doubleConv1dMultiplyByRadem(double *xArray,
-                        int8_t *rademArray, int startRow,
+                        const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition){
     int j, k;
@@ -412,15 +406,12 @@ void doubleConv1dMultiplyByRadem(double *xArray,
     normConstant = 1 / pow(2, normConstant);
     int rowStride = reshapedDim1 * reshapedDim2;
     double *xElement;
-    int8_t *rademElement;
 
     for (int i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
         for (j = 0; j < reshapedDim1; j++){
-	        rademElement = rademArray + startPosition;
             for (k = 0; k < reshapedDim2; k++){
-                *xElement *= *rademElement * normConstant;
-                rademElement++;
+                *xElement *= rademArray[startPosition + k] * normConstant;
                 xElement++;
             }
         }
@@ -469,7 +460,7 @@ void doubleConv1dMultiplyByRadem(double *xArray,
  */
 void doubleConv1dRademAndCopy(double *xArray,
                         double *copyBuffer,
-                        int8_t *rademArray, int startRow,
+                        const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition){
     int j, k;
@@ -477,16 +468,13 @@ void doubleConv1dRademAndCopy(double *xArray,
     normConstant = 1 / pow(2, normConstant);
     int rowStride = reshapedDim1 * reshapedDim2;
     double *xElement, *bufferElement;
-    int8_t *rademElement;
 
     for (int i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
         bufferElement = copyBuffer + i * rowStride;
         for (j = 0; j < reshapedDim1; j++){
-	        rademElement = rademArray + startPosition;
             for (k = 0; k < reshapedDim2; k++){
-                *bufferElement = *rademElement * normConstant * *xElement;
-                rademElement++;
+                *bufferElement = rademArray[startPosition + k] * normConstant * *xElement;
                 xElement++;
                 bufferElement++;
             }
