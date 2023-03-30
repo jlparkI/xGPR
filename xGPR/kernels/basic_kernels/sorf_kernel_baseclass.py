@@ -1,9 +1,8 @@
 """Describes the SORFKernelBaseclass, which is used by the main
-fixed-vector kernels -- RBF, Matern, Arccosine, ERF-NN.
+fixed-vector kernels -- RBF, Matern.
 
 All of these share some methods and attributes in common
-which are stored here to avoid redundancy, mainly
-pretransform_x and the initialization process."""
+which are stored here to avoid redundancy."""
 from abc import ABC
 from math import ceil
 

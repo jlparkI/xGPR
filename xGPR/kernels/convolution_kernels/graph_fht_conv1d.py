@@ -88,7 +88,6 @@ class GraphFHTConv1d(KernelBaseclass):
         self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
 
-
         self.conv_func = None
         self.grad_func = None
         self.device = device
