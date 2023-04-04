@@ -21,9 +21,14 @@ confident the model is about its prediction (bigger values = less confident). Th
 one of the great advantages of GPs -- the model will automatically tell you
 when it doesn't trust its own prediction. The predicted variance will *always*
 increase to very large values once you go to points that lie well outside
-the region covered by the original training set. You may sometimes not
+the region covered by the original training set. You may not
 need the predicted variance, in which case you can set ``get_var`` to ``False``
 and only the predicted_mean is returned.
+
+**Note**: Calculating the predicted variance is significantly more expensive
+than just getting the predictions, especially on CPU and especially if the
+number of fitting or variance RFFs is large. Consider setting ``get_var`` to
+False if you don't need variance for a particular set of predictions.
 
 Note that if you used a static layer to preprocess your training set,
 you must also preprocess future data through the same static layer

@@ -1,16 +1,17 @@
 """Checks exact gradients against numerical gradients for
-the GraphRBF kernel."""
+the RBFLinear kernel."""
 import unittest
 from kernel_specific_gradient_test import run_kernelspecific_test
 
-class CheckGraphRBFGradients(unittest.TestCase):
-    """Checks the NMLL gradients for the GraphRBF kernel
+class CheckRBFLinearGradients(unittest.TestCase):
+    """Checks the NMLL gradients for the GraphRBFLinear kernel
     (useful for L-BFGS and SGD hyperparameter tuning)."""
 
-    def test_graph_conv1d_gradient(self):
+    def test_rbf_linear_gradient(self):
         """Checks that the exact gradient matches numerical."""
-        costcomps = run_kernelspecific_test("GraphRBF",
-                        conv_kernel = True)
+        costcomps = run_kernelspecific_test("RBFPlusLinear",
+                        training_rffs = 512, fitting_rffs = 512,
+                        conv_kernel = False)
         for costcomp in costcomps:
             self.assertTrue(costcomp)
 

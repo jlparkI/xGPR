@@ -332,7 +332,7 @@ to optimal or ``fine_bayes`` if we are not.
 
 Here are the two currently supported options:::
 
-  hparams, nfev = my_model.tune_hyperparams_fine_direct(my_dataset, bounds = None,
+  hparams, nfev, best_score = my_model.tune_hyperparams_fine_direct(my_dataset, bounds = None,
              optim_method = "Powell",
              starting_hyperparams = None, random_seed = 123,
              max_iter = 50, nmll_rank = 1024, nmll_probes = 25,
@@ -340,7 +340,7 @@ Here are the two currently supported options:::
              pretransform_dir = None,
              preconditioner_mode = "srht_2")
 
-  hparams, nfev = my_model.tune_hyperparams_fine_bayes(my_dataset, bounds = None,
+  hparams, nfev, best_score = my_model.tune_hyperparams_fine_bayes(my_dataset, bounds = None,
              random_seed = 123, max_bayes_iter = 30, tol = 1e-1,
              nmll_rank = 1024, nmll_probes = 25, nmll_iter = 500,
              nmll_tol = 1e-6, pretransform_dir = None,

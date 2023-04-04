@@ -1,5 +1,6 @@
-"""This kernel is equivalent to the FHTConv1d kernel but is specialized
-to work on graphs, where we only ever want a convolution width of 1."""
+"""This kernel is the sum of a GraphRBF kernel -- which applies a pairwise
+RBF kernel across all nodes in two graphs -- and a Linear kernel, which
+applies a linear function to the sum of all nodes in a graph."""
 from math import ceil
 
 import numpy as np
@@ -16,11 +17,13 @@ from cpu_rf_gen_module import doubleCpuConv1dFGen, doubleCpuConvGrad
 from cpu_rf_gen_module import floatCpuConv1dFGen, floatCpuConvGrad
 
 
-class GraphFHTConv1d(KernelBaseclass):
-    """This is similar to FHTConv1d but is specialized to work
-    on graphs, where the input is a sequence of node descriptions.
-    This allows a few simplifications. This class inherits from KernelBaseclass.
-    Only attributes unique to this child are described in this docstring.
+class GraphRBFLinear(KernelBaseclass):
+    """This kernel is the sum of a Linear kernel and a GraphRBF kernel.
+    The GraphRBF kernel measures similarity using a pairwise RBF kernel
+    across all nodes in two graphs, while the Linear kernel is a linear
+    kernel across the sum of the node-features in the two graphs.
+    This class inherits from KernelBaseclass. Only attributes unique to
+    this child are described in this docstring.
 
     Attributes:
         hyperparams (np.ndarray): This kernel has three
@@ -28,6 +31,12 @@ class GraphFHTConv1d(KernelBaseclass):
             and sigma (inverse mismatch tolerance).
         padded_dims (int): The size of the expected input data
             after zero-padding to be a power of 2.
+        internal_rffs (int): The number of random features that will be generated.
+            This is different than num_rffs (from the parent class), which is what
+            the kernel will report to anyone asking how many features it generates.
+            The reason for this difference is that the linear + rbf kernel
+            concatenates the input (for the linear portion of the kernel) to
+            the random features generated for the RBF portion.
         init_calc_freqsize (int): The number of times the transform
             will need to be performed to generate the requested number
             of sampled frequencies.
@@ -44,8 +53,8 @@ class GraphFHTConv1d(KernelBaseclass):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
-                    num_threads = 2, double_precision = False, kernel_spec_parms = {}):
-        """Constructor for FHT_Conv1d.
+                    num_threads = 2, double_precision = False, **kwargs):
+        """Constructor.
 
         Args:
             xdim (tuple): The dimensions of the input. Either (N, D) or (N, M, D)
@@ -66,15 +75,34 @@ class GraphFHTConv1d(KernelBaseclass):
             ValueError: A ValueError is raised if the dimensions of the input are
                 inappropriate given the conv_width.
         """
-        super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = True,
+        #Although this IS a sine_cosine kernel, we don't want the parent class
+        #to enforce that num_rffs be a multiple of two (only needs to be true
+        #for internal rffs), so we set sine_cosine_kernel to False.
+        super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = False,
                 double_precision = double_precision)
         if len(xdim) != 3:
-            raise ValueError("Tried to initialize the GraphFHTConv1d kernel with a "
-                    "2d x-array! x should be a 3d array for GraphFHTConv1d.")
+            raise ValueError("Tried to initialize the GraphRBFLinear kernel with a "
+                    "2d x-array! x should be a 3d array for GraphRBFLinear.")
+        self.internal_rffs = num_rffs - xdim[2]
+        if self.internal_rffs <= 1 or not (self.internal_rffs / 2).is_integer():
+            raise ValueError("For the GraphRBFLinear kernel, the number of 'random' "
+                    "features requested includes the number of features in "
+                    "the input. So, for example, if the input is a 90 x 100 "
+                    "matrix for each graph and training_rffs is 1000, 900 random features will "
+                    "be generated and the input features will be concatenated to "
+                    "this to yield 1000 'random' features. The number of "
+                    "training and fitting rffs requested should therefore be "
+                    "at least num_node_features + 2, and after the input length "
+                    "is subtracted, the remainder should be a power of two. The number of "
+                    "variance_rffs requested is not affected.")
 
-        self.hyperparams = np.ones((3))
-        self.bounds = np.asarray([[1e-3,1e1], [0.2, 5], [1e-2, 1e2]])
+        self.hyperparams = np.ones((4))
+        self.bounds = np.asarray([[1e-3,1e1], [0.1, 10], [1e-2, 15], [1e-2, 1e2]])
         rng = np.random.default_rng(random_seed)
+
+        #Need to override parent class calculation of num_freqs to use
+        #internal rffs.
+        self.num_freqs = int(self.internal_rffs / 2)
 
         self.padded_dims = 2**ceil(np.log2(max(xdim[2], 2)))
         self.init_calc_freqsize = ceil(self.num_freqs / self.padded_dims) * \
@@ -146,13 +174,17 @@ class GraphFHTConv1d(KernelBaseclass):
         """
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
-        xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
+        xtrans = self.zero_arr((input_x.shape[0], self.internal_rffs), self.out_type)
         reshaped_x = self.zero_arr((input_x.shape[0], input_x.shape[1],
                                 self.padded_dims), self.dtype)
-        reshaped_x[:,:,:input_x.shape[2]] = input_x * self.hyperparams[2]
+        reshaped_x[:,:,:input_x.shape[2]] = input_x * self.hyperparams[3]
+        output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
+
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
                 self.num_threads, self.hyperparams[1])
-        return xtrans
+        output_x[:,:self.internal_rffs] = xtrans
+        output_x[:,self.internal_rffs:] = cp.sum(input_x, axis=1) * self.hyperparams[1] * self.hyperparams[2]
+        return output_x
 
 
 
@@ -174,11 +206,18 @@ class GraphFHTConv1d(KernelBaseclass):
         """
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
-        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
+        random_features = self.zero_arr((input_x.shape[0], self.internal_rffs),
+                self.out_type)
+        output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
+        output_grad = self.zero_arr((input_x.shape[0], self.num_rffs, 2), self.out_type)
         reshaped_x = self.zero_arr((input_x.shape[0], input_x.shape[1],
                                 self.padded_dims), self.dtype)
         reshaped_x[:,:,:input_x.shape[2]] = input_x
-        dz_dsigma = self.grad_func(reshaped_x, self.radem_diag,
-                output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
+        output_grad[:,:self.internal_rffs,1:2] = self.grad_func(reshaped_x, self.radem_diag,
+                random_features, self.chi_arr, self.num_threads, self.hyperparams[2],
                 self.hyperparams[1])
-        return output_x, dz_dsigma
+
+        output_grad[:,self.internal_rffs:,0] = cp.sum(input_x, axis=1) * self.hyperparams[2]
+        output_x[:,:self.internal_rffs] = random_features
+        output_x[:,self.internal_rffs:] = output_grad[:,self.internal_rffs:,0] * self.hyperparams[1]
+        return output_x, output_grad

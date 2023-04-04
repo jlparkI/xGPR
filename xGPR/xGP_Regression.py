@@ -18,6 +18,7 @@ from .constants import constants
 from .regression_baseclass import GPRegressionBaseclass
 from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
+from .preconditioners.inter_device_preconditioners import InterDevicePreconditioner
 
 from .optimizers.pure_bayes_optimizer import pure_bayes_tuning
 from .optimizers.bayes_grid_optimizer import bayes_grid_tuning
@@ -28,7 +29,7 @@ from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
 from .fitting_toolkit.sgd_fitting_toolkit import sgdModelFit
 from .fitting_toolkit.ams_grad_toolkit import amsModelFit
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext
-from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
+from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact
 
 from .scoring_toolkit.approximate_nmll_calcs import estimate_logdet, estimate_nmll
 from .scoring_toolkit.nmll_gradient_tools import exact_nmll_reg_grad, calc_gradient_terms
@@ -128,8 +129,7 @@ class xGPRegression(GPRegressionBaseclass):
             xfeatures = self.kernel.transform_x(xdata[i:cutoff, :])
             preds.append((xfeatures * self.weights[None, :]).sum(axis = 1))
             if get_var:
-                xfeatures = xfeatures[:,:self.variance_rffs]
-                pred_var = (self.var @ xfeatures.T).T
+                pred_var = self.var.batch_matvec(xfeatures.T).T
                 pred_var = lambda_**2 * ((xfeatures * pred_var).sum(axis=1))
                 var.append(pred_var)
 
@@ -518,8 +518,10 @@ class xGPRegression(GPRegressionBaseclass):
             raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
                         "'lbfgs', 'cg', 'sgd', 'amsgrad', 'exact'.")
         if not suppress_var:
-            self.var = calc_variance_exact(self.kernel, dataset, self.kernel_choice,
-                                self.variance_rffs)
+            if self.verbose:
+                print("Now building preconditioner for variance calculations.")
+            self.var = InterDevicePreconditioner(self.kernel, dataset,
+                    self.variance_rffs, False, random_seed, "srht")
 
         if self.verbose:
             print("Fitting complete.")
@@ -856,7 +858,7 @@ class xGPRegression(GPRegressionBaseclass):
         Returns:
             hyperparams (np.ndarray): The best hyperparams found during optimization.
             n_feval (int): The number of function evaluations during optimization.
-                best_score (float): The best negative marginal log-likelihood achieved.
+            best_score (float): The best negative marginal log-likelihood achieved.
 
         Raises:
             ValueError: The input dataset is checked for validity before tuning is

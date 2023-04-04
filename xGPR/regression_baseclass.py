@@ -141,11 +141,10 @@ class GPRegressionBaseclass():
         if self.weights.shape[0] != self.kernel.get_num_rffs():
             raise ValueError("The size of the weight vector does not "
                     "match the number of random features that are generated.")
-        #TODO: Add proper variance calc for linear kernel.
         if self.var is None and get_var:
             raise ValueError("Variance was requested but suppress_var "
-                    "was selected when fitting or a linear kernel was "
-                    "used, meaning that variance has not been generated.")
+                    "was selected when fitting, meaning that variance "
+                    "has not been generated.")
         if self.device == "gpu":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
@@ -487,7 +486,9 @@ class GPRegressionBaseclass():
         self.kernel.check_hyperparams(starting_hparams)
         self.kernel.set_hyperparams(starting_hparams, logspace = True)
 
-
+        if self.variance_rffs >= self.kernel.get_num_rffs():
+            raise ValueError("The number of variance rffs should be < the number "
+                    "of random features for the kernel.")
 
 
 
@@ -614,10 +615,7 @@ class GPRegressionBaseclass():
             elif value == "cpu" and not isinstance(self.weights, np.ndarray):
                 self.weights = cp.asnumpy(self.weights)
         if self.var is not None:
-            if value == "gpu":
-                self.var = cp.asarray(self.var)
-            elif value == "cpu" and not isinstance(self.weights, np.ndarray):
-                self.weights = cp.asnumpy(self.var)
+            self.var.device = value
         if value == "gpu":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
