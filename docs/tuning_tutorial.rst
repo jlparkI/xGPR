@@ -11,15 +11,14 @@ amplitude, which measures how far the data deviates from the mean. If you
 call ``my_model.get_hyperparams()``, these are the first two in the array
 that is returned.
 
-It's possible to write your own routine for tuning hyperparameters. For some
+It's possible to write your own routine for tuning hyperparameters or use a
+hyperparameter tuning package (e.g. Optuna). For some
 pointers on how to do this, see the "Custom hyperparameter tuning" section
-under the main page. You should probably first consider the
-built-in routines, however, which are easier to use.
+under the main page. Here we'll look at built-in routines for tuning.
 
 There are three major approaches for choosing good hyperparameters that are
 built-in to xGPR. Here's a quick look at each, with more details to
-follow. There is also an experimental stochastic gradient based technique
-(described under the Miscellaneous section on the main page).
+follow.
 
 
 .. list-table::
@@ -154,17 +153,14 @@ and using our novel strategies, they often converge in
 random features, especially on large datasets (> 1 million datapoints),
 with the ``crude`` methods is poor. Thus, it is best to think
 of them as "quick-and-dirty" methods that give a good starting
-point for further optimization (it often happens however that this
-starting point is sufficiently good we do not need to refine it
-any further!)
+point for further optimization (and if the starting point is
+sufficiently good, we may not need to refine it further).
 
 There are currently three ``crude`` methods (plus an experimental
 method, addressed under experimental tuning methods on 
 the main page of the docs). If your kernel has more than 3 hyperparameters
-(e.g. one of the ARD kernels, say ``MiniARD`` or ``GraphMiniARD``) you
-have to use ``crude_lbfgs``, described shortly. For kernels with only
-2-3 hyperparameters (polynomial, RBF, Matern, GraphConv1d, FHTConv1d etc),
-our prefered method is this:::
+you have to use ``crude_lbfgs``, described shortly. For kernels with only
+2-3 hyperparameters (most kernels) our prefered method is this:::
 
   hparams, niter, best_score, scores = my_model.tune_hyperparams_crude_bayes(my_dataset,
                                      random_seed = 123,
@@ -177,15 +173,14 @@ our prefered method is this:::
 
 
 This method is a fun twist on Bayesian optimization: we only need *one* pass over
-the dataset to acquire *hundreds* of gridpoints along the first two
+the dataset to acquire hundreds of gridpoints along the first two
 hyperparameters, so that the Bayesian optimization piece only runs along
 the third kernel-specific hyperparameter. This method is a little "finicky",
 in that small shifts in things like the optimization boundaries can cause
 small shifts in the location of the solution that is ultimately obtained.
 This arises from the stochastic nature of the sampling procedure used in
 the Bayesian optimization and has negligible impact on performance. If this
-bothers you, we suggest using ``crude_grid`` or ``crude_lbfgs`` (both
-described below) instead.
+bothers you, we suggest using ``crude_grid`` (described below) instead.
 
 Notice that under ``scores``, this function returns a tuple of the kernel-specific
 hyperparameter values that were evaluated and the best score associated with each.
@@ -292,7 +287,7 @@ Tuning hyperparameters by approximate marginal likelihood
 
 The cost of the matrix decompositions used by ``crude`` methods
 scale as the cube of the number of random features.
-Consequently, these approaches are already slow for 4,000 - 5,000 
+Consequently, these approaches are already slow for 3,000 - 5,000 
 random features and are not very useful for any number of random
 features much greater than 5,000. It's better to train on GPU
 than on CPU, of course, but if you must tune on CPU then this
@@ -320,15 +315,13 @@ scale better as the number of random features and number of datapoints
 increases.
 
 These approaches are also less efficient at searching the
-whole hyperparameter space. Direct works *much* better
-if its starting point is close to the global optimum -- it can get stuck in
-local minima. The Bayes routine is good at escaping local minima, but is less
+whole hyperparameter space. Direct can get stuck in local
+optima, so it's best to either use a starting point from a ``crude``
+routine or run this multiple times with multiple starting points
+if no good starting point is available. The Bayes routine is good
+at escaping local minima, but is less
 efficient if used to search a large space (e.g. the default search
-boundaries). Consequently, it's
-often a good idea to get a starting point from a crude procedure using
-a small number of random features and / or a subset of the data, then
-"fine-tune" using ``fine_direct`` if we are confident our starting point is close
-to optimal or ``fine_bayes`` if we are not.
+boundaries).
 
 Here are the two currently supported options:::
 
@@ -348,8 +341,6 @@ Here are the two currently supported options:::
 
 
 Note that ``fine_bayes`` is only an option for kernels with < 5 hyperparameters.
-For ARD kernels with more hyperparameters, e.g. ``MiniARD`` or ``GraphMiniARD``
-with multiple split points, use ``fine_direct``.
 
 As you can see, there are a lot more available "knobs" to turn! This
 may look a little intimidating, but the good news is that many of
@@ -381,7 +372,7 @@ random features on the fly *if*:
 #. You are tuning on CPU (in this case, using a pretransform_dir
    is recommended.
 
-Using a pretransform_dir is problematic if the number of random
+Using a pretransform_dir is not recommended if the number of random
 features you are using * the number of datapoints * 4 (bytes per
 float) is on par with your available disk space.
 

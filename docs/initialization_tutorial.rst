@@ -127,7 +127,7 @@ Choosing the number of RFFs; a brief digression
 
 xGPR is an approximation to an exact Gaussian process. The larger the number of
 RFFs, the better the approximation, and in fact, the error of the approximation
-decreases *exponentially* with the number of RFFs. This means that in general,
+decreases rapidly with the number of RFFs. This means that in general,
 we don't need a *huge* number of RFFs to get a decent result. It also means
 that increasing the number of RFFs will nearly always improve performance
 but with diminishing returns -- going from 4096 to 8192 will yield a bigger boost
@@ -148,11 +148,11 @@ Setting up a model for convolution
 There are currently two ways to do convolution on multivariate sequence
 (multivariate time series, sequences) and graphs. The first is to use
 a dedicated convolution kernel, (e.g. ``FHTConv1d`` for sequences
-or ``GraphConv1d`` for graphs), e.g.:::
+or ``GraphRBF`` for graphs), e.g.:::
 
   from xGPR.xGP_Regression import xGPRegression
   my_model = xGPRegression(training_rffs = 2048, fitting_rffs = 8192,
-                        variance_rffs = 512, kernel_choice = "Conv1d",
+                        variance_rffs = 512, kernel_choice = "FHTConv1d",
                         device = "gpu", kernel_specific_params =
                         {"conv_width":9}, verbose = True)
 

@@ -4,7 +4,7 @@ Kernels for graphs
 These are convolution kernels for graphs, analogous to a graph
 convolutional network. To use one of these, when initializing the
 model, set ``kernel_choice = 'kernel name'``, e.g.
-``kernel_choice = "GraphConv1d"``.
+``kernel_choice = "GraphRBF"``.
 See :doc:`Getting started</initialization_tutorial>`
 for details.
 
@@ -16,29 +16,30 @@ for details.
    * - Kernel Name
      - Description
      - kernel_specific_params
-   * - GraphConv1d
+   * - GraphRBF
      - | Compares graphs by averaging over
        | an RBF kernel applied pairwise to
        | all node representations
        | in the two graphs.
      -
    * - GraphPoly
-     - | Same as "GraphConv1d", but applies
+     - | Same as "GraphRBF", but applies
        | a polynomial kernel pairwise instead
        | of an RBF. Only two hyperparameters
        | that need to be tuned instead of 3
-       | as for GraphConv1d or FHTConv1d.
+       | as for GraphRBF or FHTConv1d.
      - | "polydegree":int
    * - GraphMiniARD
-     - | Same as GraphConv1d, but rather than having one
+     - | Same as GraphRBF, but rather than having one
        | lengthscale shared between all features,
        | applies different lengthscales to different
-       | groups of features.
+       | groups of features. Much slower hyperparameter
+       | tuning but can give better results for some problems.
      - | "split_points":list
 
 
 Consider a graph where each node has an associated 
-set of features. GraphConv1d compares two graphs A and B by
+set of features. GraphRBF compares two graphs A and B by
 taking each node in graph A and evaluating an RBF kernel across
 that node vs each node in graph B. GraphPoly does the same
 thing, except it uses a polynomial kernel of the specified degree
@@ -47,7 +48,7 @@ in the size of the graph; in xGPR, remarkably, we are able to
 implement these kernels with a "trick" that results in *linear
 scaling* with graph size and number of datapoints for both kernels.
 
-The ``GraphMiniARD`` is a GraphConv1d kernel that assigns a different lengthscale
+The ``GraphMiniARD`` is a GraphRBF kernel that assigns a different lengthscale
 to different kinds of features for each node. You might have data, for example,
 where some features for each node describe that node, and some other features
 for that node describe its neighbors. If

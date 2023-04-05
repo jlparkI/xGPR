@@ -23,12 +23,8 @@ when it doesn't trust its own prediction. The predicted variance will *always*
 increase to very large values once you go to points that lie well outside
 the region covered by the original training set. You may not
 need the predicted variance, in which case you can set ``get_var`` to ``False``
-and only the predicted_mean is returned.
-
-**Note**: Calculating the predicted variance is significantly more expensive
-than just getting the predictions, especially on CPU and especially if the
-number of fitting or variance RFFs is large. Consider setting ``get_var`` to
-False if you don't need variance for a particular set of predictions.
+and only the predicted_mean is returned. This will be faster so is recommended
+any time you don't need the variance.
 
 Note that if you used a static layer to preprocess your training set,
 you must also preprocess future data through the same static layer

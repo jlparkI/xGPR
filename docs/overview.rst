@@ -107,8 +107,6 @@ for a specific application.
 
 The variance (i.e. the uncertainty) on new predictions is a useful
 quantity, but it generally only needs to be calculated very
-approximately. We recommend using 1024 - 2048 random features for
+approximately. We recommend using 512 - 2048 random features for
 variance; this should be sufficient for an estimate in most cases.
-If for some reason you need significantly improved accuracy for
-variance, you can use e.g. 4096, although this will take longer
-to compute.
+We often use 1024.
