@@ -8,6 +8,8 @@ Subpackages
    :maxdepth: 4
 
    xGPR.data_handling
+   xGPR.random_feature_generation
+   xGPR.scoring_toolkit
    xGPR.static_layers
    xGPR.tuning_toolkit
 
