@@ -63,3 +63,10 @@ updated sdist
 
 Version 0.1.0.1 limited the number of split points a
 user could specify; this constraint has now been removed.
+
+### Version 0.1.0.3
+
+This version is able to calculate variance for Linear kernels,
+has an improved variance calculation for all other kernels,
+corrects some errors in the documentation, and the GraphConv1d
+kernel has been renamed GraphRBF.
