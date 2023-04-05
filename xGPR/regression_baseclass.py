@@ -62,6 +62,10 @@ class GPRegressionBaseclass():
             to set this to True -- it merely increases computational expense
             with negligible benefit -- but this option is useful for testing.
             Defaults to False.
+        exact_var_calculation (bool): If True, variance is calculated exactly (within
+            the limits of the random feature approximation). If False, a preconditioner
+            is used. The preconditioner approach is only used for certain kernels (e.g.
+            linear).
     """
 
     def __init__(self, training_rffs, fitting_rffs, variance_rffs = 16,
@@ -115,6 +119,7 @@ class GPRegressionBaseclass():
         self.trainy_std = 1.0
 
         self.double_precision_fht = double_precision_fht
+        self.exact_var_calculation = True
 
 
     def pre_prediction_checks(self, input_x, get_var):
@@ -458,6 +463,7 @@ class GPRegressionBaseclass():
         input_dataset.device = self.device
 
         self.weights, self.var = None, None
+        self.exact_var_calculation = True
         self.trainy_mean = input_dataset.get_ymean()
         self.trainy_std = input_dataset.get_ystd()
 
@@ -486,8 +492,8 @@ class GPRegressionBaseclass():
         self.kernel.check_hyperparams(starting_hparams)
         self.kernel.set_hyperparams(starting_hparams, logspace = True)
 
-        if self.variance_rffs >= self.kernel.get_num_rffs():
-            raise ValueError("The number of variance rffs should be < the number "
+        if self.variance_rffs > self.kernel.get_num_rffs():
+            raise ValueError("The number of variance rffs should be <= the number "
                     "of random features for the kernel.")
 
 

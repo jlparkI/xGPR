@@ -29,7 +29,7 @@ from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
 from .fitting_toolkit.sgd_fitting_toolkit import sgdModelFit
 from .fitting_toolkit.ams_grad_toolkit import amsModelFit
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext
-from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact
+from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
 
 from .scoring_toolkit.approximate_nmll_calcs import estimate_logdet, estimate_nmll
 from .scoring_toolkit.nmll_gradient_tools import exact_nmll_reg_grad, calc_gradient_terms
@@ -129,7 +129,11 @@ class xGPRegression(GPRegressionBaseclass):
             xfeatures = self.kernel.transform_x(xdata[i:cutoff, :])
             preds.append((xfeatures * self.weights[None, :]).sum(axis = 1))
             if get_var:
-                pred_var = self.var.batch_matvec(xfeatures.T).T
+                if self.exact_var_calculation:
+                    xfeatures = xfeatures[:,:self.variance_rffs]
+                    pred_var = (self.var @ xfeatures.T).T
+                else:
+                    pred_var = self.var.batch_matvec(xfeatures.T).T
                 pred_var = lambda_**2 * ((xfeatures * pred_var).sum(axis=1))
                 var.append(pred_var)
 
@@ -519,9 +523,22 @@ class xGPRegression(GPRegressionBaseclass):
                         "'lbfgs', 'cg', 'sgd', 'amsgrad', 'exact'.")
         if not suppress_var:
             if self.verbose:
-                print("Now building preconditioner for variance calculations.")
-            self.var = InterDevicePreconditioner(self.kernel, dataset,
-                    self.variance_rffs, False, random_seed, "srht")
+                print("Now performing variance calculations...")
+            #TODO: This is a little bit of a hack; we use exact variance calc
+            #UNLESS we are dealing with a linear kernel with a very large number
+            #of input features. Find a better / more satisfactory way to resolve this.
+            if self.kernel_choice == "Linear":
+                if self.kernel.get_num_rffs() > constants.MAX_VARIANCE_RFFS:
+                    self.var = InterDevicePreconditioner(self.kernel, dataset,
+                        self.variance_rffs, False, random_seed, "srht")
+                    self.exact_var_calculation = False
+                else:
+                    self.var = calc_variance_exact(self.kernel, dataset, self.kernel_choice,
+                                self.variance_rffs)
+            else:
+                self.var = calc_variance_exact(self.kernel, dataset, self.kernel_choice,
+                                self.variance_rffs)
+
 
         if self.verbose:
             print("Fitting complete.")
