@@ -98,8 +98,8 @@ def get_features(xdata, kernel_width, dim2,
         counter = i * dim2
         for j in range(end_position):
             temp = reshaped_x[:,:,j] * s_mat[counter]
-            features[:,counter] = np.sum(np.cos(temp), axis=1)
-            features[:,counter+num_freqs] = np.sum(np.sin(temp), axis=1)
+            features[:,2 * counter] = np.sum(np.cos(temp), axis=1)
+            features[:,2 * counter + 1] = np.sum(np.sin(temp), axis=1)
             counter += 1
 
     features = features * np.sqrt(1 / float(num_freqs))
@@ -126,13 +126,13 @@ def get_features_with_gradient(xdata, kernel_width, dim2,
         for j in range(end_position):
             reshaped_x[:,:,j] *= s_mat[counter]
             temp_arr = reshaped_x[:,:,j] * sigma
-            gradient[:,counter] = np.sum(-np.sin(temp_arr) * reshaped_x[:,:,j],
+            gradient[:,2 * counter] = np.sum(-np.sin(temp_arr) * reshaped_x[:,:,j],
                                     axis = 1)
-            features[:,counter] = np.sum(np.cos(temp_arr), axis = 1)
+            features[:,2 * counter] = np.sum(np.cos(temp_arr), axis = 1)
 
-            gradient[:,counter+num_freqs] = np.sum(np.cos(temp_arr) * reshaped_x[:,:,j],
+            gradient[:,2 * counter + 1] = np.sum(np.cos(temp_arr) * reshaped_x[:,:,j],
                                     axis = 1)
-            features[:,counter+num_freqs] = np.sum(np.sin(temp_arr), axis = 1)
+            features[:,2 * counter + 1] = np.sum(np.sin(temp_arr), axis = 1)
             counter += 1
 
     gradient *= np.sqrt(1 / num_freqs)

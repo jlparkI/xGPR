@@ -317,10 +317,10 @@ void doubleGraphARDGradCalcs(double *inputX, double *randomFeatures,
     for (m=0; m < numLengthscales; m++)
         sumBuffer[m] = 0;
 
-    gradientElement = gradient + startRow * 2 * gradIncrement;
-    randomFeature = randomFeatures + startRow * numFreqs * 2;
 
     for (i=startRow; i < endRow; i++){
+        gradientElement = gradient + i * 2 * gradIncrement;
+        randomFeature = randomFeatures + i * numFreqs * 2;
 
         for (j=0; j < numFreqs; j++){
             xElement = inputX + i * xRowLen;
@@ -338,19 +338,17 @@ void doubleGraphARDGradCalcs(double *inputX, double *randomFeatures,
                 sinVal = sin(rowSum) * rbfNormConstant;
                 for (m=0; m < numLengthscales; m++){
                     gradientElement[m] -= sinVal * sumBuffer[m];
-                    gradientElement[m + gradIncrement] += cosVal * sumBuffer[m];
+                    gradientElement[m + numLengthscales] += cosVal * sumBuffer[m];
                     sumBuffer[m] = 0;
                 }
 
                 *randomFeature += cosVal;
-                randomFeature[numFreqs] += sinVal;
+                randomFeature[1] += sinVal;
                 xElement += dim2;
             }
-            gradientElement += numLengthscales;
-            randomFeature++;
+            gradientElement += 2 * numLengthscales;
+            randomFeature += 2;
         }
-        gradientElement += gradIncrement;
-        randomFeature += numFreqs;
     }
 
     free(sumBuffer);
@@ -398,10 +396,10 @@ void floatGraphARDGradCalcs(float *inputX, double *randomFeatures,
     for (m=0; m < numLengthscales; m++)
         sumBuffer[m] = 0;
 
-    gradientElement = gradient + startRow * 2 * gradIncrement;
-    randomFeature = randomFeatures + startRow * numFreqs * 2;
 
     for (i=startRow; i < endRow; i++){
+        gradientElement = gradient + i * 2 * gradIncrement;
+        randomFeature = randomFeatures + i * numFreqs * 2;
 
         for (j=0; j < numFreqs; j++){
             xElement = inputX + i * xRowLen;
@@ -419,19 +417,17 @@ void floatGraphARDGradCalcs(float *inputX, double *randomFeatures,
                 sinVal = sin(rowSum) * rbfNormConstant;
                 for (m=0; m < numLengthscales; m++){
                     gradientElement[m] -= sinVal * sumBuffer[m];
-                    gradientElement[m + gradIncrement] += cosVal * sumBuffer[m];
+                    gradientElement[m + numLengthscales] += cosVal * sumBuffer[m];
                     sumBuffer[m] = 0;
                 }
 
                 *randomFeature += cosVal;
-                randomFeature[numFreqs] += sinVal;
+                randomFeature[1] += sinVal;
                 xElement += dim2;
             }
-            gradientElement += numLengthscales;
-            randomFeature++;
+            gradientElement += 2 * numLengthscales;
+            randomFeature += 2;
         }
-        gradientElement += gradIncrement;
-        randomFeature += numFreqs;
     }
 
     free(sumBuffer);

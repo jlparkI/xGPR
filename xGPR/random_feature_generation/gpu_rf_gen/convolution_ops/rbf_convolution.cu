@@ -94,7 +94,7 @@ __global__ void floatConvRBFPostProcessKernel(const float *featureArray, float *
     int column = tid % endPosition;
     int row = tid / endPosition;
     int inputLoc = row * dim1 * dim2 + column;
-    int outputLoc = row * 2 * numFreqs + column + startPosition;
+    int outputLoc = row * 2 * numFreqs + 2 * column + 2 * startPosition;
     float *chiVal = chiArr + startPosition + column;
     float chiProd, sinSum = 0, cosSum = 0;
 
@@ -106,7 +106,7 @@ __global__ void floatConvRBFPostProcessKernel(const float *featureArray, float *
             inputLoc += dim2;
         }
         outputArray[outputLoc] = cosSum * scalingTerm;
-        outputArray[outputLoc + numFreqs] = sinSum * scalingTerm;
+        outputArray[outputLoc + 1] = sinSum * scalingTerm;
     }
 }
 
@@ -125,7 +125,7 @@ __global__ void doubleConvRBFPostProcessKernel(const double *featureArray, doubl
     int column = tid % endPosition;
     int row = tid / endPosition;
     int inputLoc = row * dim1 * dim2 + column;
-    int outputLoc = row * 2 * numFreqs + column + startPosition;
+    int outputLoc = row * 2 * numFreqs + 2 * column + 2 * startPosition;
     double *chiVal = chiArr + startPosition + column;
     double chiProd, sinSum = 0, cosSum = 0;
 
@@ -137,7 +137,7 @@ __global__ void doubleConvRBFPostProcessKernel(const double *featureArray, doubl
             inputLoc += dim2;
         }
         outputArray[outputLoc] = cosSum * scalingTerm;
-        outputArray[outputLoc + numFreqs] = sinSum * scalingTerm;
+        outputArray[outputLoc + 1] = sinSum * scalingTerm;
     }
 }
 
@@ -159,7 +159,7 @@ __global__ void floatConvRBFGradProcessKernel(float *featureArray, float *chiArr
     int column = tid % endPosition;
     int row = tid / endPosition;
     int inputLoc = row * dim1 * dim2 + column;
-    int outputLoc = row * 2 * numFreqs + column + startPosition;
+    int outputLoc = row * 2 * numFreqs + 2 * column + 2 * startPosition;
     float *chiVal = chiArr + startPosition + column;
     float chiProd, sinSum = 0, cosSum = 0, sinVal, cosVal;
     float gradSinVal = 0, gradCosVal = 0;
@@ -178,10 +178,10 @@ __global__ void floatConvRBFGradProcessKernel(float *featureArray, float *chiArr
             inputLoc += dim2;
         }
         outputArray[outputLoc] = cosSum * scalingTerm;
-        outputArray[outputLoc + numFreqs] = sinSum * scalingTerm;
+        outputArray[outputLoc + 1] = sinSum * scalingTerm;
 
         gradientArray[outputLoc] = gradCosVal * scalingTerm;
-        gradientArray[outputLoc + numFreqs] = gradSinVal * scalingTerm;
+        gradientArray[outputLoc + 1] = gradSinVal * scalingTerm;
     }
 }
 
@@ -202,7 +202,7 @@ __global__ void doubleConvRBFGradProcessKernel(double *featureArray, double *chi
     int column = tid % endPosition;
     int row = tid / endPosition;
     int inputLoc = row * dim1 * dim2 + column;
-    int outputLoc = row * 2 * numFreqs + column + startPosition;
+    int outputLoc = row * 2 * numFreqs + 2 * column + 2 * startPosition;
     double *chiVal = chiArr + startPosition + column;
     double chiProd, sinSum = 0, cosSum = 0, sinVal, cosVal;
     double gradSinVal = 0, gradCosVal = 0;
@@ -221,10 +221,10 @@ __global__ void doubleConvRBFGradProcessKernel(double *featureArray, double *chi
             inputLoc += dim2;
         }
         outputArray[outputLoc] = cosSum * scalingTerm;
-        outputArray[outputLoc + numFreqs] = sinSum * scalingTerm;
+        outputArray[outputLoc + 1] = sinSum * scalingTerm;
 
         gradientArray[outputLoc] = gradCosVal * scalingTerm;
-        gradientArray[outputLoc + numFreqs] = gradSinVal * scalingTerm;
+        gradientArray[outputLoc + 1] = gradSinVal * scalingTerm;
     }
 }
 

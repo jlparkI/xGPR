@@ -51,13 +51,13 @@ __global__ void rbfFeatureGenLastStepDoubles(double *cArray, double *outputArray
     inputPosition = outputRow * inputElementsPerRow + chiArrPosition;
     //Multiply by 2 here since we store both the sine and cosine
     //of the feature in the output array.
-    outputPosition = outputRow * 2 * numFreqs + chiArrPosition;
+    outputPosition = 2 * (outputRow * numFreqs + chiArrPosition);
 
     outputVal = chiArr[chiArrPosition] * cArray[inputPosition];
     if (tid < numElements)
     {
         outputArray[outputPosition] = normConstant * cos(outputVal);
-        outputArray[outputPosition + numFreqs] = normConstant * sin(outputVal);
+        outputArray[outputPosition + 1] = normConstant * sin(outputVal);
     }
 }
 
@@ -78,7 +78,7 @@ __global__ void rbfGradLastStepDoubles(double *cArray, double *outputArray,
     inputPosition = outputRow * inputElementsPerRow + chiArrPosition;
     //Multiply by 2 here since we store both the sine and cosine
     //of the feature in the output array.
-    outputPosition = outputRow * 2 * numFreqs + chiArrPosition;
+    outputPosition = 2 * (outputRow * numFreqs + chiArrPosition);
 
     outputVal = chiArr[chiArrPosition] * cArray[inputPosition];
     if (tid < numElements)
@@ -86,9 +86,9 @@ __global__ void rbfGradLastStepDoubles(double *cArray, double *outputArray,
         cosVal = normConstant * cos(outputVal * sigma);
         sinVal = normConstant * sin(outputVal * sigma);
         outputArray[outputPosition] = cosVal;
-        outputArray[outputPosition + numFreqs] = sinVal;
+        outputArray[outputPosition + 1] = sinVal;
         gradientArray[outputPosition] = -outputVal * sinVal;
-        gradientArray[outputPosition + numFreqs] = outputVal * cosVal;
+        gradientArray[outputPosition + 1] = outputVal * cosVal;
     }
 }
 
@@ -100,8 +100,8 @@ __global__ void rbfGradLastStepDoubles(double *cArray, double *outputArray,
 __global__ void ardDoubleGradSetup(double *gradientArray,
         double *precomputedWeights, double *inputX, int32_t *sigmaMap,
         double *sigmaVals, double *randomFeatures,
-        int dim1, int numSetupElements, int gradIncrement,
-        int numFreqs, int numLengthscales){
+        int dim1, int numSetupElements, int numFreqs,
+        int numLengthscales){
 
     int i, sigmaLoc;
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
@@ -110,8 +110,8 @@ __global__ void ardDoubleGradSetup(double *gradientArray,
 
     double *precompWElement = precomputedWeights + precompWRow * dim1;
     double *inputXElement = inputX + gradRow * dim1;
-    double *gradientElement = gradientArray + (gradRow * numFreqs * 2 + precompWRow) * numLengthscales;
-    double *randomFeature = randomFeatures + gradRow * numFreqs * 2 + precompWRow;
+    double *gradientElement = gradientArray + 2 * (gradRow * numFreqs + precompWRow) * numLengthscales;
+    double *randomFeature = randomFeatures + 2 * (gradRow * numFreqs + precompWRow);
     double rfVal = 0;
     double outVal;
 
@@ -133,13 +133,13 @@ __global__ void ardDoubleGradSetup(double *gradientArray,
 //Multiplies the gradient array by the appropriate elements of the random
 //feature array when calculating the gradient for ARD kernels only.
 __global__ void ardDoubleGradRFMultiply(double *gradientArray, double *randomFeats,
-        int numRFElements, int numFreqs, int gradIncrement,
-        int numLengthscales, double rbfNormConstant){
+        int numRFElements, int numFreqs, int numLengthscales,
+        double rbfNormConstant){
     int i;
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
     int rowNum = tid / numFreqs, colNum = tid % numFreqs;
-    int gradPosition = rowNum * gradIncrement * 2 + colNum * numLengthscales;
-    int rfPosition = rowNum * numFreqs * 2 + colNum;
+    int gradPosition = 2 * (rowNum * numFreqs + colNum) * numLengthscales;
+    int rfPosition = 2 * (rowNum * numFreqs + colNum);
     double rfVal, cosVal, sinVal;
     
 
@@ -148,12 +148,12 @@ __global__ void ardDoubleGradRFMultiply(double *gradientArray, double *randomFea
         cosVal = cos(rfVal) * rbfNormConstant;
         sinVal = sin(rfVal) * rbfNormConstant;
         randomFeats[rfPosition] = cosVal;
-        randomFeats[rfPosition + numFreqs] = sinVal;
+        randomFeats[rfPosition + 1] = sinVal;
 
         for (i=0; i < numLengthscales; i++){
             rfVal = gradientArray[gradPosition + i];
             gradientArray[gradPosition + i] = -rfVal * sinVal;
-            gradientArray[gradPosition + i + gradIncrement] = rfVal * cosVal;
+            gradientArray[gradPosition + i + numLengthscales] = rfVal * cosVal;
         }
     }
 }
@@ -269,7 +269,6 @@ const char *ardCudaDoubleGrad(double *inputX, double *randomFeats,
                 double rbfNormConstant){
 
     int numRFElements = dim0 * numFreqs;
-    int gradIncrement = numFreqs * numLengthscales;
     int numSetupElements = dim0 * numFreqs;
     int blocksPerGrid;
 
@@ -277,12 +276,11 @@ const char *ardCudaDoubleGrad(double *inputX, double *randomFeats,
     blocksPerGrid = (numSetupElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     ardDoubleGradSetup<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(gradient, precompWeights, inputX,
             sigmaMap, sigmaVals, randomFeats, dim1, numSetupElements,
-            gradIncrement, numFreqs, numLengthscales);
+            numFreqs, numLengthscales);
 
     blocksPerGrid = (numRFElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     ardDoubleGradRFMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(gradient, randomFeats,
-                numRFElements, numFreqs, gradIncrement, numLengthscales,
-                rbfNormConstant);
+                numRFElements, numFreqs, numLengthscales, rbfNormConstant);
 
     return "no_error";
 }

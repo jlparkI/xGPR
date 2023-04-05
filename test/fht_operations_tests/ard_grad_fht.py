@@ -22,7 +22,6 @@ class TestARDGradCalcs(unittest.TestCase):
 
     def test_mini_ard_calc(self):
         """Tests gradient calculation for the MiniARD kernel."""
-        return
         outcomes = run_mini_ard_grad_test((10,50), 2000, [25])
         for outcome in outcomes:
             self.assertTrue(outcome)
@@ -223,10 +222,11 @@ def get_MiniARD_gt_values(input_x, num_freqs, split_points,
 
     ks = kernel.split_pts
     for i in range(ks.shape[0] - 1):
-        gradient[:,:num_freqs,i] = np.einsum("ij,kj->ki", p_weights[:, ks[i]:ks[i+1]],
+        temp_arr = np.einsum("ij,kj->ki", p_weights[:, ks[i]:ks[i+1]],
                                     retyped_x[:,ks[i]:ks[i+1]])
-        gradient[:,num_freqs:,i] = gradient[:,:num_freqs,i] * xtrans[:,:num_freqs]
-        gradient[:,:num_freqs,i] *= -xtrans[:,num_freqs:]
+        for j in range(p_weights.shape[0]):
+            gradient[:,2*j,i] = -temp_arr[:,j] * xtrans[:,2*j+1]
+            gradient[:,2*j+1,i] = temp_arr[:,j] * xtrans[:,2*j]
     return xtrans, gradient
 
 
@@ -282,8 +282,9 @@ def get_GraphMiniARD_gt_values(input_x, num_freqs, split_points,
     for i in range(ks.shape[0] - 1):
         temp_arr = np.einsum("ij,kmj->kmi", p_weights[:, ks[i]:ks[i+1]],
                 retyped_x[:,:,ks[i]:ks[i+1]])
-        gradient[:,:num_freqs,i] = (temp_arr * temp_sin_term).sum(axis=1)
-        gradient[:,num_freqs:,i] = (temp_arr * temp_cos_term).sum(axis=1)
+        for j in range(num_freqs):
+            gradient[:,2*j,i] = (temp_arr[:,:,j] * temp_sin_term[:,:,j]).sum(axis=1)
+            gradient[:,2*j+1,i] = (temp_arr[:,:,j] * temp_cos_term[:,:,j]).sum(axis=1)
 
     return xtrans, gradient
 

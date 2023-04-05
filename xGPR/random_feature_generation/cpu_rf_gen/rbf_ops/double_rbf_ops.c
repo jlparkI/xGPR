@@ -467,7 +467,8 @@ void rbfDoubleFeatureGenLastStep_(double *xArray, double *chiArray,
         for (j=0; j < numFreqs; j++){
             outputVal = *xElement * chiArray[j];
             *outputElement = normConstant * cos(outputVal);
-            outputElement[numFreqs] = normConstant * sin(outputVal);
+            outputElement++;
+            *outputElement = normConstant * sin(outputVal);
             outputElement++;
             xElement++;
         }
@@ -515,9 +516,11 @@ void rbfDoubleGradLastStep_(double *xArray, double *chiArray,
             sinVal = sin(outputVal * sigma) * normConstant;
 
             *outputElement = cosVal;
-            outputElement[numFreqs] = sinVal;
+            outputElement++;
+            *outputElement = sinVal;
             *gradientElement = -sinVal * outputVal;
-            gradientElement[numFreqs] = cosVal * outputVal;
+            gradientElement++;
+            *gradientElement = cosVal * outputVal;
 
             outputElement++;
             gradientElement++;
@@ -565,11 +568,11 @@ void ardDoubleGradCalcs_(double *inputX, double *randomFeatures,
     double gradVal, sinVal, cosVal, rfSum;
 
     xElement = inputX + startRow * dim1;
-    gradientElement = gradient + startRow * 2 * gradIncrement;
-    randomFeature = randomFeatures + startRow * numFreqs * 2;
 
     for (i=startRow; i < endRow; i++){
         precompWeight = precompWeights;
+        gradientElement = gradient + i * 2 * gradIncrement;
+        randomFeature = randomFeatures + i * numFreqs * 2;
 
         for (j=0; j < numFreqs; j++){
             rfSum = 0;
@@ -584,18 +587,17 @@ void ardDoubleGradCalcs_(double *inputX, double *randomFeatures,
             cosVal = rbfNormConstant * cos(rfSum);
             sinVal = rbfNormConstant * sin(rfSum);
             *randomFeature = cosVal;
-            randomFeature[numFreqs] = sinVal;
+            randomFeature++;
+            *randomFeature = sinVal;
 
             for (k=0; k < numLengthscales; k++){
                 gradVal = gradientElement[k];
                 gradientElement[k] = -gradVal * sinVal;
-                gradientElement[k + gradIncrement] = gradVal * cosVal;
+                gradientElement[k + numLengthscales] = gradVal * cosVal;
             }
-            gradientElement += numLengthscales;
+            gradientElement += 2 * numLengthscales;
             randomFeature++;
         }
         xElement += dim1;
-        gradientElement += gradIncrement;
-        randomFeature += numFreqs;
     }
 }

@@ -50,8 +50,8 @@ __global__ void ardConvDoubleGradSetup(double *gradientArray,
         double *precomputedWeights, double *inputX, int32_t *sigmaMap,
         double *copyBuffer, double *sigmaVals, double *randomFeatures,
         int dim1, int dim2, int numSetupElements,
-        int gradIncrement, int numFreqs,
-        int numLengthscales, double rbfNormConstant){
+        int numFreqs, int numLengthscales,
+        double rbfNormConstant){
 
     int i, j;
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
@@ -60,8 +60,8 @@ __global__ void ardConvDoubleGradSetup(double *gradientArray,
 
     double *precompWElement = precomputedWeights + precompWRow * dim2;
     double *inputXElement = inputX + gradRow * dim1 * dim2;
-    double *gradientElement = gradientArray + (gradRow * numFreqs * 2 + precompWRow) * numLengthscales;
-    double *randomFeature = randomFeatures + gradRow * numFreqs * 2 + precompWRow;
+    double *gradientElement = gradientArray + 2 * (gradRow * numFreqs + precompWRow) * numLengthscales;
+    double *randomFeature = randomFeatures + 2 * gradRow * numFreqs + 2 * precompWRow;
     double *bufferElement = copyBuffer + (gradRow * numFreqs + precompWRow) * numLengthscales;
     double rfVal = 0, outVal, sinVal, cosVal;
 
@@ -76,11 +76,11 @@ __global__ void ardConvDoubleGradSetup(double *gradientArray,
             cosVal = rbfNormConstant * cos(rfVal);
             sinVal = rbfNormConstant * sin(rfVal);
             *randomFeature += cosVal;
-            randomFeature[numFreqs] += sinVal;
+            randomFeature[1] += sinVal;
 
             for (j=0; j < numLengthscales; j++){
                 gradientElement[j] -= bufferElement[j] * sinVal;
-                gradientElement[j + gradIncrement] += bufferElement[j] * cosVal;
+                gradientElement[j + numLengthscales] += bufferElement[j] * cosVal;
                 bufferElement[j] = 0;
             }
             inputXElement += dim2;
@@ -98,8 +98,8 @@ __global__ void ardConvFloatGradSetup(double *gradientArray,
         float *precomputedWeights, float *inputX, int32_t *sigmaMap,
         double *copyBuffer, double *sigmaVals, double *randomFeatures,
         int dim1, int dim2, int numSetupElements,
-        int gradIncrement, int numFreqs,
-        int numLengthscales, double rbfNormConstant){
+        int numFreqs, int numLengthscales,
+        double rbfNormConstant){
     int i, j;
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
     int precompWRow = (tid % numFreqs);
@@ -107,8 +107,8 @@ __global__ void ardConvFloatGradSetup(double *gradientArray,
 
     float *precompWElement = precomputedWeights + precompWRow * dim2;
     float *inputXElement = inputX + gradRow * dim1 * dim2;
-    double *gradientElement = gradientArray + (gradRow * numFreqs * 2 + precompWRow) * numLengthscales;
-    double *randomFeature = randomFeatures + gradRow * numFreqs * 2 + precompWRow;
+    double *gradientElement = gradientArray + 2 * (gradRow * numFreqs + precompWRow) * numLengthscales;
+    double *randomFeature = randomFeatures + 2 * gradRow * numFreqs + 2 * precompWRow;
     double *bufferElement = copyBuffer + (gradRow * numFreqs + precompWRow) * numLengthscales;
     double rfVal = 0, outVal, sinVal, cosVal;
 
@@ -123,11 +123,11 @@ __global__ void ardConvFloatGradSetup(double *gradientArray,
             cosVal = rbfNormConstant * cos(rfVal);
             sinVal = rbfNormConstant * sin(rfVal);
             *randomFeature += cosVal;
-            randomFeature[numFreqs] += sinVal;
+            randomFeature[1] += sinVal;
 
             for (j=0; j < numLengthscales; j++){
                 gradientElement[j] -= bufferElement[j] * sinVal;
-                gradientElement[j + gradIncrement] += bufferElement[j] * cosVal;
+                gradientElement[j + numLengthscales] += bufferElement[j] * cosVal;
                 bufferElement[j] = 0;
             }
             inputXElement += dim2;
@@ -150,7 +150,6 @@ const char *ardConvCudaFloatGrad(float *inputX, double *randomFeats,
 
     int numRFElements = dim0 * numFreqs;
     int numBufferElements = dim0 * numFreqs * numLengthscales;
-    int gradIncrement = numFreqs * numLengthscales;
     int blocksPerGrid;
     double *copyBuffer;
 
@@ -165,7 +164,7 @@ const char *ardConvCudaFloatGrad(float *inputX, double *randomFeats,
 
     ardConvFloatGradSetup<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(gradient, precompWeights, inputX,
             sigmaMap, copyBuffer, sigmaVals, randomFeats, dim1, dim2, numRFElements,
-            gradIncrement, numFreqs, numLengthscales, rbfNormConstant);
+            numFreqs, numLengthscales, rbfNormConstant);
 
     cudaFree(copyBuffer);
 
@@ -186,7 +185,6 @@ const char *ardConvCudaDoubleGrad(double *inputX, double *randomFeats,
 
     int numRFElements = dim0 * numFreqs;
     int numBufferElements = dim0 * numFreqs * numLengthscales;
-    int gradIncrement = numFreqs * numLengthscales;
     int blocksPerGrid;
     double *copyBuffer;
 
@@ -201,8 +199,8 @@ const char *ardConvCudaDoubleGrad(double *inputX, double *randomFeats,
 
     ardConvDoubleGradSetup<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(gradient,
             precompWeights, inputX, sigmaMap, copyBuffer, sigmaVals, randomFeats,
-            dim1, dim2, numRFElements, gradIncrement,
-            numFreqs, numLengthscales, rbfNormConstant);
+            dim1, dim2, numRFElements, numFreqs,
+            numLengthscales, rbfNormConstant);
 
     cudaFree(copyBuffer);
 

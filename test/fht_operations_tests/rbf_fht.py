@@ -69,8 +69,8 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
     test_array, test_float, radem, \
             chi_arr, chi_float = setup_rbf_test(xdim, num_freqs, random_seed)
 
-    gt_double, _ = generate_double_rbf_values(test_array, radem, chi_arr, beta_value)
-    gt_float, _ = generate_float_rbf_values(test_float, radem, chi_float, beta_value)
+    gt_double, _ = generate_rbf_values(test_array, radem, chi_arr, beta_value)
+    gt_float, _ = generate_rbf_values(test_float, radem, chi_float, beta_value)
 
     temp_test = test_array.copy()
     double_output = np.zeros((test_array.shape[0], num_freqs * 2))
@@ -123,8 +123,8 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
     test_array, test_float, radem, \
             chi_arr, chi_float = setup_rbf_test(xdim, num_freqs, random_seed)
 
-    gt_double, gt_double_grad = generate_double_rbf_values(test_array, radem, chi_arr, beta_value)
-    gt_float, gt_float_grad = generate_float_rbf_values(test_float, radem, chi_float, beta_value)
+    gt_double, gt_double_grad = generate_rbf_values(test_array, radem, chi_arr, beta_value)
+    gt_float, gt_float_grad = generate_rbf_values(test_float, radem, chi_float, beta_value)
 
     temp_test = test_array.copy()
     double_output = np.zeros((test_array.shape[0], num_freqs * 2))
@@ -208,47 +208,35 @@ def setup_rbf_test(xdim, num_freqs, random_seed = 123):
     return test_array, test_float, radem, chi_arr, chi_float
 
 
-def generate_double_rbf_values(test_array, radem, chi_arr, beta):
+def generate_rbf_values(test_array, radem, chi_arr, beta):
     """Generates the 'ground-truth' RBF values for
     comparison with those from the C / Cuda extension."""
     pretrans_x = test_array.copy()
-    dSORF(pretrans_x, radem, 2)
+    if pretrans_x.dtype == "float64":
+        dSORF(pretrans_x, radem, 2)
+    elif pretrans_x.dtype == "float32":
+        fSORF(pretrans_x, radem, 2)
+    else:
+        raise ValueError("Unrecognized dtype.")
+
     pretrans_x = pretrans_x.reshape((pretrans_x.shape[0], pretrans_x.shape[1] *
                         pretrans_x.shape[2]))[:,:chi_arr.shape[0]]
     pretrans_x *= chi_arr[None,:]
 
     xtrans = np.zeros((test_array.shape[0], chi_arr.shape[0] * 2))
-    xtrans[:,:chi_arr.shape[0]] = np.cos(pretrans_x)
-    xtrans[:,chi_arr.shape[0]:] = np.sin(pretrans_x)
-    xtrans *= (beta * np.sqrt(1 / chi_arr.shape[0]))
-
     gradient = np.zeros((test_array.shape[0], chi_arr.shape[0] * 2, 1))
-    gradient[:,:chi_arr.shape[0],0] = -xtrans[:,chi_arr.shape[0]:] * \
-            pretrans_x
-    gradient[:,chi_arr.shape[0]:,0] = xtrans[:,:chi_arr.shape[0]] * \
-            pretrans_x
-    return xtrans, gradient
 
+    for j in range(0, chi_arr.shape[0], 1):
+        xtrans[:,2*j] = np.cos(pretrans_x[:,j])
+        xtrans[:,2*j+1] = np.sin(pretrans_x[:,j])
 
-def generate_float_rbf_values(test_array, radem, chi_arr, beta):
-    """Generates the 'ground-truth' RBF values for
-    comparison with those from the C / Cuda extension."""
-    pretrans_x = test_array.copy()
-    fSORF(pretrans_x, radem, 3)
-    pretrans_x = pretrans_x.reshape((pretrans_x.shape[0], pretrans_x.shape[1] *
-                        pretrans_x.shape[2]))[:,:chi_arr.shape[0]]
-    pretrans_x *= chi_arr[None,:]
+        gradient[:,2*j,0] = -xtrans[:,2*j+1] * \
+                pretrans_x[:,j]
+        gradient[:,2*j+1,0] = xtrans[:,2*j] * \
+                pretrans_x[:,j]
 
-    xtrans = np.zeros((test_array.shape[0], chi_arr.shape[0] * 2))
-    xtrans[:,:chi_arr.shape[0]] = np.cos(pretrans_x)
-    xtrans[:,chi_arr.shape[0]:] = np.sin(pretrans_x)
     xtrans *= (beta * np.sqrt(1 / chi_arr.shape[0]))
-
-    gradient = np.zeros((test_array.shape[0], chi_arr.shape[0] * 2, 1))
-    gradient[:,:chi_arr.shape[0],0] = -xtrans[:,chi_arr.shape[0]:] * \
-            pretrans_x
-    gradient[:,chi_arr.shape[0]:,0] = xtrans[:,:chi_arr.shape[0]] * \
-            pretrans_x
+    gradient *= (beta * np.sqrt(1 / chi_arr.shape[0]))
     return xtrans, gradient
 
 

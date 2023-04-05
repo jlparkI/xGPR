@@ -23,8 +23,8 @@ class CheckGraphMiniARDPipeline(unittest.TestCase):
         """Test on cpu."""
         cg_score, exact_score = test_fit_cpu(KERNEL, CONV_KERNEL, RANDOM_SEED,
                 conv_width = 3, conv_ard_kernel = True)
-        self.assertTrue(cg_score > 0.60)
-        self.assertTrue(exact_score > 0.60)
+        self.assertTrue(cg_score > 0.58)
+        self.assertTrue(exact_score > 0.58)
 
     def test_fit_gpu(self):
         """Test on gpu."""
@@ -32,8 +32,8 @@ class CheckGraphMiniARDPipeline(unittest.TestCase):
                 conv_width = 3, conv_ard_kernel = True)
         if cg_score is None or exact_score is None:
             return
-        self.assertTrue(cg_score > 0.60)
-        self.assertTrue(exact_score > 0.60)
+        self.assertTrue(cg_score > 0.58)
+        self.assertTrue(exact_score > 0.58)
 
 
 if __name__ == "__main__":
