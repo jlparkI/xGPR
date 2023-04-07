@@ -28,7 +28,7 @@ xGPR must be compiled from source. The preferred approach is to run:::
   pip install xGPR --verbose
 
 and pip will try to compile the source code in the distribution
-using *gcc* and *nvcc*. You don't have to use *verbose*, but it's
+using *gcc*, *nvcc* and *g++*. You don't have to use *verbose*, but it's
 preferable since xGPR will try to find CUDA
 in the usual locations and if it cannot find it, will print a warning
 if you are using *verbose*. It will in this case prompt
