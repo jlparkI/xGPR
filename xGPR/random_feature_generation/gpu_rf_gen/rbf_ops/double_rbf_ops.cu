@@ -11,7 +11,6 @@
 #include <math.h>
 #include "../basic_ops/double_array_operations.h"
 #include "double_rbf_ops.h"
-#include <cuda_profiler_api.h>
 
 
 #define DEFAULT_THREADS_PER_BLOCK 256

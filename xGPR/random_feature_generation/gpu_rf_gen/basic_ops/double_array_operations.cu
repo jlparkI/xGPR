@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include "double_array_operations.h"
-#include <cuda_profiler_api.h>
 
 #define DEFAULT_THREADS_PER_BLOCK 256
 #define MAX_BASE_LEVEL_TRANSFORM 512

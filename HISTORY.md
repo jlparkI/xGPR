@@ -70,3 +70,13 @@ This version is able to calculate variance for Linear kernels,
 has an improved variance calculation for all other kernels,
 corrects some errors in the documentation, and the GraphConv1d
 kernel has been renamed GraphRBF.
+
+### Version 0.1.0.4
+
+Removed references to CUDA PROFILER API, which may be problematic
+in some environments.
+
+### Version 0.1.0.5
+
+visualization_tools was not included in previous build in error.
+

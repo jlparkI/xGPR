@@ -13,7 +13,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include "float_array_operations.h"
-#include <cuda_profiler_api.h>
 
 
 #define DEFAULT_THREADS_PER_BLOCK 256
