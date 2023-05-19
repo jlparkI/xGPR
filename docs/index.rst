@@ -67,11 +67,9 @@ Miscellaneous
 
   Tips for training on CPU (if you absolutely must) <cpu_training>  
 
-  Upcoming / planned modifications <planned_modifications>
-
   Frequently asked questions <FAQ>
 
-  Contact <contact>
+  About / Contact <contact>
 
 
 
