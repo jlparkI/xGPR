@@ -257,7 +257,8 @@ iterations than ``crude_bayes`` or ``crude_grid`` (and thus 5-10x longer).
 It is less "finicky" than ``crude_bayes`` but not so foolproof as ``crude_grid``.
 As with the other methods, each iteration involves a pass over the
 dataset and a matrix decomposition. This method is preferred for kernels
-with more than 3 hyperparameters, e.g. ARD kernels. Here's an example of usage:::
+with more than 3 hyperparameters (there is only one of these at present
+in xGPR). Here's an example of usage:::
 
   hparams, niter, best_score = my_model.tune_hyperparams_crude_lbfgs(my_dataset, random_seed = 123,
                                      max_iter = 30, n_restarts = 1,
