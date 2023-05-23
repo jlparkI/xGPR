@@ -70,36 +70,24 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
     sets them up."""
     cpu_fast_transform_path = os.path.join(setup_fpath, "xGPR",
                 "random_feature_generation", "cpu_rf_gen")
-    cpu_transform_functions = os.path.join(cpu_fast_transform_path,
-                    "basic_ops", "transform_functions.c")
-    cpu_float_array_op = os.path.join(cpu_fast_transform_path,
-                    "shared_fht_functions", "float_array_operations.c")
-    cpu_double_array_op = os.path.join(cpu_fast_transform_path,
-                    "shared_fht_functions", "double_array_operations.c")
-    cpu_conv1d_op = os.path.join(cpu_fast_transform_path,
-                    "convolution_ops", "conv1d_operations.c")
-    cpu_conv1d_rbf_op = os.path.join(cpu_fast_transform_path,
-                    "convolution_ops", "rbf_convolution.c")
-    cpu_conv1d_ard_op = os.path.join(cpu_fast_transform_path,
-                    "convolution_ops", "ard_convolution.c")
-    cpu_float_spec_ops = os.path.join(cpu_fast_transform_path,
-                    "rbf_ops", "float_rbf_ops.c")
-    cpu_double_spec_ops = os.path.join(cpu_fast_transform_path,
-                    "rbf_ops", "double_rbf_ops.c")
+    os.chdir(cpu_fast_transform_path)
+    sources = []
+    for target_dir in ["basic_ops", "shared_fht_functions",
+            "convolution_ops", "rbf_ops"]:
+        os.chdir(target_dir)
+        for fname in os.listdir():
+            if not fname.endswith("c"):
+                continue
+            sources.append(os.path.abspath(fname))
+        os.chdir("..")
 
-    cpu_basic_op_wrapper = os.path.join(cpu_fast_transform_path,
-                    "cpu_basic_operations.pyx")
-
+    os.chdir(setup_fpath)
 
     cpu_basic_op_wrapper = os.path.join(cpu_fast_transform_path,
                     "cpu_rf_gen_module.pyx")
+    sources += [cpu_basic_op_wrapper]
     cpu_basic_op_ext = Extension("cpu_rf_gen_module",
-                    sources = [cpu_basic_op_wrapper,
-                        cpu_transform_functions,
-                        cpu_float_array_op, cpu_double_array_op,
-                        cpu_float_spec_ops, cpu_double_spec_ops,
-                        cpu_conv1d_op, cpu_conv1d_rbf_op,
-                        cpu_conv1d_ard_op],
+                    sources = sources,
                 language="c", include_dirs=[numpy.get_include(),
                             cpu_fast_transform_path])
     return [cpu_basic_op_ext], [cpu_basic_op_wrapper]

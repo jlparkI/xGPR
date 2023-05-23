@@ -112,9 +112,9 @@ class GraphArcCosine(KernelBaseclass):
         for generating features."""
         if new_device == "gpu":
             if self.double_precision:
-                self.conv_func = doubleGpuConv1dFGen
+                self.conv_func = doubleGpuConv1dArcCosFGen
             else:
-                self.conv_func = floatGpuConv1dFGen
+                self.conv_func = floatGpuConv1dArcCosFGen
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
         else:
@@ -124,9 +124,9 @@ class GraphArcCosine(KernelBaseclass):
             else:
                 self.chi_arr = self.chi_arr.astype(self.dtype)
             if self.double_precision:
-                self.conv_func = doubleCpuConv1dFGen
+                self.conv_func = doubleCpuConv1dArcCosFGen
             else:
-                self.conv_func = floatCpuConv1dFGen
+                self.conv_func = floatCpuConv1dArcCosFGen
             self.chi_arr = self.chi_arr.astype(self.dtype)
 
 

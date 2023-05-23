@@ -35,7 +35,7 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
 
 
 cdef extern from "convolution_ops/arccos_convolution.h" nogil:
-    const char *doubleConvRBFFeatureGen(int8_t *radem, double *reshapedX,
+    const char *doubleConvArcCosFeatureGen(int8_t *radem, double *reshapedX,
                 double *featureArray, double *chiArr, double *outputArray,
                 int reshapedDim0, int reshapedDim1, int reshapedDim2,
                 int numFreqs, int rademShape2, double scalingTerm,
@@ -382,7 +382,7 @@ def doubleGpuConv1dArcCosFGen(reshapedX, radem, outputArray, chiArr,
     if outputArray.shape[1] % 2 != 0 or outputArray.shape[1] < 2:
         raise ValueError("Shape of output array is not appropriate.")
     
-    if 2 * chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
+    if chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
         raise ValueError("Shape of output array and / or chiArr is inappropriate.")
 
     logdim = np.log2(reshapedX.shape[2])

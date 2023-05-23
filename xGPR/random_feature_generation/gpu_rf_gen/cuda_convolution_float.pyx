@@ -392,7 +392,7 @@ def floatGpuConv1dArcCosFGen(reshapedX, radem, outputArray, chiArr,
     if outputArray.shape[1] % 2 != 0 or outputArray.shape[1] < 2:
         raise ValueError("Shape of output array is not appropriate.")
     
-    if 2 * chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
+    if chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
         raise ValueError("Shape of output array and / or chiArr is inappropriate.")
 
     logdim = np.log2(reshapedX.shape[2])

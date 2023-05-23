@@ -9,15 +9,18 @@ import numpy as np
 
 from cpu_rf_gen_module import doubleCpuConv1dFGen, doubleCpuConvGrad, doubleCpuConv1dMaxpool
 from cpu_rf_gen_module import floatCpuConv1dFGen, floatCpuConvGrad, floatCpuConv1dMaxpool
+from cpu_rf_gen_module import floatCpuConv1dArcCosFGen, doubleCpuConv1dArcCosFGen
 try:
     from cuda_rf_gen_module import doubleGpuConv1dFGen, doubleGpuConvGrad, doubleGpuConv1dMaxpool
     from cuda_rf_gen_module import floatGpuConv1dFGen, floatGpuConvGrad, floatGpuConv1dMaxpool
+    from cuda_rf_gen_module import floatGpuConv1dArcCosFGen, doubleGpuConv1dArcCosFGen
     import cupy as cp
 except:
     pass
 
 from conv_testing_functions import get_initial_matrices_fht, get_features
 from conv_testing_functions import get_features_maxpool, get_features_with_gradient
+from conv_testing_functions import get_features_arccos
 
 
 
@@ -132,6 +135,25 @@ class TestConv1d(unittest.TestCase):
 
         outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, mode = "maxpool_loc", precision = "float")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+
+    def test_conv1d_arccos(self):
+        """Tests the C / Cuda FHT-based convolution with arc-cosine
+        (ReLU activation)."""
+        kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 128
+        sigma, ndatapoints = 1, 124
+        outcomes = run_arccos_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
+        sigma, ndatapoints = 1, 2000
+
+        outcomes = run_arccos_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, precision = "float")
         for outcome in outcomes:
             self.assertTrue(outcome)
 
@@ -294,6 +316,57 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
     print("\n")
     return outcome, outcome_cuda
 
+
+
+def run_arccos_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, precision = "double"):
+    """Run an evaluation for the arc-cosine feature generation
+    routine."""
+    dim2, num_blocks, xdata, reshaped_x, features, s_mat, \
+                radem = get_initial_matrices_fht(ndatapoints, kernel_width,
+                        aa_dim, num_aas, num_freqs, "arccos", precision)
+    true_features = get_features_arccos(xdata, kernel_width, dim2,
+                            radem, s_mat, num_freqs, num_blocks, precision)
+
+    if precision == "float":
+        floatCpuConv1dArcCosFGen(reshaped_x, radem, features,
+                s_mat, 2, 1.0, 1)
+    else:
+        doubleCpuConv1dArcCosFGen(reshaped_x, radem, features,
+                s_mat, 2, 1.0, 1)
+
+    outcome = check_results(true_features, features[:,:num_freqs], precision)
+    print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
+        f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
+        f"precision {precision}\n"
+        f"Does result match on CPU? {outcome}")
+    
+    if "cupy" not in sys.modules:
+        return outcome
+
+    xdata = cp.asarray(xdata)
+    reshaped_x = cp.asarray(reshaped_x)
+    features[:] = 0
+    features = cp.asarray(features)
+    s_mat = cp.asarray(s_mat)
+    radem = cp.asarray(radem)
+
+    if precision == "float":
+        floatGpuConv1dArcCosFGen(reshaped_x, radem, features,
+                s_mat, 2, 1.0, 1)
+    else:
+        doubleGpuConv1dArcCosFGen(reshaped_x, radem, features,
+                s_mat, 2, 1.0, 1)
+
+    
+    outcome_cuda = check_results(true_features, features[:,:num_freqs], precision)
+    print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
+        f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
+        f"precision {precision}\n"
+        f"Does result match on cuda? {outcome_cuda}")
+
+    print("\n")
+    return outcome, outcome_cuda
 
 
 def check_results(gt_array, test_array, precision):

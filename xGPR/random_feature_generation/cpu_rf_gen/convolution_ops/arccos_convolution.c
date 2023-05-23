@@ -120,6 +120,7 @@ const char *doubleConvArcCosFeatureGen_(int8_t *radem, double *reshapedX,
         th_args[i].copyBuffer = copyBuffer;
         th_args[i].outputArray = outputArray;
         th_args[i].rademShape2 = rademShape2;
+        th_args[i].kernelOrder = kernelOrder;
     }
 
     for (i=0; i < numThreads; i++){
@@ -217,6 +218,7 @@ const char *floatConvArcCosFeatureGen_(int8_t *radem, float *reshapedX,
         th_args[i].copyBuffer = copyBuffer;
         th_args[i].outputArray = outputArray;
         th_args[i].rademShape2 = rademShape2;
+        th_args[i].kernelOrder = kernelOrder;
     }
 
     for (i=0; i < numThreads; i++){
@@ -287,11 +289,18 @@ void *doubleThreadConvArcCosGen(void *sharedArgs){
         doubleTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
-
-        doubleArcCosPostProcess(thArgs->copyBuffer, thArgs->chiArr,
-            thArgs->outputArray, thArgs->reshapedDim1,
-            thArgs->reshapedDim2, thArgs->numFreqs, thArgs->startRow,
-            thArgs->endRow, i);
+        if (thArgs->kernelOrder == 1){
+            doubleArcCosPostProcessOrder1(thArgs->copyBuffer, thArgs->chiArr,
+                thArgs->outputArray, thArgs->reshapedDim1,
+                thArgs->reshapedDim2, thArgs->numFreqs, thArgs->startRow,
+                thArgs->endRow, i);
+        }
+        else{
+            doubleArcCosPostProcessOrder2(thArgs->copyBuffer, thArgs->chiArr,
+                thArgs->outputArray, thArgs->reshapedDim1,
+                thArgs->reshapedDim2, thArgs->numFreqs, thArgs->startRow,
+                thArgs->endRow, i);
+        }
 
         startPosition += thArgs->reshapedDim2;
     }
@@ -343,10 +352,18 @@ void *floatThreadConvArcCosGen(void *sharedArgs){
         floatTransformRows3D(thArgs->copyBuffer, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
-        floatArcCosPostProcess(thArgs->copyBuffer, thArgs->chiArr,
-            thArgs->outputArray, thArgs->reshapedDim1,
-            thArgs->reshapedDim2, thArgs->numFreqs, thArgs->startRow,
-            thArgs->endRow, i);
+        if (thArgs->kernelOrder == 1){
+            floatArcCosPostProcessOrder1(thArgs->copyBuffer, thArgs->chiArr,
+                thArgs->outputArray, thArgs->reshapedDim1,
+                thArgs->reshapedDim2, thArgs->numFreqs, thArgs->startRow,
+                thArgs->endRow, i);
+        }
+        else{
+            floatArcCosPostProcessOrder2(thArgs->copyBuffer, thArgs->chiArr,
+                thArgs->outputArray, thArgs->reshapedDim1,
+                thArgs->reshapedDim2, thArgs->numFreqs, thArgs->startRow,
+                thArgs->endRow, i);
+        }
         
         startPosition += thArgs->reshapedDim2;
     }
