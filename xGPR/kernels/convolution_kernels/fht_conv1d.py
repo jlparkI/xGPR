@@ -172,8 +172,6 @@ class FHTConv1d(KernelBaseclass):
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         reshaped_x = self.zero_arr((input_x.shape[0], self.num_slides,
                                 self.padded_dims), self.dtype)
-        #Stride tricks is a little dangerous. TODO: Find efficient non stride-tricks
-        #way to implement this restructuring.
         x_strided = self.stride_tricks(input_x, shape=(input_x.shape[0],
                             self.num_slides, self.dim2_no_padding),
                             strides=(input_x.strides[0], input_x.shape[2] * input_x.strides[2],

@@ -1,25 +1,30 @@
-"""This kernel is equivalent to the FHTConv1d kernel but is specialized
-to work on graphs, where we only ever want a convolution width of 1."""
+"""This graph kernel applies an arc-cosine kernel of order
+1 or 2 to each node and averages -- equivalent to assessing
+all possible pairwise comparisons between two inputs using
+an arc-cosine kernel (ReLU activation)."""
 from math import ceil
 
 import numpy as np
 from scipy.stats import chi
 try:
     import cupy as cp
-    from cuda_rf_gen_module import doubleGpuConv1dFGen, doubleGpuConvGrad
-    from cuda_rf_gen_module import floatGpuConv1dFGen, floatGpuConvGrad
+    from cuda_rf_gen_module import doubleGpuConv1dArcCosFGen
+    from cuda_rf_gen_module import floatGpuConv1dArcCosFGen
 except:
     pass
 
 from ..kernel_baseclass import KernelBaseclass
-from cpu_rf_gen_module import doubleCpuConv1dFGen, doubleCpuConvGrad
-from cpu_rf_gen_module import floatCpuConv1dFGen, floatCpuConvGrad
+from cpu_rf_gen_module import doubleCpuConv1dArcCosFGen
+from cpu_rf_gen_module import floatCpuConv1dArcCosFGen
 
 
-class GraphRBF(KernelBaseclass):
-    """This is similar to FHTConv1d but is specialized to work
-    on graphs, where the input is a sequence of node descriptions.
-    This allows a few simplifications. This class inherits from KernelBaseclass.
+class GraphArcCosine(KernelBaseclass):
+    """This class implements a GraphArcCosine kernel that averages over
+    all possible pairwise comparisons between two graphs, as computed
+    using an arc-cosine kernel of order 1 or 2. Unlike
+    GraphRBF, it has no additional hyperparameters beyond the two
+    shared by all kernels.
+    This class inherits from KernelBaseclass.
     Only attributes unique to this child are described in this docstring.
 
     Attributes:
@@ -31,14 +36,13 @@ class GraphRBF(KernelBaseclass):
         init_calc_freqsize (int): The number of times the transform
             will need to be performed to generate the requested number
             of sampled frequencies.
+        order (int): The order of the kernel (either 1 or 2).
         radem_diag: The diagonal matrices for the SORF transform. Type is int8.
         chi_arr: A diagonal array whose elements are drawn from the chi
             distribution. Ensures the marginals of the matrix resulting
             from S H D1 H D2 H D3 are correct.
         conv_func: A reference to the random feature generation function
             appropriate for the current device.
-        grad_func: A reference to the random feature generation & gradient
-            calculation function appropriate for the current device.
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
@@ -51,27 +55,37 @@ class GraphRBF(KernelBaseclass):
                 and M is number of timepoints or sequence elements (convolution
                 kernels only).
             num_rffs (int): The user-requested number of random Fourier features.
-                For sine-cosine kernels (RBF, Matern), this will be saved by the
-                class as num_rffs.
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'gpu'. Indicates the starting device.
             num_threads (int): The number of threads to use for random feature generation
                 if running on CPU. Ignored if running on GPU.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
+            kernel_spec_parms (dict): A dictionary of kernel-specific parameters.
+                In this case, must contain "order", which indicates whether the
+                kernel is order 1 or order 2.
 
         Raises:
             ValueError: A ValueError is raised if the dimensions of the input are
                 inappropriate given the conv_width.
         """
-        super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = True,
+        super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = False,
                 double_precision = double_precision)
         if len(xdim) != 3:
-            raise ValueError("Tried to initialize the GraphRBF kernel with a "
-                    "2d x-array! x should be a 3d array for GraphRBF.")
+            raise ValueError("Tried to initialize the GraphArcCos kernel with a "
+                    "2d x-array! x should be a 3d array for a graph kernel.")
 
-        self.hyperparams = np.ones((3))
-        self.bounds = np.asarray([[1e-3,1e1], [0.2, 5], [1e-2, 1e2]])
+        if "order" not in kernel_spec_parms:
+            raise ValueError("For the GraphArcCosine kernel, 'order' must be "
+                "included to indicate an arc-cosine kernel of order 1 or 2.")
+        if kernel_spec_parms["order"] not in [1,2]:
+            raise ValueError("For the GraphArcCosine kernel, 'order' must be "
+                "included and must be either 1 or 2.")
+
+        self.order = kernel_spec_parms["order"]
+
+        self.hyperparams = np.ones((2))
+        self.bounds = np.asarray([[1e-3,1e1], [0.2, 5]])
         rng = np.random.default_rng(random_seed)
 
         self.padded_dims = 2**ceil(np.log2(max(xdim[2], 2)))
@@ -86,7 +100,6 @@ class GraphRBF(KernelBaseclass):
                             random_state = random_seed)
 
         self.conv_func = None
-        self.grad_func = None
         self.device = device
 
 
@@ -100,10 +113,8 @@ class GraphRBF(KernelBaseclass):
         if new_device == "gpu":
             if self.double_precision:
                 self.conv_func = doubleGpuConv1dFGen
-                self.grad_func = doubleGpuConvGrad
             else:
                 self.conv_func = floatGpuConv1dFGen
-                self.grad_func = floatGpuConvGrad
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
         else:
@@ -114,10 +125,8 @@ class GraphRBF(KernelBaseclass):
                 self.chi_arr = self.chi_arr.astype(self.dtype)
             if self.double_precision:
                 self.conv_func = doubleCpuConv1dFGen
-                self.grad_func = doubleCpuConvGrad
             else:
                 self.conv_func = floatCpuConv1dFGen
-                self.grad_func = floatCpuConvGrad
             self.chi_arr = self.chi_arr.astype(self.dtype)
 
 
@@ -146,9 +155,9 @@ class GraphRBF(KernelBaseclass):
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         reshaped_x = self.zero_arr((input_x.shape[0], input_x.shape[1],
                                 self.padded_dims), self.dtype)
-        reshaped_x[:,:,:input_x.shape[2]] = input_x * self.hyperparams[2]
+        reshaped_x[:,:,:input_x.shape[2]] = input_x
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
-                self.num_threads, self.hyperparams[1])
+                self.num_threads, self.hyperparams[1], self.order)
         return xtrans
 
 
@@ -156,26 +165,8 @@ class GraphRBF(KernelBaseclass):
     def kernel_specific_gradient(self, input_x):
         """Since all kernels share the beta and lambda hyperparameters,
         the gradient for these can be calculated by the parent class.
-        The gradient kernel-specific hyperparameters however is calculated
-        using an array (dz_dsigma) specific to each
-        kernel. The kernel-specific arrays are calculated here.
-
-        Args:
-            input_x: A cupy or numpy array containing the raw input data.
-
-        Returns:
-            output_x: A cupy or numpy array containing the random feature
-                representation of the input.
-            dz_dsigma: A cupy or numpy array containing the derivative of
-                output_x with respect to the kernel-specific hyperparameters.
+        This kernel has no kernel-specific hyperparameters and hence
+        can return a shape[1] == 0 array for gradient.
         """
-        if len(input_x.shape) != 3:
-            raise ValueError("Input X must be a 3d array.")
-        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        reshaped_x = self.zero_arr((input_x.shape[0], input_x.shape[1],
-                                self.padded_dims), self.dtype)
-        reshaped_x[:,:,:input_x.shape[2]] = input_x
-        dz_dsigma = self.grad_func(reshaped_x, self.radem_diag,
-                output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
-                self.hyperparams[1])
-        return output_x, dz_dsigma
+        xtrans = self.transform_x(input_x)
+        return xtrans, np.zeros((xtrans.shape[0], 0, 0))

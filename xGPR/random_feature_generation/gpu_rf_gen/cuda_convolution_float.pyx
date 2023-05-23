@@ -34,12 +34,12 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
             int numFreqs, int rademShape2, double scalingTerm);
 
 
-cdef extern from "convolution_ops/ard_convolution.h" nogil:
-    const char *ardConvCudaFloatGrad(float *inputX, double *randomFeats,
-                float *precompWeights, int32_t *sigmaMap,
-                double *sigmaVals, double *gradient, int dim0,
-                int dim1, int dim2, int numLengthscales,
-                int numFreqs, double rbfNormConstant);
+cdef extern from "convolution_ops/arccos_convolution.h" nogil:
+    const char *floatConvArcCosFeatureGen(int8_t *radem, float *reshapedX,
+            float *featureArray, float *chiArr, double *outputArray,     
+            int reshapedDim0, int reshapedDim1, int reshapedDim2,
+            int numFreqs, int rademShape2, double scalingTerm,
+            int kernelOrder);
 
 
 
@@ -347,93 +347,95 @@ def floatGpuConvGrad(reshapedX, radem, outputArray, chiArr,
     return gradient
 
 
-
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def floatGpuGraphMiniARDGrad(inputX, randomFeats,
-                precompWeights, sigmaMap, sigmaVals,
-                double betaHparam, int numThreads):
-    """Performs gradient calculations for the GraphMiniARD kernel, using
-    pregenerated features and precomputed weights.
+def floatGpuConv1dArcCosFGen(reshapedX, radem, outputArray, chiArr,
+                int numThreads, float beta_,
+                int kernelOrder):
+    """Uses wrapped C functions to generate random features for convolution kernels
+    using the ArcCosine kernel. No gradient is required.
 
     Args:
-        inputX (array): The original input data.
-        randomFeats (array): The random features generated using the FHT-
-            based procedure; will be modified in place.
-        precompWeights (array): The FHT-rf gen procedure applied to an
-            identity matrix.
-        sigmaMap (array): An array mapping which lengthscales correspond
-            to which positions in the input.
-        sigmaVals (array): The lengthscale values, in an array of the same
-            dimensionality as the input.
-        betaHparam (double): The amplitude hyperparameter.
-        numThreads (int): Number of threads to run.
+        reshapedX (cp.ndarray): Raw data reshaped so that a convolution can be
+            performed on it using orthogonal random features with the SORF
+            operation. This array is not modified in place -- rather the features
+            that are generated are stored in outputArray. Shape is (N x D x C) for 
+            N datapoints. C must be a power of 2.
+        radem (cp.ndarray): A stack of diagonal matrices with elements drawn from the
+            Rademacher distribution. Shape must be (3 x D x C).
+        outputArray (cp.ndarray): A numpy array in which the generated features will be
+            stored. Is modified in-place.
+        chiArr (cp.ndarray): A stack of diagonal matrices drawn from a chi distribution.
+        num_threads (int): Number of threads to use for FHT.
+        beta (float): The amplitude.
+        kernelOrder (int): The order of the arc cosine kernel.
 
     Raises:
-        ValueError: A ValueError is raised if unexpected or unacceptable inputs
-            are supplied.
-
-    Returns:
-        gradient (np.ndarray): An array of shape (N x 2 * numFreqs x 1) containing
-            the gradient w/r/t sigma.
+        ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
     """
     cdef const char *errCode
-    cdef float logdim
-    cdef double rbfNormConstant
-    cdef int numLengthscales = sigmaMap.max() + 1
-    gradient = cp.zeros((randomFeats.shape[0],
-                        randomFeats.shape[1], numLengthscales))
+    cdef double scalingTerm
 
-    if len(inputX.shape) != 3 or len(randomFeats.shape) != 2 or \
-            len(precompWeights.shape) != 2 or len(sigmaMap.shape) != 1:
-        raise ValueError("The input arrays to a wrapped RBF feature gen function have incorrect "
-                "shapes.")
+    if len(chiArr.shape) != 1 or len(radem.shape) != 3 or len(reshapedX.shape) != 3:
+        raise ValueError("chiArr should be a 1d array. radem and reshapedX should be 3d arrays.")
+    if len(outputArray.shape) != 2:
+        raise ValueError("outputArray should be a 2d array.")
 
-    if inputX.shape[0] == 0 or inputX.shape[1] == 0:
+    if reshapedX.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if inputX.shape[0] != randomFeats.shape[0] or precompWeights.shape[1] != inputX.shape[2]:
-        raise ValueError("Incorrect array dims passed to a wrapped RBF "
-                    "feature gen function.")
-    if randomFeats.shape[1] != 2 * precompWeights.shape[0] or sigmaMap.shape[0] != \
-            precompWeights.shape[1] or sigmaVals.shape[0] != sigmaMap.shape[0]:
-        raise ValueError("Incorrect array dims passed to a wrapped RBF "
-                    "feature gen function.")
+    if reshapedX.shape[0] != outputArray.shape[0]:
+        raise ValueError("The number of datapoints in the outputs and the inputs do "
+                "not agree.")
+    if radem.shape[0] != 3 or radem.shape[1] != 1:
+        raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
 
-    if not inputX.flags["C_CONTIGUOUS"] or not randomFeats.flags["C_CONTIGUOUS"] or not \
-            precompWeights.flags["C_CONTIGUOUS"] or not sigmaMap.flags["C_CONTIGUOUS"] or \
-            not sigmaVals.flags["C_CONTIGUOUS"]:
-        raise ValueError("One or more arguments to a wrapped RBF feature gen function is not "
-                "C contiguous.")
+    if outputArray.shape[1] % 2 != 0 or outputArray.shape[1] < 2:
+        raise ValueError("Shape of output array is not appropriate.")
+    
+    if 2 * chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
+        raise ValueError("Shape of output array and / or chiArr is inappropriate.")
 
-    if not inputX.dtype == "float32" or not precompWeights.dtype == "float32" or \
-            not randomFeats.dtype == "float64" or not sigmaMap.dtype == "int32" or \
-            not sigmaVals.dtype == "float64":
-        raise ValueError("The input arrays to a wrapped RBF feature gen function have incorrect "
-                "types.")
+    logdim = np.log2(reshapedX.shape[2])
+    if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
+        raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
+    if not radem.shape[2] % reshapedX.shape[2] == 0:
+        raise ValueError("The number of sampled frequencies should be an integer multiple of "
+                "reshapedX.shape[2].")
+    
+    if not radem.dtype == "int8":
+        raise ValueError("radem must be int8.")
+    if not outputArray.dtype == "float64" or not reshapedX.dtype == "float32":
+        raise ValueError("Incorrect data types supplied.")
+    if not chiArr.dtype == "float32":
+        raise ValueError("chiArr must be float32.")
 
-    cdef uintptr_t addr_input = inputX.data.ptr
-    cdef float *inputX_ptr = <float*>addr_input
-    cdef uintptr_t addr_random_feats = randomFeats.data.ptr
-    cdef double *randomFeats_ptr = <double*>addr_random_feats
+    if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
+        or not chiArr.flags["C_CONTIGUOUS"]:
+        raise ValueError("One or more arguments is not C contiguous.")
 
-    cdef uintptr_t addr_sigma_map = sigmaMap.data.ptr
-    cdef int32_t *sigmaMap_ptr = <int32_t*>addr_sigma_map
-    cdef uintptr_t addr_sigma_vals = sigmaVals.data.ptr
-    cdef double *sigmaVals_ptr = <double*>addr_sigma_vals
+    featureArray = cp.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]),
+                            dtype = cp.float32)
 
-    cdef uintptr_t addr_grad = gradient.data.ptr
-    cdef double *gradient_ptr = <double*>addr_grad
-    cdef uintptr_t addr_precomp_weights = precompWeights.data.ptr
-    cdef float *precompWeights_ptr = <float*>addr_precomp_weights
+    cdef uintptr_t addr_reshapedX = reshapedX.data.ptr
+    cdef float *reshapedXPtr = <float*>addr_reshapedX
+    cdef uintptr_t addr_featureArray = featureArray.data.ptr
+    cdef float *featureArrayPtr = <float*>addr_featureArray
+ 
+    cdef uintptr_t addr_radem = radem.data.ptr
+    cdef int8_t *radem_ptr = <int8_t*>addr_radem
+    cdef uintptr_t addr_chi = chiArr.data.ptr
+    cdef float *chiArrPtr = <float*>addr_chi
 
-    rbfNormConstant = betaHparam * np.sqrt(1 / <double>precompWeights.shape[0])
+    cdef uintptr_t addr_outputArray = outputArray.data.ptr
+    cdef double *outputArrayPtr = <double*>addr_outputArray
 
-    errCode = ardConvCudaFloatGrad(inputX_ptr, randomFeats_ptr,
-                precompWeights_ptr, sigmaMap_ptr, sigmaVals_ptr,
-                gradient_ptr, inputX.shape[0], inputX.shape[1],
-                inputX.shape[2], gradient.shape[2],
-                precompWeights.shape[0], rbfNormConstant)
+
+    scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
+    scalingTerm *= beta_
+
+    errCode = floatConvArcCosFeatureGen(radem_ptr, reshapedXPtr, featureArrayPtr,
+                    chiArrPtr, outputArrayPtr, reshapedX.shape[0], reshapedX.shape[1], 
+                    reshapedX.shape[2], chiArr.shape[0], radem.shape[2], scalingTerm,
+                    kernelOrder)
     if errCode.decode("UTF-8") != "no_error":
-        raise Exception("Fatal error encountered in RBF feature gen.")
-    return gradient
+        raise Exception("Fatal error encountered while performing FHT RF generation.")

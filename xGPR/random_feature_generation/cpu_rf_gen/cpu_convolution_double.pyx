@@ -33,12 +33,13 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
             int numFreqs, int rademShape2)
 
 
-cdef extern from "convolution_ops/ard_convolution.h" nogil:
-    const char *graphARDDoubleGrad_(double *inputX, double *randomFeatures,
-            double *precompWeights, int32_t *sigmaMap, double *sigmaVals,
-            double *gradient, int dim0, int dim1, int dim2,
-            int numLengthscales, int numFreqs, double rbfNormConstant,
-            int numThreads);
+cdef extern from "convolution_ops/arccos_convolution.h" nogil:
+    const char *doubleConvArcCosFeatureGen_(int8_t *radem, double *reshapedX,
+            double *copyBuffer, double *chiArr, double *outputArray,
+            int numThreads, int reshapedDim0,
+            int reshapedDim1, int reshapedDim2,
+            int numFreqs, int rademShape2,
+            int kernelOrder)
 
 
 
@@ -287,66 +288,75 @@ def doubleCpuConvGrad(np.ndarray[np.float64_t, ndim=3] reshapedX,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def doubleCpuGraphMiniARDGrad(np.ndarray[np.float64_t, ndim=3] inputX,
-                np.ndarray[np.float64_t, ndim=2] randomFeats,
-                np.ndarray[np.float64_t, ndim=2] precompWeights,
-                np.ndarray[np.int32_t, ndim=1] sigmaMap,
-                np.ndarray[np.float64_t, ndim=1] sigmaVals,
-                double betaHparam, int numThreads):
-    """Performs gradient calculations for the GraphMiniARD kernel, using
-    pregenerated features and precomputed weights.
+def doubleCpuConv1dArcCosFGen(np.ndarray[np.float64_t, ndim=3] reshapedX,
+                np.ndarray[np.int8_t, ndim=3] radem,
+                np.ndarray[np.float64_t, ndim=2] outputArray,
+                np.ndarray[np.float64_t, ndim=1] chiArr,
+                int numThreads, double beta_, int kernelOrder):
+    """Uses wrapped C functions to generate random features for FHTConv1d, GraphConv1d,
+    and related kernels. This function cannot be used to calculate the gradient
+    so is only used for forward pass only (during fitting, inference, non-gradient-based
+    optimization). It does not multiply by the lengthscales, so caller should do this.
+    (This enables this function to also be used for GraphARD kernels if desired.)
 
     Args:
-        inputX (np.ndarray): The original input data.
-        randomFeats (np.ndarray): The random features generated using the FHT-
-            based procedure.
-        precompWeights (np.ndarray): The FHT-rf gen procedure applied to an
-            identity matrix.
-        sigmaMap (np.ndarray): An array mapping which lengthscales correspond
-            to which positions in the input.
-        sigmaVals (np.ndarray): The lengthscale values, in an array of the same
-            dimensionality as the input.
-        betaHparam (double): The amplitude hyperparameter.
-        numThreads (int): Number of threads to run.
+        reshapedX (np.ndarray): Raw data reshaped so that a convolution can be
+            performed on it using orthogonal random features with the SORF
+            operation. This array is not modified in place -- rather the features
+            that are generated are stored in outputArray. Shape is (N x D x C) for 
+            N datapoints. C must be a power of 2.
+        radem (np.ndarray): A stack of diagonal matrices with elements drawn from the
+            Rademacher distribution. Shape must be (3 x D x C).
+        outputArray (np.ndarray): A numpy array in which the generated features will be
+            stored. Is modified in-place.
+        chiArr (np.ndarray): A stack of diagonal matrices stored as an
+            array of shape m * C drawn from a chi distribution.
+        num_threads (int): Number of threads to use for FHT.
+        beta_ (float): The amplitude.
+        kernelOrder (int): The order of the arc-cosine kernel (either 1 or 2).
 
     Raises:
-        ValueError: A ValueError is raised if unexpected or unacceptable inputs
-            are supplied.
-
-    Returns:
-        gradient (np.ndarray): An array of shape (N x 2 * numFreqs x 1) containing
-            the gradient w/r/t sigma.
+        ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
     """
     cdef const char *errCode
-    cdef float logdim
-    cdef double rbfNormConstant
-    cdef np.ndarray[np.float64_t, ndim=3] gradient = np.zeros((randomFeats.shape[0],
-                        randomFeats.shape[1], sigmaMap.max() + 1))
+    cdef np.ndarray[np.float64_t, ndim=3] reshapedXCopy = np.zeros((reshapedX.shape[0],
+                        reshapedX.shape[1], reshapedX.shape[2]))
+    cdef double scalingTerm
 
-    if inputX.shape[0] == 0:
+    if reshapedX.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if inputX.shape[0] != randomFeats.shape[0] or precompWeights.shape[1] != inputX.shape[2]:
-        raise ValueError("Incorrect array dims passed to a wrapped RBF "
-                    "feature gen function.")
-    if randomFeats.shape[1] != 2 * precompWeights.shape[0] or sigmaMap.shape[0] != \
-            precompWeights.shape[1] or sigmaVals.shape[0] != sigmaMap.shape[0]:
-        raise ValueError("Incorrect array dims passed to a wrapped RBF "
-                    "feature gen function.")
+    if reshapedX.shape[0] != outputArray.shape[0]:
+        raise ValueError("The number of datapoints in the outputs and the inputs do "
+                "not agree.")
+    if radem.shape[0] != 3 or radem.shape[1] != 1:
+        raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
+    if outputArray.shape[1] % 2 != 0 or outputArray.shape[1] < 2:
+        raise ValueError("Shape of output array is not appropriate.")
+    
+    if 2 * chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
+        raise ValueError("Shape of output array and / or chiArr is inappropriate.")
 
-    if not inputX.flags["C_CONTIGUOUS"] or not randomFeats.flags["C_CONTIGUOUS"] or not \
-            precompWeights.flags["C_CONTIGUOUS"] or not sigmaMap.flags["C_CONTIGUOUS"] \
-            or not sigmaVals.flags["C_CONTIGUOUS"]:
-        raise ValueError("One or more arguments to a wrapped RBF feature gen function is not "
-                "C contiguous.")
+    logdim = np.log2(reshapedX.shape[2])
+    if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
+        raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
+    if not radem.shape[2] % reshapedX.shape[2] == 0:
+        raise ValueError("radem should be an integer multiple of shape[2].")
 
-    rbfNormConstant = betaHparam * np.sqrt(1 / <double>precompWeights.shape[0])
+    if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
+        or not chiArr.flags["C_CONTIGUOUS"]:
+        raise ValueError("One or more arguments is not C contiguous.")
 
-    errCode = graphARDDoubleGrad_(&inputX[0,0,0], &randomFeats[0,0],
-                &precompWeights[0,0], &sigmaMap[0], &sigmaVals[0],
-                &gradient[0,0,0], inputX.shape[0], inputX.shape[1],
-                inputX.shape[2],
-                gradient.shape[2], precompWeights.shape[0],
-                rbfNormConstant, numThreads)
+    scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
+    scalingTerm *= beta_
+
+    errCode = doubleConvArcCosFeatureGen_(&radem[0,0,0], &reshapedX[0,0,0],
+                &reshapedXCopy[0,0,0], &chiArr[0], &outputArray[0,0],
+                numThreads, reshapedX.shape[0],
+                reshapedX.shape[1], reshapedX.shape[2],
+                chiArr.shape[0], radem.shape[2],
+                kernelOrder)
+
     if errCode.decode("UTF-8") != "no_error":
-        raise Exception("Fatal error encountered in RBF feature gen.")
-    return gradient
+        raise Exception("Fatal error encountered while performing graph convolution.")
+
+    outputArray *= scalingTerm
