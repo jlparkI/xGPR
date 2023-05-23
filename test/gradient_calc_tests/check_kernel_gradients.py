@@ -1,0 +1,24 @@
+"""Checks exact gradients against numerical gradients for
+all currently available kernels."""
+import unittest
+#All currently available kernels are listed as keys in this dict.
+from xGPR.kernels import KERNEL_NAME_TO_CLASS
+from kernel_specific_gradient_test import run_kernelspecific_test
+
+class CheckKernelGradients(unittest.TestCase):
+    """Checks the NMLL gradients for all currently implemented
+    kernels."""
+
+    def test_kernel_gradients(self):
+        for kernel_name in KERNEL_NAME_TO_CLASS.keys():
+            is_conv_kernel = False
+            if "conv" in kernel_name.lower() or "graph" in kernel_name.lower():
+                is_conv_kernel = True
+            costcomps = run_kernelspecific_test(kernel_name,
+                        conv_kernel = is_conv_kernel)
+            for costcomp in costcomps:
+                self.assertTrue(costcomp)
+
+
+if __name__ == "__main__":
+    unittest.main()

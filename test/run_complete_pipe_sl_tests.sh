@@ -8,12 +8,5 @@ cd ..
 
 #Complete pipeline tests
 cd complete_pipeline_tests
-python test_classic_poly.py
-python test_fht_conv1d_fit.py
-python test_graphconv_fit.py
-python test_linear.py
-python test_matern_fit.py
-python test_polysum.py
-python test_rbf_fit.py
-python test_mini_ard.py
+python test_current_kernels.py
 cd ..

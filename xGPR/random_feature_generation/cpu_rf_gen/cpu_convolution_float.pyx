@@ -33,15 +33,6 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
             int reshapedDim1, int reshapedDim2,
             int numFreqs, int rademShape2)
 
-    
-cdef extern from "convolution_ops/arccos_convolution.h" nogil:
-    const char *floatConvArcCosFeatureGen_(int8_t *radem, float *reshapedX,
-            float *copyBuffer, float *chiArr, double *outputArray,
-            int numThreads, int reshapedDim0,
-            int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2,
-            int kernelOrder)
-
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -283,77 +274,3 @@ def floatCpuConvGrad(np.ndarray[np.float32_t, ndim=3] reshapedX,
     outputArray *= scalingTerm
     gradient *= scalingTerm
     return gradient
-
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def floatCpuConv1dArcCosFGen(np.ndarray[np.float32_t, ndim=3] reshapedX,
-                np.ndarray[np.int8_t, ndim=3] radem,
-                np.ndarray[np.float64_t, ndim=2] outputArray,
-                np.ndarray[np.float32_t, ndim=1] chiArr,
-                int numThreads, double beta_, int kernelOrder):
-    """Uses wrapped C functions to generate random features for 1d-convolution arc-cosine
-    kernels, for which no gradients are required.
-
-    Args:
-        reshapedX (np.ndarray): Raw data reshaped so that a convolution can be
-            performed on it using orthogonal random features with the SORF
-            operation. This array is not modified in place -- rather the features
-            that are generated are stored in outputArray. Shape is (N x D x C) for 
-            N datapoints. C must be a power of 2.
-        radem (np.ndarray): A stack of diagonal matrices with elements drawn from the
-            Rademacher distribution. Shape must be (3 x D x C).
-        outputArray (np.ndarray): A numpy array in which the generated features will be
-            stored. Is modified in-place.
-        chiArr (np.ndarray): A stack of diagonal matrices stored as an
-            array of shape m * C drawn from a chi distribution.
-        num_threads (int): Number of threads to use for FHT.
-        beta_ (float): The amplitude.
-        kernelOrder (int): The order of the arc-cosine kernel (either 1 or 2).
-
-    Raises:
-        ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
-    """
-    cdef const char *errCode
-    cdef np.ndarray[np.float32_t, ndim=3] reshapedXCopy = np.zeros((reshapedX.shape[0],
-                        reshapedX.shape[1], reshapedX.shape[2]), dtype=np.float32)
-    cdef double scalingTerm
-
-    if reshapedX.shape[0] == 0:
-        raise ValueError("There must be at least one datapoint.")
-    if reshapedX.shape[0] != outputArray.shape[0]:
-        raise ValueError("The number of datapoints in the outputs and the inputs do "
-                "not agree.")
-    if radem.shape[0] != 3 or radem.shape[1] != 1:
-        raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
-    if outputArray.shape[1] % 2 != 0 or outputArray.shape[1] < 2:
-        raise ValueError("Shape of output array is not appropriate.")
-    
-    if chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
-        raise ValueError("Shape of output array and / or chiArr is inappropriate.")
-
-    logdim = np.log2(reshapedX.shape[2])
-    if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
-        raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
-    if not radem.shape[2] % reshapedX.shape[2] == 0:
-        raise ValueError("radem should be an integer multiple of shape[2].")
-
-    if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
-        or not chiArr.flags["C_CONTIGUOUS"]:
-        raise ValueError("One or more arguments is not C contiguous.")
-
-    scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
-    scalingTerm *= beta_
-
-    errCode = floatConvArcCosFeatureGen_(&radem[0,0,0], &reshapedX[0,0,0],
-                &reshapedXCopy[0,0,0], &chiArr[0], &outputArray[0,0],
-                numThreads, reshapedX.shape[0],
-                reshapedX.shape[1], reshapedX.shape[2],
-                chiArr.shape[0], radem.shape[2],
-                kernelOrder)
-
-    if errCode.decode("UTF-8") != "no_error":
-        raise Exception("Fatal error encountered while performing convolution.")
-
-    outputArray *= scalingTerm

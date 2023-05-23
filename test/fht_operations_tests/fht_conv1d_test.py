@@ -9,11 +9,9 @@ import numpy as np
 
 from cpu_rf_gen_module import doubleCpuConv1dFGen, doubleCpuConvGrad, doubleCpuConv1dMaxpool
 from cpu_rf_gen_module import floatCpuConv1dFGen, floatCpuConvGrad, floatCpuConv1dMaxpool
-from cpu_rf_gen_module import floatCpuConv1dArcCosFGen, doubleCpuConv1dArcCosFGen
 try:
     from cuda_rf_gen_module import doubleGpuConv1dFGen, doubleGpuConvGrad, doubleGpuConv1dMaxpool
     from cuda_rf_gen_module import floatGpuConv1dFGen, floatGpuConvGrad, floatGpuConv1dMaxpool
-    from cuda_rf_gen_module import floatGpuConv1dArcCosFGen, doubleGpuConv1dArcCosFGen
     import cupy as cp
 except:
     pass
@@ -139,23 +137,6 @@ class TestConv1d(unittest.TestCase):
             self.assertTrue(outcome)
 
 
-    def test_conv1d_arccos(self):
-        """Tests the C / Cuda FHT-based convolution with arc-cosine
-        (ReLU activation)."""
-        kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 128
-        sigma, ndatapoints = 1, 124
-        outcomes = run_arccos_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
-        sigma, ndatapoints = 1, 2000
-
-        outcomes = run_arccos_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, precision = "float")
-        for outcome in outcomes:
-            self.assertTrue(outcome)
 
 
 def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
