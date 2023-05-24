@@ -6,8 +6,7 @@ import numpy as np
 from scipy.stats import chi
 try:
     import cupy as cp
-    from cuda_rf_gen_module import doubleGpuPolyFHT
-    from cuda_rf_gen_module import floatGpuPolyFHT
+    from cuda_rf_gen_module import gpuPolyFHT
 except:
     pass
 
@@ -101,10 +100,7 @@ class Polynomial(KernelBaseclass):
         if new_device == "gpu":
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
-            if self.double_precision:
-                self.poly_func = doubleGpuPolyFHT
-            else:
-                self.poly_func = floatGpuPolyFHT
+            self.poly_func = gpuPolyFHT
         else:
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)

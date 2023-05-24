@@ -6,8 +6,7 @@ import numpy as np
 from scipy.stats import chi
 try:
     import cupy as cp
-    from cuda_rf_gen_module import doubleGpuConv1dFGen, doubleGpuConvGrad
-    from cuda_rf_gen_module import floatGpuConv1dFGen, floatGpuConvGrad
+    from cuda_rf_gen_module import gpuConv1dFGen, gpuConvGrad
 except:
     pass
 
@@ -125,12 +124,8 @@ class FHTConv1d(KernelBaseclass):
         to the numpy / cupy versions of functions required
         for generating features."""
         if new_device == "gpu":
-            if self.double_precision:
-                self.conv_func = doubleGpuConv1dFGen
-                self.grad_func = doubleGpuConvGrad
-            else:
-                self.conv_func = floatGpuConv1dFGen
-                self.grad_func = floatGpuConvGrad
+            self.conv_func = gpuConv1dFGen
+            self.grad_func = gpuConvGrad
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
             self.stride_tricks = cp.lib.stride_tricks.as_strided

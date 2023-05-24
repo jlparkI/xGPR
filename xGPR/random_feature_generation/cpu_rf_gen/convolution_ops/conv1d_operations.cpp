@@ -25,11 +25,11 @@
  * perform the Hadamard transform and diagonal matrix multiplications.
  */
 #include <Python.h>
-#include <pthread.h>
+#include <vector>
+#include <thread>
 #include <math.h>
 #include "conv1d_operations.h"
-#include "../shared_fht_functions/double_array_operations.h"
-#include "../shared_fht_functions/float_array_operations.h"
+#include "../shared_fht_functions/basic_array_operations.h"
 
 
 
@@ -68,22 +68,17 @@ const char *doubleConv1dPrep_(int8_t *radem, double *reshapedX,
     if (numThreads > reshapedDim0)
         numThreads = reshapedDim0;
 
-    struct ThreadConv1dDoubleArgs *th_args = malloc(numThreads * sizeof(struct ThreadConv1dDoubleArgs));
+    struct ThreadConv1dDoubleArgs *th_args = (ThreadConv1dDoubleArgs*)malloc(numThreads * sizeof(struct ThreadConv1dDoubleArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "System out of memory! RUN FOR YOUR LIFE!!!!");
         return "error";
     }
-    //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
-    //C++ compilers.
-    int i, threadFlags[numThreads];
-    int iret[numThreads];
-    void *retval[numThreads];
-    pthread_t thread_id[numThreads];
+    std::vector<std::thread> threads(numThreads);
     int chunkSize = (reshapedDim0 + numThreads - 1) / numThreads;
     
     //We assume here that numFreqs is an integer multiple of reshapedDim2.
     //Caller must check this -- the Cython wrapper does.
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = startPosition;
         th_args[i].startRow = i * chunkSize;
         th_args[i].endRow = (i + 1) * chunkSize;
@@ -96,23 +91,12 @@ const char *doubleConv1dPrep_(int8_t *radem, double *reshapedX,
         th_args[i].reshapedXArray = reshapedX;
     }
 
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, doubleThreadConv1d, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(doubleThreadConv1d, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 
@@ -155,22 +139,17 @@ const char *floatConv1dPrep_(int8_t *radem, float *reshapedX,
     if (numThreads > reshapedDim0)
         numThreads = reshapedDim0;
 
-    struct ThreadConv1dFloatArgs *th_args = malloc(numThreads * sizeof(struct ThreadConv1dFloatArgs));
+    struct ThreadConv1dFloatArgs *th_args = (ThreadConv1dFloatArgs*)malloc(numThreads * sizeof(struct ThreadConv1dFloatArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "System out of memory! RUN FOR YOUR LIFE!!!!");
         return "error";
     }
-    //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
-    //C++ compilers.
-    int i, threadFlags[numThreads];
-    int iret[numThreads];
-    void *retval[numThreads];
-    pthread_t thread_id[numThreads];
+    std::vector<std::thread> threads(numThreads);
     int chunkSize = (reshapedDim0 + numThreads - 1) / numThreads;
     
     //We assume here that numFreqs is an integer multiple of reshapedDim2.
     //Caller must check this -- the Cython wrapper does.
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = startPosition;
         th_args[i].startRow = i * chunkSize;
         th_args[i].endRow = (i + 1) * chunkSize;
@@ -182,23 +161,13 @@ const char *floatConv1dPrep_(int8_t *radem, float *reshapedX,
         th_args[i].rademArray = radem;
         th_args[i].reshapedXArray = reshapedX;
     }
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, floatThreadConv1d, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(floatThreadConv1d, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 
@@ -221,28 +190,28 @@ const char *floatConv1dPrep_(int8_t *radem, float *reshapedX,
 void *doubleThreadConv1d(void *sharedArgs){
     struct ThreadConv1dDoubleArgs *thArgs = (struct ThreadConv1dDoubleArgs *)sharedArgs;
     
-    doubleConv1dMultiplyByRadem(thArgs->reshapedXArray,
+    conv1dMultiplyByRadem<double>(thArgs->reshapedXArray,
                     thArgs->rademArray, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2, thArgs->startPosition);
-    doubleTransformRows3D(thArgs->reshapedXArray, thArgs->startRow,
+    transformRows3D<double>(thArgs->reshapedXArray, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
-    doubleConv1dMultiplyByRadem(thArgs->reshapedXArray,
+    conv1dMultiplyByRadem<double>(thArgs->reshapedXArray,
                     thArgs->rademArray + thArgs->numFreqs,
                     thArgs->startRow, thArgs->endRow,
                     thArgs->reshapedDim1, thArgs->reshapedDim2,
                     thArgs->startPosition);
-    doubleTransformRows3D(thArgs->reshapedXArray, thArgs->startRow,
+    transformRows3D<double>(thArgs->reshapedXArray, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
     
-    doubleConv1dMultiplyByRadem(thArgs->reshapedXArray,
+    conv1dMultiplyByRadem<double>(thArgs->reshapedXArray,
                     thArgs->rademArray + 2 * thArgs->numFreqs,
                     thArgs->startRow, thArgs->endRow,
                     thArgs->reshapedDim1, thArgs->reshapedDim2,
                     thArgs->startPosition);
-    doubleTransformRows3D(thArgs->reshapedXArray, thArgs->startRow,
+    transformRows3D<double>(thArgs->reshapedXArray, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
     return NULL;
@@ -265,28 +234,28 @@ void *doubleThreadConv1d(void *sharedArgs){
 void *floatThreadConv1d(void *sharedArgs){
     struct ThreadConv1dFloatArgs *thArgs = (struct ThreadConv1dFloatArgs *)sharedArgs;
     
-    floatConv1dMultiplyByRadem(thArgs->reshapedXArray,
+    conv1dMultiplyByRadem<float>(thArgs->reshapedXArray,
                     thArgs->rademArray, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2, thArgs->startPosition);
-    floatTransformRows3D(thArgs->reshapedXArray, thArgs->startRow,
+    transformRows3D<float>(thArgs->reshapedXArray, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
-    floatConv1dMultiplyByRadem(thArgs->reshapedXArray,
+    conv1dMultiplyByRadem<float>(thArgs->reshapedXArray,
                     thArgs->rademArray + thArgs->numFreqs,
                     thArgs->startRow, thArgs->endRow,
                     thArgs->reshapedDim1, thArgs->reshapedDim2,
                     thArgs->startPosition);
-    floatTransformRows3D(thArgs->reshapedXArray, thArgs->startRow,
+    transformRows3D<float>(thArgs->reshapedXArray, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
     
-    floatConv1dMultiplyByRadem(thArgs->reshapedXArray,
+    conv1dMultiplyByRadem<float>(thArgs->reshapedXArray,
                     thArgs->rademArray + 2 * thArgs->numFreqs,
                     thArgs->startRow, thArgs->endRow,
                     thArgs->reshapedDim1, thArgs->reshapedDim2,
                     thArgs->startPosition);
-    floatTransformRows3D(thArgs->reshapedXArray, thArgs->startRow,
+    transformRows3D<float>(thArgs->reshapedXArray, thArgs->startRow,
                     thArgs->endRow, thArgs->reshapedDim1, 
                     thArgs->reshapedDim2);
     return NULL;

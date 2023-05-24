@@ -76,7 +76,7 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
             "convolution_ops", "rbf_ops"]:
         os.chdir(target_dir)
         for fname in os.listdir():
-            if not fname.endswith(".c"):
+            if not fname.endswith(".cpp"):
                 continue
             sources.append(os.path.abspath(fname))
         os.chdir("..")
@@ -87,8 +87,8 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
                     "cpu_rf_gen_module.pyx")
     sources += [cpu_basic_op_wrapper]
     cpu_basic_op_ext = Extension("cpu_rf_gen_module",
-                    sources = sources,
-                language="c", include_dirs=[numpy.get_include(),
+                    sources = sources, language="c++",
+                    include_dirs=[numpy.get_include(),
                             cpu_fast_transform_path])
     return [cpu_basic_op_ext], [cpu_basic_op_wrapper]
 
@@ -198,7 +198,7 @@ def main():
                 "cpu_rf_gen"))
 
     for cpu_fht_file in cpu_fht_files:
-        compiled_cython_fname = os.path.basename(cpu_fht_file.replace(".pyx", ".c"))
+        compiled_cython_fname = os.path.basename(cpu_fht_file.replace(".pyx", ".cpp"))
         if compiled_cython_fname in os.listdir():
             os.remove(compiled_cython_fname)
 

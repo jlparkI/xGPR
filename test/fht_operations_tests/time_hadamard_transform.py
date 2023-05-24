@@ -7,7 +7,7 @@ import cupyx
 from scipy.fftpack import dct
 from cpu_rf_gen_module import doubleCpuFastHadamardTransform as dFHT
 from cpu_rf_gen_module import doubleCpuSORFTransform as dSORF
-from cuda_rf_gen_module import floatCudaPySORFTransform as fCudaSORF
+from cuda_rf_gen_module import cudaPySORFTransform as fCudaSORF
 
 
 #Running the CPU numpy test with too many columns is extremely

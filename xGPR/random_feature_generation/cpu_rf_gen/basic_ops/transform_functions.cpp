@@ -49,10 +49,10 @@
  * Performs operations for a single thread of the fast Hadamard 2d for doubles.
  */
 #include <Python.h>
-#include <pthread.h>
+#include <vector>
+#include <thread>
 #include "transform_functions.h"
-#include "../shared_fht_functions/float_array_operations.h"
-#include "../shared_fht_functions/double_array_operations.h"
+#include "../shared_fht_functions/basic_array_operations.h"
 
 
 #define VALID_INPUTS 0
@@ -82,21 +82,16 @@ const char *fastHadamard3dFloatArray_(float *Z, int zDim0, int zDim1, int zDim2,
     if (numThreads > zDim0)
         numThreads = zDim0;
 
-    struct Thread3DFloatArrayArgs *th_args = malloc(numThreads * sizeof(struct Thread3DFloatArrayArgs));
+    struct Thread3DFloatArrayArgs *th_args = (Thread3DFloatArrayArgs*)malloc(numThreads * sizeof(struct Thread3DFloatArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful!");
         return "error";
     }
-    //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
-    //C++ compilers.
-    int i, threadFlags[numThreads];
-    void *retval[numThreads];
-    int iret[numThreads];
-    pthread_t thread_id[numThreads];
+    std::vector<std::thread> threads(numThreads);
 
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = i * chunkSize;
         th_args[i].endPosition = (i + 1) * chunkSize;
         if (th_args[i].endPosition > zDim0)
@@ -106,23 +101,12 @@ const char *fastHadamard3dFloatArray_(float *Z, int zDim0, int zDim1, int zDim2,
         th_args[i].dim2 = zDim2;
     }
 
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, ThreadTransformRows3DFloat, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(ThreadTransformRows3DFloat, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 }
@@ -151,22 +135,17 @@ const char *fastHadamard3dDoubleArray_(double *Z, int zDim0, int zDim1, int zDim
     if (numThreads > zDim0)
         numThreads = zDim0;
 
-    struct Thread3DDoubleArrayArgs *th_args = malloc(numThreads * sizeof(struct Thread3DDoubleArrayArgs));
+    struct Thread3DDoubleArrayArgs *th_args = (Thread3DDoubleArrayArgs*)malloc(numThreads * sizeof(struct Thread3DDoubleArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
             "is likely about to crash.");
         return "error";
     }
-    //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
-    //C++ compilers.
-    int i, threadFlags[numThreads];
-    void *retval[numThreads];
-    int iret[numThreads];
-    pthread_t thread_id[numThreads];
+    std::vector<std::thread> threads(numThreads);
 
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = i * chunkSize;
         th_args[i].endPosition = (i + 1) * chunkSize;
         if (th_args[i].endPosition > zDim0)
@@ -176,23 +155,13 @@ const char *fastHadamard3dDoubleArray_(double *Z, int zDim0, int zDim1, int zDim
         th_args[i].dim2 = zDim2;
     }
 
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, ThreadTransformRows3DDouble, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(ThreadTransformRows3DDouble, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 }
@@ -222,22 +191,17 @@ const char *fastHadamard2dFloatArray_(float *Z, int zDim0, int zDim1,
     if (numThreads > zDim0)
         numThreads = zDim0;
 
-    struct Thread3DFloatArrayArgs *th_args = malloc(numThreads * sizeof(struct Thread3DFloatArrayArgs));
+    struct Thread3DFloatArrayArgs *th_args = (Thread3DFloatArrayArgs*)malloc(numThreads * sizeof(struct Thread3DFloatArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
             "is likely about to crash.");
         return "error";
     }
-    //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
-    //C++ compilers.
-    int i, threadFlags[numThreads];
-    void *retval[numThreads];
-    int iret[numThreads];
-    pthread_t thread_id[numThreads];
+    std::vector<std::thread> threads(numThreads);
 
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = i * chunkSize;
         th_args[i].endPosition = (i + 1) * chunkSize;
         if (th_args[i].endPosition > zDim0)
@@ -248,23 +212,12 @@ const char *fastHadamard2dFloatArray_(float *Z, int zDim0, int zDim1,
         th_args[i].dim2 = 1;
     }
 
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, ThreadTransformRows2DFloat, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(ThreadTransformRows2DFloat, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 }
@@ -293,22 +246,17 @@ const char *fastHadamard2dDoubleArray_(double *Z, int zDim0, int zDim1,
     if (numThreads > zDim0)
         numThreads = zDim0;
 
-    struct Thread3DDoubleArrayArgs *th_args = malloc(numThreads * sizeof(struct Thread3DDoubleArrayArgs));
+    struct Thread3DDoubleArrayArgs *th_args = (Thread3DDoubleArrayArgs*)malloc(numThreads * sizeof(struct Thread3DDoubleArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
             "is likely about to crash.");
         return "error";
     }
-    //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
-    //C++ compilers.
-    int i, threadFlags[numThreads];
-    void *retval[numThreads];
-    int iret[numThreads];
-    pthread_t thread_id[numThreads];
+    std::vector<std::thread> threads(numThreads);
 
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = i * chunkSize;
         th_args[i].endPosition = (i + 1) * chunkSize;
         if (th_args[i].endPosition > zDim0)
@@ -319,23 +267,12 @@ const char *fastHadamard2dDoubleArray_(double *Z, int zDim0, int zDim1,
         th_args[i].dim2 = 1;
     }
 
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, ThreadTransformRows2DDouble, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(ThreadTransformRows2DDouble, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 }
@@ -366,22 +303,17 @@ const char *SORFFloatBlockTransform_(float *Z, int8_t *radem,
     if (numThreads > zDim0)
         numThreads = zDim0;
 
-    struct ThreadSORFFloatArrayArgs *th_args = malloc(numThreads * sizeof(struct ThreadSORFFloatArrayArgs));
+    struct ThreadSORFFloatArrayArgs *th_args = (ThreadSORFFloatArrayArgs*)malloc(numThreads * sizeof(struct ThreadSORFFloatArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
             "is likely about to crash.");
         return "error";
     }
-    //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
-    //C++ compilers.
-    int i, threadFlags[numThreads];
-    int iret[numThreads];
-    void *retval[numThreads];
-    pthread_t thread_id[numThreads];
+    std::vector<std::thread> threads(numThreads);
     
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = i * chunkSize;
         th_args[i].endPosition = (i + 1) * chunkSize;
         if (th_args[i].endPosition > zDim0)
@@ -392,23 +324,12 @@ const char *SORFFloatBlockTransform_(float *Z, int8_t *radem,
         th_args[i].rademArray = radem;
     }
     
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, ThreadSORFFloatRows3D, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(ThreadSORFFloatRows3D, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 }
@@ -437,22 +358,17 @@ const char *SORFDoubleBlockTransform_(double *Z, int8_t *radem,
     if (numThreads > zDim0)
         numThreads = zDim0;
 
-    struct ThreadSORFDoubleArrayArgs *th_args = malloc(numThreads * sizeof(struct ThreadSORFDoubleArrayArgs));
+    struct ThreadSORFDoubleArrayArgs *th_args = (ThreadSORFDoubleArrayArgs*)malloc(numThreads * sizeof(struct ThreadSORFDoubleArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
             "is likely about to crash.");
         return "error";
     }
-    //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
-    //C++ compilers.
-    int i, threadFlags[numThreads];
-    int iret[numThreads];
-    void *retval[numThreads];
-    pthread_t thread_id[numThreads];
+    std::vector<std::thread> threads(numThreads);
     
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = i * chunkSize;
         th_args[i].endPosition = (i + 1) * chunkSize;
         if (th_args[i].endPosition > zDim0)
@@ -463,23 +379,12 @@ const char *SORFDoubleBlockTransform_(double *Z, int8_t *radem,
         th_args[i].rademArray = radem;
     }
     
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, ThreadSORFDoubleRows3D, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(ThreadSORFDoubleRows3D, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 }
@@ -512,22 +417,17 @@ const char *SRHTFloatBlockTransform_(float *Z, int8_t *radem,
     if (numThreads > zDim0)
         numThreads = zDim0;
 
-    struct ThreadSORFFloatArrayArgs *th_args = malloc(numThreads * sizeof(struct ThreadSORFFloatArrayArgs));
+    struct ThreadSORFFloatArrayArgs *th_args = (ThreadSORFFloatArrayArgs*)malloc(numThreads * sizeof(struct ThreadSORFFloatArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
             "is likely about to crash.");
         return "error";
     }
-    //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
-    //C++ compilers.
-    int i, threadFlags[numThreads];
-    int iret[numThreads];
-    void *retval[numThreads];
-    pthread_t thread_id[numThreads];
+    std::vector<std::thread> threads(numThreads);
     
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = i * chunkSize;
         th_args[i].endPosition = (i + 1) * chunkSize;
         if (th_args[i].endPosition > zDim0)
@@ -539,23 +439,12 @@ const char *SRHTFloatBlockTransform_(float *Z, int8_t *radem,
         th_args[i].rademArray = radem;
     }
     
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, ThreadSRHTFloatRows2D, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(ThreadSRHTFloatRows2D, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 }
@@ -584,22 +473,17 @@ const char *SRHTDoubleBlockTransform_(double *Z, int8_t *radem,
     if (numThreads > zDim0)
         numThreads = zDim0;
 
-    struct ThreadSORFDoubleArrayArgs *th_args = malloc(numThreads * sizeof(struct ThreadSORFDoubleArrayArgs));
+    struct ThreadSORFDoubleArrayArgs *th_args = (ThreadSORFDoubleArrayArgs*)malloc(numThreads * sizeof(struct ThreadSORFDoubleArrayArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
             "is likely about to crash.");
         return "error";
     }
-    //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
-    //C++ compilers.
-    int i, threadFlags[numThreads];
-    int iret[numThreads];
-    void *retval[numThreads];
-    pthread_t thread_id[numThreads];
+    std::vector<std::thread> threads(numThreads);
     
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = i * chunkSize;
         th_args[i].endPosition = (i + 1) * chunkSize;
         if (th_args[i].endPosition > zDim0)
@@ -611,23 +495,12 @@ const char *SRHTDoubleBlockTransform_(double *Z, int8_t *radem,
         th_args[i].rademArray = radem;
     }
     
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, ThreadSRHTDoubleRows2D, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(ThreadSRHTDoubleRows2D, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 }
@@ -653,25 +526,25 @@ void *ThreadSORFFloatRows3D(void *rowArgs){
     struct ThreadSORFFloatArrayArgs *thArgs = (struct ThreadSORFFloatArrayArgs *)rowArgs;
     int rowSize = thArgs->dim1 * thArgs->dim2;
 
-    floatMultiplyByDiagonalRademacherMat(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat<float>(thArgs->arrayStart,
                     thArgs->rademArray,
                     thArgs->dim1, thArgs->dim2, 
                     thArgs->startPosition, thArgs->endPosition);
-    floatTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<float>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
 
-    floatMultiplyByDiagonalRademacherMat(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat<float>(thArgs->arrayStart,
                     thArgs->rademArray + rowSize,
                     thArgs->dim1, thArgs->dim2, 
                     thArgs->startPosition, thArgs->endPosition);
-    floatTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<float>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
     
-    floatMultiplyByDiagonalRademacherMat(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat<float>(thArgs->arrayStart,
                     thArgs->rademArray + 2 * rowSize,
                     thArgs->dim1, thArgs->dim2, 
                     thArgs->startPosition, thArgs->endPosition);
-    floatTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<float>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
     return NULL;
 }
@@ -693,25 +566,25 @@ void *ThreadSORFDoubleRows3D(void *rowArgs){
     struct ThreadSORFDoubleArrayArgs *thArgs = (struct ThreadSORFDoubleArrayArgs *)rowArgs;
     int rowSize = thArgs->dim1 * thArgs->dim2;
 
-    doubleMultiplyByDiagonalRademacherMat(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat<double>(thArgs->arrayStart,
                     thArgs->rademArray,
                     thArgs->dim1, thArgs->dim2, 
                     thArgs->startPosition, thArgs->endPosition);
-    doubleTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<double>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
 
-    doubleMultiplyByDiagonalRademacherMat(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat<double>(thArgs->arrayStart,
                     thArgs->rademArray + rowSize,
                     thArgs->dim1, thArgs->dim2, 
                     thArgs->startPosition, thArgs->endPosition);
-    doubleTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<double>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
     
-    doubleMultiplyByDiagonalRademacherMat(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat<double>(thArgs->arrayStart,
                     thArgs->rademArray + 2 * rowSize,
                     thArgs->dim1, thArgs->dim2, 
                     thArgs->startPosition, thArgs->endPosition);
-    doubleTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<double>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
     return NULL;
 }
@@ -737,10 +610,10 @@ void *ThreadSORFDoubleRows3D(void *rowArgs){
 void *ThreadSRHTFloatRows2D(void *rowArgs){
     struct ThreadSORFFloatArrayArgs *thArgs = (struct ThreadSORFFloatArrayArgs *)rowArgs;
 
-    floatMultiplyByDiagonalRademacherMat2D(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat2D<float>(thArgs->arrayStart,
                     thArgs->rademArray, thArgs->dim1,
                     thArgs->startPosition, thArgs->endPosition);
-    floatTransformRows2D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows2D<float>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1);
     return NULL;
 }
@@ -763,10 +636,10 @@ void *ThreadSRHTFloatRows2D(void *rowArgs){
 void *ThreadSRHTDoubleRows2D(void *rowArgs){
     struct ThreadSORFDoubleArrayArgs *thArgs = (struct ThreadSORFDoubleArrayArgs *)rowArgs;
 
-    doubleMultiplyByDiagonalRademacherMat2D(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat2D<double>(thArgs->arrayStart,
                     thArgs->rademArray, thArgs->dim1,
                     thArgs->startPosition, thArgs->endPosition);
-    doubleTransformRows2D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows2D<double>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1);
     return NULL;
 }
@@ -790,7 +663,7 @@ void *ThreadSRHTDoubleRows2D(void *rowArgs){
  */
 void *ThreadTransformRows3DFloat(void *rowArgs){
     struct Thread3DFloatArrayArgs *thArgs = (struct Thread3DFloatArrayArgs *)rowArgs;
-    floatTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<float>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
     return NULL;
 }
@@ -813,7 +686,7 @@ void *ThreadTransformRows3DFloat(void *rowArgs){
  */
 void *ThreadTransformRows3DDouble(void *rowArgs){
     struct Thread3DDoubleArrayArgs *thArgs = (struct Thread3DDoubleArrayArgs *)rowArgs;
-    doubleTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<double>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
     return NULL;
 }
@@ -837,7 +710,7 @@ void *ThreadTransformRows3DDouble(void *rowArgs){
  */
 void *ThreadTransformRows2DFloat(void *rowArgs){
     struct Thread3DFloatArrayArgs *thArgs = (struct Thread3DFloatArrayArgs *)rowArgs;
-    floatTransformRows2D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows2D<float>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1);
     return NULL;
 }
@@ -860,7 +733,7 @@ void *ThreadTransformRows2DFloat(void *rowArgs){
  */
 void *ThreadTransformRows2DDouble(void *rowArgs){
     struct Thread3DDoubleArrayArgs *thArgs = (struct Thread3DDoubleArrayArgs *)rowArgs;
-    doubleTransformRows2D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows2D<double>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1);
     return NULL;
 }

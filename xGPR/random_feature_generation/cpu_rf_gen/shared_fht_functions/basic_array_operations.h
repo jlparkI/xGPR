@@ -1,30 +1,36 @@
-#ifndef DOUBLE_ARRAY_OPERATIONS_H
-#define DOUBLE_ARRAY_OPERATIONS_H
+#ifndef BASIC_ARRAY_OPERATIONS_H
+#define BASIC_ARRAY_OPERATIONS_H
 
 
-void doubleTransformRows3D(double *xArray, int startRow, int endRow,
+template <typename T>
+void transformRows3D(T xArray[], int startRow, int endRow,
                     int dim1, int dim2);
 
-void doubleTransformRows2D(double *xArray, int startRow, int endRow,
+template <typename T>
+void transformRows2D(T xArray[], int startRow, int endRow,
                     int dim1);
 
-void doubleMultiplyByDiagonalRademacherMat2D(double *xArray,
+template <typename T>
+void multiplyByDiagonalRademacherMat2D(T xArray[],
                     const int8_t *rademArray,
                     int dim1,
                     int startRow, int endRow);
 
-void doubleMultiplyByDiagonalRademacherMat(double *xArray,
+template <typename T>
+void multiplyByDiagonalRademacherMat(T xArray[],
                     const int8_t *rademArray,
                     int dim1, int dim2,
                     int startRow, int endRow);
 
-void doubleConv1dMultiplyByRadem(double *xArray,
+template <typename T>
+void conv1dMultiplyByRadem(T xArray[],
                         const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition);
 
-void doubleConv1dRademAndCopy(double *xArray,
-                        double *copyBuffer,
+template <typename T>
+void conv1dRademAndCopy(T xArray[],
+                        T copyBuffer[],
                         const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition);

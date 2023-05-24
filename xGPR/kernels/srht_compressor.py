@@ -9,7 +9,7 @@ from cpu_rf_gen_module import floatCpuSRHT, doubleCpuSRHT
 
 try:
     import cupy as cp
-    from cuda_rf_gen_module import floatCudaSRHT, doubleCudaSRHT
+    from cuda_rf_gen_module import cudaSRHT
 except:
     pass
 
@@ -143,12 +143,11 @@ class SRHTCompressor():
         elif value == "gpu":
             self.radem = cp.asarray(self.radem)
             self.zero_arr = cp.zeros
+            self.compressor_func = cudaSRHT
             if self.double_precision:
                 self.dtype = cp.float64
-                self.compressor_func = doubleCudaSRHT
             else:
                 self.dtype = cp.float32
-                self.compressor_func = floatCudaSRHT
         else:
             raise ValueError("Unrecognized device supplied. Must be one "
                     "of 'cpu', 'gpu'.")

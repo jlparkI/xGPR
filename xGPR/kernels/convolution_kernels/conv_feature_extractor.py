@@ -8,7 +8,7 @@ import numpy as np
 from scipy.stats import chi
 try:
     import cupy as cp
-    from cuda_rf_gen_module import floatGpuConv1dMaxpool
+    from cuda_rf_gen_module import gpuConv1dMaxpool
 except:
     pass
 
@@ -100,7 +100,7 @@ class FHTMaxpoolConv1dFeatureExtractor():
         and updates convenience references to numpy / cupy
         functions used for generating features."""
         if new_device == "gpu":
-            self.conv_func = floatGpuConv1dMaxpool
+            self.conv_func = gpuConv1dMaxpool
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
             self.stride_tricks = cp.lib.stride_tricks.as_strided

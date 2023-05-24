@@ -7,8 +7,7 @@ import numpy as np
 from scipy.stats import chi
 try:
     import cupy as cp
-    from cuda_rf_gen_module import doubleGpuGraphPolyFHT
-    from cuda_rf_gen_module import floatGpuGraphPolyFHT
+    from cuda_rf_gen_module import gpuGraphPolyFHT
 except:
     pass
 
@@ -101,10 +100,7 @@ class GraphPolySum(KernelBaseclass):
         if new_device == "gpu":
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
             self.radem_diag = cp.asarray(self.radem_diag)
-            if self.double_precision:
-                self.graph_poly_func = doubleGpuGraphPolyFHT
-            else:
-                self.graph_poly_func = floatGpuGraphPolyFHT
+            self.graph_poly_func = gpuGraphPolyFHT
         else:
             if not isinstance(self.radem_diag, np.ndarray):
                 self.chi_arr = cp.asnumpy(self.chi_arr)

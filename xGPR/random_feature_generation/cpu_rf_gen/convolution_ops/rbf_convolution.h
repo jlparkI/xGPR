@@ -67,25 +67,18 @@ void *floatThreadConvRBFGrad(void *sharedArgs);
 
 void *doubleThreadConvRBFGrad(void *sharedArgs);
 
-void doubleRBFPostProcess(double *reshapedX, double *chiArr,
+template <typename T>
+void RBFPostProcess(T reshapedX[], T chiArr[],
         double *outputArray, int reshapedDim1,
         int reshapedDim2, int numFreqs,
         int startRow, int endRow, int repeatNum);
 
-void floatRBFPostProcess(float *reshapedX, float *chiArr,
-        double *outputArray, int reshapedDim1,
-        int reshapedDim2, int numFreqs,
-        int startRow, int endRow, int repeatNum);
 
-void doubleRBFPostGrad(double *reshapedX, double *chiArr,
+template <typename T>
+void RBFPostGrad(T reshapedX[], T chiArr[],
         double *outputArray, double *gradientArray,
         int reshapedDim1, int reshapedDim2,
         int numFreqs, int startRow, int endRow,
-        int repeatNum, double sigma);
+        int repeatNum, T sigma);
 
-void floatRBFPostGrad(float *reshapedX, float *chiArr,
-        double *outputArray, double *gradientArray,
-        int reshapedDim1, int reshapedDim2,
-        int numFreqs, int startRow, int endRow,
-        int repeatNum, float sigma);
 #endif

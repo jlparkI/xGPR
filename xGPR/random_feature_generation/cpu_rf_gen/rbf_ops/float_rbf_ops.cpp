@@ -1,5 +1,5 @@
 /*!
- * # double_rbf_ops.c
+ * # float_rbf_ops.c
  *
  * This module performs all major steps involved in feature generation for
  * RBF-type kernels, which includes RBF, Matern, ARD and MiniARD (and by extension
@@ -8,43 +8,36 @@
  * The "specialized" piece, multiplication by a diagonal matrix while performing
  * sine-cosine operations, is performed here.
  *
- * + rbfFeatureGenDouble_
- * Performs the feature generation steps on an input array of doubles.
+ * + rbfFeatureGenFloat_
+ * Performs the feature generation steps on an input array of floats.
  *
- * + rbfDoubleGrad_
- * Performs the feature generation steps on an input array of doubles
- * AND generates the gradient info (stored in a separate array). For non-ARD
+ * + rbfFloatGrad_
+ * Performs the feature generation steps on an input array of floats AND
+ * generates the gradient info (stored in a separate array). For non-ARD
  * kernels only.
  *
- * + ardDoubleGrad_
+ * + ardFloatGrad_
  * Performs gradient and feature generation calculations for an RBF ARD kernel.
  * Slower than rbfFeatureGen, so use only if gradient is required.
  *
- * + ThreadRBFGenDouble
+ * + ThreadRBFGenFloat
  * Performs operations for a single thread of the feature generation operation.
  *
- * + ThreadRBFDoubleGrad
+ * + ThreadRBFFloatGrad
  * Performs operations for a single thread of the gradient / feature operation.
  * 
- * + ThreadARDDoubleGrad
- * Performs operations for a single thread of the ARD gradient-only calculation.
+ * + rbfFloatFeatureGenLastStep_
+ * Performs the final operations involved in the feature generation for floats.
  *
- * + rbfDoubleFeatureGenLastStep_
- * Performs the final operations involved in the feature generation for doubles.
- *
- * + rbfDoubleGradLastStep_
- * Performs the final operations involved in feature / gradient calc for doubles.
- *
- * + ardDoubleGradCalcs
- * Performs the key operations involved in gradient-only calc for ARD.
+ * + rbfFloatGradLastStep_
+ * Performs the final operations involved in feature / gradient calc for floats.
  */
 #include <Python.h>
-#include <pthread.h>
-#include <stdint.h>
 #include <math.h>
-#include "double_rbf_ops.h"
-#include "../shared_fht_functions/float_array_operations.h"
-#include "../shared_fht_functions/double_array_operations.h"
+#include <vector>
+#include <thread>
+#include "float_rbf_ops.h"
+#include "../shared_fht_functions/basic_array_operations.h"
 
 
 #define VALID_INPUTS 0
@@ -52,9 +45,8 @@
 #define EPS_TOLERANCE 0.0
 #define MAX_THREADS 8
 
-
 /*!
- * # rbfFeatureGenDouble_
+ * # rbfFeatureGenFloat_
  *
  * Generates features for the input array and stores them in outputArray.
  *
@@ -77,30 +69,25 @@
  * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
  * + `numThreads` The number of threads to use.
  */
-const char *rbfFeatureGenDouble_(double *cArray, int8_t *radem,
-                double *chiArr, double *outputArray,
+const char *rbfFeatureGenFloat_(float *cArray, int8_t *radem,
+                float *chiArr, double *outputArray,
                 double rbfNormConstant,
                 int dim0, int dim1, int dim2,
                 int numFreqs, int numThreads){
     if (numThreads > dim0)
         numThreads = dim0;
 
-    struct ThreadRBFDoubleArgs *th_args = malloc(numThreads * sizeof(struct ThreadRBFDoubleArgs));
+    struct ThreadRBFFloatArgs *th_args = (ThreadRBFFloatArgs*)malloc(numThreads * sizeof(struct ThreadRBFFloatArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful! Your system may be out of memory and "
             "is likely about to crash.");
         return "error";
     }
-    //Note the variable length arrays, which are fine with gcc BUT may be a problem for some older
-    //C++ compilers.
-    int i, threadFlags[numThreads];
-    int iret[numThreads];
-    void *retval[numThreads];
-    pthread_t thread_id[numThreads];
-    
+    std::vector<std::thread> threads(numThreads);
+
     int chunkSize = (dim0 + numThreads - 1) / numThreads;
 
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = i * chunkSize;
         th_args[i].endPosition = (i + 1) * chunkSize;
         if (th_args[i].endPosition > dim0)
@@ -115,23 +102,12 @@ const char *rbfFeatureGenDouble_(double *cArray, int8_t *radem,
         th_args[i].rbfNormConstant = rbfNormConstant;
     }
     
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, ThreadRBFGenDouble, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(ThreadRBFGenFloat, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 }
@@ -140,9 +116,9 @@ const char *rbfFeatureGenDouble_(double *cArray, int8_t *radem,
 
 
 /*!
- * # rbfDoubleGrad_
+ * # rbfFloatGrad_
  *
- * Generates features for the input array and stores them in outputArray.
+ * Generates features AND gradient for the input array.
  *
  * ## Args:
  *
@@ -166,28 +142,25 @@ const char *rbfFeatureGenDouble_(double *cArray, int8_t *radem,
  * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
  * + `numThreads` The number of threads to use.
  */
-const char *rbfDoubleGrad_(double *cArray, int8_t *radem,
-                double *chiArr, double *outputArray,
+const char *rbfFloatGrad_(float *cArray, int8_t *radem,
+                float *chiArr, double *outputArray,
                 double *gradientArray,
-                double rbfNormConstant, double sigma,
+                double rbfNormConstant, float sigma,
                 int dim0, int dim1, int dim2,
                 int numFreqs, int numThreads){
     if (numThreads > dim0)
         numThreads = dim0;
 
-    struct ThreadRBFDoubleGradArgs *th_args = malloc(numThreads * sizeof(struct ThreadRBFDoubleGradArgs));
+    struct ThreadRBFFloatGradArgs *th_args = (ThreadRBFFloatGradArgs*)malloc(numThreads * sizeof(struct ThreadRBFFloatGradArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful!");
         return "error";
     }
-    int i, threadFlags[numThreads];
-    int iret[numThreads];
-    void *retval[numThreads];
-    pthread_t thread_id[numThreads];
+    std::vector<std::thread> threads(numThreads);
     
     int chunkSize = (dim0 + numThreads - 1) / numThreads;
 
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = i * chunkSize;
         th_args[i].endPosition = (i + 1) * chunkSize;
         if (th_args[i].endPosition > dim0)
@@ -205,23 +178,12 @@ const char *rbfDoubleGrad_(double *cArray, int8_t *radem,
         th_args[i].sigma = sigma;
     }
     
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, ThreadRBFDoubleGrad, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(ThreadRBFFloatGrad, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 }
@@ -229,7 +191,7 @@ const char *rbfDoubleGrad_(double *cArray, int8_t *radem,
 
 
 /*!
- * # ardDoubleGrad_
+ * # ardFloatGrad_
  *
  * Performs gradient-only calculations for the mini ARD kernel.
  *
@@ -237,8 +199,8 @@ const char *rbfDoubleGrad_(double *cArray, int8_t *radem,
  *
  * + `inputX` Pointer to the first element of the raw input data,
  * an (N x D) array.
- * + `randomFeatures` Pointer to first element of the array in which
- * random features will be stored, an (N x 2 * C) array.
+ * + `randomFeatures` Pointer to first element of the array in which random
+ * features will be stored, an (N x 2 * C) array.
  * + `precompWeights` Pointer to first element of the array containing
  * the precomputed weights, a (C x D) array.
  * + `sigmaMap` Pointer to first element of the array containing a mapping
@@ -256,26 +218,23 @@ const char *rbfDoubleGrad_(double *cArray, int8_t *radem,
  * caller.
  * + `numThreads` The number of threads to use.
  */
-const char *ardDoubleGrad_(double *inputX, double *randomFeatures,
-        double *precompWeights, int32_t *sigmaMap, double *sigmaVals,
+const char *ardFloatGrad_(float *inputX, double *randomFeatures,
+        float *precompWeights, int32_t *sigmaMap, double *sigmaVals,
         double *gradient, int dim0, int dim1, int numLengthscales,
         int numFreqs, double rbfNormConstant, int numThreads){
     if (numThreads > dim0)
         numThreads = dim0;
 
-    struct ThreadARDDoubleGradArgs *th_args = malloc(numThreads * sizeof(struct ThreadARDDoubleGradArgs));
+    struct ThreadARDFloatGradArgs *th_args = (ThreadARDFloatGradArgs*)malloc(numThreads * sizeof(struct ThreadARDFloatGradArgs));
     if (th_args == NULL){
         PyErr_SetString(PyExc_ValueError, "Memory allocation unsuccessful!");
         return "error";
     }
-    int i, threadFlags[numThreads];
-    int iret[numThreads];
-    void *retval[numThreads];
-    pthread_t thread_id[numThreads];
     
+    std::vector<std::thread> threads(numThreads);
     int chunkSize = (dim0 + numThreads - 1) / numThreads;
 
-    for (i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++){
         th_args[i].startPosition = i * chunkSize;
         th_args[i].endPosition = (i + 1) * chunkSize;
         if (th_args[i].endPosition > dim0)
@@ -291,24 +250,12 @@ const char *ardDoubleGrad_(double *inputX, double *randomFeatures,
         th_args[i].numLengthscales = numLengthscales;
         th_args[i].rbfNormConstant = rbfNormConstant;
     }
-    
-    for (i=0; i < numThreads; i++){
-        iret[i] = pthread_create(&thread_id[i], NULL, ThreadARDDoubleGrad, &th_args[i]);
-        if (iret[i]){
-            PyErr_SetString(PyExc_ValueError, "fastHadamardTransform failed to create a thread!");
-            free(th_args);
-            return "error";
-        }
+    for (int i=0; i < numThreads; i++){
+        threads[i] = std::thread(ThreadARDFloatGrad, &th_args[i]);
     }
-    for (i=0; i < numThreads; i++)
-        threadFlags[i] = pthread_join(thread_id[i], &retval[i]);
-    
-    for (i=0; i < numThreads; i++){
-        if (threadFlags[i] != 0){
-            free(th_args);
-            return "error";
-        }
-    }
+
+    for (auto& th : threads)
+        th.join();
     free(th_args);
     return "no_error";
 }
@@ -316,11 +263,11 @@ const char *ardDoubleGrad_(double *inputX, double *randomFeatures,
 
 
 /*!
- * # ThreadRBFGenDouble
+ * # ThreadRBFGenFloat
  *
  * Performs the RBF feature gen operation for one thread for a chunk of
  * the input array from startRow through endRow (each thread
- * works on its own group of rows).
+ * works on its own group of rows), for arrays of floats only.
  *
  * ## Args:
  *
@@ -328,31 +275,31 @@ const char *ardDoubleGrad_(double *inputX, double *randomFeatures,
  * Contains all the arrays and info (e.g. startRow, endRow) needed
  * to process the chunk of the array belonging to this thread.
  */
-void *ThreadRBFGenDouble(void *rowArgs){
-    struct ThreadRBFDoubleArgs *thArgs = (struct ThreadRBFDoubleArgs *)rowArgs;
+void *ThreadRBFGenFloat(void *rowArgs){
+    struct ThreadRBFFloatArgs *thArgs = (struct ThreadRBFFloatArgs *)rowArgs;
     int rowSize = thArgs->dim1 * thArgs->dim2;
 
-    doubleMultiplyByDiagonalRademacherMat(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat<float>(thArgs->arrayStart,
                     thArgs->rademArray,
                     thArgs->dim1, thArgs->dim2, 
                     thArgs->startPosition, thArgs->endPosition);
-    doubleTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<float>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
 
-    doubleMultiplyByDiagonalRademacherMat(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat<float>(thArgs->arrayStart,
                     thArgs->rademArray + rowSize,
                     thArgs->dim1, thArgs->dim2, 
                     thArgs->startPosition, thArgs->endPosition);
-    doubleTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<float>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
     
-    doubleMultiplyByDiagonalRademacherMat(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat<float>(thArgs->arrayStart,
                     thArgs->rademArray + 2 * rowSize,
                     thArgs->dim1, thArgs->dim2, 
                     thArgs->startPosition, thArgs->endPosition);
-    doubleTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<float>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
-    rbfDoubleFeatureGenLastStep_(thArgs->arrayStart, thArgs->chiArr,
+    rbfFloatFeatureGenLastStep_(thArgs->arrayStart, thArgs->chiArr,
                     thArgs->outputArray, thArgs->rbfNormConstant,
                     thArgs->startPosition, thArgs->endPosition,
                     thArgs->dim1, thArgs->dim2, thArgs->numFreqs);
@@ -361,7 +308,7 @@ void *ThreadRBFGenDouble(void *rowArgs){
 
 
 /*!
- * # ThreadRBFDoubleGrad
+ * # ThreadRBFFloatGrad
  *
  * Performs the RBF feature gen AND gradient operation for one thread
  * for a chunk of the input array from startRow through endRow (each thread
@@ -373,31 +320,31 @@ void *ThreadRBFGenDouble(void *rowArgs){
  * Contains all the arrays and info (e.g. startRow, endRow) needed
  * to process the chunk of the array belonging to this thread.
  */
-void *ThreadRBFDoubleGrad(void *rowArgs){
-    struct ThreadRBFDoubleGradArgs *thArgs = (struct ThreadRBFDoubleGradArgs *)rowArgs;
+void *ThreadRBFFloatGrad(void *rowArgs){
+    struct ThreadRBFFloatGradArgs *thArgs = (struct ThreadRBFFloatGradArgs *)rowArgs;
     int rowSize = thArgs->dim1 * thArgs->dim2;
 
-    doubleMultiplyByDiagonalRademacherMat(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat<float>(thArgs->arrayStart,
                     thArgs->rademArray,
                     thArgs->dim1, thArgs->dim2, 
                     thArgs->startPosition, thArgs->endPosition);
-    doubleTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<float>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
 
-    doubleMultiplyByDiagonalRademacherMat(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat<float>(thArgs->arrayStart,
                     thArgs->rademArray + rowSize,
                     thArgs->dim1, thArgs->dim2, 
                     thArgs->startPosition, thArgs->endPosition);
-    doubleTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<float>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
     
-    doubleMultiplyByDiagonalRademacherMat(thArgs->arrayStart,
+    multiplyByDiagonalRademacherMat<float>(thArgs->arrayStart,
                     thArgs->rademArray + 2 * rowSize,
                     thArgs->dim1, thArgs->dim2, 
                     thArgs->startPosition, thArgs->endPosition);
-    doubleTransformRows3D(thArgs->arrayStart, thArgs->startPosition, 
+    transformRows3D<float>(thArgs->arrayStart, thArgs->startPosition, 
                     thArgs->endPosition, thArgs->dim1, thArgs->dim2);
-    rbfDoubleGradLastStep_(thArgs->arrayStart, thArgs->chiArr,
+    rbfFloatGradLastStep_(thArgs->arrayStart, thArgs->chiArr,
                     thArgs->outputArray, thArgs->gradientArray,
                     thArgs->rbfNormConstant, thArgs->sigma,
                     thArgs->startPosition, thArgs->endPosition,
@@ -405,9 +352,8 @@ void *ThreadRBFDoubleGrad(void *rowArgs){
     return NULL;
 }
 
-
 /*!
- * # ThreadARDDoubleGrad
+ * # ThreadARDFloatGrad
  *
  * Performs ARD gradient-only calculations using pregenerated
  * features and weights.
@@ -418,12 +364,12 @@ void *ThreadRBFDoubleGrad(void *rowArgs){
  * Contains all the arrays and info (e.g. startRow, endRow) needed
  * to process the chunk of the array belonging to this thread.
  */
-void *ThreadARDDoubleGrad(void *rowArgs){
-    struct ThreadARDDoubleGradArgs *thArgs = (struct ThreadARDDoubleGradArgs *)rowArgs;
-    ardDoubleGradCalcs_(thArgs->inputX, thArgs->randomFeats,
+void *ThreadARDFloatGrad(void *rowArgs){
+    struct ThreadARDFloatGradArgs *thArgs = (struct ThreadARDFloatGradArgs *)rowArgs;
+    ardFloatGradCalcs_(thArgs->inputX, thArgs->randomFeats,
                     thArgs->precompWeights, thArgs->sigmaMap,
-                    thArgs->sigmaVals,
-                    thArgs->gradientArray, thArgs->startPosition,
+                    thArgs->sigmaVals, thArgs->gradientArray,
+                    thArgs->startPosition,
                     thArgs->endPosition, thArgs->dim1,
                     thArgs->numLengthscales,
                     thArgs->rbfNormConstant,
@@ -434,7 +380,52 @@ void *ThreadARDDoubleGrad(void *rowArgs){
 
 
 /*!
- * # rbfDoubleFeatureGenLastStep_
+ * # rbfFloatFeatureGenLastStep_
+ 
+ * Performs the last steps in RBF feature generation.
+ *
+ * ## Args:
+ *
+ * + `xArray` Pointer to the first element of the input array.
+ * + `chiArray` Pointer to first element of diagonal array to ensure
+ * correct marginals.
+ * + `outputArray` Pointer to first element of output array.
+ * + `rbfNormConstant` A value by which all outputs are multipled.
+ * + `startRow` The starting row for this thread to work on.
+ * + `endRow` The ending row for this thread to work on.
+ * + `dim1` shape[1] of input array
+ * + `dim2` shape[2] of input array
+ * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
+ */
+void rbfFloatFeatureGenLastStep_(float *xArray, float *chiArray,
+        double *outputArray, double normConstant,
+        int startRow, int endRow, int dim1,
+        int dim2, int numFreqs){
+    int i, j;
+    int elementsPerRow = dim1 * dim2;
+    float *xElement;
+    double *outputElement;
+    float outputVal;
+
+    for (i=startRow; i < endRow; i++){
+        xElement = xArray + i * elementsPerRow;
+        outputElement = outputArray + i * 2 * numFreqs;
+        for (j=0; j < numFreqs; j++){
+            outputVal = *xElement * chiArray[j];
+            *outputElement = normConstant * cosf(outputVal);
+            outputElement++;
+            *outputElement = normConstant * sinf(outputVal);
+            outputElement++;
+            xElement++;
+        }
+    }
+}
+
+
+
+
+/*!
+ * # rbfFloatGradLastStep_
  *
  * Performs the last steps in RBF feature generation.
  *
@@ -451,69 +442,27 @@ void *ThreadARDDoubleGrad(void *rowArgs){
  * + `dim2` shape[2] of input array
  * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
  */
-void rbfDoubleFeatureGenLastStep_(double *xArray, double *chiArray,
-        double *outputArray, double normConstant,
-        int startRow, int endRow, int dim1,
-        int dim2, int numFreqs){
-    int i, j;
-    int elementsPerRow = dim1 * dim2;
-    double *xElement;
-    double *outputElement;
-    double outputVal;
-
-    for (i=startRow; i < endRow; i++){
-        xElement = xArray + i * elementsPerRow;
-        outputElement = outputArray + i * 2 * numFreqs;
-        for (j=0; j < numFreqs; j++){
-            outputVal = *xElement * chiArray[j];
-            *outputElement = normConstant * cos(outputVal);
-            outputElement++;
-            *outputElement = normConstant * sin(outputVal);
-            outputElement++;
-            xElement++;
-        }
-    }
-}
-
-
-
-/*!
- * # rbfDoubleGradLastStep_
- *
- * Performs the last steps in RBF feature + gradient calcs.
- *
- * ## Args:
- *
- * + `xArray` Pointer to the first element of the input array.
- * + `chiArray` Pointer to first element of diagonal array to ensure
- * correct marginals.
- * + `outputArray` Pointer to first element of output array.
- * + `rbfNormConstant` A value by which all outputs are multipled.
- * + `startRow` The starting row for this thread to work on.
- * + `endRow` The ending row for this thread to work on.
- * + `dim1` shape[1] of input array
- * + `dim2` shape[2] of input array
- * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
- */
-void rbfDoubleGradLastStep_(double *xArray, double *chiArray,
+void rbfFloatGradLastStep_(float *xArray, float *chiArray,
         double *outputArray, double *gradientArray,
-        double normConstant, double sigma,
+        double normConstant, float sigma,
         int startRow, int endRow, int dim1,
         int dim2, int numFreqs){
     int i, j;
     int elementsPerRow = dim1 * dim2;
-    double *xElement;
+    float *xElement;
     double *outputElement, *gradientElement;
-    double outputVal, cosVal, sinVal;
+    float outputVal;
+    double cosVal, sinVal;
 
     for (i=startRow; i < endRow; i++){
         xElement = xArray + i * elementsPerRow;
         outputElement = outputArray + i * 2 * numFreqs;
         gradientElement = gradientArray + i * 2 * numFreqs;
+
         for (j=0; j < numFreqs; j++){
             outputVal = *xElement * chiArray[j];
-            cosVal = cos(outputVal * sigma) * normConstant;
-            sinVal = sin(outputVal * sigma) * normConstant;
+            cosVal = cosf(outputVal * sigma) * normConstant;
+            sinVal = sinf(outputVal * sigma) * normConstant;
 
             *outputElement = cosVal;
             outputElement++;
@@ -531,9 +480,8 @@ void rbfDoubleGradLastStep_(double *xArray, double *chiArray,
 
 
 
-
 /*!
- * # ardDoubleGradCalcs_
+ * # ardFloatGradCalcs_
  *
  * Performs the key calculations for the miniARD gradient.
  *
@@ -556,16 +504,16 @@ void rbfDoubleGradLastStep_(double *xArray, double *chiArray,
  * caller.
  * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
  */
-void ardDoubleGradCalcs_(double *inputX, double *randomFeatures,
-        double *precompWeights, int32_t *sigmaMap, double *sigmaVals,
+void ardFloatGradCalcs_(float *inputX, double *randomFeatures,
+        float *precompWeights, int32_t *sigmaMap, double *sigmaVals,
         double *gradient, int startRow, int endRow, int dim1,
         int numLengthscales, double rbfNormConstant,
         int numFreqs){
     int i, j, k;
     int gradIncrement = numFreqs * numLengthscales;
-    double *xElement, *precompWeight, dotProd;
+    float *xElement, *precompWeight;
     double *gradientElement, *randomFeature;
-    double gradVal, sinVal, cosVal, rfSum;
+    double gradVal, sinVal, cosVal, rfSum, dotProd;
 
     xElement = inputX + startRow * dim1;
 
