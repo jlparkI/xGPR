@@ -15,10 +15,8 @@ from cpu_rf_gen_module import floatCpuRBFGrad as fRBFGrad
 
 try:
     import cupy as cp
-    from cuda_rf_gen_module import doubleCudaRBFFeatureGen as dCudaRBF
-    from cuda_rf_gen_module import floatCudaRBFFeatureGen as fCudaRBF
-    from cuda_rf_gen_module import doubleCudaRBFGrad as dCudaRBFGrad
-    from cuda_rf_gen_module import floatCudaRBFGrad as fCudaRBFGrad
+    from cuda_rf_gen_module import cudaRBFFeatureGen as cudaRBF
+    from cuda_rf_gen_module import cudaRBFGrad as cudaRBFGrad
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass
@@ -121,12 +119,8 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
                 self.chi_arr = cp.asnumpy(self.chi_arr)
             self.chi_arr = self.chi_arr.astype(self.dtype)
         else:
-            if self.double_precision:
-                self.gradfun = dCudaRBFGrad
-                self.feature_gen = dCudaRBF
-            else:
-                self.gradfun = fCudaRBFGrad
-                self.feature_gen = fCudaRBF
+            self.gradfun = cudaRBFGrad
+            self.feature_gen = cudaRBF
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
 

@@ -17,18 +17,18 @@ from libc.stdint cimport int8_t, int32_t
 
 
 cdef extern from "convolution_ops/convolution.h" nogil:
-    const char *floatConv1dPrep(int8_t *radem,
-                float *reshapedx, int reshapeddim0, 
+    const char *conv1dPrep[T](int8_t *radem,
+                T reshapedx[], int reshapeddim0, 
                 int reshapeddim1, int reshapeddim2,
                 int startposition, int numfreqs)
 
 cdef extern from "convolution_ops/rbf_convolution.h" nogil:
-    const char *floatConvRBFFeatureGen(int8_t *radem, float *reshapedX,
-            float *featureArray, float *chiArr, double *outputArray,     
+    const char *convRBFFeatureGen[T](int8_t *radem, T reshapedX[],
+            T featureArray[], T chiArr[], double *outputArray,     
             int reshapedDim0, int reshapedDim1, int reshapedDim2,
             int numFreqs, int rademShape2, double scalingTerm);
-    const char *floatConvRBFFeatureGrad(int8_t *radem, float *reshapedX,
-            float *featureArray, float *chiArr, double *outputArray,     
+    const char *convRBFFeatureGrad[T](int8_t *radem, T reshapedX[],
+            T featureArray[], T chiArr[], double *outputArray,     
             double *gradientArray, double sigma,
             int reshapedDim0, int reshapedDim1, int reshapedDim2,
             int numFreqs, int rademShape2, double scalingTerm);
@@ -37,10 +37,11 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def floatGpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
+def gpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
         int numThreads, bint subtractMean = False):
     """Uses wrapped C extensions to perform random feature generation
-    with ReLU activation and maxpooling.
+    with ReLU activation and maxpooling. TODO: Transfer the loop
+    and sum operations in here to a Cuda kernel and wrap.
 
     Args:
         reshapedX (cp.ndarray): An array of type float32 from which
@@ -64,6 +65,9 @@ def floatGpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
     cdef int i, startPosition, cutoff
     cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
     reshapedXCopy = reshapedX.copy()
+    cdef uintptr_t addr_reshapedCopy = reshapedXCopy.data.ptr
+    cdef uintptr_t addr_radem = radem.data.ptr
+
     
     #Check that all arrays have expected sizes and data types.    
     if reshapedX.shape[0] == 0:
@@ -79,10 +83,6 @@ def floatGpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
         raise ValueError("X must be a 3d array.")
     if not radem.dtype == "int8":
         raise ValueError("radem must be int8.")
-    if not outputArray.dtype == "float64" or not reshapedX.dtype == "float32":
-        raise ValueError("reshapedX must be float32, outputArray must be float64.")
-    if not chiArr.dtype == "float32":
-        raise ValueError("chiArr must be float32.")
 
 
     #Check that shapes of radem, outputArray are correct.
@@ -109,38 +109,54 @@ def floatGpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
         raise ValueError("One or more arguments is not C contiguous.")
 
 
-    cdef uintptr_t addr_reshapedCopy = reshapedXCopy.data.ptr
-    cdef float *reshapedXCopyPtr = <float*>addr_reshapedCopy
-    
-    cdef uintptr_t addr_radem = radem.data.ptr
-    cdef int8_t *radem_ptr = <int8_t*>addr_radem
     
     startPosition, cutoff = 0, reshapedX.shape[2]
     
-    for i in range(num_repeats):
-        reshapedXCopy[:] = reshapedX
-        errCode = floatConv1dPrep(radem_ptr,
-                    reshapedXCopyPtr, reshapedX.shape[0], reshapedX.shape[1], 
+    if outputArray.dtype == "float64" and reshapedX.dtype == "float32" and \
+            chiArr.dtype == "float32":
+        for i in range(num_repeats):
+            reshapedXCopy[:] = reshapedX
+            errCode = conv1dPrep[float](<int8_t*>addr_radem,
+                    <float*>addr_reshapedCopy, reshapedX.shape[0], reshapedX.shape[1], 
                     reshapedX.shape[2], i * reshapedX.shape[2],
                     radem.shape[2])
-        if errCode.decode("UTF-8") != "no_error":
-            raise Exception("Fatal error encountered in floatGpuConv1dTransform_.")
+            if errCode.decode("UTF-8") != "no_error":
+                raise Exception("Fatal error encountered in floatGpuConv1dTransform_.")
         
-        reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
-        outputArray[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
-        if subtractMean:
-            outputArray[:,startPosition:cutoff] -= reshapedXCopy.mean(axis=1)
+            reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
+            outputArray[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
+            if subtractMean:
+                outputArray[:,startPosition:cutoff] -= reshapedXCopy.mean(axis=1)
 
-        cutoff += reshapedX.shape[2]
-        startPosition += reshapedX.shape[2]
+            cutoff += reshapedX.shape[2]
+            startPosition += reshapedX.shape[2]
+    elif outputArray.dtype == "float64" and reshapedX.dtype == "float64" and \
+            chiArr.dtype == "float64":
+        for i in range(num_repeats):
+            reshapedXCopy[:] = reshapedX
+            errCode = conv1dPrep[double](<int8_t*>addr_radem,
+                    <double*>addr_reshapedCopy, reshapedX.shape[0], reshapedX.shape[1], 
+                    reshapedX.shape[2], i * reshapedX.shape[2],
+                    radem.shape[2])
+            if errCode.decode("UTF-8") != "no_error":
+                raise Exception("Fatal error encountered in floatGpuConv1dTransform_.")
+        
+            reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
+            outputArray[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
+            if subtractMean:
+                outputArray[:,startPosition:cutoff] -= reshapedXCopy.mean(axis=1)
 
+            cutoff += reshapedX.shape[2]
+            startPosition += reshapedX.shape[2]
+    else:
+        raise ValueError("Inconsistent types passed to a wrapped C++ function.")
 
 
 
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def floatGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
+def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
                 int numThreads, float beta_):
     """Uses wrapped C functions to generate random features for FHTConv1d, GraphConv1d,
     and related kernels. This function cannot be used to calculate the gradient
@@ -196,38 +212,42 @@ def floatGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
     
     if not radem.dtype == "int8":
         raise ValueError("radem must be int8.")
-    if not outputArray.dtype == "float64" or not reshapedX.dtype == "float32":
-        raise ValueError("Incorrect data types supplied.")
-    if not chiArr.dtype == "float32":
-        raise ValueError("chiArr must be float32.")
 
     if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
         or not chiArr.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
 
-    featureArray = cp.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]),
+    if reshapedX.dtype == "float32":
+        featureArray = cp.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]),
                             dtype = cp.float32)
+    else:
+        featureArray = cp.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]),
+                            dtype = cp.float64)
 
     cdef uintptr_t addr_reshapedX = reshapedX.data.ptr
-    cdef float *reshapedXPtr = <float*>addr_reshapedX
     cdef uintptr_t addr_featureArray = featureArray.data.ptr
-    cdef float *featureArrayPtr = <float*>addr_featureArray
- 
     cdef uintptr_t addr_radem = radem.data.ptr
-    cdef int8_t *radem_ptr = <int8_t*>addr_radem
     cdef uintptr_t addr_chi = chiArr.data.ptr
-    cdef float *chiArrPtr = <float*>addr_chi
-
-    cdef uintptr_t addr_outputArray = outputArray.data.ptr
-    cdef double *outputArrayPtr = <double*>addr_outputArray
+    cdef uintptr_t addr_output = outputArray.data.ptr
 
 
     scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
     scalingTerm *= beta_
 
-    errCode = floatConvRBFFeatureGen(radem_ptr, reshapedXPtr, featureArrayPtr,
-                    chiArrPtr, outputArrayPtr, reshapedX.shape[0], reshapedX.shape[1], 
+    if outputArray.dtype == "float64" and reshapedX.dtype == "float32" and \
+            chiArr.dtype == "float32":
+        errCode = convRBFFeatureGen[float](<int8_t*>addr_radem, <float*>addr_reshapedX,
+                    <float*>addr_featureArray, <float*>addr_chi,
+                    <double*>addr_output, reshapedX.shape[0], reshapedX.shape[1],
                     reshapedX.shape[2], chiArr.shape[0], radem.shape[2], scalingTerm)
+    elif outputArray.dtype == "float64" and reshapedX.dtype == "float64" and \
+            chiArr.dtype == "float64":
+        errCode = convRBFFeatureGen[double](<int8_t*>addr_radem, <double*>addr_reshapedX,
+                    <double*>addr_featureArray, <double*>addr_chi,
+                    <double*>addr_output, reshapedX.shape[0], reshapedX.shape[1], 
+                    reshapedX.shape[2], chiArr.shape[0], radem.shape[2], scalingTerm)
+    else:
+        raise ValueError("Incorrect data types supplied.")
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing FHT RF generation.")
 
@@ -236,7 +256,7 @@ def floatGpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def floatGpuConvGrad(reshapedX, radem, outputArray, chiArr,
+def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
                 int numThreads, float sigma, float beta_):
     """Performs feature generation for the GraphRBF kernel while also performing
     gradient calculations.
@@ -296,10 +316,6 @@ def floatGpuConvGrad(reshapedX, radem, outputArray, chiArr,
     
     if not radem.dtype == "int8":
         raise ValueError("radem must be int8.")
-    if not outputArray.dtype == "float64" or not reshapedX.dtype == "float32":
-        raise ValueError("reshapedX must be float32, outputArray must be float64.")
-    if not chiArr.dtype == "float32":
-        raise ValueError("chiArr must be float32.")
 
     if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
         or not chiArr.flags["C_CONTIGUOUS"]:
@@ -307,33 +323,41 @@ def floatGpuConvGrad(reshapedX, radem, outputArray, chiArr,
 
 
     gradient = cp.zeros((outputArray.shape[0], outputArray.shape[1], 1), dtype=cp.float64)
-    featureArray = cp.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]),
+    if reshapedX.dtype == "float32":
+        featureArray = cp.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]),
                             dtype = cp.float32)
+    else:
+        featureArray = cp.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]),
+                            dtype = cp.float64)
 
     cdef uintptr_t addr_reshapedX = reshapedX.data.ptr
-    cdef float *reshapedXPtr = <float*>addr_reshapedX
     cdef uintptr_t addr_featureArray = featureArray.data.ptr
-    cdef float *featureArrayPtr = <float*>addr_featureArray
- 
     cdef uintptr_t addr_radem = radem.data.ptr
-    cdef int8_t *radem_ptr = <int8_t*>addr_radem
     cdef uintptr_t addr_chi = chiArr.data.ptr
-    cdef float *chiArrPtr = <float*>addr_chi
-
-    cdef uintptr_t addr_outputArray = outputArray.data.ptr
-    cdef double *outputArrayPtr = <double*>addr_outputArray
-    cdef uintptr_t addr_gradientArray = gradient.data.ptr
-    cdef double *gradientArrayPtr = <double*>addr_gradientArray
+    cdef uintptr_t addr_output = outputArray.data.ptr
+    cdef uintptr_t addr_gradient = gradient.data.ptr
 
 
     scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
     scalingTerm *= beta_
 
-    errCode = floatConvRBFFeatureGrad(radem_ptr, reshapedXPtr,
-            featureArrayPtr, chiArrPtr, outputArrayPtr,     
-            gradientArrayPtr, sigma,
+    if outputArray.dtype == "float64" and reshapedX.dtype == "float32" and \
+            chiArr.dtype == "float32":
+        errCode = convRBFFeatureGrad[float](<int8_t*>addr_radem, <float*>addr_reshapedX,
+            <float*>addr_featureArray, <float*>addr_chi,
+            <double*>addr_output, <double*>addr_gradient, sigma,
             reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2],
-            chiArr.shape[0], radem.shape[2], scalingTerm);
+            chiArr.shape[0], radem.shape[2], scalingTerm)
+    elif outputArray.dtype == "float64" and reshapedX.dtype == "float64" and \
+            chiArr.dtype == "float64":
+        errCode = convRBFFeatureGrad[double](<int8_t*>addr_radem,
+            <double*>addr_reshapedX, <double*>addr_featureArray,
+            <double*>addr_chi, <double*>addr_output,
+            <double*>addr_gradient, sigma,
+            reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2],
+            chiArr.shape[0], radem.shape[2], scalingTerm)
+    else:
+        raise ValueError("Incorrect data types supplied.")
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing FHT RF generation.")
     return gradient

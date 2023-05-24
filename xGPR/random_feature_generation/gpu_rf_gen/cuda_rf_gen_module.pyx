@@ -6,7 +6,6 @@ multiple .pyx files to a single extension."""
 
 cimport cython
 include "cuda_basic_operations.pyx"
-include "cuda_convolution_double.pyx"
-include "cuda_convolution_float.pyx"
+include "cuda_convolution.pyx"
 include "cuda_polynomial.pyx"
 include "cuda_rbf_operations.pyx"

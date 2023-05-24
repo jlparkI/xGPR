@@ -18,10 +18,8 @@ from cpu_rf_gen_module import doubleCpuSRHT as dSRHT
 from cpu_rf_gen_module import floatCpuSRHT as fSRHT
 
 try:
-    from cuda_rf_gen_module import doubleCudaPySORFTransform as dCudaSORF
-    from cuda_rf_gen_module import floatCudaPySORFTransform as fCudaSORF
-    from cuda_rf_gen_module import doubleCudaSRHT as dCudaSRHT
-    from cuda_rf_gen_module import floatCudaSRHT as fCudaSRHT
+    from cuda_rf_gen_module import cudaPySORFTransform as cudaSORF
+    from cuda_rf_gen_module import cudaSRHT
     import cupy as cp
 except:
     pass
@@ -219,8 +217,8 @@ def run_sorf_test(nblocks, dim2, random_seed = 123):
 
     if "cupy" in sys.modules:
         radem = cp.asarray(radem)
-        dCudaSORF(cuda_test_double, radem, 2)
-        fCudaSORF(cuda_test_float, radem, 2)
+        cudaSORF(cuda_test_double, radem, 2)
+        cudaSORF(cuda_test_float, radem, 2)
         cuda_test_double = cp.asnumpy(cuda_test_double)
         cuda_test_float = cp.asnumpy(cuda_test_float)
         outcome_cuda_d = np.allclose(marr_gt_double, cuda_test_double)
@@ -285,8 +283,8 @@ def run_srht_test(dim, compression_size, random_seed = 123):
 
     if "cupy" in sys.modules:
         radem = cp.asarray(radem)
-        fCudaSRHT(cuda_test_float, radem, sampler, compression_size, 2)
-        dCudaSRHT(cuda_test_double, radem, sampler, compression_size, 2)
+        cudaSRHT(cuda_test_float, radem, sampler, compression_size, 2)
+        cudaSRHT(cuda_test_double, radem, sampler, compression_size, 2)
         cuda_test_double = cp.asnumpy(cuda_test_double)
         cuda_test_float = cp.asnumpy(cuda_test_float)
         outcome_cuda_d = np.allclose(marr_gt_double, cuda_test_double)

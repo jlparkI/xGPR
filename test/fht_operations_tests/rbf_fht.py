@@ -15,10 +15,8 @@ from cpu_rf_gen_module import doubleCpuSORFTransform as dSORF
 from cpu_rf_gen_module import floatCpuSORFTransform as fSORF
 
 try:
-    from cuda_rf_gen_module import doubleCudaRBFFeatureGen as dCudaRBF
-    from cuda_rf_gen_module import floatCudaRBFFeatureGen as fCudaRBF
-    from cuda_rf_gen_module import doubleCudaRBFGrad as dCudaRBFGrad
-    from cuda_rf_gen_module import floatCudaRBFGrad as fCudaRBFGrad
+    from cuda_rf_gen_module import cudaRBFFeatureGen as cudaRBF
+    from cuda_rf_gen_module import cudaRBFGrad as cudaRBFGrad
     import cupy as cp
 except:
     pass
@@ -90,9 +88,9 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
         cuda_double_output = cp.zeros((test_array.shape[0], num_freqs * 2))
         cuda_float_output = cp.zeros((test_array.shape[0], num_freqs * 2))
 
-        dCudaRBF(cuda_test_array, cuda_double_output, radem,
+        cudaRBF(cuda_test_array, cuda_double_output, radem,
                 chi_arr, beta_value, 2)
-        fCudaRBF(cuda_test_float, cuda_float_output, radem,
+        cudaRBF(cuda_test_float, cuda_float_output, radem,
                 chi_float, beta_value, 2)
 
 
@@ -145,9 +143,9 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
         cuda_double_output = cp.zeros((test_array.shape[0], num_freqs * 2))
         cuda_float_output = cp.zeros((test_array.shape[0], num_freqs * 2))
 
-        cuda_double_grad = dCudaRBFGrad(cuda_test_array, cuda_double_output, radem,
+        cuda_double_grad = cudaRBFGrad(cuda_test_array, cuda_double_output, radem,
                 chi_arr, beta_value, sigmaHparam = 1.0, numThreads = 2)
-        cuda_float_grad = fCudaRBFGrad(cuda_test_float, cuda_float_output, radem,
+        cuda_float_grad = cudaRBFGrad(cuda_test_float, cuda_float_output, radem,
                 chi_float, beta_value, sigmaHparam = 1.0, numThreads = 2)
 
     outcome_d = np.allclose(gt_double, double_output)

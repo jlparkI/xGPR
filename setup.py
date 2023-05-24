@@ -76,7 +76,7 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
             "convolution_ops", "rbf_ops"]:
         os.chdir(target_dir)
         for fname in os.listdir():
-            if not fname.endswith("c"):
+            if not fname.endswith(".c"):
                 continue
             sources.append(os.path.abspath(fname))
         os.chdir("..")

@@ -11,8 +11,7 @@ from cpu_rf_gen_module import floatCpuRBFFeatureGen, floatCpuMiniARDGrad
 
 try:
     import cupy as cp
-    from cuda_rf_gen_module import doubleCudaRBFFeatureGen, doubleCudaMiniARDGrad
-    from cuda_rf_gen_module import floatCudaRBFFeatureGen, floatCudaMiniARDGrad
+    from cuda_rf_gen_module import cudaRBFFeatureGen, cudaMiniARDGrad
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass
@@ -162,12 +161,8 @@ class MiniARD(KernelBaseclass):
                 self.ard_position_key = cp.asnumpy(self.ard_position_key)
             self.chi_arr = self.chi_arr.astype(self.dtype)
         else:
-            if self.double_precision:
-                self.grad_fun = doubleCudaMiniARDGrad
-                self.feature_gen = doubleCudaRBFFeatureGen
-            else:
-                self.grad_fun = floatCudaMiniARDGrad
-                self.feature_gen = floatCudaRBFFeatureGen
+            self.grad_fun = cudaMiniARDGrad
+            self.feature_gen = cudaRBFFeatureGen
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
             if self.precomputed_weights is not None:

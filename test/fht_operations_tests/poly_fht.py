@@ -17,15 +17,11 @@ from cpu_rf_gen_module import floatCpuPolyFHT
 from cpu_rf_gen_module import doubleCpuPolyFHT
 
 try:
-    from cuda_rf_gen_module import floatGpuGraphPolyFHT
-    from cuda_rf_gen_module import doubleGpuGraphPolyFHT
-    from cuda_rf_gen_module import floatGpuPolyFHT
-    from cuda_rf_gen_module import doubleGpuPolyFHT
+    from cuda_rf_gen_module import gpuGraphPolyFHT
+    from cuda_rf_gen_module import gpuPolyFHT
+    import cupy as cp
 except:
     pass
-
-import cupy as cp
-
 
 class TestPolyFHT(unittest.TestCase):
     """Tests feature generation for the polynomial kernels."""
@@ -121,16 +117,10 @@ def run_evaluation(ndatapoints, num_feats, num_freqs,
     if "cupy" not in sys.modules:
         return [outcome]
 
-    if precision == "float":
-        if kernel_type == "graph":
-            conv_fun = floatGpuGraphPolyFHT
-        else:
-            conv_fun = floatGpuPolyFHT
+    if kernel_type == "graph":
+        conv_fun = gpuGraphPolyFHT
     else:
-        if kernel_type == "graph":
-            conv_fun = doubleGpuGraphPolyFHT
-        else:
-            conv_fun = doubleGpuPolyFHT
+        conv_fun = gpuPolyFHT
 
     col_sampler = cp.asarray(col_sampler)
     xdata = cp.asarray(xdata)

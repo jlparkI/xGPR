@@ -10,8 +10,7 @@ import numpy as np
 from cpu_rf_gen_module import doubleCpuConv1dFGen, doubleCpuConvGrad, doubleCpuConv1dMaxpool
 from cpu_rf_gen_module import floatCpuConv1dFGen, floatCpuConvGrad, floatCpuConv1dMaxpool
 try:
-    from cuda_rf_gen_module import doubleGpuConv1dFGen, doubleGpuConvGrad, doubleGpuConv1dMaxpool
-    from cuda_rf_gen_module import floatGpuConv1dFGen, floatGpuConvGrad, floatGpuConv1dMaxpool
+    from cuda_rf_gen_module import gpuConv1dFGen, gpuConvGrad, gpuConv1dMaxpool
     import cupy as cp
 except:
     pass
@@ -34,7 +33,7 @@ class TestConv1d(unittest.TestCase):
                     num_freqs, sigma)
         for outcome in outcomes:
             self.assertTrue(outcome)
-
+        
         outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, precision = "float")
         for outcome in outcomes:
@@ -169,10 +168,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     features = cp.asarray(features)
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
-    if precision == "float":
-        floatGpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, 1.0)
-    else:
-        doubleGpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, 1.0)
+    gpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, 1.0)
 
     features = cp.asnumpy(features)
     outcome_cuda = check_results(true_features, features, precision)
@@ -223,10 +219,7 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
 
-    if precision == "float":
-        gradient = floatGpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma, 1.0)
-    else:
-        gradient = doubleGpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma, 1.0)
+    gradient = gpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma, 1.0)
     features = cp.asnumpy(features[:,:(2*num_freqs)])
     gradient = cp.asnumpy(gradient[:,:(2*num_freqs),0])
     
@@ -280,11 +273,7 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
 
-    if precision == "float":
-        floatGpuConv1dMaxpool(reshaped_x, radem, features,
-                s_mat, 2, subtract_mean)
-    else:
-        doubleGpuConv1dMaxpool(reshaped_x, radem, features,
+    gpuConv1dMaxpool(reshaped_x, radem, features,
                 s_mat, 2, subtract_mean)
 
     
@@ -332,11 +321,7 @@ def run_arccos_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
 
-    if precision == "float":
-        floatGpuConv1dArcCosFGen(reshaped_x, radem, features,
-                s_mat, 2, 1.0, 1)
-    else:
-        doubleGpuConv1dArcCosFGen(reshaped_x, radem, features,
+    gpuConv1dArcCosFGen(reshaped_x, radem, features,
                 s_mat, 2, 1.0, 1)
 
     
