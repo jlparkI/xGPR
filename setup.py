@@ -173,7 +173,7 @@ def main():
         install_requires=["numpy>=1.10", "scipy>=1.7.0",
                     "cython>=0.10"],
         ext_modules = ext_modules,
-        package_data={"": ["*.h", "*.c", "*.cu",
+        package_data={"": ["*.h", "*.c", "*.cu", "*.cpp",
                             "*.pyx", "*.sh"]}
         )
 
