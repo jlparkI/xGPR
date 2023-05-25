@@ -9,12 +9,9 @@ import unittest
 import numpy as np
 from scipy.stats import chi
 
-from cpu_rf_gen_module import doubleCpuFastHadamardTransform as dFHT
-from cpu_rf_gen_module import floatCpuFastHadamardTransform as fFHT
-from cpu_rf_gen_module import floatCpuGraphPolyFHT
-from cpu_rf_gen_module import doubleCpuGraphPolyFHT
-from cpu_rf_gen_module import floatCpuPolyFHT
-from cpu_rf_gen_module import doubleCpuPolyFHT
+from cpu_rf_gen_module import cpuFastHadamardTransform as cFHT
+from cpu_rf_gen_module import cpuGraphPolyFHT
+from cpu_rf_gen_module import cpuPolyFHT
 
 try:
     from cuda_rf_gen_module import gpuGraphPolyFHT
@@ -91,18 +88,12 @@ def run_evaluation(ndatapoints, num_feats, num_freqs,
         xdata, col_sampler, radem, features, xdim2 = get_classic_matrices(ndatapoints,
                         num_feats, num_freqs, polydegree, precision)
         true_features = get_classic_features(xdata, radem, col_sampler, precision)
-        if precision == "float":
-            conv_fun = floatCpuPolyFHT
-        else:
-            conv_fun = doubleCpuPolyFHT
+        conv_fun = cpuPolyFHT
     else:
         xdata, col_sampler, radem, features, xdim2 = get_graph_matrices(ndatapoints,
                         num_feats, num_freqs, polydegree, precision)
         true_features = get_graph_features(xdata, radem, col_sampler, xdim2, precision)
-        if precision == "float":
-            conv_fun = floatCpuGraphPolyFHT
-        else:
-            conv_fun = doubleCpuGraphPolyFHT
+        conv_fun = cpuGraphPolyFHT
 
     conv_fun(xdata, radem, col_sampler, features,
             polydegree, num_threads)
@@ -200,9 +191,8 @@ def get_graph_features(xdata, radem, S, init_calc_freqsize,
     This function is for the graph poly feature generation."""
     true_features = np.zeros((xdata.shape[0], init_calc_freqsize))
     num_repeats = ceil(init_calc_freqsize / xdata.shape[2])
-    fht_func = dFHT
+    fht_func = cFHT
     if precision == "float":
-        fht_func = fFHT
         true_features = true_features.astype(np.float32)
 
     start, cutoff = 0, xdata.shape[2]
@@ -238,9 +228,7 @@ def get_classic_features(xdata, radem, S, precision = "double"):
     """A very slow and clunky python version of the feature calculation.
     Intended to double-check the Cython version and make sure it is correct.
     This function is for the classic poly feature generation."""
-    fht_func = dFHT
-    if precision == "float":
-        fht_func = fFHT
+    fht_func = cFHT
 
     norm_constant = np.log2(xdata.shape[2]) / 2
     norm_constant = 1 / (2**norm_constant)

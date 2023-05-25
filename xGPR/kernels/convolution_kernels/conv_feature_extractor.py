@@ -12,7 +12,7 @@ try:
 except:
     pass
 
-from cpu_rf_gen_module import floatCpuConv1dMaxpool
+from cpu_rf_gen_module import cpuConv1dMaxpool
 
 
 class FHTMaxpoolConv1dFeatureExtractor():
@@ -109,7 +109,7 @@ class FHTMaxpoolConv1dFeatureExtractor():
                 self.radem_diag = cp.asnumpy(self.radem_diag)
                 self.chi_arr = cp.asnumpy(self.chi_arr)
             self.chi_arr = self.chi_arr.astype(self.dtype)
-            self.conv_func = floatCpuConv1dMaxpool
+            self.conv_func = cpuConv1dMaxpool
             self.stride_tricks = np.lib.stride_tricks.as_strided
 
 

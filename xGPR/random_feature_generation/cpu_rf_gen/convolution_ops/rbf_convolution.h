@@ -3,69 +3,34 @@
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
-struct ThreadConvRBFFloatArgs {
-    int reshapedDim1, reshapedDim2;
-    int numFreqs;
-    float *reshapedXArray;
-    float *chiArr;
-    double *outputArray;
-    float *copyBuffer;
-    int8_t *rademArray;
-    int startRow, endRow;
-    double *gradientArray;
-    float sigma;
-    int rademShape2;
-};
 
-
-struct ThreadConvRBFDoubleArgs {
-    int reshapedDim1, reshapedDim2;
-    int numFreqs;
-    double *reshapedXArray;
-    double *chiArr;
-    double *outputArray;
-    double *copyBuffer;
-    int8_t *rademArray;
-    int startRow, endRow;
-    double *gradientArray;
-    double sigma;
-    int rademShape2;
-};
-
-
-const char *doubleConvRBFFeatureGen_(int8_t *radem, double *reshapedX,
-            double *copyBuffer, double *chiArr, double *outputArray,
+template <typename T>
+const char *convRBFFeatureGen_(int8_t *radem, T reshapedX[],
+            T copyBuffer[], T chiArr[], double *outputArray,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
             int numFreqs, int rademShape2);
 
-const char *floatConvRBFFeatureGen_(int8_t *radem, float *reshapedX,
-            float *copyBuffer, float *chiArr, double *outputArray,
+template <typename T>
+const char *convRBFGrad_(int8_t *radem, T reshapedX[],
+            T copyBuffer[], T chiArr[], double *outputArray,
+            double *gradientArray, T sigma,
             int numThreads, int reshapedDim0,
             int reshapedDim1, int reshapedDim2,
             int numFreqs, int rademShape2);
 
-const char *doubleConvRBFGrad_(int8_t *radem, double *reshapedX,
-            double *copyBuffer, double *chiArr, double *outputArray,
-            double *gradientArray, double sigma,
-            int numThreads, int reshapedDim0,
-            int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2);
+template <typename T>
+void *threadConvRBFGen(T reshapedXArray[], T copyBuffer[],
+        int8_t *rademArray, T chiArr[], double *outputArray,
+        int reshapedDim1, int reshapedDim2, int numFreqs,
+        int rademShape2, int startRow, int endRow);
 
-const char *floatConvRBFGrad_(int8_t *radem, float *reshapedX,
-            float *copyBuffer, float *chiArr, double *outputArray,
-            double *gradientArray, float sigma,
-            int numThreads, int reshapedDim0,
-            int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2);
-
-void *floatThreadConvRBFGen(void *sharedArgs);
-
-void *doubleThreadConvRBFGen(void *sharedArgs);
-
-void *floatThreadConvRBFGrad(void *sharedArgs);
-
-void *doubleThreadConvRBFGrad(void *sharedArgs);
+template <typename T>
+void *threadConvRBFGrad(T reshapedXArray[], T copyBuffer[],
+        int8_t *rademArray, T chiArr[], double *outputArray,
+        double *gradientArray, int reshapedDim1,
+        int reshapedDim2, int numFreqs, int rademShape2,
+        int startRow, int endRow, T sigma);
 
 template <typename T>
 void RBFPostProcess(T reshapedX[], T chiArr[],

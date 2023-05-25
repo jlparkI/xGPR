@@ -11,8 +11,7 @@ except:
     pass
 
 from ..kernel_baseclass import KernelBaseclass
-from cpu_rf_gen_module import doubleCpuPolyFHT
-from cpu_rf_gen_module import floatCpuPolyFHT
+from cpu_rf_gen_module import cpuPolyFHT
 
 
 class Polynomial(KernelBaseclass):
@@ -106,10 +105,7 @@ class Polynomial(KernelBaseclass):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
                 self.chi_arr = cp.asnumpy(self.chi_arr)
             self.chi_arr = self.chi_arr.astype(self.dtype)
-            if self.double_precision:
-                self.poly_func = doubleCpuPolyFHT
-            else:
-                self.poly_func = floatCpuPolyFHT
+            self.poly_func = cpuPolyFHT
 
 
 

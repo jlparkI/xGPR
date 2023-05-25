@@ -5,9 +5,8 @@ from math import ceil
 
 import numpy as np
 from scipy.stats import chi
-from cpu_rf_gen_module import doubleCpuFastHadamardTransform2D as dFHT2d
-from cpu_rf_gen_module import doubleCpuRBFFeatureGen, doubleCpuMiniARDGrad
-from cpu_rf_gen_module import floatCpuRBFFeatureGen, floatCpuMiniARDGrad
+from cpu_rf_gen_module import cpuFastHadamardTransform2D as dFHT2d
+from cpu_rf_gen_module import cpuRBFFeatureGen, cpuMiniARDGrad
 
 try:
     import cupy as cp
@@ -109,8 +108,8 @@ class MiniARD(KernelBaseclass):
         self.ard_position_key = np.zeros((xdim[-1]), dtype=np.int32)
         self.kernel_specific_set_hyperparams()
 
-        self.feature_gen = floatCpuRBFFeatureGen
-        self.grad_fun = floatCpuMiniARDGrad
+        self.feature_gen = cpuRBFFeatureGen
+        self.grad_fun = cpuMiniARDGrad
         self.precomputed_weights = None
         self.device = device
 
@@ -146,12 +145,8 @@ class MiniARD(KernelBaseclass):
         convenience references to np.cos / np.sin or cp.cos
         / cp.sin."""
         if new_device == "cpu":
-            if self.double_precision:
-                self.grad_fun = doubleCpuMiniARDGrad
-                self.feature_gen = doubleCpuRBFFeatureGen
-            else:
-                self.grad_fun = floatCpuMiniARDGrad
-                self.feature_gen = floatCpuRBFFeatureGen
+            self.grad_fun = cpuMiniARDGrad
+            self.feature_gen = cpuRBFFeatureGen
             if not isinstance(self.radem_diag, np.ndarray):
                 if self.precomputed_weights is not None:
                     self.precomputed_weights = cp.asnumpy(self.precomputed_weights)

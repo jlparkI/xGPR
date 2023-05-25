@@ -5,8 +5,8 @@ import numpy as np
 import cupy as cp
 import cupyx
 from scipy.fftpack import dct
-from cpu_rf_gen_module import doubleCpuFastHadamardTransform as dFHT
-from cpu_rf_gen_module import doubleCpuSORFTransform as dSORF
+from cpu_rf_gen_module import cpuFastHadamardTransform as cFHT
+from cpu_rf_gen_module import cpuSORFTransform as cSORF
 from cuda_rf_gen_module import cudaPySORFTransform as fCudaSORF
 
 
@@ -47,8 +47,8 @@ nthreads = {nthreads}
 import math
 import numpy as np
 from scipy.linalg import hadamard
-from cpu_rf_gen_module import floatCpuFastHadamardTransform as dFHT
-from cpu_rf_gen_module import floatCpuSORFTransform as dSORF
+from cpu_rf_gen_module import cpuFastHadamardTransform as cFHT
+from cpu_rf_gen_module import cpuSORFTransform as cSORF
 random_seed = 123
 rng = np.random.default_rng(random_seed)
 marr = rng.uniform(low=-10.0, high=10.0, size=({nrows},{nblocks},{ncols}))
@@ -65,8 +65,8 @@ from __main__ import fh3d_test"""
 nthreads = {nthreads}
 import numpy as np
 from scipy.linalg import hadamard
-from cpu_rf_gen_module import floatCpuFastHadamardTransform as dFHT
-from cpu_rf_gen_module import floatCpuSORFTransform as dSORF
+from cpu_rf_gen_module import cpuFastHadamardTransform as cFHT
+from cpu_rf_gen_module import cpuSORFTransform as cSORF
 random_seed = 123
 rng = np.random.default_rng(random_seed)
 marr = rng.uniform(low=-10.0, high=10.0, size=({nrows},{nblocks},{ncols}))
@@ -124,17 +124,17 @@ def fh3d_test(marr, diag, nthreads):
     """Generate SORF features using the FHT module with
     separate diag matmul / fht operations."""
     marr = marr * diag[0:1,:,:]
-    dFHT(marr, nthreads)
+    cFHT(marr, nthreads)
     marr = marr * diag[1:2,:,:]
-    dFHT(marr, nthreads)
+    cFHT(marr, nthreads)
     marr = marr * diag[2:3,:,:]
-    dFHT(marr, nthreads)
+    cFHT(marr, nthreads)
 
 
 def sorf_test(marr, diag, nthreads):
     """Generate SORF features using the sorf function of
     the module."""
-    dSORF(marr, diag, nthreads)
+    cSORF(marr, diag, nthreads)
 
 def cuda_test(marr, diag):
     """Generate SORF features on CUDA."""

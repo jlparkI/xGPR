@@ -12,8 +12,7 @@ except:
     pass
 
 from ..kernel_baseclass import KernelBaseclass
-from cpu_rf_gen_module import doubleCpuGraphPolyFHT
-from cpu_rf_gen_module import floatCpuGraphPolyFHT
+from cpu_rf_gen_module import cpuGraphPolyFHT
 
 
 class GraphPolySum(KernelBaseclass):
@@ -105,10 +104,7 @@ class GraphPolySum(KernelBaseclass):
             if not isinstance(self.radem_diag, np.ndarray):
                 self.chi_arr = cp.asnumpy(self.chi_arr)
                 self.radem_diag = cp.asnumpy(self.radem_diag)
-            if self.double_precision:
-                self.graph_poly_func = doubleCpuGraphPolyFHT
-            else:
-                self.graph_poly_func = floatCpuGraphPolyFHT
+            self.graph_poly_func = cpuGraphPolyFHT
             self.chi_arr = self.chi_arr.astype(self.dtype)
 
 

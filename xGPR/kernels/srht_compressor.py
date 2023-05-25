@@ -5,7 +5,7 @@ more manageable space for hyperparameter tuning purposes."""
 from math import ceil
 
 import numpy as np
-from cpu_rf_gen_module import floatCpuSRHT, doubleCpuSRHT
+from cpu_rf_gen_module import cpuSRHT
 
 try:
     import cupy as cp
@@ -133,12 +133,11 @@ class SRHTCompressor():
             if not isinstance(self.radem, np.ndarray):
                 self.radem = cp.asnumpy(self.radem)
             self.zero_arr = np.zeros
+            self.compressor_func = cpuSRHT
             if self.double_precision:
                 self.dtype = np.float64
-                self.compressor_func = doubleCpuSRHT
             else:
                 self.dtype = np.float32
-                self.compressor_func = floatCpuSRHT
 
         elif value == "gpu":
             self.radem = cp.asarray(self.radem)

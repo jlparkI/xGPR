@@ -6,8 +6,7 @@ from math import ceil
 
 import numpy as np
 
-from cpu_rf_gen_module import doubleCpuFastHadamardTransform as dFHT
-from cpu_rf_gen_module import floatCpuFastHadamardTransform as fFHT
+from cpu_rf_gen_module import cpuFastHadamardTransform as cFHT
 
 
 def get_initial_matrices_fht(ndatapoints, kernel_width, aa_dim, num_aas,
@@ -61,10 +60,9 @@ def get_reshaped_x(xdata, kernel_width, dim2, radem, num_blocks,
     norm_constant = 1 / (2**norm_constant)
 
     reshaped_x = np.zeros((xdata.shape[0], num_blocks, dim2))
-    fht_func = dFHT
+    fht_func = cFHT
     if precision == "float":
         reshaped_x = reshaped_x.astype(np.float32)
-        fht_func = fFHT
 
     window_size = xdata.shape[2] * kernel_width
     start = repeat_num * reshaped_x.shape[2]

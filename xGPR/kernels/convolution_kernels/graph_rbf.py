@@ -11,8 +11,7 @@ except:
     pass
 
 from ..kernel_baseclass import KernelBaseclass
-from cpu_rf_gen_module import doubleCpuConv1dFGen, doubleCpuConvGrad
-from cpu_rf_gen_module import floatCpuConv1dFGen, floatCpuConvGrad
+from cpu_rf_gen_module import cpuConv1dFGen, cpuConvGrad
 
 
 class GraphRBF(KernelBaseclass):
@@ -107,12 +106,8 @@ class GraphRBF(KernelBaseclass):
                 self.chi_arr = cp.asnumpy(self.chi_arr)
             else:
                 self.chi_arr = self.chi_arr.astype(self.dtype)
-            if self.double_precision:
-                self.conv_func = doubleCpuConv1dFGen
-                self.grad_func = doubleCpuConvGrad
-            else:
-                self.conv_func = floatCpuConv1dFGen
-                self.grad_func = floatCpuConvGrad
+            self.conv_func = cpuConv1dFGen
+            self.grad_func = cpuConvGrad
             self.chi_arr = self.chi_arr.astype(self.dtype)
 
 

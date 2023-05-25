@@ -271,19 +271,14 @@ def cudaMiniARDGrad(inputX, randomFeats, precompWeights,
 
 
     cdef uintptr_t addr_input = inputX.data.ptr
-    cdef float *inputX_ptr = <float*>addr_input
     cdef uintptr_t addr_random_feats = randomFeats.data.ptr
-    cdef double *randomFeats_ptr = <double*>addr_random_feats
 
     cdef uintptr_t addr_sigma_map = sigmaMap.data.ptr
     cdef int32_t *sigmaMap_ptr = <int32_t*>addr_sigma_map
     cdef uintptr_t addr_sigma_vals = sigmaVals.data.ptr
-    cdef double *sigmaVals_ptr = <double*>addr_sigma_vals
 
     cdef uintptr_t addr_grad = gradient.data.ptr
-    cdef double *gradient_ptr = <double*>addr_grad
     cdef uintptr_t addr_precomp_weights = precompWeights.data.ptr
-    cdef float *precompWeights_ptr = <float*>addr_precomp_weights
 
     rbfNormConstant = betaHparam * np.sqrt(1 / <double>precompWeights.shape[0])
 
@@ -292,7 +287,7 @@ def cudaMiniARDGrad(inputX, randomFeats, precompWeights,
             sigmaVals.dtype == "float64":
         errCode = ardCudaGrad[float](<float*>addr_input, <double*>addr_random_feats,
                 <float*>addr_precomp_weights, <int32_t*>addr_sigma_map,
-                <double*>sigmaVals_ptr,
+                <double*>addr_sigma_vals,
                 <double*>addr_grad, inputX.shape[0], inputX.shape[1],
                 gradient.shape[2], precompWeights.shape[0],
                 rbfNormConstant)
@@ -302,7 +297,7 @@ def cudaMiniARDGrad(inputX, randomFeats, precompWeights,
             sigmaVals.dtype == "float64":
         errCode = ardCudaGrad[double](<double*>addr_input, <double*>addr_random_feats,
                 <double*>addr_precomp_weights, <int32_t*>addr_sigma_map,
-                <double*>sigmaVals_ptr,
+                <double*>addr_sigma_vals,
                 <double*>addr_grad, inputX.shape[0], inputX.shape[1],
                 gradient.shape[2], precompWeights.shape[0],
                 rbfNormConstant)

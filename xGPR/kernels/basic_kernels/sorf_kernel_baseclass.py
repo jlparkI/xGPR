@@ -8,10 +8,7 @@ from math import ceil
 
 import numpy as np
 from scipy.stats import chi
-from cpu_rf_gen_module import doubleCpuRBFFeatureGen as dRBF
-from cpu_rf_gen_module import floatCpuRBFFeatureGen as fRBF
-from cpu_rf_gen_module import doubleCpuRBFGrad as dRBFGrad
-from cpu_rf_gen_module import floatCpuRBFGrad as fRBFGrad
+from cpu_rf_gen_module import cpuRBFFeatureGen, cpuRBFGrad
 
 try:
     import cupy as cp
@@ -96,8 +93,8 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
 
-        self.feature_gen = fRBF
-        self.gradfun = fRBFGrad
+        self.feature_gen = cpuRBFFeatureGen
+        self.gradfun = cpuRBFGrad
 
 
 
@@ -108,12 +105,8 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         convenience references to np.cos / np.sin or cp.cos
         / cp.sin."""
         if new_device == "cpu":
-            if self.double_precision:
-                self.gradfun = dRBFGrad
-                self.feature_gen = dRBF
-            else:
-                self.gradfun = fRBFGrad
-                self.feature_gen = fRBF
+            self.gradfun = cpuRBFGrad
+            self.feature_gen = cpuRBFFeatureGen
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
                 self.chi_arr = cp.asnumpy(self.chi_arr)

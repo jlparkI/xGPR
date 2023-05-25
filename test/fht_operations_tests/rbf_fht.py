@@ -6,13 +6,10 @@ import timeit
 from math import ceil
 import numpy as np
 from scipy.stats import chi
-from cpu_rf_gen_module import doubleCpuRBFFeatureGen as dRBF
-from cpu_rf_gen_module import floatCpuRBFFeatureGen as fRBF
-from cpu_rf_gen_module import doubleCpuRBFGrad as dRBFGrad
-from cpu_rf_gen_module import floatCpuRBFGrad as fRBFGrad
+from cpu_rf_gen_module import cpuRBFFeatureGen as cRBF
+from cpu_rf_gen_module import cpuRBFGrad as cRBFGrad
 
-from cpu_rf_gen_module import doubleCpuSORFTransform as dSORF
-from cpu_rf_gen_module import floatCpuSORFTransform as fSORF
+from cpu_rf_gen_module import cpuSORFTransform as cSORF
 
 try:
     from cuda_rf_gen_module import cudaRBFFeatureGen as cudaRBF
@@ -72,11 +69,11 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
 
     temp_test = test_array.copy()
     double_output = np.zeros((test_array.shape[0], num_freqs * 2))
-    dRBF(temp_test, double_output, radem, chi_arr, beta_value, 2)
+    cRBF(temp_test, double_output, radem, chi_arr, beta_value, 2)
 
     temp_test = test_float.copy()
     float_output = np.zeros((test_array.shape[0], num_freqs * 2))
-    fRBF(temp_test, float_output, radem, chi_float, beta_value, 2)
+    cRBF(temp_test, float_output, radem, chi_float, beta_value, 2)
 
 
     if "cupy" in sys.modules:
@@ -126,12 +123,12 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123, beta_value = 1):
 
     temp_test = test_array.copy()
     double_output = np.zeros((test_array.shape[0], num_freqs * 2))
-    double_grad = dRBFGrad(temp_test, double_output, radem, chi_arr,
+    double_grad = cRBFGrad(temp_test, double_output, radem, chi_arr,
             beta_value, sigmaHparam = 1.0, numThreads = 2)
 
     temp_test = test_float.copy()
     float_output = np.zeros((test_array.shape[0], num_freqs * 2))
-    float_grad = fRBFGrad(temp_test, float_output, radem, chi_float,
+    float_grad = cRBFGrad(temp_test, float_output, radem, chi_float,
             beta_value, sigmaHparam = 1.0, numThreads = 2)
 
     if "cupy" in sys.modules:
@@ -210,12 +207,7 @@ def generate_rbf_values(test_array, radem, chi_arr, beta):
     """Generates the 'ground-truth' RBF values for
     comparison with those from the C / Cuda extension."""
     pretrans_x = test_array.copy()
-    if pretrans_x.dtype == "float64":
-        dSORF(pretrans_x, radem, 2)
-    elif pretrans_x.dtype == "float32":
-        fSORF(pretrans_x, radem, 2)
-    else:
-        raise ValueError("Unrecognized dtype.")
+    cSORF(pretrans_x, radem, 2)
 
     pretrans_x = pretrans_x.reshape((pretrans_x.shape[0], pretrans_x.shape[1] *
                         pretrans_x.shape[2]))[:,:chi_arr.shape[0]]

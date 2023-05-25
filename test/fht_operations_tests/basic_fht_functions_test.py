@@ -5,17 +5,11 @@ import sys
 import unittest
 import numpy as np
 from scipy.linalg import hadamard
-from cpu_rf_gen_module import doubleCpuFastHadamardTransform as dFHT
-from cpu_rf_gen_module import floatCpuFastHadamardTransform as fFHT
 
-from cpu_rf_gen_module import doubleCpuFastHadamardTransform2D as dFHT2D
-from cpu_rf_gen_module import floatCpuFastHadamardTransform2D as fFHT2D
-
-from cpu_rf_gen_module import doubleCpuSORFTransform as dSORF
-from cpu_rf_gen_module import floatCpuSORFTransform as fSORF
-
-from cpu_rf_gen_module import doubleCpuSRHT as dSRHT
-from cpu_rf_gen_module import floatCpuSRHT as fSRHT
+from cpu_rf_gen_module import cpuFastHadamardTransform as cFHT
+from cpu_rf_gen_module import cpuFastHadamardTransform2D as cFHT2D
+from cpu_rf_gen_module import cpuSORFTransform as cSORF
+from cpu_rf_gen_module import cpuSRHT as cSRHT
 
 try:
     from cuda_rf_gen_module import cudaPySORFTransform as cudaSORF
@@ -112,8 +106,8 @@ def run_fht_test(dim, random_seed = 123):
     """A helper function that runs an FHT test with specified
     dimensionality."""
     scipy_double, scipy_float, marr, marr_float = setup_fht_test(dim, random_seed)
-    dFHT(marr, 1)
-    fFHT(marr_float, 1)
+    cFHT(marr, 1)
+    cFHT(marr_float, 1)
     outcome_d = np.allclose(scipy_double, marr)
     outcome_f = np.allclose(scipy_float, marr_float, rtol=1e-4, atol=1e-4)
     print("**********\nDid the C extension provide the correct result for columnwise "
@@ -128,8 +122,8 @@ def run_fht_2d_test(dim, random_seed = 123):
     """A helper function that runs an FHT 2d test with specified
     dimensionality."""
     scipy_double, scipy_float, marr, marr_float = setup_fht_2d_test(dim, random_seed)
-    dFHT2D(marr, 1)
-    fFHT2D(marr_float, 1)
+    cFHT2D(marr, 1)
+    cFHT2D(marr_float, 1)
     outcome_d = np.allclose(scipy_double, marr)
     outcome_f = np.allclose(scipy_float, marr_float, rtol=1e-4, atol=1e-4)
     print("**********\nDid the C extension provide the correct result for columnwise "
@@ -193,21 +187,21 @@ def run_sorf_test(nblocks, dim2, random_seed = 123):
         cuda_test_float = cp.asarray(marr_test_float)
 
     marr_gt_double = marr_gt_double * radem[0:1,:,:] * norm_constant
-    dFHT(marr_gt_double, 2)
+    cFHT(marr_gt_double, 2)
     marr_gt_double = marr_gt_double * radem[1:2,:,:] * norm_constant
-    dFHT(marr_gt_double, 2)
+    cFHT(marr_gt_double, 2)
     marr_gt_double = marr_gt_double * radem[2:3,:,:] * norm_constant
-    dFHT(marr_gt_double, 2)
+    cFHT(marr_gt_double, 2)
 
     marr_gt_float = marr_gt_float * radem[0:1,:,:] * norm_constant
-    fFHT(marr_gt_float, 2)
+    cFHT(marr_gt_float, 2)
     marr_gt_float = marr_gt_float * radem[1:2,:,:] * norm_constant
-    fFHT(marr_gt_float, 2)
+    cFHT(marr_gt_float, 2)
     marr_gt_float = marr_gt_float * radem[2:3,:,:] * norm_constant
-    fFHT(marr_gt_float, 2)
+    cFHT(marr_gt_float, 2)
 
-    dSORF(marr_test_double, radem, 2)
-    fSORF(marr_test_float, radem, 2)
+    cSORF(marr_test_double, radem, 2)
+    cSORF(marr_test_float, radem, 2)
     outcome_d = np.allclose(marr_gt_double, marr_test_double)
     outcome_f = np.allclose(marr_gt_float, marr_test_float)
     print("**********\nDid the C extension provide the correct result for SORF of "
@@ -263,17 +257,17 @@ def run_srht_test(dim, compression_size, random_seed = 123):
         cuda_test_float = cp.asarray(marr_test_float)
 
     marr_gt_double = marr_gt_double * radem[None,:] * norm_constant
-    dFHT2D(marr_gt_double, 2)
+    cFHT2D(marr_gt_double, 2)
     marr_gt_double[:,:compression_size] = marr_gt_double[:,sampler]
     marr_gt_double[:,:compression_size] *= scaling_factor
 
     marr_gt_float = marr_gt_float * radem[None,:] * norm_constant
-    fFHT2D(marr_gt_float, 2)
+    cFHT2D(marr_gt_float, 2)
     marr_gt_float[:,:compression_size] = marr_gt_float[:,sampler]
     marr_gt_float[:,:compression_size] *= scaling_factor
 
-    dSRHT(marr_test_double, radem, sampler, compression_size, 2)
-    fSRHT(marr_test_float, radem, sampler, compression_size, 2)
+    cSRHT(marr_test_double, radem, sampler, compression_size, 2)
+    cSRHT(marr_test_float, radem, sampler, compression_size, 2)
     outcome_d = np.allclose(marr_gt_double, marr_test_double)
     outcome_f = np.allclose(marr_gt_float, marr_test_float)
     print("**********\nDid the C extension provide the correct result for SRHT of "
