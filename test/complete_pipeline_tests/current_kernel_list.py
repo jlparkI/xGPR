@@ -16,4 +16,5 @@ IMPLEMENTED_KERNELS = {"RBF":(False, 0.58),
         "Poly":(False, 0.38),
         "FHTConv1d":(True, 0.58),
         "GraphRBF":(True, 0.38),
-        "GraphPoly":(True, 0.38)  }
+        "GraphPoly":(True, 0.38),
+        "GraphArcCosine":(True, 0.36)  }

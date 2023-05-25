@@ -8,8 +8,10 @@ import unittest
 import numpy as np
 
 from cpu_rf_gen_module import cpuConv1dFGen, cpuConvGrad, cpuConv1dMaxpool
+from cpu_rf_gen_module import cpuConv1dArcCosFGen
 try:
     from cuda_rf_gen_module import gpuConv1dFGen, gpuConvGrad, gpuConv1dMaxpool
+    from cuda_rf_gen_module import gpuConv1dArcCosFGen
     import cupy as cp
 except:
     pass
@@ -135,6 +137,46 @@ class TestConv1d(unittest.TestCase):
             self.assertTrue(outcome)
 
 
+    def test_conv1d_arccos(self):
+        """Tests the FHT-based ArcCosConv1d C / Cuda functions."""
+        kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 1000
+        sigma, ndatapoints = 1, 124
+
+        outcomes = run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+        
+        outcomes = run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, precision = "float")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
+        sigma, ndatapoints = 1, 2000
+
+        outcomes = run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        outcomes = run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, precision = "float")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        kernel_width, num_aas, aa_dim, num_freqs = 7, 202, 105, 784
+        sigma, ndatapoints = 1, 38
+
+        outcomes = run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        outcomes = run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, precision = "float")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
 
 
 def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
@@ -156,7 +198,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
         f"Does result match on CPU? {outcome}")
 
     if "cupy" not in sys.modules:
-        return outcome
+        return [outcome]
     backup_features = features.copy()
     xdata = cp.asarray(xdata)
     reshaped_x = cp.asarray(reshaped_x)
@@ -253,7 +295,7 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
         f"Does result match on CPU? {outcome}")
     
     if "cupy" not in sys.modules:
-        return outcome
+        return [outcome]
 
     xdata = cp.asarray(xdata)
     reshaped_x = cp.asarray(reshaped_x)
@@ -277,7 +319,7 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
 
 
 
-def run_arccos_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
+def run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, precision = "double"):
     """Run an evaluation for the arc-cosine feature generation
     routine."""
@@ -297,7 +339,7 @@ def run_arccos_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
         f"Does result match on CPU? {outcome}")
     
     if "cupy" not in sys.modules:
-        return outcome
+        return [outcome]
 
     xdata = cp.asarray(xdata)
     reshaped_x = cp.asarray(reshaped_x)
