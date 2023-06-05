@@ -80,3 +80,13 @@ in some environments.
 
 visualization_tools was not included in previous build in error.
 
+### Version 0.1.0.6
+
+Removed deprecated kernels (e.g. GraphARD).
+
+### Version 0.1.1.0
+
+Major refactoring of C code for improved readability and efficiency.
+Added GraphArcCos kernel which requires relatively little
+hyperparameter tuning but usually does not perform quite so
+well as GraphRBF.
