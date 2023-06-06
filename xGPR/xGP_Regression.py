@@ -122,6 +122,7 @@ class xGPRegression(GPRegressionBaseclass):
         """
         xdata = self.pre_prediction_checks(input_x, get_var)
         preds, var = [], []
+
         lambda_ = self.kernel.get_lambda()
 
         for i in range(0, xdata.shape[0], chunk_size):
@@ -134,7 +135,7 @@ class xGPRegression(GPRegressionBaseclass):
                     pred_var = (self.var @ xfeatures.T).T
                 else:
                     pred_var = self.var.batch_matvec(xfeatures.T).T
-                pred_var = lambda_**2 * ((xfeatures * pred_var).sum(axis=1))
+                pred_var = lambda_**2 + lambda_**2 * (xfeatures * pred_var).sum(axis=1)
                 var.append(pred_var)
 
         if self.device == "gpu":
@@ -149,6 +150,9 @@ class xGPRegression(GPRegressionBaseclass):
             mempool.free_all_blocks()
         else:
             var = np.concatenate(var)
+        #There may (rarely) be numerical issues which result in variances
+        #less than zero; if so, set those variances to zero.
+        var[var < 0] = 0
         return preds * self.trainy_std + self.trainy_mean, var * self.trainy_std**2
 
 

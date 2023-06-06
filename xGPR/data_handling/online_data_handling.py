@@ -71,7 +71,6 @@ class OnlineDataset(DatasetBaseclass):
         self.trainy_std_ = np.std(ydata)
 
 
-
     def get_chunked_data(self):
         """A generator that returns the stored data in chunks
         of size chunk_size."""

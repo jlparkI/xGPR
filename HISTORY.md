@@ -90,3 +90,7 @@ Major refactoring of C code for improved readability and efficiency.
 Added GraphArcCos kernel which requires relatively little
 hyperparameter tuning but usually does not perform quite so
 well as GraphRBF.
+
+### Version 0.1.1.5
+
+Fixed bug in variance / uncertainty calculation.

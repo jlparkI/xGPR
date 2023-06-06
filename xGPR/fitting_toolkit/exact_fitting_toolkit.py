@@ -55,13 +55,10 @@ def calc_variance_exact(kernel, dataset, kernel_choice, variance_rffs):
         var: A cupy or numpy array of shape (M, M) where M is the
             number of random features.
     """
-    #This is a very naughty hack.
-    #TODO: Add a proper variance calc for linear.
-    if kernel_choice == "Linear":
-        return None
     z_trans_z = calc_var_design_mat(dataset, kernel,
                         variance_rffs)
     lambda_ = kernel.get_lambda()
+    #var = z_trans_z.copy()
     z_trans_z.flat[::z_trans_z.shape[0]+1] += lambda_**2
     if kernel.device == "cpu":
         var = np.linalg.pinv(z_trans_z)
