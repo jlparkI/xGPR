@@ -42,11 +42,14 @@ class OnlineDataset(DatasetBaseclass):
             "featurized" or transformed and the xfiles do not
             need to be run through the kernel. This can save time
             during fitting if an SSD is available. Default is False.
+        normalize_y (bool): If True, the y-values are normalized.
+            Generally a good idea.
     """
     def __init__(self, xdata, ydata,
                        device = "cpu",
                        chunk_size = 2000,
-                       pretransformed = False):
+                       pretransformed = False,
+                       normalize_y = True):
         """Constructor for the OnlineDataset class.
 
         Args:
@@ -67,9 +70,12 @@ class OnlineDataset(DatasetBaseclass):
             raise ValueError("Only offline datasets can be pretransformed.")
         self.xdata_ = xdata
         self.ydata_ = ydata
-        self.trainy_mean_ = np.mean(ydata)
-        self.trainy_std_ = np.std(ydata)
-
+        if normalize_y:
+            self.trainy_mean_ = np.mean(ydata)
+            self.trainy_std_ = np.std(ydata)
+        else:
+            self.trainy_mean_ = 1.0
+            self.trainy_std_ = 1.0
 
     def get_chunked_data(self):
         """A generator that returns the stored data in chunks

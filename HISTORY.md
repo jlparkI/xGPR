@@ -94,3 +94,9 @@ well as GraphRBF.
 ### Version 0.1.1.5
 
 Fixed bug in variance / uncertainty calculation.
+
+### Version 0.1.1.6
+
+Added the option to NOT normalize_y. Generally normalizing
+y is beneficial, but there are some circumstances where
+the user might not want to do so.

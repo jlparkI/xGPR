@@ -11,7 +11,8 @@ from .online_data_handling import OnlineDataset
 from .offline_data_handling import OfflineDataset
 
 
-def build_online_dataset(xdata, ydata, chunk_size = 2000):
+def build_online_dataset(xdata, ydata, chunk_size = 2000,
+        normalize_y = True):
     """build_online_dataset constructs an OnlineDataset
     object for data stored in memory, after first checking
     that some validity requirements are satisfied.
@@ -22,6 +23,9 @@ def build_online_dataset(xdata, ydata, chunk_size = 2000):
         chunk_size (int): The maximum size of data chunks that
             will be returned to callers. Limits memory consumption.
             Defaults to 2000.
+        normalize_y (bool): If True, y values are normalized. Generally a
+            good idea, unless you have already selected hyperparameters based
+            on prior knowledge.
 
     Returns:
         dataset (OnlineDataset): An object of class OnlineDataset
@@ -46,12 +50,13 @@ def build_online_dataset(xdata, ydata, chunk_size = 2000):
         raise ValueError("Values > 1e15 or < -1e15 encountered. "
                     "Please rescale your data and check for np.inf.")
 
-    dataset = OnlineDataset(xdata, ydata, chunk_size = chunk_size)
+    dataset = OnlineDataset(xdata, ydata, chunk_size = chunk_size,
+            normalize_y = normalize_y)
     return dataset
 
 
 def build_offline_fixed_vector_dataset(xlist, ylist, chunk_size = 2000,
-        skip_safety_checks = False):
+        normalize_y = True, skip_safety_checks = False):
     """Constructs an OfflineDataset
     object for data stored on disk, after first checking
     that some validity requirements are satisfied. This is
@@ -69,6 +74,9 @@ def build_offline_fixed_vector_dataset(xlist, ylist, chunk_size = 2000,
         chunk_size (int): The maximum size of data chunks that
             will be returned to callers. Limits memory consumption.
             Defaults to 2000.
+        normalize_y (bool): If True, y values are normalized. Generally a
+            good idea, unless you have already selected hyperparameters based
+            on prior knowledge.
         skip_safety_checks (bool): If False, the builder will check
             each input array to make sure it does not contain
             infinite values or nan and that all the input arrays are 2d
@@ -132,14 +140,17 @@ def build_offline_fixed_vector_dataset(xlist, ylist, chunk_size = 2000,
             xdim[1] = xshape[1]
             xdim[0] += xshape[0]
 
-    trainy_mean, trainy_std = _get_offline_scaling_factors(ylist)
+    if normalize_y:
+        trainy_mean, trainy_std = _get_offline_scaling_factors(ylist)
+    else:
+        trainy_mean, trainy_std = 0.0, 1.0
     dataset = OfflineDataset(xlist, ylist, tuple(xdim),
                 trainy_mean, trainy_std, chunk_size = chunk_size)
     return dataset
 
 
 def build_offline_sequence_dataset(xlist, ylist, chunk_size = 2000,
-        skip_safety_checks = False):
+        normalize_y = True, skip_safety_checks = False):
     """Constructs an OfflineDataset
     object for data stored on disk, after first checking
     that some validity requirements are satisfied. This is
@@ -158,6 +169,9 @@ def build_offline_sequence_dataset(xlist, ylist, chunk_size = 2000,
         chunk_size (int): The maximum size of data chunks that
             will be returned to callers. Limits memory consumption.
             Defaults to 2000.
+        normalize_y (bool): If True, y values are normalized. Generally a
+            good idea, unless you have already selected hyperparameters based
+            on prior knowledge.
         skip_safety_checks (bool): If False, the builder will check
             each input array to make sure it does not contain
             infinite values or nan and that all the input arrays are 3d
@@ -223,7 +237,10 @@ def build_offline_sequence_dataset(xlist, ylist, chunk_size = 2000,
             xdim[2] = xshape[2]
             xdim[0] += xshape[0]
 
-    trainy_mean, trainy_std = _get_offline_scaling_factors(ylist)
+    if normalize_y:
+        trainy_mean, trainy_std = _get_offline_scaling_factors(ylist)
+    else:
+        trainy_mean, trainy_std = 0.0, 1.0
     dataset = OfflineDataset(xlist, ylist, xdim,
                 trainy_mean, trainy_std, chunk_size = chunk_size)
     return dataset
