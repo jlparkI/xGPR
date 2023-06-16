@@ -203,7 +203,9 @@ class KernelBaseclass(ABC):
         if len(self.xdim) == 3:
             if input_x.shape[2] != self.xdim[2]:
                 valid_data = False
-        if input_x.shape[1] != self.xdim[1]:
+            if input_x.shape[1] < 1:
+                valid_data = False
+        elif input_x.shape[1] != self.xdim[1]:
             valid_data = False
         return valid_data
 
