@@ -45,7 +45,7 @@ cdef extern from "convolution_ops/arccos_convolution.h" nogil:
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def gpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
-        int numThreads, bint subtractMean = False):
+        int numThreads):
     """Uses wrapped C extensions to perform random feature generation
     with ReLU activation and maxpooling. TODO: Transfer the loop
     and sum operations in here to a Cuda kernel and wrap.
@@ -65,8 +65,6 @@ def gpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
         num_threads (int): This argument is so that this function has
             the same interface as the CPU SORF Transform. It is not
             needed for the GPU transform and is ignored.
-        subtractMean (bool): If True, subtract the mean of each row from
-            that row.
     """
     cdef const char *errCode
     cdef int i, startPosition, cutoff
@@ -132,8 +130,6 @@ def gpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
         
             reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
             outputArray[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
-            if subtractMean:
-                outputArray[:,startPosition:cutoff] -= reshapedXCopy.mean(axis=1)
 
             cutoff += reshapedX.shape[2]
             startPosition += reshapedX.shape[2]
@@ -150,8 +146,6 @@ def gpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
         
             reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
             outputArray[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
-            if subtractMean:
-                outputArray[:,startPosition:cutoff] -= reshapedXCopy.mean(axis=1)
 
             cutoff += reshapedX.shape[2]
             startPosition += reshapedX.shape[2]

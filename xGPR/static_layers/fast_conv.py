@@ -78,7 +78,7 @@ class FastConv1d:
         self.f_per_kernel = int(num_features / len(conv_width))
         self.conv_kernel = [FHTMaxpoolConv1dFeatureExtractor(seq_width,
                             self.f_per_kernel, random_seed, device = device,
-                            conv_width = c, subtract_mean = False) for c in conv_width]
+                            conv_width = c) for c in conv_width]
         self.device = device
 
         self.seq_width = seq_width

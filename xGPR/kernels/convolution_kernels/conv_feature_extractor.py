@@ -45,13 +45,12 @@ class FHTMaxpoolConv1dFeatureExtractor():
         stride_tricks: A reference to cp.lib.stride_tricks.as_strided
             or np.lib.stride_tricks.as_strided, as appropriate based
             on the current device.
-        subtract_mean (bool): Indicates whether mean should be subtracted.
         num_threads (int): Number of threads to use if running on CPU;
             ignored if running on GPU.
     """
 
     def __init__(self, seqwidth, num_rffs, random_seed = 123, device = "cpu",
-                    conv_width = 9, subtract_mean = False, num_threads = 2):
+                    conv_width = 9, num_threads = 2):
         """Constructor for FHT_Conv1d.
 
         Args:
@@ -62,7 +61,6 @@ class FHTMaxpoolConv1dFeatureExtractor():
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'gpu'. Indicates the starting device.
             conv_width (int): The width of the convolution kernel. Defaults to 9.
-            subtract_mean (bool): Indicates whether mean should be subtracted.
             num_threads (int): Number of threads to use if running on CPU;
                 ignored if running on GPU.
 
@@ -90,7 +88,6 @@ class FHTMaxpoolConv1dFeatureExtractor():
         self.num_threads = num_threads
         self.conv_func = None
         self.stride_tricks = None
-        self.subtract_mean = subtract_mean
         self.device = device
 
 
@@ -137,7 +134,7 @@ class FHTMaxpoolConv1dFeatureExtractor():
                                 input_x.strides[2], input_x.strides[2]))
         reshaped_x[:,:,:self.dim2_no_padding] = x_strided
         self.conv_func(reshaped_x, self.radem_diag,
-                output_x, self.chi_arr, self.num_threads, self.subtract_mean)
+                output_x, self.chi_arr, self.num_threads)
         output_x = output_x[:,:self.num_rffs]
         return output_x
 

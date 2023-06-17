@@ -118,25 +118,6 @@ class TestConv1d(unittest.TestCase):
             self.assertTrue(outcome)
 
 
-    def test_conv1d_maxpool_loc(self):
-        """Tests the C / Cuda FHT-based convolution with global max pooling
-        functions and with adjustment based on global mean pooling."""
-        kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 128
-        sigma, ndatapoints = 1, 124
-        outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, mode = "maxpool_loc")
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
-        sigma, ndatapoints = 1, 2000
-
-        outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, mode = "maxpool_loc", precision = "float")
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-
     def test_conv1d_arccos(self):
         """Tests the FHT-based ArcCosConv1d C / Cuda functions."""
         kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 1000
@@ -278,22 +259,17 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                 radem = get_initial_matrices_fht(ndatapoints, kernel_width,
                         aa_dim, num_aas, num_freqs, mode, precision)
     true_features = get_features_maxpool(xdata, kernel_width, dim2,
-                            radem, s_mat, num_freqs, num_blocks, mode,
-                            precision)
-
-    subtract_mean = False
-    if mode.endswith("loc"):
-        subtract_mean = True
+                            radem, s_mat, num_freqs, num_blocks, precision)
 
     cpuConv1dMaxpool(reshaped_x, radem, features,
-                s_mat, 2, subtract_mean)
+                s_mat, 2)
 
     outcome = check_results(true_features, features[:,:num_freqs], precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
         f"sigma: {sigma}, mode: {mode}, precision {precision}\n"
         f"Does result match on CPU? {outcome}")
-    
+
     if "cupy" not in sys.modules:
         return [outcome]
 
@@ -305,9 +281,9 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
     radem = cp.asarray(radem)
 
     gpuConv1dMaxpool(reshaped_x, radem, features,
-                s_mat, 2, subtract_mean)
+                s_mat, 2)
 
-    
+
     outcome_cuda = check_results(true_features, features[:,:num_freqs], precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "

@@ -50,7 +50,7 @@ def cpuConv1dMaxpool(np.ndarray[floating, ndim=3] reshapedX,
                 np.ndarray[np.int8_t, ndim=3] radem,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
-                int numThreads, bint subtractMean = False):
+                int numThreads):
     """Uses wrapped C extensions to perform random feature generation
     with ReLU activation and maxpooling.
 
@@ -69,8 +69,6 @@ def cpuConv1dMaxpool(np.ndarray[floating, ndim=3] reshapedX,
         num_threads (int): This argument is so that this function has
             the same interface as the CPU SORF Transform. It is not
             needed for the GPU transform and is ignored.
-        subtractMean (bool): If True, subtract the mean of each row from
-            that row.
     """
     cdef const char *errCode
     cdef int i, startPosition, cutoff
@@ -123,8 +121,6 @@ def cpuConv1dMaxpool(np.ndarray[floating, ndim=3] reshapedX,
         
             reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
             outputArray[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
-            if subtractMean:
-                outputArray[:,startPosition:cutoff] -= reshapedXCopy.mean(axis=1)
 
             cutoff += reshapedX.shape[2]
             startPosition += reshapedX.shape[2]
@@ -141,8 +137,6 @@ def cpuConv1dMaxpool(np.ndarray[floating, ndim=3] reshapedX,
         
             reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
             outputArray[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
-            if subtractMean:
-                outputArray[:,startPosition:cutoff] -= reshapedXCopy.mean(axis=1)
 
             cutoff += reshapedX.shape[2]
             startPosition += reshapedX.shape[2]
