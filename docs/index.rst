@@ -13,17 +13,14 @@ sequences, graphs and tabular data.
   Overview <overview>
   
 
-Examples
-==========
+Examples / Tutorials
+=====================
 
 .. toctree::
   :maxdepth: 1
 
-  notebooks/tabular_example
+  Examples <notebooks/examples>
 
-  notebooks/molecule_example
-
-  notebooks/sequence_example
 
 User Manual
 ============
@@ -46,13 +43,7 @@ Available kernels
 .. toctree::
   :maxdepth: 1
 
-   Kernels for fixed-vector input <fixed_vec_kernels.rst>
-
-   Kernels for sequence data <sequence_kernels.rst>
-
-   Kernels for graphs <graph_kernels.rst>
-
-   Static layers for sequences and graphs <static_layers.rst>
+   Available kernels <kernel_info/kernel_list>
 
 
   
@@ -78,12 +69,8 @@ Package Reference
 
 .. toctree::
   :maxdepth: 1
-   
-  xGP_Regression<source/xGPR>
 
-  Datasets<source/xGPR.data_handling>
-
-  Tuning hyperparameters on a validation set<source/xGPR.tuning_toolkit.rst>
+  API <packrefs>
 
 
 

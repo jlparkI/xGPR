@@ -42,7 +42,7 @@ class FastConv1d:
     """
 
     def __init__(self, seq_width, device = "cpu", random_seed = 123,
-            conv_width = [9], num_features = 512, mode = "maxpool"):
+            conv_width = [9], num_features = 512):
         """Constructor for the FastConv1d class.
 
         Args:
@@ -61,8 +61,6 @@ class FastConv1d:
             num_features (int): The number of random features to generate.
                 More = improved performance but slower feature extraction
                 and slower model training. Defaults to 512.
-            mode (str): One of 'maxpool', 'maxpool_loc'.
-                'maxpool_loc' adjusts the result based on global mean pooling.
 
         Raises:
             ValueError: If an unrecognized kernel type or other invalid
@@ -77,15 +75,10 @@ class FastConv1d:
                     "must be an integer multiple of the number of "
                     "desired convolution widths.")
 
-        if mode == "maxpool_loc":
-            subtract_mean = True
-        else:
-            subtract_mean = False
-
         self.f_per_kernel = int(num_features / len(conv_width))
         self.conv_kernel = [FHTMaxpoolConv1dFeatureExtractor(seq_width,
                             self.f_per_kernel, random_seed, device = device,
-                            conv_width = c, subtract_mean = subtract_mean) for c in conv_width]
+                            conv_width = c, subtract_mean = False) for c in conv_width]
         self.device = device
 
         self.seq_width = seq_width

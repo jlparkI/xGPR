@@ -73,9 +73,3 @@ what kind of features it generates. These are summarized below.
        | Larger numbers will improve accuracy but increase
        | computational expense. Try 1000 - 2000 to start with
        | and increase if needed.
-   * - ``mode``
-     - | One of ``maxpool``, ``maxpool_loc``. The former uses
-       | global max pooling. The latter uses global max pooling
-       | but also subtracts the average of the convolution results
-       | for each datapoint from the output, which often
-       | improves performance.
