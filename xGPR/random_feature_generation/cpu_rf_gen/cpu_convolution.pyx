@@ -231,7 +231,6 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] reshapedX,
     outputArray *= scalingTerm
 
 
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def cpuConvGrad(np.ndarray[floating, ndim=3] reshapedX,

@@ -102,6 +102,11 @@ class GraphArcCosine(KernelBaseclass):
 
         self.conv_func = None
         self.device = device
+        #Unlike GraphRBF, the GraphArcCos kernel does not require
+        #that inputs be zero-padded to be the same length as training set.
+        #mandate_equal_xdim is an attribute of the parent class that is
+        #set to True by default.
+        self.mandate_equal_xdim = False
 
 
     def kernel_specific_set_device(self, new_device):

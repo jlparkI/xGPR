@@ -53,6 +53,11 @@ class KernelBaseclass(ABC):
         empty: A reference to either np.emtpy or cp.empty depending on self.device.
         double_precision (bool): If True, generate random features in double precision.
             Otherwise, generate as single precision.
+        mandate_equal_xdim (bool): For graph and sequence kernels, a kernel can either
+            require the input to be zero-padded to be the same length as the training
+            set, or not. This is set to True by default to mandate that all elements of
+            xdim match training set for test points, but individual kernels can set it
+            to be False.
     """
 
     def __init__(self, num_rffs, xdim, num_threads = 2,
@@ -97,7 +102,7 @@ class KernelBaseclass(ABC):
         self.bounds = None
 
         self.num_threads = num_threads
-
+        self.mandate_equal_xdim = True
 
 
 
@@ -203,7 +208,9 @@ class KernelBaseclass(ABC):
         if len(self.xdim) == 3:
             if input_x.shape[2] != self.xdim[2]:
                 valid_data = False
-            if input_x.shape[1] < 1:
+            if self.mandate_equal_xdim and input_x.shape[1] != self.xdim[1]:
+                valid_data = False
+            elif input_x.shape[1] < 1:
                 valid_data = False
         elif input_x.shape[1] != self.xdim[1]:
             valid_data = False

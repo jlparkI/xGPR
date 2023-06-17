@@ -180,7 +180,6 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
 
     if "cupy" not in sys.modules:
         return [outcome]
-    backup_features = features.copy()
     xdata = cp.asarray(xdata)
     reshaped_x = cp.asarray(reshaped_x)
     features[:] = 0
@@ -213,9 +212,8 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                             num_blocks, sigma, precision)
 
     gradient = cpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma, 1.0)
-    out_features = features[:,:(2*num_freqs)]
     gradient = gradient[:,:(2*num_freqs),0]
-    
+
 
     outcome = check_results(true_features, features[:,:(2 * num_freqs)], precision)
     outcome_gradient = check_results(true_gradient, gradient, precision)
@@ -238,7 +236,7 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     gradient = gpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma, 1.0)
     features = cp.asnumpy(features[:,:(2*num_freqs)])
     gradient = cp.asnumpy(gradient[:,:(2*num_freqs),0])
-    
+
     outcome_cuda = check_results(true_features, features, precision)
     outcome_cuda_gradient = check_results(true_gradient, gradient, precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
@@ -305,7 +303,12 @@ def run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     true_features = get_features_arccos(xdata, kernel_width, dim2,
                             radem, s_mat, num_freqs, num_blocks, precision)
 
-    cpuConv1dArcCosFGen(reshaped_x, radem, features,
+    #Zero-padding should not make any difference for ArcCosine input.
+    #Let's check though.
+    x_expanded = np.zeros((reshaped_x.shape[0], reshaped_x.shape[1] + 1,
+        reshaped_x.shape[2])).astype(reshaped_x.dtype)
+    x_expanded[:,:-1,:] = reshaped_x
+    cpuConv1dArcCosFGen(x_expanded, radem, features,
                 s_mat, 2, 1.0, 1)
 
     outcome = check_results(true_features, features[:,:num_freqs], precision)
@@ -313,12 +316,12 @@ def run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
         f"precision {precision}\n"
         f"Does result match on CPU? {outcome}")
-    
+
     if "cupy" not in sys.modules:
         return [outcome]
 
     xdata = cp.asarray(xdata)
-    reshaped_x = cp.asarray(reshaped_x)
+    reshaped_x = cp.asarray(x_expanded)
     features[:] = 0
     features = cp.asarray(features)
     s_mat = cp.asarray(s_mat)
@@ -327,7 +330,7 @@ def run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     gpuConv1dArcCosFGen(reshaped_x, radem, features,
                 s_mat, 2, 1.0, 1)
 
-    
+
     outcome_cuda = check_results(true_features, features[:,:num_freqs], precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
@@ -344,8 +347,7 @@ def check_results(gt_array, test_array, precision):
     can vary slightly."""
     if precision == "float":
         return np.allclose(gt_array, test_array, rtol=1e-6, atol=1e-6)
-    else:
-        return np.allclose(gt_array, test_array)
+    return np.allclose(gt_array, test_array)
 
 
 
