@@ -53,15 +53,13 @@ class KernelBaseclass(ABC):
         empty: A reference to either np.emtpy or cp.empty depending on self.device.
         double_precision (bool): If True, generate random features in double precision.
             Otherwise, generate as single precision.
-        mandate_equal_xdim (bool): For graph and sequence kernels, a kernel can either
-            require the input to be zero-padded to be the same length as the training
-            set, or not. This is set to True by default to mandate that all elements of
-            xdim match training set for test points, but individual kernels can set it
-            to be False.
+        fit_intercept (bool): Whether to fit a y-intercept. Defaults to True but can
+            be set to False by adding "intercept":False to kernel_spec_parms.
     """
 
     def __init__(self, num_rffs, xdim, num_threads = 2,
-            sine_cosine_kernel = False, double_precision = False):
+            sine_cosine_kernel = False, double_precision = False,
+            kernel_spec_parms = {}):
         """Constructor for the KernelBaseclass.
 
         Args:
@@ -81,6 +79,8 @@ class KernelBaseclass(ABC):
                 that are even numbers.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
+            kernel_spec_parms (dict): A dictionary of kernel settings / kernel-specific
+                parameters.
 
         Raises:
             ValueError: Raises a ValueError if a sine-cosine kernel is requested
@@ -100,12 +100,17 @@ class KernelBaseclass(ABC):
         else:
             self.num_freqs = num_rffs
             self.num_rffs = num_rffs
+
+        self.fit_intercept = True
+        if "intercept" in kernel_spec_parms:
+            if kernel_spec_parms["intercept"] is False:
+                self.fit_intercept = False
+
         self.xdim = xdim
         self.hyperparams = None
         self.bounds = None
 
         self.num_threads = num_threads
-        self.mandate_equal_xdim = True
 
 
 
@@ -208,12 +213,10 @@ class KernelBaseclass(ABC):
         valid_data = True
         if len(input_x.shape) != len(self.xdim):
             valid_data = False
-        if len(self.xdim) == 3:
+        elif len(self.xdim) == 3:
             if input_x.shape[2] != self.xdim[2]:
                 valid_data = False
-            if self.mandate_equal_xdim and input_x.shape[1] != self.xdim[1]:
-                valid_data = False
-            elif input_x.shape[1] < 1:
+            if input_x.shape[1] < 1:
                 valid_data = False
         elif input_x.shape[1] != self.xdim[1]:
             valid_data = False

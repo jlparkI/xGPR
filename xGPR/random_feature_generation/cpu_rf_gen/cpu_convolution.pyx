@@ -12,6 +12,7 @@ from cython cimport floating
 from libc cimport stdint
 from libc.stdint cimport uintptr_t
 from libc.stdint cimport int8_t, int32_t
+from libcpp cimport bool
 import math
 
 
@@ -150,7 +151,8 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] reshapedX,
                 np.ndarray[np.int8_t, ndim=3] radem,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
-                int numThreads, double beta_):
+                int numThreads, double beta_,
+                bool fitIntercept = False):
     """Uses wrapped C functions to generate random features for FHTConv1d, GraphConv1d,
     and related kernels. This function cannot be used to calculate the gradient
     so is only used for forward pass only (during fitting, inference, non-gradient-based
@@ -171,6 +173,8 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] reshapedX,
             array of shape m * C drawn from a chi distribution.
         num_threads (int): Number of threads to use for FHT.
         beta_ (float): The amplitude.
+        fitIntercept (bool): Whether to fit a y-intercept (in this case,
+            the first random feature generated should be set to 1).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -207,8 +211,6 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] reshapedX,
         or not chiArr.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
 
-    scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
-    scalingTerm *= beta_
 
     if chiArr.dtype == "float32" and reshapedX.dtype == "float32":
         errCode = convRBFFeatureGen_[float](&radem[0,0,0], <float*>addr_input,
@@ -228,7 +230,15 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] reshapedX,
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing convolution.")
 
-    outputArray *= scalingTerm
+    if fitIntercept:
+        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0] - 1))
+        scalingTerm *= beta_
+        outputArray *= scalingTerm
+        outputArray[:,0] = beta_
+    else:
+        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0]))
+        scalingTerm *= beta_
+        outputArray *= scalingTerm
 
 
 @cython.boundscheck(False)
@@ -238,7 +248,8 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] reshapedX,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
                 int numThreads, float sigma,
-                float beta_):
+                float beta_,
+                bool fitIntercept = False):
     """Performs feature generation for RBF-based convolution kernels while
     also performing gradient calculations.
 
@@ -257,6 +268,8 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] reshapedX,
         num_threads (int): Number of threads to use for FHT.
         sigma (float): The lengthscale.
         beta_ (float): The amplitude.
+        fitIntercept (bool): Whether to fit a y-intercept (in this case,
+            the first random feature generated should be set to 1).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -299,9 +312,6 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] reshapedX,
         raise ValueError("One or more arguments to cpuGraphConv1dTransform is not "
                 "C contiguous.")
 
-    scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
-    scalingTerm *= beta_
-
     if chiArr.dtype == "float32" and reshapedX.dtype == "float32":
         errCode = convRBFGrad_[float](&radem[0,0,0], <float*>addr_input,
                     <float*>addr_copy_buffer, <float*>addr_chi, &outputArray[0,0],
@@ -322,8 +332,18 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] reshapedX,
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing graph convolution.")
 
-    outputArray *= scalingTerm
-    gradient *= scalingTerm
+    if fitIntercept:
+        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0] - 1))
+        scalingTerm *= beta_
+        outputArray *= scalingTerm
+        gradient *= scalingTerm
+        outputArray[:,0] = beta_
+        gradient[:,0] = 0
+    else:
+        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0]))
+        scalingTerm *= beta_
+        outputArray *= scalingTerm
+        gradient *= scalingTerm
     return gradient
 
 
@@ -336,7 +356,8 @@ def cpuConv1dArcCosFGen(np.ndarray[floating, ndim=3] reshapedX,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
                 int numThreads, double beta_,
-                int kernelOrder):
+                int kernelOrder,
+                bool fitIntercept = False):
     """Uses wrapped C functions to generate random features for ArcCosine kernels
     on sequences and graphs.
 
@@ -355,6 +376,8 @@ def cpuConv1dArcCosFGen(np.ndarray[floating, ndim=3] reshapedX,
         num_threads (int): Number of threads to use for FHT.
         beta_ (float): The amplitude.
         kernelOrder (int): The order of the arc-cosine kernel.
+        fitIntercept (bool): Whether to fit a y-intercept (in this case,
+            the first random feature generated should be set to 1).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -415,4 +438,12 @@ def cpuConv1dArcCosFGen(np.ndarray[floating, ndim=3] reshapedX,
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing convolution.")
 
-    outputArray *= scalingTerm
+    if fitIntercept:
+        scalingTerm = np.sqrt(1 / <double>(chiArr.shape[0] - 1))
+        scalingTerm *= beta_
+        outputArray *= scalingTerm
+        outputArray[:,0] = beta_
+    else:
+        scalingTerm = np.sqrt(1 / <double>(chiArr.shape[0]))
+        scalingTerm *= beta_
+        outputArray *= scalingTerm

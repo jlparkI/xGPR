@@ -66,18 +66,13 @@ class GraphPolySum(KernelBaseclass):
         """
 
         super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = False,
-                double_precision = double_precision)
+                double_precision = double_precision, kernel_spec_parms = kernel_spec_parms)
         if "polydegree" not in kernel_spec_parms:
             raise ValueError("For the GraphPoly kernel, 'polydegree' must be "
                 "included as the degree of the polynomial.")
         self.polydegree = kernel_spec_parms["polydegree"]
         if self.polydegree < 2 or self.polydegree > 4:
             raise ValueError("Polydegree should be in the range from 2 to 4.")
-
-        self.fit_intercept = True
-        if "intercept" in kernel_spec_parms:
-            if kernel_spec_parms["intercept"] is False:
-                self.fit_intercept = False
 
         self.hyperparams = np.ones((2))
         self.bounds = np.asarray([[1e-3,1e1], [0.2, 5]])
@@ -99,9 +94,6 @@ class GraphPolySum(KernelBaseclass):
         self.graph_poly_func = None
         self.device = device
         self.chi_arr = self.chi_arr.astype(self.dtype)
-        #mandate_equal_xdim is an attribute of the parent class that is
-        #set to True by default.
-        self.mandate_equal_xdim = False
 
 
     def kernel_specific_set_device(self, new_device):

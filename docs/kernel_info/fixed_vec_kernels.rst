@@ -18,12 +18,17 @@ for details.
    * - RBF
      - | Models smooth, infinitely differentiable
        | functions.
-     -
+     - | "intercept": bool If True,
+       | fit a y-intercept.
+       | Defaults to True.
    * - Matern
      - | Models "rougher" functions than RBF.
        | nu = 5/2 is twice differentiable,
        | nu=3/2 is once.
      - | "matern_nu":float
+       | "intercept": bool If True,
+       | fit a y-intercept.
+       | Defaults to True.
    * - Linear
      - | Equivalent to Bayesian linear regression.
        | Use "intercept" to indicate if a y-
@@ -35,12 +40,18 @@ for details.
        | is likely better handled by an
        | RBF kernel).
      - | "polydegree":int
+       | "intercept": bool If True,
+       | fit a y-intercept.
+       | Defaults to True.
    * - MiniARD
      - | Same as RBF, but rather than having one
        | lengthscale shared between all features,
        | applies different lengthscales to different
        | groups of features.
      - | "split_points":list
+       | "intercept": bool If True,
+       | fit a y-intercept.
+       | Defaults to True.
 
 The ``Linear`` kernel is equivalent to Bayesian linear regression.
 If ``intercept`` is False, it will be fitted without a y-intercept

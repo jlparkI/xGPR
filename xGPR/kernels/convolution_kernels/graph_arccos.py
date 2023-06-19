@@ -72,7 +72,7 @@ class GraphArcCosine(KernelBaseclass):
                 inappropriate given the conv_width.
         """
         super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = False,
-                double_precision = double_precision)
+                double_precision = double_precision, kernel_spec_parms = kernel_spec_parms)
         if len(xdim) != 3:
             raise ValueError("Tried to initialize the GraphArcCos kernel with a "
                     "2d x-array! x should be a 3d array for a graph kernel.")
@@ -83,11 +83,6 @@ class GraphArcCosine(KernelBaseclass):
         if kernel_spec_parms["order"] not in [1,2]:
             raise ValueError("For the GraphArcCosine kernel, 'order' must be "
                 "included and must be either 1 or 2.")
-
-        self.fit_intercept = True
-        if "intercept" in kernel_spec_parms:
-            if kernel_spec_parms["intercept"] is False:
-                self.fit_intercept = False
 
         self.effective_dim = xdim[2] + 1
         self.order = kernel_spec_parms["order"]
@@ -109,9 +104,6 @@ class GraphArcCosine(KernelBaseclass):
 
         self.conv_func = None
         self.device = device
-        #mandate_equal_xdim is an attribute of the parent class that is
-        #set to True by default.
-        self.mandate_equal_xdim = False
 
 
     def kernel_specific_set_device(self, new_device):
@@ -163,9 +155,8 @@ class GraphArcCosine(KernelBaseclass):
         reshaped_x[:,:,:input_x.shape[2]] = input_x
         reshaped_x[:,:,input_x.shape[2]] = 1.0
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
-                self.num_threads, self.hyperparams[1], self.order)
-        if self.fit_intercept:
-            xtrans[:,-1] = self.hyperparams[1]
+                self.num_threads, self.hyperparams[1], self.order,
+                self.fit_intercept)
         return xtrans
 
 

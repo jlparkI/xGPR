@@ -80,7 +80,8 @@ class FHTConv1d(KernelBaseclass):
                 inappropriate given the conv_width.
         """
         super().__init__(num_rffs, xdim, num_threads = 2,
-                sine_cosine_kernel = True, double_precision = double_precision)
+                sine_cosine_kernel = True, double_precision = double_precision,
+                kernel_spec_parms = kernel_spec_parms)
         if len(xdim) != 3:
             raise ValueError("Tried to initialize the Conv1d kernel with a 2d x-"
                     "array! x should be a 3d array for Conv1d.")
@@ -168,7 +169,7 @@ class FHTConv1d(KernelBaseclass):
                                 input_x.strides[2]))
         reshaped_x[:,:,:self.dim2_no_padding] = x_strided * self.hyperparams[2]
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr, self.num_threads,
-                self.hyperparams[1])
+                self.hyperparams[1], self.fit_intercept)
         return xtrans
 
 
@@ -210,6 +211,6 @@ class FHTConv1d(KernelBaseclass):
         reshaped_x[:,:,:self.dim2_no_padding] = x_strided
         dz_dsigma = self.grad_func(reshaped_x, self.radem_diag,
                 output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
-                self.hyperparams[1])
+                self.hyperparams[1], self.fit_intercept)
 
         return output_x, dz_dsigma

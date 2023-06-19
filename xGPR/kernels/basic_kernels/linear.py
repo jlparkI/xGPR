@@ -10,13 +10,7 @@ from ..kernel_baseclass import KernelBaseclass
 
 class Linear(KernelBaseclass):
     """The Linear kernel corresponds to Bayesian linear regression.
-    For other attributes not described here, see the baseclass.
-
-    Attributes:
-        fit_intercept (bool): Indicates whether we are fitting a
-            y-intercept or no y-intercept.
-        hyperparams (np.ndarray): This kernel has two
-            hyperparameters: lambda_ (noise), beta_ (amplitude).
+    For attributes not described here, see the baseclass.
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123,
@@ -47,7 +41,7 @@ class Linear(KernelBaseclass):
                 self.fit_intercept = False
                 actual_rffs = xdim[1]
 
-        super().__init__(actual_rffs, xdim)
+        super().__init__(actual_rffs, xdim, kernel_spec_parms = kernel_spec_parms)
 
         if len(xdim) > 2:
             raise ValueError("The Linear kernel is only applicable for "

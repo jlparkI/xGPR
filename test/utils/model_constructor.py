@@ -22,7 +22,8 @@ def get_models(kernel_choice, xdim, conv_width = 3, training_rffs = 512,
                         device = "cpu", double_precision_fht = False,
                         kernel_specific_params = {"matern_nu":5/2,
                             "conv_width":conv_width, "polydegree":2,
-                            "split_points":split_pts, "order":2})
+                            "split_points":split_pts, "order":2,
+                            "intercept":True})
 
     if "cupy" not in sys.modules:
         print("Cupy not installed -- skipping the CUDA test.")

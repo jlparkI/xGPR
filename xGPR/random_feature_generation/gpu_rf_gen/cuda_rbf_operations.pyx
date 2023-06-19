@@ -14,6 +14,7 @@ import cupy as cp
 from libc.stdint cimport uintptr_t
 import math
 from libc.stdint cimport int8_t, int32_t
+from libcpp cimport bool
 
 
 
@@ -38,7 +39,8 @@ cdef extern from "rbf_ops/rbf_ops.h" nogil:
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def cudaRBFFeatureGen(inputArray, outputArray, radem,
-                chiArr, double betaHparam, int numThreads):
+                chiArr, double betaHparam, int numThreads,
+                fitIntercept = False):
     """Wraps RBFFeatureGen from double_specialized_ops and uses
     it to to generate random features for an RBF kernel (this same routine
     can also be used for Matern, ARD and MiniARD). This wrapper performs all
@@ -56,6 +58,8 @@ def cudaRBFFeatureGen(inputArray, outputArray, radem,
         betaHparam (double): The amplitude hyperparameter.
         numThreads (int): Not currently used, accepted only to preserve
             shared interface with CPU functions.
+        fitIntercept (bool): Whether to fit a y-intercept (in this case,
+            the first random feature generated should be set to 1).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -96,7 +100,10 @@ def cudaRBFFeatureGen(inputArray, outputArray, radem,
         raise ValueError("dim2 of the input array to RBF feature gen functions "
                             "must be a power of 2 >= 2.")
 
-    rbfNormConstant = betaHparam * np.sqrt(1 / <double>chiArr.shape[0])
+    if fitIntercept:
+        rbfNormConstant = betaHparam * np.sqrt(2 / <double>(chiArr.shape[0] - 1))
+    else:
+        rbfNormConstant = betaHparam * np.sqrt(2 / <double>chiArr.shape[0])
 
     if inputArray.dtype == "float32" and outputArray.dtype == "float64" and \
             chiArr.dtype == "float32":
@@ -115,7 +122,8 @@ def cudaRBFFeatureGen(inputArray, outputArray, radem,
 
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered in CudaRBFFeatureGen.")
-
+    if fitIntercept:
+        outputArray[:,0] = betaHparam
 
 
 
@@ -123,7 +131,7 @@ def cudaRBFFeatureGen(inputArray, outputArray, radem,
 @cython.wraparound(False)
 def cudaRBFGrad(inputArray, outputArray, radem,
                 chiArr, double betaHparam, double sigmaHparam,
-                int numThreads):
+                int numThreads, bool fitIntercept = False):
     """Wraps RBFFeatureGen and uses
     it to to generate random features for an RBF kernel
     together with the gradient. This wrapper performs all
@@ -141,6 +149,8 @@ def cudaRBFGrad(inputArray, outputArray, radem,
         sigmaHparam (double): The sigma hyperparameter.
         numThreads (int): Not currently used, accepted only to preserve
             shared interface with CPU functions.
+        fitIntercept (bool): Whether to fit a y-intercept (in this case,
+            the first random feature generated should be set to 1).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -187,7 +197,10 @@ def cudaRBFGrad(inputArray, outputArray, radem,
                             "must be a power of 2 >= 2.")
 
 
-    rbfNormConstant = betaHparam * np.sqrt(1 / <double>chiArr.shape[0])
+    if fitIntercept:
+        rbfNormConstant = betaHparam * np.sqrt(2 / <double>(chiArr.shape[0] - 1))
+    else:
+        rbfNormConstant = betaHparam * np.sqrt(2 / <double>chiArr.shape[0])
 
     if inputArray.dtype == "float32" and outputArray.dtype == "float64" and \
             chiArr.dtype == "float32":
@@ -207,6 +220,9 @@ def cudaRBFGrad(inputArray, outputArray, radem,
         raise ValueError("The input and chiArr arrays are of inconsistent types.")
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered in doubleCudaRBFFeatureGen.")
+    if fitIntercept:
+        outputArray[:,0] = betaHparam
+        gradient[:,0] = 0
     return gradient
 
 
@@ -215,14 +231,15 @@ def cudaRBFGrad(inputArray, outputArray, radem,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def cudaMiniARDGrad(inputX, randomFeats, precompWeights,
-                sigmaMap, sigmaVals, double betaHparam, int numThreads):
+def cudaMiniARDGrad(inputX, outputArray, precompWeights,
+                sigmaMap, sigmaVals, double betaHparam, int numThreads,
+                bool fitIntercept = False):
     """Performs gradient calculations for the MiniARD kernel, using
     pregenerated features and precomputed weights.
 
     Args:
         inputX (np.ndarray): The original input data.
-        randomFeats (np.ndarray): The random features generated using the FHT-
+        outputArray (np.ndarray): The random features generated using the FHT-
             based procedure.
         precompWeights (np.ndarray): The FHT-rf gen procedure applied to an
             identity matrix.
@@ -232,6 +249,8 @@ def cudaMiniARDGrad(inputX, randomFeats, precompWeights,
             dimensionality as the input.
         betaHparam (double): The amplitude hyperparameter.
         numThreads (int): Number of threads to run.
+        fitIntercept (bool): Whether to fit a y-intercept (in this case,
+            the first random feature generated should be set to 1).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or unacceptable inputs
@@ -245,25 +264,25 @@ def cudaMiniARDGrad(inputX, randomFeats, precompWeights,
     cdef float logdim
     cdef double rbfNormConstant
     cdef int numLengthscales = sigmaMap.max() + 1
-    gradient = cp.zeros((randomFeats.shape[0],
-                        randomFeats.shape[1], numLengthscales))
+    gradient = cp.zeros((outputArray.shape[0],
+                        outputArray.shape[1], numLengthscales))
 
-    if len(inputX.shape) != 2 or len(randomFeats.shape) != 2 or \
+    if len(inputX.shape) != 2 or len(outputArray.shape) != 2 or \
             len(precompWeights.shape) != 2 or len(sigmaMap.shape) != 1:
         raise ValueError("The input arrays to a wrapped RBF feature gen function have incorrect "
                 "shapes.")
 
     if inputX.shape[0] == 0 or inputX.shape[1] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if inputX.shape[0] != randomFeats.shape[0] or precompWeights.shape[1] != inputX.shape[1]:
+    if inputX.shape[0] != outputArray.shape[0] or precompWeights.shape[1] != inputX.shape[1]:
         raise ValueError("Incorrect array dims passed to a wrapped RBF "
                     "feature gen function.")
-    if randomFeats.shape[1] != 2 * precompWeights.shape[0] or sigmaMap.shape[0] != \
+    if outputArray.shape[1] != 2 * precompWeights.shape[0] or sigmaMap.shape[0] != \
             precompWeights.shape[1] or sigmaVals.shape[0] != sigmaMap.shape[0]:
         raise ValueError("Incorrect array dims passed to a wrapped RBF "
                     "feature gen function.")
 
-    if not inputX.flags["C_CONTIGUOUS"] or not randomFeats.flags["C_CONTIGUOUS"] or not \
+    if not inputX.flags["C_CONTIGUOUS"] or not outputArray.flags["C_CONTIGUOUS"] or not \
             precompWeights.flags["C_CONTIGUOUS"] or not sigmaMap.flags["C_CONTIGUOUS"] or \
             not sigmaVals.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments to a wrapped RBF feature gen function is not "
@@ -271,7 +290,7 @@ def cudaMiniARDGrad(inputX, randomFeats, precompWeights,
 
 
     cdef uintptr_t addr_input = inputX.data.ptr
-    cdef uintptr_t addr_random_feats = randomFeats.data.ptr
+    cdef uintptr_t addr_random_feats = outputArray.data.ptr
 
     cdef uintptr_t addr_sigma_map = sigmaMap.data.ptr
     cdef int32_t *sigmaMap_ptr = <int32_t*>addr_sigma_map
@@ -280,10 +299,13 @@ def cudaMiniARDGrad(inputX, randomFeats, precompWeights,
     cdef uintptr_t addr_grad = gradient.data.ptr
     cdef uintptr_t addr_precomp_weights = precompWeights.data.ptr
 
-    rbfNormConstant = betaHparam * np.sqrt(1 / <double>precompWeights.shape[0])
+    if fitIntercept:
+        rbfNormConstant = betaHparam * np.sqrt(2 / <double>(precompWeights.shape[0] - 1))
+    else:
+        rbfNormConstant = betaHparam * np.sqrt(2 / <double>precompWeights.shape[0])
 
     if inputX.dtype == "float32" and precompWeights.dtype == "float32" and \
-            randomFeats.dtype == "float64" and sigmaMap.dtype == "int32" and \
+            outputArray.dtype == "float64" and sigmaMap.dtype == "int32" and \
             sigmaVals.dtype == "float64":
         errCode = ardCudaGrad[float](<float*>addr_input, <double*>addr_random_feats,
                 <float*>addr_precomp_weights, <int32_t*>addr_sigma_map,
@@ -293,7 +315,7 @@ def cudaMiniARDGrad(inputX, randomFeats, precompWeights,
                 rbfNormConstant)
 
     elif inputX.dtype == "float64" and precompWeights.dtype == "float64" and \
-            randomFeats.dtype == "float64" and sigmaMap.dtype == "int32" and \
+            outputArray.dtype == "float64" and sigmaMap.dtype == "int32" and \
             sigmaVals.dtype == "float64":
         errCode = ardCudaGrad[double](<double*>addr_input, <double*>addr_random_feats,
                 <double*>addr_precomp_weights, <int32_t*>addr_sigma_map,
@@ -307,4 +329,7 @@ def cudaMiniARDGrad(inputX, randomFeats, precompWeights,
 
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered in RBF feature gen.")
+    if fitIntercept:
+        outputArray[:,0] = betaHparam
+        gradient[:,0,:] = 0
     return gradient

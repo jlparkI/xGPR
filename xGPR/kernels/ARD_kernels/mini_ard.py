@@ -70,7 +70,8 @@ class MiniARD(KernelBaseclass):
                 are not supplied, or if the split points supplied are invalid.
         """
         super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = True,
-                double_precision = double_precision)
+                double_precision = double_precision,
+                kernel_spec_parms = kernel_spec_parms)
         if len(self.xdim) != 2:
             raise ValueError("The dimensionality of the input is inappropriate for "
                         "the kernel you have selected.")
@@ -193,7 +194,7 @@ class MiniARD(KernelBaseclass):
 
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads)
+                self.hyperparams[1], self.num_threads, self.fit_intercept)
         return output_x
 
 
@@ -274,5 +275,5 @@ class MiniARD(KernelBaseclass):
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         dz_dsigma = self.grad_fun(x_retyped, xtrans, self.precomputed_weights,
                 self.ard_position_key, self.full_ard_weights,
-                self.hyperparams[1], self.num_threads)
+                self.hyperparams[1], self.num_threads, self.fit_intercept)
         return xtrans, dz_dsigma

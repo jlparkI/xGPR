@@ -47,7 +47,8 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
 
     def __init__(self, num_rffs, xdim, num_threads = 2,
                             sine_cosine_kernel = True, random_seed = 123,
-                            double_precision = False):
+                            double_precision = False,
+                            kernel_spec_parms = {}):
         """Constructor for the SORFKernelBaseclass. Calls the KernelBaseclass
         constructor first.
 
@@ -69,13 +70,15 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
                 that are even numbers.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
+            kernel_spec_parms (dict): A dictionary of other kernel-specific settings.
 
         Raises:
             ValueError: If a non 2d input array dimensionality is supplied.
         """
         super().__init__(num_rffs, xdim, num_threads = num_threads,
                 sine_cosine_kernel = sine_cosine_kernel,
-                double_precision = double_precision)
+                double_precision = double_precision,
+                kernel_spec_parms = kernel_spec_parms)
         if len(xdim) != 2:
             raise ValueError("The dimensionality of the input is inappropriate for "
                         "the kernel you have selected.")
@@ -134,7 +137,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         xtrans[:,:,:self.xdim[1]] = input_x[:,None,:] * self.hyperparams[2]
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads)
+                self.hyperparams[1], self.num_threads, self.fit_intercept)
         return output_x
 
 
@@ -169,5 +172,6 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         xtrans[:,:,:self.xdim[1]] = input_x[:,None,:]
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         dz_dsigma = self.gradfun(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.hyperparams[2], self.num_threads)
+                self.hyperparams[1], self.hyperparams[2], self.num_threads,
+                self.fit_intercept)
         return output_x, dz_dsigma

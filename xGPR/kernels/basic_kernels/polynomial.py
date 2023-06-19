@@ -63,7 +63,7 @@ class Polynomial(KernelBaseclass):
         """
 
         super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = False,
-                double_precision = double_precision)
+                double_precision = double_precision, kernel_spec_parms = kernel_spec_parms)
         if "polydegree" not in kernel_spec_parms:
             raise ValueError("For the Poly kernel, 'polydegree' must be "
                 "included as the degree of the polynomial.")

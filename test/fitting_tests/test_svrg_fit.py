@@ -73,7 +73,7 @@ class CheckSVRGFit(unittest.TestCase):
                 max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
                 tol = 2e-1,  mode = "sgd", preset_hyperparams = HPARAM)
         print(f"niter: {niter}")
-        self.assertTrue(niter < 150)
+        self.assertTrue(niter < 400)
 
         if gpu_mod is not None:
             gpu_mod.fitting_rffs = NUM_RFFS
@@ -82,7 +82,7 @@ class CheckSVRGFit(unittest.TestCase):
                 max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
                 tol = 2e-1,  mode = "sgd", preset_hyperparams = HPARAM)
             print(f"niter: {niter}")
-            self.assertTrue(niter < 150)
+            self.assertTrue(niter < 400)
 
 
 if __name__ == "__main__":

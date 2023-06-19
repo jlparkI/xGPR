@@ -21,7 +21,9 @@ for details.
        | an RBF kernel applied pairwise to
        | all node representations
        | in the two graphs.
-     -
+     - | "intercept": bool If True,
+       | fit a y-intercept.
+       | Defaults to True.
    * - GraphPoly
      - | Same as "GraphRBF", but applies
        | a polynomial kernel pairwise instead
@@ -29,19 +31,9 @@ for details.
        | that need to be tuned instead of 3
        | as for GraphRBF or FHTConv1d.
      - | "polydegree":int
-   * - GraphMiniARD (DEPRECATED -- removed in v0.1.0.6)
-     - | Same as GraphRBF, but rather than having one
-       | lengthscale shared between all features,
-       | applies different lengthscales to different
-       | groups of features. Much slower hyperparameter
-       | tuning but can give better results for some problems.
-     - | "split_points":list
-
-**Note:** The GraphMiniARD kernel provided up through version 0.1.0.5
-is deprecated, and is no longer available from 0.1.0.6 forward.
-Hyperparameter tuning was relatively slow compared to other graph
-kernels and we had not yet found a use case where it
-provided a clear benefit.
+       | "intercept": bool If True,
+       | fit a y-intercept.
+       | Defaults to True.
 
 Consider a graph where each node has an associated 
 set of features. GraphRBF compares two graphs A and B by

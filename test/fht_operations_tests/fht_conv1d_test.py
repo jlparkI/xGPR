@@ -17,7 +17,7 @@ except:
     pass
 
 from conv_testing_functions import get_initial_matrices_fht, get_features
-from conv_testing_functions import get_features_maxpool, get_features_with_gradient
+from conv_testing_functions import get_features_with_gradient
 from conv_testing_functions import get_features_arccos
 
 
@@ -31,7 +31,7 @@ class TestConv1d(unittest.TestCase):
         sigma, ndatapoints = 1, 124
 
         outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma)
+                    num_freqs, sigma, fit_intercept = True)
         for outcome in outcomes:
             self.assertTrue(outcome)
         
@@ -75,7 +75,7 @@ class TestConv1d(unittest.TestCase):
         sigma, ndatapoints = 1, 36
 
         outcomes = run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma)
+                    num_freqs, sigma, fit_intercept = True)
         for outcome in outcomes:
             self.assertTrue(outcome)
 
@@ -99,32 +99,13 @@ class TestConv1d(unittest.TestCase):
             self.assertTrue(outcome)
 
 
-    def test_conv1d_maxpool(self):
-        """Tests the C / Cuda FHT-based convolution with global max pooling
-        functions."""
-        kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 128
-        sigma, ndatapoints = 1, 124
-        outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, mode = "maxpool")
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
-        sigma, ndatapoints = 1, 2000
-
-        outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, mode = "maxpool", precision = "float")
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-
     def test_conv1d_arccos(self):
         """Tests the FHT-based ArcCosConv1d C / Cuda functions."""
         kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 1000
         sigma, ndatapoints = 1, 124
 
         outcomes = run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs)
+                    num_freqs, fit_intercept = True)
         for outcome in outcomes:
             self.assertTrue(outcome)
         
@@ -161,7 +142,7 @@ class TestConv1d(unittest.TestCase):
 
 
 def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-        num_freqs, sigma, precision = "double"):
+        num_freqs, sigma, precision = "double", fit_intercept = False):
     """Run an evaluation of RBF-based convolution kernel feature
     evaluation, without evaluating gradient."""
     dim2, num_blocks, xdata, reshaped_x, features, s_mat, \
@@ -169,8 +150,9 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                         aa_dim, num_aas, num_freqs, "conv", precision)
     true_features = get_features(xdata, kernel_width, dim2,
                             radem, s_mat, num_freqs, num_blocks, sigma,
-                            precision)
-    cpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, 1.0)
+                            precision, fit_intercept)
+    cpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, 1.0,
+            fit_intercept)
 
     outcome = check_results(true_features, features, precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
@@ -186,7 +168,8 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     features = cp.asarray(features)
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
-    gpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, 1.0)
+    gpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, 1.0,
+            fit_intercept)
 
     features = cp.asnumpy(features)
     outcome_cuda = check_results(true_features, features, precision)
@@ -201,7 +184,8 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
 
 
 def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, precision = "double"):
+                    num_freqs, sigma, precision = "double",
+                    fit_intercept = False):
     """Evaluate RBF-based convolution kernel feature evaluation AND
     gradient calculation."""
     dim2, num_blocks, xdata, reshaped_x, features, s_mat, \
@@ -209,9 +193,11 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                         aa_dim, num_aas, num_freqs, "conv_gradient", precision)
     true_features, true_gradient = get_features_with_gradient(xdata,
                             kernel_width, dim2, radem, s_mat, num_freqs,
-                            num_blocks, sigma, precision)
+                            num_blocks, sigma, precision,
+                            fit_intercept)
 
-    gradient = cpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma, 1.0)
+    gradient = cpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma, 1.0,
+            fit_intercept)
     gradient = gradient[:,:(2*num_freqs),0]
 
 
@@ -233,7 +219,8 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
 
-    gradient = gpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma, 1.0)
+    gradient = gpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma, 1.0,
+            fit_intercept)
     features = cp.asnumpy(features[:,:(2*num_freqs)])
     gradient = cp.asnumpy(gradient[:,:(2*num_freqs),0])
 
@@ -249,23 +236,26 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     return outcome, outcome_gradient, outcome_cuda, outcome_cuda_gradient
 
 
-def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, mode, precision = "double"):
-    """Run an evaluation for the ReLU / maxpool feature generation
-    routine, primarily used for static layers."""
+
+def run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, precision = "double",
+                    fit_intercept = False):
+    """Run an evaluation for the arc-cosine feature generation
+    routine."""
     dim2, num_blocks, xdata, reshaped_x, features, s_mat, \
                 radem = get_initial_matrices_fht(ndatapoints, kernel_width,
-                        aa_dim, num_aas, num_freqs, mode, precision)
-    true_features = get_features_maxpool(xdata, kernel_width, dim2,
-                            radem, s_mat, num_freqs, num_blocks, precision)
+                        aa_dim, num_aas, num_freqs, "arccos", precision)
+    true_features = get_features_arccos(xdata, kernel_width, dim2,
+                            radem, s_mat, num_freqs, num_blocks, precision,
+                            fit_intercept)
 
-    cpuConv1dMaxpool(reshaped_x, radem, features,
-                s_mat, 2)
+    cpuConv1dArcCosFGen(reshaped_x, radem, features,
+                s_mat, 2, 1.0, 1, fit_intercept)
 
     outcome = check_results(true_features, features[:,:num_freqs], precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
-        f"sigma: {sigma}, mode: {mode}, precision {precision}\n"
+        f"precision {precision}\n"
         f"Does result match on CPU? {outcome}")
 
     if "cupy" not in sys.modules:
@@ -278,57 +268,8 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
 
-    gpuConv1dMaxpool(reshaped_x, radem, features,
-                s_mat, 2)
-
-
-    outcome_cuda = check_results(true_features, features[:,:num_freqs], precision)
-    print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
-        f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
-        f"sigma: {sigma}, mode: {mode}, precision {precision}\n"
-        f"Does result match on cuda? {outcome_cuda}")
-
-    print("\n")
-    return outcome, outcome_cuda
-
-
-
-def run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, precision = "double"):
-    """Run an evaluation for the arc-cosine feature generation
-    routine."""
-    dim2, num_blocks, xdata, reshaped_x, features, s_mat, \
-                radem = get_initial_matrices_fht(ndatapoints, kernel_width,
-                        aa_dim, num_aas, num_freqs, "arccos", precision)
-    true_features = get_features_arccos(xdata, kernel_width, dim2,
-                            radem, s_mat, num_freqs, num_blocks, precision)
-
-    #Zero-padding should not make any difference for ArcCosine input.
-    #Let's check though.
-    x_expanded = np.zeros((reshaped_x.shape[0], reshaped_x.shape[1] + 10,
-        reshaped_x.shape[2])).astype(reshaped_x.dtype)
-    x_expanded[:,:reshaped_x.shape[1],:] = reshaped_x
-    cpuConv1dArcCosFGen(x_expanded, radem, features,
-                s_mat, 2, 1.0, 1)
-
-    outcome = check_results(true_features, features[:,:num_freqs], precision)
-    print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
-        f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
-        f"precision {precision}\n"
-        f"Does result match on CPU? {outcome}")
-
-    if "cupy" not in sys.modules:
-        return [outcome]
-
-    xdata = cp.asarray(xdata)
-    reshaped_x = cp.asarray(x_expanded)
-    features[:] = 0
-    features = cp.asarray(features)
-    s_mat = cp.asarray(s_mat)
-    radem = cp.asarray(radem)
-
     gpuConv1dArcCosFGen(reshaped_x, radem, features,
-                s_mat, 2, 1.0, 1)
+                s_mat, 2, 1.0, 1, fit_intercept)
 
 
     outcome_cuda = check_results(true_features, features[:,:num_freqs], precision)

@@ -44,7 +44,8 @@ class Matern(SORFKernelBaseclass):
         """
         super().__init__(num_rffs, xdim, num_threads,
                 sine_cosine_kernel = True, random_seed = random_seed,
-                double_precision = double_precision)
+                double_precision = double_precision,
+                kernel_spec_parms = kernel_spec_parms)
         self.hyperparams = np.ones((3))
         if "matern_nu" not in kernel_spec_parms:
             raise ValueError("Tried to initialize a Matern kernel without supplying nu.")

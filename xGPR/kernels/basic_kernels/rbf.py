@@ -19,7 +19,7 @@ class RBF(SORFKernelBaseclass):
 
     def __init__(self, xdim, num_rffs, random_seed = 123,
                 device = "cpu", num_threads = 2, double_precision = False,
-                **kwargs):
+                kernel_spec_parms = {}):
         """Constructor for RBF.
 
         Args:
@@ -31,10 +31,12 @@ class RBF(SORFKernelBaseclass):
                 running on GPU, this is ignored.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
+            kernel_spec_parms (dict): A dictionary of other kernel-specific settings.
         """
         super().__init__(num_rffs, xdim, num_threads,
                 sine_cosine_kernel = True, random_seed = random_seed,
-                double_precision = double_precision)
+                double_precision = double_precision,
+                kernel_spec_parms = kernel_spec_parms)
         self.hyperparams = np.ones((3))
         self.bounds = np.asarray([[1e-3,1e1], [0.125, 8], [1e-6, 1e2]])
 

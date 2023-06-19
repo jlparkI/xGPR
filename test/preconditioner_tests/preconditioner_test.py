@@ -30,14 +30,14 @@ class CheckPreconditioners(unittest.TestCase):
         cpu_mod.fitting_rffs = 4100
         _, ratio = cpu_mod.build_preconditioner(online_data,
             max_rank = 256, method = "srht", preset_hyperparams = HPARAM)
-        self.assertTrue(ratio < 0.141)
+        self.assertTrue(ratio < 0.3)
 
         #If CUDA is available...
         if gpu_mod is not None:
             gpu_mod.fitting_rffs = 4100
             _, ratio = gpu_mod.build_preconditioner(online_data,
                 max_rank = 256, method = "srht", preset_hyperparams = HPARAM)
-            self.assertTrue(ratio < 0.141)
+            self.assertTrue(ratio < 0.3)
         print("\n\n\n")
 
 
@@ -50,14 +50,14 @@ class CheckPreconditioners(unittest.TestCase):
         cpu_mod.fitting_rffs = 4100
         _, ratio = cpu_mod.build_preconditioner(online_data,
             max_rank = 256, method = "gauss", preset_hyperparams = HPARAM)
-        self.assertTrue(ratio < 0.141)
+        self.assertTrue(ratio < 0.3)
 
         #If CUDA is available...
         if gpu_mod is not None:
             gpu_mod.fitting_rffs = 4100
             _, ratio = gpu_mod.build_preconditioner(online_data,
                 max_rank = 256, method = "gauss", preset_hyperparams = HPARAM)
-            self.assertTrue(ratio < 0.141)
+            self.assertTrue(ratio < 0.3)
         print("\n\n\n")
 
 

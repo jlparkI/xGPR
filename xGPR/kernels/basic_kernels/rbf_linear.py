@@ -58,7 +58,8 @@ class RBFLinear(KernelBaseclass, ABC):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
-                num_threads = 2, double_precision = False, **kwargs):
+                num_threads = 2, double_precision = False,
+                kernel_spec_parms = {}):
         """Constructor. Calls the KernelBaseclass
         constructor first.
 
@@ -78,6 +79,7 @@ class RBFLinear(KernelBaseclass, ABC):
             random_seed (int): The seed to the random number generator.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
+            kernel_spec_parms (dict): A dictionary of other optional kernel settings.
 
         Raises:
             ValueError: If a non 2d input array dimensionality is supplied.
@@ -91,7 +93,8 @@ class RBFLinear(KernelBaseclass, ABC):
         #for internal rffs), so we set sine_cosine_kernel to False.
         super().__init__(num_rffs, xdim, num_threads = num_threads,
                 sine_cosine_kernel = False,
-                double_precision = double_precision)
+                double_precision = double_precision,
+                kernel_spec_parms = kernel_spec_parms)
 
         self.internal_rffs = num_rffs - xdim[1]
         if self.internal_rffs <= 1 or not (self.internal_rffs / 2).is_integer():
@@ -176,7 +179,7 @@ class RBFLinear(KernelBaseclass, ABC):
         random_features = self.empty((input_x.shape[0], self.internal_rffs),
                         self.out_type)
         self.feature_gen(xtrans, random_features, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads)
+                self.hyperparams[1], self.num_threads, self.fit_intercept)
 
         output_x[:,:self.internal_rffs] = random_features
         output_x[:,self.internal_rffs:] = input_x * self.hyperparams[2] * self.hyperparams[1]
@@ -219,7 +222,7 @@ class RBFLinear(KernelBaseclass, ABC):
 
         output_grad[:,:self.internal_rffs,1:2] = self.gradfun(xtrans, random_features,
                         self.radem_diag, self.chi_arr, self.hyperparams[1],
-                        self.hyperparams[3], self.num_threads)
+                        self.hyperparams[3], self.num_threads, self.fit_intercept)
 
         output_grad[:,self.internal_rffs:,0] = input_x * self.hyperparams[1]
 

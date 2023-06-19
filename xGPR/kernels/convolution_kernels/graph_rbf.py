@@ -63,7 +63,7 @@ class GraphRBF(KernelBaseclass):
                 inappropriate given the conv_width.
         """
         super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = True,
-                double_precision = double_precision)
+                double_precision = double_precision, kernel_spec_parms = kernel_spec_parms)
         if len(xdim) != 3:
             raise ValueError("Tried to initialize the GraphRBF kernel with a "
                     "2d x-array! x should be a 3d array for GraphRBF.")
@@ -86,9 +86,6 @@ class GraphRBF(KernelBaseclass):
         self.conv_func = None
         self.grad_func = None
         self.device = device
-        #mandate_equal_xdim is an attribute of the parent class that is
-        #set to True by default.
-        self.mandate_equal_xdim = False
 
 
     def kernel_specific_set_device(self, new_device):
@@ -141,7 +138,7 @@ class GraphRBF(KernelBaseclass):
                                 self.padded_dims), self.dtype)
         reshaped_x[:,:,:input_x.shape[2]] = input_x * self.hyperparams[2]
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
-                self.num_threads, self.hyperparams[1])
+                self.num_threads, self.hyperparams[1], self.fit_intercept)
         return xtrans
 
 
@@ -170,5 +167,5 @@ class GraphRBF(KernelBaseclass):
         reshaped_x[:,:,:input_x.shape[2]] = input_x
         dz_dsigma = self.grad_func(reshaped_x, self.radem_diag,
                 output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
-                self.hyperparams[1])
+                self.hyperparams[1], self.fit_intercept)
         return output_x, dz_dsigma

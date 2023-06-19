@@ -25,7 +25,7 @@ class CheckStatLayerConstruction(unittest.TestCase):
 
         conv_statlayer = FastConv1d(test_online_dataset.get_xdim()[2],
                 device = "cpu", random_seed = RANDOM_SEED, conv_width = [3],
-                num_features = 512, mode = "maxpool")
+                num_features = 512)
         conv_dset = conv_statlayer.conv1d_pretrain_feat_extract(test_offline_dataset,
                 os.getcwd())
 

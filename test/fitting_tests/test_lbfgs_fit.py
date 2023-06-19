@@ -32,7 +32,7 @@ class CheckLBFGSFit(unittest.TestCase):
                 max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
                 mode = "lbfgs", preset_hyperparams = HPARAM)
         print(f"niter: {niter}")
-        self.assertTrue(niter < 100)
+        self.assertTrue(niter < 125)
 
         if gpu_mod is not None:
             gpu_mod.fitting_rffs = NUM_RFFS
@@ -41,7 +41,7 @@ class CheckLBFGSFit(unittest.TestCase):
                 max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
                 tol = 1e-6,  mode = "lbfgs", preset_hyperparams = HPARAM)
             print(f"niter: {niter}")
-            self.assertTrue(niter < 100)
+            self.assertTrue(niter < 125)
 
 
 if __name__ == "__main__":

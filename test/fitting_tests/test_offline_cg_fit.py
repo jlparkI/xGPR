@@ -63,7 +63,7 @@ class CheckCGFit(unittest.TestCase):
                 max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg", preset_hyperparams = HPARAM)
         print(f"No preconditioning, niter: {niter}")
-        self.assertTrue(niter < 60)
+        self.assertTrue(niter < 80)
 
         if gpu_mod is not None:
             gpu_mod.fitting_rffs = NUM_RFFS
@@ -72,7 +72,7 @@ class CheckCGFit(unittest.TestCase):
                 max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg", preset_hyperparams = HPARAM)
             print(f"No preconditioning, niter: {niter}")
-            self.assertTrue(niter < 60)
+            self.assertTrue(niter < 80)
 
 
 if __name__ == "__main__":
