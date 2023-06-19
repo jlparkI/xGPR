@@ -305,9 +305,9 @@ def run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
 
     #Zero-padding should not make any difference for ArcCosine input.
     #Let's check though.
-    x_expanded = np.zeros((reshaped_x.shape[0], reshaped_x.shape[1] + 1,
+    x_expanded = np.zeros((reshaped_x.shape[0], reshaped_x.shape[1] + 10,
         reshaped_x.shape[2])).astype(reshaped_x.dtype)
-    x_expanded[:,:-1,:] = reshaped_x
+    x_expanded[:,:reshaped_x.shape[1],:] = reshaped_x
     cpuConv1dArcCosFGen(x_expanded, radem, features,
                 s_mat, 2, 1.0, 1)
 

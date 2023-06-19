@@ -43,6 +43,8 @@ class GraphArcCosine(KernelBaseclass):
             from S H D1 H D2 H D3 are correct.
         conv_func: A reference to the random feature generation function
             appropriate for the current device.
+        fit_intercept (bool): Determines whether to fit a y-intercept.
+            Defaults to True.
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
@@ -82,6 +84,11 @@ class GraphArcCosine(KernelBaseclass):
             raise ValueError("For the GraphArcCosine kernel, 'order' must be "
                 "included and must be either 1 or 2.")
 
+        self.fit_intercept = True
+        if "intercept" in kernel_spec_parms:
+            if kernel_spec_parms["intercept"] is False:
+                self.fit_intercept = False
+
         self.effective_dim = xdim[2] + 1
         self.order = kernel_spec_parms["order"]
 
@@ -102,8 +109,6 @@ class GraphArcCosine(KernelBaseclass):
 
         self.conv_func = None
         self.device = device
-        #Unlike GraphRBF, the GraphArcCos kernel does not require
-        #that inputs be zero-padded to be the same length as training set.
         #mandate_equal_xdim is an attribute of the parent class that is
         #set to True by default.
         self.mandate_equal_xdim = False
@@ -159,6 +164,8 @@ class GraphArcCosine(KernelBaseclass):
         reshaped_x[:,:,input_x.shape[2]] = 1.0
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
                 self.num_threads, self.hyperparams[1], self.order)
+        if self.fit_intercept:
+            xtrans[:,-1] = self.hyperparams[1]
         return xtrans
 
 

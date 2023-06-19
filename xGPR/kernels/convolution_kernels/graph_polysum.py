@@ -38,6 +38,8 @@ class GraphPolySum(KernelBaseclass):
         init_calc_freqsize (int): The number of features to generate.
             May be greater than num_rffs, in which case excess is
             discarded.
+        fit_intercept (bool): Determines whether to fit a y-intercept.
+            Defaults to True.
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123,
@@ -71,6 +73,12 @@ class GraphPolySum(KernelBaseclass):
         self.polydegree = kernel_spec_parms["polydegree"]
         if self.polydegree < 2 or self.polydegree > 4:
             raise ValueError("Polydegree should be in the range from 2 to 4.")
+
+        self.fit_intercept = True
+        if "intercept" in kernel_spec_parms:
+            if kernel_spec_parms["intercept"] is False:
+                self.fit_intercept = False
+
         self.hyperparams = np.ones((2))
         self.bounds = np.asarray([[1e-3,1e1], [0.2, 5]])
 
@@ -91,6 +99,9 @@ class GraphPolySum(KernelBaseclass):
         self.graph_poly_func = None
         self.device = device
         self.chi_arr = self.chi_arr.astype(self.dtype)
+        #mandate_equal_xdim is an attribute of the parent class that is
+        #set to True by default.
+        self.mandate_equal_xdim = False
 
 
     def kernel_specific_set_device(self, new_device):
@@ -142,6 +153,9 @@ class GraphPolySum(KernelBaseclass):
                 self.chi_arr, output_x, self.polydegree, self.num_threads)
         scaling_constant = self.hyperparams[1] * np.sqrt(1 / self.num_freqs)
         output_x = output_x[:,:self.num_rffs].astype(self.out_type) * scaling_constant
+
+        if self.fit_intercept:
+            output_x[:,-1] = self.hyperparams[1]
         return output_x
 
 

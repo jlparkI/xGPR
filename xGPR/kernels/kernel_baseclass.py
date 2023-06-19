@@ -87,8 +87,11 @@ class KernelBaseclass(ABC):
                 but num_rffs is not an integer multiple of 2.
         """
         self.double_precision = double_precision
+        if num_rffs < 2:
+            raise ValueError("num_rffs should always be >= 2.")
+
         if sine_cosine_kernel:
-            if num_rffs <= 1 or not (num_rffs / 2).is_integer():
+            if not (num_rffs / 2).is_integer():
                 raise ValueError("For sine-cosine kernels (e.g. matern, rbf) "
                         "the number of random fourier features must be an integer "
                         "multiple of two.")

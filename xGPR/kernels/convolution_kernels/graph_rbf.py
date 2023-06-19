@@ -86,6 +86,9 @@ class GraphRBF(KernelBaseclass):
         self.conv_func = None
         self.grad_func = None
         self.device = device
+        #mandate_equal_xdim is an attribute of the parent class that is
+        #set to True by default.
+        self.mandate_equal_xdim = False
 
 
     def kernel_specific_set_device(self, new_device):

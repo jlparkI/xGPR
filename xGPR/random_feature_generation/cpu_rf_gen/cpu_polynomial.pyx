@@ -151,7 +151,6 @@ def cpuGraphPolyFHT(np.ndarray[floating, ndim=3] reshapedX,
 
 
 
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def cpuPolyFHT(np.ndarray[floating, ndim=3] reshapedX,
