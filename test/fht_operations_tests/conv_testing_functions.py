@@ -104,7 +104,7 @@ def get_features(xdata, kernel_width, dim2,
             counter += 1
 
     if fit_intercept:
-        features = features * np.sqrt(2 / float(num_freqs-1))
+        features = features * np.sqrt(2 / (float(num_freqs)-0.5))
         features[:,0] = 1
     else:
         features = features * np.sqrt(2 / float(num_freqs))
@@ -141,10 +141,10 @@ def get_features_with_gradient(xdata, kernel_width, dim2,
             counter += 1
 
     if fit_intercept:
-        features *= np.sqrt(2 / (num_freqs-1))
+        features *= np.sqrt(2 / (num_freqs-0.5))
         features[:,0] = 1
         gradient[:,0] = 0
-        gradient *= np.sqrt(2 / (num_freqs-1))
+        gradient *= np.sqrt(2 / (num_freqs-0.5))
     else:
         gradient *= np.sqrt(2 / num_freqs)
         features *= np.sqrt(2 / num_freqs)

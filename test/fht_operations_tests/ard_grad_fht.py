@@ -150,7 +150,7 @@ def get_MiniARD_gt_values(input_x, num_freqs, split_points,
     if fit_intercept:
         xtrans[:,0] = no_intercept_kernel.transform_x(input_x)[:,0]
         xtrans[:,0] /= np.sqrt(2 / (p_weights.shape[0]))
-        xtrans[:,0] *= np.sqrt(2 / (p_weights.shape[0] - 1))
+        xtrans[:,0] *= np.sqrt(2 / (p_weights.shape[0] - 0.5))
     gradient = np.zeros((xtrans.shape[0], xtrans.shape[1],
                     len(split_points) + 1))
 

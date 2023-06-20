@@ -100,3 +100,17 @@ Fixed bug in variance / uncertainty calculation.
 Added the option to NOT normalize_y. Generally normalizing
 y is beneficial, but there are some circumstances where
 the user might not want to do so.
+
+### Version 0.1.2.0
+
+Added the option to either use / not use an intercept for
+all kernels. Added the GraphArcCosine kernel to the docs.
+Reconfigured all graph / sequence kernels to accept variable
+length inputs when making predictions.
+Updated data processing to improve memory consumption on
+GPU for offline data during pretransform / hyperparameter
+tuning operations. Updated scaling factor for RBF random
+feature generation (this may change the value for the
+beta hyperparameter selected by hyperparameter tuning
+so that models tuned or fitted with a prior version of xGPR will
+need to be retuned but should have no effect on performance).

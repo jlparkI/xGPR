@@ -104,7 +104,7 @@ def cpuRBFFeatureGen(np.ndarray[floating, ndim=3] inputArray,
                             "must be a power of 2 >= 2.")
 
     if fitIntercept:
-        rbfNormConstant = betaHparam * np.sqrt(2 / <double>(chiArr.shape[0] - 1))
+        rbfNormConstant = betaHparam * np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
     else:
         rbfNormConstant = betaHparam * np.sqrt(2 / <double>chiArr.shape[0])
 
@@ -205,7 +205,7 @@ def cpuRBFGrad(np.ndarray[floating, ndim=3] inputArray,
                             "must be a power of 2 >= 2.")
 
     if fitIntercept:
-        rbfNormConstant = betaHparam * np.sqrt(2 / <double>(chiArr.shape[0] - 1))
+        rbfNormConstant = betaHparam * np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
     else:
         rbfNormConstant = betaHparam * np.sqrt(2 / <double>chiArr.shape[0])
 
@@ -295,7 +295,7 @@ def cpuMiniARDGrad(np.ndarray[floating, ndim=2] inputX,
                 "C contiguous.")
 
     if fitIntercept:
-        rbfNormConstant = betaHparam * np.sqrt(2 / <double>(precompWeights.shape[0] - 1))
+        rbfNormConstant = betaHparam * np.sqrt(2.0 / (<double>precompWeights.shape[0] - 0.5))
     else:
         rbfNormConstant = betaHparam * np.sqrt(2 / <double>precompWeights.shape[0])
 

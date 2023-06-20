@@ -101,7 +101,7 @@ def cudaRBFFeatureGen(inputArray, outputArray, radem,
                             "must be a power of 2 >= 2.")
 
     if fitIntercept:
-        rbfNormConstant = betaHparam * np.sqrt(2 / <double>(chiArr.shape[0] - 1))
+        rbfNormConstant = betaHparam * np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
     else:
         rbfNormConstant = betaHparam * np.sqrt(2 / <double>chiArr.shape[0])
 
@@ -198,7 +198,7 @@ def cudaRBFGrad(inputArray, outputArray, radem,
 
 
     if fitIntercept:
-        rbfNormConstant = betaHparam * np.sqrt(2 / <double>(chiArr.shape[0] - 1))
+        rbfNormConstant = betaHparam * np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
     else:
         rbfNormConstant = betaHparam * np.sqrt(2 / <double>chiArr.shape[0])
 
@@ -300,7 +300,7 @@ def cudaMiniARDGrad(inputX, outputArray, precompWeights,
     cdef uintptr_t addr_precomp_weights = precompWeights.data.ptr
 
     if fitIntercept:
-        rbfNormConstant = betaHparam * np.sqrt(2 / <double>(precompWeights.shape[0] - 1))
+        rbfNormConstant = betaHparam * np.sqrt(2.0 / (<double>precompWeights.shape[0] - 0.5))
     else:
         rbfNormConstant = betaHparam * np.sqrt(2 / <double>precompWeights.shape[0])
 

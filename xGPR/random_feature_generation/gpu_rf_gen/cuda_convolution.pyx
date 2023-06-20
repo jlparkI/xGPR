@@ -236,7 +236,7 @@ def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
 
 
     if fitIntercept:
-        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0] - 1))
+        scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
     else:
         scalingTerm = np.sqrt(2 / <double>chiArr.shape[0])
     scalingTerm *= beta_
@@ -351,7 +351,7 @@ def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
 
 
     if fitIntercept:
-        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0] - 1))
+        scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
     else:
         scalingTerm = np.sqrt(2 / <double>chiArr.shape[0])
     scalingTerm *= beta_

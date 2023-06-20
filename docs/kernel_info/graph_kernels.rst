@@ -34,6 +34,17 @@ for details.
        | "intercept": bool If True,
        | fit a y-intercept.
        | Defaults to True.
+   * - GraphArcCosine
+     - | Same as "GraphRBF", but applies
+       | an arc-cosine kernel pairwise instead
+       | of an RBF. Only two hyperparameters
+       | that need to be tuned instead of 3
+       | as for GraphRBF or FHTConv1d.
+     - | "order":int, either 1 or 2. Determines
+       | the order of the arc-cosine kernel.
+       | "intercept": bool If True,
+       | fit a y-intercept.
+       | Defaults to True.
 
 Consider a graph where each node has an associated 
 set of features. GraphRBF compares two graphs A and B by
@@ -51,3 +62,8 @@ because to avoid using excessive
 memory, the convolutions are performed in batches (rather
 than all at once). As a compensating factor, they frequently
 need fewer random features to achieve good performance.
+
+Tuning hyperparameters for GraphArcCosine and GraphPoly is
+usually quite straightforward since there are only two.
+On the other hand, they are slightly slower than GraphRBF
+for both fitting and inference.

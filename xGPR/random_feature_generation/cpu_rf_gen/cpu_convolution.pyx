@@ -231,7 +231,7 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] reshapedX,
         raise Exception("Fatal error encountered while performing convolution.")
 
     if fitIntercept:
-        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0] - 1))
+        scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
         scalingTerm *= beta_
         outputArray *= scalingTerm
         outputArray[:,0] = beta_
@@ -333,7 +333,7 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] reshapedX,
         raise Exception("Fatal error encountered while performing graph convolution.")
 
     if fitIntercept:
-        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0] - 1))
+        scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
         scalingTerm *= beta_
         outputArray *= scalingTerm
         gradient *= scalingTerm

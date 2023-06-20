@@ -232,8 +232,8 @@ def generate_rbf_values(test_array, radem, chi_arr, beta,
                 pretrans_x[:,j]
 
     if fit_intercept:
-        xtrans *= (beta * np.sqrt(2 / (chi_arr.shape[0]-1)))
-        gradient *= (beta * np.sqrt(2 / (chi_arr.shape[0]-1)))
+        xtrans *= (beta * np.sqrt(2 / (chi_arr.shape[0]-0.5)))
+        gradient *= (beta * np.sqrt(2 / (chi_arr.shape[0]-0.5)))
         xtrans[:,0] = beta
         gradient[:,0] = 0
     else:
