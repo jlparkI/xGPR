@@ -331,6 +331,9 @@ class GPRegressionBaseclass():
             xfiles.append(xfile)
             yfiles.append(yfile)
             max_chunk_size = max(max_chunk_size, xbatch.shape[0])
+            if self.device == "gpu":
+                mempool = cp.get_default_memory_pool()
+                mempool.free_all_blocks()
 
         tuning_dataset = build_offline_fixed_vector_dataset(xfiles,
                             yfiles, chunk_size = max_chunk_size,

@@ -76,11 +76,16 @@ def calc_design_mat(dataset, kernel):
             z_trans_z += xfeatures.T @ xfeatures
             y_trans_y += ydata.T @ ydata
     else:
-        for xdata, ydata in dataset.get_chunked_data():
+        for i, (xdata, ydata) in enumerate(dataset.get_chunked_data()):
             xfeatures = kernel.transform_x(xdata)
             z_trans_y += xfeatures.T @ ydata
             z_trans_z += xfeatures.T @ xfeatures
             y_trans_y += ydata.T @ ydata
+            if i % 2 == 0:
+                if kernel.device == "gpu":
+                    mempool = cp.get_default_memory_pool()
+                    mempool.free_all_blocks()
+                
     return z_trans_z, z_trans_y, float(y_trans_y)
 
 
