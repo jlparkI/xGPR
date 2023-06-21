@@ -114,3 +114,9 @@ feature generation (this may change the value for the
 beta hyperparameter selected by hyperparameter tuning
 so that models tuned or fitted with a prior version of xGPR will
 need to be retuned but should have no effect on performance).
+
+### Version 0.1.2.1
+
+Added pyproject.toml file to force numpy preinstallation, thereby
+avoiding issues encountered if xGPR is installed as part of a
+requirements file with numpy not yet installed.
