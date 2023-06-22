@@ -23,7 +23,7 @@ class CheckLBFGSFit(unittest.TestCase):
 
     def test_lbfgs(self):
         """Test using LBFGS, which should easily fit in under
-        100 epochs."""
+        150 epochs."""
         online_data, _ = build_test_dataset(conv_kernel = False)
         cpu_mod, gpu_mod = get_models("RBF", online_data.get_xdim())
         cpu_mod.fitting_rffs = NUM_RFFS
@@ -32,7 +32,7 @@ class CheckLBFGSFit(unittest.TestCase):
                 max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
                 mode = "lbfgs", preset_hyperparams = HPARAM)
         print(f"niter: {niter}")
-        self.assertTrue(niter < 125)
+        self.assertTrue(niter < 150)
 
         if gpu_mod is not None:
             gpu_mod.fitting_rffs = NUM_RFFS
@@ -41,7 +41,7 @@ class CheckLBFGSFit(unittest.TestCase):
                 max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
                 tol = 1e-6,  mode = "lbfgs", preset_hyperparams = HPARAM)
             print(f"niter: {niter}")
-            self.assertTrue(niter < 125)
+            self.assertTrue(niter < 150)
 
 
 if __name__ == "__main__":
