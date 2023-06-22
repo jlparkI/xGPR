@@ -217,7 +217,7 @@ def build_offline_sequence_dataset(xlist, ylist, chunk_size = 2000,
             if xdim[1] == -1:
                 xdim[1] = x_data.shape[1]
                 xdim[2] = x_data.shape[2]
-            elif x_data.shape[1] != xdim[1] or x_data.shape[2] != xdim[2]:
+            elif x_data.shape[2] != xdim[2]:
                 raise ValueError("All x arrays must have the same dimensionality.")
             if x_data.shape[0] > chunk_size:
                 raise ValueError(f"Xfile {xfile} has more datapoints than allowed "
