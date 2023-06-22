@@ -120,3 +120,10 @@ need to be retuned but should have no effect on performance).
 Added pyproject.toml file to force numpy preinstallation, thereby
 avoiding issues encountered if xGPR is installed as part of a
 requirements file with numpy not yet installed.
+
+### Version 0.1.2.2
+
+Updated dataset builder so that different batches with different
+xdim[1] are now accepted when building a dataset. This obviates
+the need to zero-pad data (although note that zero-padding is
+generally advisable for consistency).
