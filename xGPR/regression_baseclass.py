@@ -624,7 +624,13 @@ class GPRegressionBaseclass():
             elif value == "cpu" and not isinstance(self.weights, np.ndarray):
                 self.weights = cp.asnumpy(self.weights)
         if self.var is not None:
-            self.var.device = value
+            if self.exact_var_calculation:
+                if value == "cpu":
+                    self.var = cp.asnumpy(self.var)
+                else:
+                    self.var = cp.asarray(self.var)
+            else:
+                self.var.device = value
         if value == "gpu":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()

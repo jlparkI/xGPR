@@ -127,3 +127,8 @@ Updated dataset builder so that different batches with different
 xdim[1] are now accepted when building a dataset. This obviates
 the need to zero-pad data (although note that zero-padding is
 generally advisable for consistency).
+
+### Version 0.1.2.3
+
+Fixed a bug involving changing device after fitting from gpu
+to cpu.

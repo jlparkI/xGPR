@@ -23,7 +23,7 @@ class CheckPipeline(unittest.TestCase):
                 "involving ARD kernels) may take a minute.")
         for kernel_name, (is_conv, exp_score) in IMPLEMENTED_KERNELS.items():
             cg_score, exact_score = test_fit_cpu(kernel_name, is_conv, RANDOM_SEED,
-                conv_width = 3, get_var = False)
+                conv_width = 3, get_var = True)
             self.assertTrue(cg_score > exp_score)
             self.assertTrue(exact_score > exp_score)
 
@@ -32,7 +32,7 @@ class CheckPipeline(unittest.TestCase):
         print("Now running GPU tests.")
         for kernel_name, (is_conv, exp_score) in IMPLEMENTED_KERNELS.items():
             cg_score, exact_score = test_fit_gpu(kernel_name, is_conv, RANDOM_SEED,
-                conv_width = 3, get_var = False)
+                conv_width = 3, get_var = True)
             self.assertTrue(cg_score > exp_score)
             self.assertTrue(exact_score > exp_score)
 
