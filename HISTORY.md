@@ -132,3 +132,9 @@ generally advisable for consistency).
 
 Fixed a bug involving changing device after fitting from gpu
 to cpu.
+
+### Version 0.1.2.4
+
+Fixed a bug involving variable-length sequence inputs to
+FHT-conv1d kernels. Sped up the nan checking for dataset building.
+

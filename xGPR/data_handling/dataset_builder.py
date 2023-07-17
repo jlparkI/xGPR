@@ -44,7 +44,7 @@ def build_online_dataset(xdata, ydata, chunk_size = 2000,
         raise ValueError("Both x and y must be arrays of datatype np.float64.")
     if ydata.shape[0] != xdata.shape[0]:
         raise ValueError("Different number of datapoints in x and y.")
-    if np.sum(np.isnan(xdata)) > 0:
+    if np.isnan(xdata).any():
         raise ValueError("One or more elements in x is nan!")
     if np.max(xdata) > 1e15 or np.min(xdata) < -1e15:
         raise ValueError("Values > 1e15 or < -1e15 encountered. "
@@ -104,7 +104,7 @@ def build_offline_fixed_vector_dataset(xlist, ylist, chunk_size = 2000,
             x_data = np.load(xfile)
             if x_data.shape[0] == 0:
                 raise ValueError(f"File {xfile} has no datapoints.")
-            if np.sum(np.isnan(x_data)) > 0:
+            if np.isnan(x_data).any():
                 raise ValueError(f"One or more elements in file {xfile} is nan.")
             if np.max(x_data) > 1e15 or np.min(x_data) < -1e15:
                 raise ValueError(f"One or more values in {xfile} is "
@@ -199,7 +199,7 @@ def build_offline_sequence_dataset(xlist, ylist, chunk_size = 2000,
             x_data = np.load(xfile)
             if x_data.shape[0] == 0:
                 raise ValueError(f"File {xfile} has no datapoints.")
-            if np.sum(np.isnan(x_data)) > 0:
+            if np.isnan(x_data).any():
                 raise ValueError(f"One or more elements in file {xfile} is nan.")
             if np.max(x_data) > 1e15 or np.min(x_data) < -1e15:
                 raise ValueError(f"One or more values in {xfile} is "

@@ -27,9 +27,6 @@ class FHTConv1d(KernelBaseclass):
         conv_width (int): The width of the convolution kernel.
             This hyperparameter can be set based on experimentation
             or domain knowledge. Defaults to 9.
-        num_slides (int): The length of the (zero-padded) input data
-            minus conv_width + 1. The number of points that will
-            result from the convolution.
         dim2_no_padding (int): The size of the expected input data
             once reshaped for convolution, before zero padding.
         padded_dims (int): The size of the expected input data
@@ -95,7 +92,6 @@ class FHTConv1d(KernelBaseclass):
             raise ValueError("The conv_width for the convolution kernels must be "
                     "< the length of the time series / sequence.")
 
-        self.num_slides = xdim[1] - self.conv_width + 1
         self.dim2_no_padding = self.conv_width * xdim[2]
         self.padded_dims = 2**ceil(np.log2(max(self.dim2_no_padding, 2)))
         self.init_calc_freqsize = ceil(self.num_freqs / self.padded_dims) * \
@@ -155,16 +151,23 @@ class FHTConv1d(KernelBaseclass):
             ValueError: A value error is raised if the dimensionality of the
                 input does not meet validity criteria.
         """
+        #Because we are using stride_tricks, we need to run some additional
+        #checks on the input before doing anything else.
         if input_x.shape[1] <= self.conv_width:
             raise ValueError("Input X must have shape[1] >= the convolution "
                     "kernel width.")
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
+        if input_x.shape[2] != self.xdim[2]:
+            raise ValueError("Unexpected input shape supplied.")
+
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        reshaped_x = self.zero_arr((input_x.shape[0], self.num_slides,
+
+        num_slides = input_x.shape[1] - self.conv_width + 1
+        reshaped_x = self.zero_arr((input_x.shape[0], num_slides,
                                 self.padded_dims), self.dtype)
         x_strided = self.stride_tricks(input_x, shape=(input_x.shape[0],
-                            self.num_slides, self.dim2_no_padding),
+                            num_slides, self.dim2_no_padding),
                             strides=(input_x.strides[0], input_x.shape[2] * input_x.strides[2],
                                 input_x.strides[2]))
         reshaped_x[:,:,:self.dim2_no_padding] = x_strided * self.hyperparams[2]
@@ -201,11 +204,15 @@ class FHTConv1d(KernelBaseclass):
                     "kernel width.")
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
+        if input_x.shape[2] != self.xdim[2]:
+            raise ValueError("Unexpected input shape supplied.")
+
         output_x = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
-        reshaped_x = self.zero_arr((input_x.shape[0], self.num_slides,
+        num_slides = input_x.shape[1] - self.conv_width + 1
+        reshaped_x = self.zero_arr((input_x.shape[0], num_slides,
                                 self.padded_dims), self.dtype)
         x_strided = self.stride_tricks(input_x, shape=(input_x.shape[0],
-                            self.num_slides, self.dim2_no_padding),
+                            num_slides, self.dim2_no_padding),
                             strides=(input_x.strides[0], input_x.shape[2] *
                                 input_x.strides[2], input_x.strides[2]))
         reshaped_x[:,:,:self.dim2_no_padding] = x_strided
