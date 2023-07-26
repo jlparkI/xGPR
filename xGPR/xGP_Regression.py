@@ -27,7 +27,6 @@ from .optimizers.crude_grid_optimizer import crude_grid_tuning
 
 from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
 from .fitting_toolkit.sgd_fitting_toolkit import sgdModelFit
-from .fitting_toolkit.ams_grad_toolkit import amsModelFit
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext
 from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
 
@@ -517,10 +516,6 @@ class xGPRegression(GPRegressionBaseclass):
                     self.kernel, tol = tol, max_epochs = max_iter,
                     preconditioner = preconditioner, manual_lr = manual_lr)
 
-        elif mode == "amsgrad":
-            model_fitter = amsModelFit(self.kernel.get_lambda(), self.device, self.verbose)
-            self.weights, n_iter, losses = model_fitter.fit_model(dataset,
-                    self.kernel, tol = tol, max_epochs = max_iter)
 
         else:
             raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
