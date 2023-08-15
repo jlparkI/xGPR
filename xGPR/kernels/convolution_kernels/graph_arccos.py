@@ -45,6 +45,9 @@ class GraphArcCosine(KernelBaseclass):
             appropriate for the current device.
         fit_intercept (bool): Determines whether to fit a y-intercept.
             Defaults to True.
+        graph_average (bool): If True, divide the summed random features for the
+            graph by the number of nodes. Defaults to False. Can be set to
+            True by supplying "graph_averaging":True under kernel_spec_parms.
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
@@ -76,6 +79,10 @@ class GraphArcCosine(KernelBaseclass):
         if len(xdim) != 3:
             raise ValueError("Tried to initialize the GraphArcCos kernel with a "
                     "2d x-array! x should be a 3d array for a graph kernel.")
+        self.graph_average = False
+        if "graph_averaging" in kernel_spec_parms:
+            if kernel_spec_parms["graph_averaging"]:
+                self.graph_average = True
 
         if "order" not in kernel_spec_parms:
             raise ValueError("For the GraphArcCosine kernel, 'order' must be "
@@ -157,6 +164,8 @@ class GraphArcCosine(KernelBaseclass):
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
                 self.num_threads, self.hyperparams[1], self.order,
                 self.fit_intercept)
+        if self.graph_average:
+            xtrans /= input_x.shape[1]
         return xtrans
 
 
@@ -168,4 +177,6 @@ class GraphArcCosine(KernelBaseclass):
         can return a shape[1] == 0 array for gradient.
         """
         xtrans = self.transform_x(input_x)
+        if self.graph_average:
+            xtrans /= input_x.shape[1]
         return xtrans, np.zeros((xtrans.shape[0], 0, 0))

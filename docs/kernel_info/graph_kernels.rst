@@ -24,6 +24,12 @@ for details.
      - | "intercept": bool If True,
        | fit a y-intercept.
        | Defaults to True.
+       | "graph_averaging": bool If True,
+       | average over the transformed features
+       | when summing them. This is useful if
+       | you are trying to predict a graph
+       | property that does not vary with graph
+       | size. Defaults to False.
    * - GraphPoly
      - | Same as "GraphRBF", but applies
        | a polynomial kernel pairwise instead
@@ -34,6 +40,12 @@ for details.
        | "intercept": bool If True,
        | fit a y-intercept.
        | Defaults to True.
+       | "graph_averaging": bool If True,
+       | average over the transformed features
+       | when summing them. This is useful if
+       | you are trying to predict a graph
+       | property that does not vary with graph
+       | size. Defaults to False.
    * - GraphArcCosine
      - | Same as "GraphRBF", but applies
        | an arc-cosine kernel pairwise instead
@@ -45,6 +57,12 @@ for details.
        | "intercept": bool If True,
        | fit a y-intercept.
        | Defaults to True.
+       | "graph_averaging": bool If True,
+       | average over the transformed features
+       | when summing them. This is useful if
+       | you are trying to predict a graph
+       | property that does not vary with graph
+       | size. Defaults to False.
 
 Consider a graph where each node has an associated 
 set of features. GraphRBF compares two graphs A and B by
