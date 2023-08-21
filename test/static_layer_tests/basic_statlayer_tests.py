@@ -4,7 +4,7 @@ import sys
 import unittest
 import os
 
-from xGPR.static_layers.fast_conv import FastConv1d
+from xGPR.static_layers import FastConv1d
 
 #TODO: Get rid of this path alteration
 sys.path.append("..")
