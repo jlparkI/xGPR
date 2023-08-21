@@ -47,7 +47,7 @@ class GraphArcCosine(KernelBaseclass):
             Defaults to True.
         graph_average (bool): If True, divide the summed random features for the
             graph by the number of nodes. Defaults to False. Can be set to
-            True by supplying "graph_averaging":True under kernel_spec_parms.
+            True by supplying "averaging":True under kernel_spec_parms.
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
@@ -80,8 +80,8 @@ class GraphArcCosine(KernelBaseclass):
             raise ValueError("Tried to initialize the GraphArcCos kernel with a "
                     "2d x-array! x should be a 3d array for a graph kernel.")
         self.graph_average = False
-        if "graph_averaging" in kernel_spec_parms:
-            if kernel_spec_parms["graph_averaging"]:
+        if "averaging" in kernel_spec_parms:
+            if kernel_spec_parms["averaging"]:
                 self.graph_average = True
 
         if "order" not in kernel_spec_parms:
@@ -177,6 +177,4 @@ class GraphArcCosine(KernelBaseclass):
         can return a shape[1] == 0 array for gradient.
         """
         xtrans = self.transform_x(input_x)
-        if self.graph_average:
-            xtrans /= input_x.shape[1]
         return xtrans, np.zeros((xtrans.shape[0], 0, 0))

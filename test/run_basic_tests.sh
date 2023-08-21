@@ -12,4 +12,5 @@ python fht_conv1d_test.py
 python poly_fht.py
 python rbf_fht.py
 python ard_grad_fht.py
+python variable_length_seqs_test.py
 cd ..

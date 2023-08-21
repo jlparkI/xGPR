@@ -19,6 +19,17 @@ class CheckKernelGradients(unittest.TestCase):
             for costcomp in costcomps:
                 self.assertTrue(costcomp)
 
+            #For convolution kernels, also test that graph or sequence averaging
+            #works.
+            if is_conv_kernel:
+                print("****Testing with averaging****")
+                costcomps = run_kernelspecific_test(kernel_name,
+                        conv_kernel = is_conv_kernel,
+                        averaging = True)
+                for costcomp in costcomps:
+                    self.assertTrue(costcomp)
+
+
 
 if __name__ == "__main__":
     unittest.main()

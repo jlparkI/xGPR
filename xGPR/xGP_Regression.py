@@ -47,7 +47,7 @@ class xGPRegression(GPRegressionBaseclass):
     of the parent class."""
 
     def __init__(self, training_rffs, fitting_rffs, variance_rffs = 16,
-                    kernel_choice="rbf",
+                    kernel_choice="RBF",
                     device = "cpu",
                     kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     verbose = True,
@@ -67,7 +67,6 @@ class xGPRegression(GPRegressionBaseclass):
                 uncertainty on predictions). Defaults to 64.
             kernel_choice (str): The kernel that the model will use.
                 Must be one of constants.ACCEPTABLE_KERNELS.
-                Defaults to 'rbf'.
             device (str): Determines whether calculations are performed on
                 'cpu' or 'gpu'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).

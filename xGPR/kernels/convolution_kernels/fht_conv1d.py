@@ -48,6 +48,10 @@ class FHTConv1d(KernelBaseclass):
         stride_tricks: A reference to cp.lib.stride_tricks.as_strided
             or np.lib.stride_tricks.as_strided, as appropriate based
             on the current device.
+        sequence_average (bool): If True, the features are averaged over the sequence
+            when summing. Can be set to True by passing "averaging":True under
+            kernel_spec_parms, otherwise defaults to False. This is useful if
+            modeling properties of a sequence that are not size-extensive.
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
@@ -84,6 +88,10 @@ class FHTConv1d(KernelBaseclass):
                     "array! x should be a 3d array for Conv1d.")
         if "conv_width" not in kernel_spec_parms:
             raise ValueError("Conv_width not supplied to conv1d kernel!")
+        self.sequence_average = False
+        if "averaging" in kernel_spec_parms:
+            if kernel_spec_parms["averaging"]:
+                self.sequence_average = True
 
         self.hyperparams = np.ones((3))
         rng = np.random.default_rng(random_seed)
@@ -173,6 +181,8 @@ class FHTConv1d(KernelBaseclass):
         reshaped_x[:,:,:self.dim2_no_padding] = x_strided * self.hyperparams[2]
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr, self.num_threads,
                 self.hyperparams[1], self.fit_intercept)
+        if self.sequence_average:
+            xtrans /= input_x.shape[1]
         return xtrans
 
 
@@ -220,4 +230,7 @@ class FHTConv1d(KernelBaseclass):
                 output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
                 self.hyperparams[1], self.fit_intercept)
 
+        if self.sequence_average:
+            output_x /= input_x.shape[1]
+            dz_dsigma /= input_x.shape[1]
         return output_x, dz_dsigma

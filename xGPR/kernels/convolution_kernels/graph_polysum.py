@@ -42,7 +42,7 @@ class GraphPolySum(KernelBaseclass):
             Defaults to True.
         graph_average (bool): If True, divide the summed random features for the
             graph by the number of nodes. Defaults to False. Can be set to
-            True by supplying "graph_averaging":True under kernel_spec_parms.
+            True by supplying "averaging":True under kernel_spec_parms.
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123,
@@ -77,8 +77,8 @@ class GraphPolySum(KernelBaseclass):
         if self.polydegree < 2 or self.polydegree > 4:
             raise ValueError("Polydegree should be in the range from 2 to 4.")
         self.graph_average = False
-        if "graph_averaging" in kernel_spec_parms:
-            if kernel_spec_parms["graph_averaging"]:
+        if "averaging" in kernel_spec_parms:
+            if kernel_spec_parms["averaging"]:
                 self.graph_average = True
 
         self.hyperparams = np.ones((2))
@@ -153,10 +153,10 @@ class GraphPolySum(KernelBaseclass):
         scaling_constant = self.hyperparams[1] * np.sqrt(1 / self.num_freqs)
         output_x = output_x[:,:self.num_rffs].astype(self.out_type) * scaling_constant
 
-        if self.fit_intercept:
-            output_x[:,-1] = self.hyperparams[1]
         if self.graph_average:
             output_x /= input_x.shape[1]
+        if self.fit_intercept:
+            output_x[:,-1] = self.hyperparams[1]
         return output_x
 
 
@@ -168,6 +168,4 @@ class GraphPolySum(KernelBaseclass):
         can return a shape[1] == 0 array for gradient.
         """
         xtrans = self.transform_x(input_x)
-        if self.graph_average:
-            xtrans /= input_x.shape[1]
         return xtrans, np.zeros((xtrans.shape[0], 0, 0))

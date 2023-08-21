@@ -32,7 +32,7 @@ def test_fit_cpu(kernel, conv_kernel, random_seed, conv_width = 3,
     elif cpu_mod.get_hyperparams().shape[0] == 4:
         cpu_mod.tune_hyperparams_crude_bayes(train_dataset, max_bayes_iter = 50)
     else:
-        cpu_mod.tune_hyperparams_crude_lbfgs(train_dataset, n_restarts = 3)
+        cpu_mod.tune_hyperparams_crude_lbfgs(train_dataset, n_restarts = 1)
 
     print(f"Hyperparams, cpu, {kernel}: {cpu_mod.get_hyperparams()}")
 
@@ -87,7 +87,7 @@ def test_fit_gpu(kernel, conv_kernel, random_seed, conv_width = 3,
     elif gpu_mod.get_hyperparams().shape[0] == 4:
         gpu_mod.tune_hyperparams_crude_bayes(train_dataset, max_bayes_iter = 50)
     else:
-        gpu_mod.tune_hyperparams_crude_lbfgs(train_dataset, n_restarts = 3)
+        gpu_mod.tune_hyperparams_crude_lbfgs(train_dataset, n_restarts = 1)
 
     print(f"Hyperparams, gpu, {kernel}: {gpu_mod.get_hyperparams()}")
 

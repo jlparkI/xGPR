@@ -3,13 +3,13 @@ use in other tests."""
 import sys
 import copy
 
-from xGPR.xGP_Regression import xGPRegression as xGPReg
+from xGPR import xGPRegression as xGPReg
 
 RANDOM_STATE = 123
 
 
 def get_models(kernel_choice, xdim, conv_width = 3, training_rffs = 512,
-        fitting_rffs = 512, conv_ard_kernel = False):
+        fitting_rffs = 512, conv_ard_kernel = False, averaging = False):
     """Generates a CPU model and a GPU model with generic
     kernel settings."""
     if not conv_ard_kernel:
@@ -23,7 +23,7 @@ def get_models(kernel_choice, xdim, conv_width = 3, training_rffs = 512,
                         kernel_specific_params = {"matern_nu":5/2,
                             "conv_width":conv_width, "polydegree":2,
                             "split_points":split_pts, "order":2,
-                            "intercept":True})
+                            "intercept":True, "averaging":averaging})
 
     if "cupy" not in sys.modules:
         print("Cupy not installed -- skipping the CUDA test.")

@@ -28,7 +28,7 @@ def _check_inputs(max_feval, model,
         raise ValueError("Currently allowed score types are 'mae', 'mse'.")
 
 
-def Direct_Fitting_Optimizer(model, train_dset,
+def DirectFittingOptimizer(model, train_dset,
                     bounds, optim_method = "Nelder-Mead",
                     max_feval = 25,
                     validation_dset = None,

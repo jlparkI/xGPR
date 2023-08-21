@@ -1,7 +1,7 @@
 CPU Training -- tricks and tips
 ===============================
 
-We *strongly* prefer training on GPU wherever possible;
+We prefer training on GPU wherever possible;
 it's much faster and therefore more painless. (Making
 predictions, by contrast, while faster on GPU, is also
 reasonable on CPU as well.) If you do have to train on CPU,
@@ -20,11 +20,6 @@ speed for your training process.
     While 'srht_2' yields a somewhat-better-quality preconditioner,
     it requires matrix multiplications which are slow on CPU
     while 'srht' does not.
-  
-  * Use the ``FHTConv1d`` kernel instead of ``Conv1d``. ``Conv1d``
-    uses matrix multiplications whereas ``FHTConv1d`` (like
-    all other kernels) uses fast Hadamard transforms and
-    is therefore more tractable on CPU.
   
   * Try to avoid using a ``crude`` tuning method with a large number
     of ``training_rffs`` (i.e. > 2048); this will be quite slow on CPU.

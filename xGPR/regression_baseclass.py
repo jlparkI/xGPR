@@ -34,7 +34,8 @@ class GPRegressionBaseclass():
             generate the posterior predictive mean. The weights are calculated
             during fitting.
         var: A 2d square array, either a cp.ndarray or np.ndarray depending on
-            the device specified by the user (cpu or gpu). The random features
+            the device specified by the user (cpu or gpu), or a preconditioner
+            object for certain kernels (e.g. linear). The random features
             are used in conjunction with var to generate the posterior predictive
             variance. The var is calculated during fitting.
         device (str): One of "gpu", "cpu". The user can update this as desired.
@@ -123,7 +124,7 @@ class GPRegressionBaseclass():
 
 
     def pre_prediction_checks(self, input_x, get_var):
-        """Checks the input data to predict_scores to ensure validity.
+        """Checks input data to ensure validity.
 
         Args:
             input_x (np.ndarray): A numpy array containing the input data.
