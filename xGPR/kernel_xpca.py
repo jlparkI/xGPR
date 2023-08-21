@@ -1,7 +1,10 @@
-"""This experimental tool enables easy generation of a kernel PCA plot
-using a fitted xGPR model. It makes use of the preconditioner
-construction routines to generate the kPCA and is built and
-used by 'plugging in' the xGPR model."""
+"""This tool enables easy generation of a kernel PCA plot using
+any of the available xGPR kernels. It makes use of the preconditioner
+construction routines to generate the kPCA. If you have trained an
+xGPR model, you can use the hyperparameters that you used for
+the xGPR model for the kPCA (without this, you will have to rely
+on heuristics to choose good hyperparameters, similar to UMAP
+and T-SNE)."""
 import numpy as np
 import scipy
 try:
@@ -10,56 +13,79 @@ try:
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
 
+from .constants import constants
+from .auxiliary_baseclass import AuxiliaryBaseclass
 
 
 
-class kernel_xPCA():
-    """An experimental tool for generating kernel PCA plots
-    using a fitted xGPR model. Since this is currently
-    experimental, it is not unit-tested. Therefore,
-    while it has given useful results in initial
-    experiments, it should be used with moderate caution."""
+class KernelxPCA(AuxiliaryBaseclass):
+    """A tool for generating kernel PCA plots
+    using random features."""
 
-    def __init__(self, dataset, xgpr_model, n_components = 2,
-            random_seed = 123):
-        """The constructor for kernel_xPCA.
+    def __init__(self, num_rffs, hyperparams, dataset, n_components = 2,
+            kernel_choice = "RBF", device = "cpu",
+            kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
+            random_seed = 123, verbose = True, num_threads = 2,
+            double_precision_fht = False):
+        """The constructor.
 
         Args:
-            dataset: A valid Dataset object. Should be the same one
-                used to train the model preferably, or a subset of it.
-            xgpr_model: A trained xGP_Regression object. Hyperparameters
-                should already have been tuned and the model should
-                already have been fitted. This class does not check
-                that model has already been fitted, because if an
-                unfitted xGPR model is asked to make predictions it
-                will throw an exception.
-            n_components (int): The number of principal components to
-                obtain. Large numbers will be slower. For a kPCA plot,
-                we normally just want 2. For clustering, 100 - 300
-                might be more suitable.
+            num_rffs (int): The number of random Fourier features
+                to use for the auxiliary device.
+            dataset: A valid dataset object.
+            hyperparams (np.ndarray): A numpy array containing the kernel-specific
+                hyperparameter. If you have fitted an xGPR model, the first two
+                hyperparameters are general not kernel specific, so
+                my_model.get_hyperparams()[2:] will retrieve the hyperparameters you
+                need. For most kernels there is only one kernel-specific hyperparameter.
+                For kernels with no kernel-specific hyperparameter (e.g. arc-cosine
+                and polynomial kernels), this argument is ignored.
+            n_components (int): The number of PCA components to generate. For visualization,
+                2 is the logical choice. There are some situations where more components
+                might make sense (if using them as input to some other algorithm).
+            kernel_choice (str): The kernel that the model will use.
+                Must be in kernels.kernel_list.KERNEL_NAME_TO_CLASS.
+            device (str): Determines whether calculations are performed on
+                'cpu' or 'gpu'. The initial entry can be changed later
+                (i.e. model can be transferred to a different device).
+                Defaults to 'cpu'.
+            kernel_specific_params (dict): Contains kernel-specific parameters --
+                e.g. 'matern_nu' for the nu for the Matern kernel, or 'conv_width'
+                for the conv1d kernel.
             random_seed (int): A seed for the random number generator.
+            verbose (bool): If True, regular updates are printed
+                during fitting and tuning. Defaults to True.
+            num_threads (int): The number of threads to use for random feature generation
+                if running on CPU. If running on GPU, this argument is ignored.
+            double_precision_fht (bool): If True, use double precision during FHT for
+                generating random features. For most problems, it is not beneficial
+                to set this to True -- it merely increases computational expense
+                with negligible benefit -- but this option is useful for testing.
+                Defaults to False.
         """
+        super().__init__(num_rffs, hyperparams, dataset,
+                        kernel_choice, device, kernel_specific_params,
+                        random_seed, verbose, num_threads,
+                        double_precision_fht)
         self.n_components = n_components
-        #TODO: It is not good to store the model object here; fix this.
-        self.fitted_model = xgpr_model
-        dataset.device = self.fitted_model.device
+
+        #Initialize the kPCA model.
         self.z_mean = self.get_mapped_data_statistics(dataset)
-        self.eigvecs = self.initialize_kpca(dataset,
-                self.fitted_model.kernel, random_seed)
+        self.eigvecs = self.initialize_kpca(dataset)
         dataset.device = "cpu"
 
 
     def predict(self, input_x, chunk_size = 2000):
         """Generates a low-dimensional projection of the input."""
-        xdata = self.fitted_model.pre_prediction_checks(input_x, get_var = False)
+        xdata = self.pre_prediction_checks(input_x)
         preds = []
         for i in range(0, xdata.shape[0], chunk_size):
             cutoff = min(i + chunk_size, xdata.shape[0])
-            xfeatures = self.fitted_model.kernel.transform_x(xdata[i:cutoff, :])
+            xfeatures = self.kernel.transform_x(xdata[i:cutoff, :])
             xfeatures -= self.z_mean[None,:]
             preds.append(xfeatures @ self.eigvecs)
 
-        if self.fitted_model.device == "gpu":
+        if self.device == "gpu":
             preds = cp.asnumpy(cp.vstack(preds))
         else:
             preds = np.vstack(preds)
@@ -79,16 +105,16 @@ class kernel_xPCA():
                 random feature mapped-training data.
         """
         ndpoints = 0
-        if self.fitted_model.device == "gpu":
-            train_mean = cp.zeros((self.fitted_model.kernel.get_num_rffs()))
+        if self.device == "gpu":
+            train_mean = cp.zeros((self.kernel.get_num_rffs()))
         else:
-            train_mean = np.zeros((self.fitted_model.kernel.get_num_rffs()))
+            train_mean = np.zeros((self.kernel.get_num_rffs()))
 
         for x_data in dataset.get_chunked_x_data():
             if dataset.pretransformed:
                 x_features = x_data
             else:
-                x_features = self.fitted_model.kernel.transform_x(x_data)
+                x_features = self.kernel.transform_x(x_data)
             w_1 = x_data.shape[0] / (x_data.shape[0] + ndpoints)
             w_2 = ndpoints / (ndpoints + x_data.shape[0])
             x_features_mean = x_features.mean(axis=0)
@@ -121,31 +147,30 @@ class kernel_xPCA():
                 acc_results += xdata.T @ (xdata @ q_mat)
 
 
-    def initialize_kpca(self, dataset, kernel, random_seed):
+    def initialize_kpca(self, dataset):
         """Uses the Nystrom approximation of Z^T Z to find its
         (approximate) top two eigenvectors & eigenvalues.
 
         Args:
             dataset: An OnlineDataset or OfflineDataset containing the raw data.
-            random_seed (int): A seed for the random number generator.
 
         Returns:
             u_mat (np.ndarray): The eigenvectors of the matrix needed to
                 form the preconditioner.
         """
-        fitting_rffs = kernel.get_num_rffs()
-        rng = np.random.default_rng(random_seed)
+        fitting_rffs = self.kernel.get_num_rffs()
+        rng = np.random.default_rng(self.random_seed)
         l_mat = rng.standard_normal(size=(fitting_rffs, self.n_components))
         l_mat, _ = np.linalg.qr(l_mat)
 
-        if kernel.device == "cpu":
-            acc_results = np.zeros((self.n_components, kernel.get_num_rffs()))
+        if self.kernel.device == "cpu":
+            acc_results = np.zeros((self.n_components, self.kernel.get_num_rffs()))
             svd_calculator, cho_calculator = np.linalg.svd, np.linalg.cholesky
             tri_solver = scipy.linalg.solve_triangular
             qr_calculator = np.linalg.qr
         else:
             mempool = cp.get_default_memory_pool()
-            acc_results = cp.zeros((self.n_components, kernel.get_num_rffs()))
+            acc_results = cp.zeros((self.n_components, self.kernel.get_num_rffs()))
             svd_calculator, cho_calculator = cp.linalg.svd, cp.linalg.cholesky
             tri_solver = cupyx.scipy.linalg.solve_triangular
             qr_calculator = cp.linalg.qr
@@ -153,21 +178,21 @@ class kernel_xPCA():
 
         acc_results = acc_results.T
 
-        self.single_pass_gauss(dataset, kernel, l_mat, acc_results)
+        self.single_pass_gauss(dataset, self.kernel, l_mat, acc_results)
 
 
-        if kernel.device == "gpu":
+        if self.device == "gpu":
             mempool.free_all_blocks()
 
         for i in range(2):
             q_mat, r_mat = qr_calculator(acc_results)
             acc_results[:] = 0.0
             del r_mat
-            if kernel.device == "gpu":
+            if self.device == "gpu":
                 mempool.free_all_blocks()
-            self.single_pass_gauss(dataset, kernel, q_mat, acc_results)
+            self.single_pass_gauss(dataset, self.kernel, q_mat, acc_results)
 
-        if kernel.device == "gpu":
+        if self.device == "gpu":
             mempool.free_all_blocks()
 
         norm = float( np.sqrt((acc_results**2).sum())  )
@@ -178,7 +203,7 @@ class kernel_xPCA():
 
         q_mat = cho_calculator(q_mat)
 
-        if kernel.device == "gpu":
+        if self.device == "gpu":
             mempool.free_all_blocks()
 
         acc_results = tri_solver(q_mat, acc_results.T,
@@ -186,3 +211,19 @@ class kernel_xPCA():
 
         u_mat, _, _ = svd_calculator(acc_results, full_matrices=False)
         return u_mat
+
+
+    @property
+    def num_components(self):
+        """Property definition for the num_components."""
+        return self._num_components
+
+    @num_components.setter
+    def num_components(self, value):
+        """Setter for num_components."""
+        if not isinstance(value, int):
+            raise ValueError("Tried to set num_components using something that "
+                    "was not an int!")
+        if value < 1 or value >= self.num_rffs:
+            raise ValueError("num_components must be > 0 and < num_rffs.")
+        self._num_components = value

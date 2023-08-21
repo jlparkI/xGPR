@@ -30,6 +30,7 @@ class AuxiliaryBaseclass():
         kernel_specific_params (dict): Contains kernel-specific parameters --
             e.g. 'matern_nu' for the nu for the Matern kernel, or 'conv_width'
             for the conv1d kernel.
+        random_seed (int): The random seed to use for all future ops.
         verbose (bool): If True, regular updates are printed during
             hyperparameter tuning and fitting.
         num_threads (int): The number of threads to use for random feature generation
@@ -41,7 +42,7 @@ class AuxiliaryBaseclass():
             Defaults to False.
     """
 
-    def __init__(self, num_rffs, hyperparams, input_data, kernel_choice="RBF", device = "cpu",
+    def __init__(self, num_rffs, hyperparams, dataset, kernel_choice="RBF", device = "cpu",
                     kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     random_seed = 123, verbose = True,
                     num_threads = 2,
@@ -51,10 +52,6 @@ class AuxiliaryBaseclass():
         Args:
             num_rffs (int): The number of random Fourier features
                 to use for the auxiliary device.
-            input_data (np.ndarray): The input data. This does not have to
-                be all of your input data -- it can be just a chunk of it.
-                It is used by the class constructor to determine the dimensionality
-                of future inputs.
             hyperparams (np.ndarray): A numpy array containing the kernel-specific
                 hyperparameter. If you have fitted an xGPR model, the first two
                 hyperparameters are general not kernel specific, so
@@ -62,6 +59,7 @@ class AuxiliaryBaseclass():
                 need. For most kernels there is only one kernel-specific hyperparameter.
                 For kernels with no kernel-specific hyperparameter (e.g. arc-cosine
                 and polynomial kernels), this argument is ignored.
+            dataset: A valid dataset object.
             kernel_choice (str): The kernel that the model will use.
                 Defaults to 'RBF'. Must be in kernels.kernel_list.
                 KERNEL_NAME_TO_CLASS.
@@ -77,8 +75,13 @@ class AuxiliaryBaseclass():
                 during fitting and tuning. Defaults to True.
             num_threads (int): The number of threads to use for random feature generation
                 if running on CPU. If running on GPU, this argument is ignored.
+            double_precision_fht (bool): If True, use double precision during FHT for
+                generating random features. For most problems, it is not beneficial
+                to set this to True -- it merely increases computational expense
+                with negligible benefit -- but this option is useful for testing.
+                Defaults to False.
         """
-
+        self.random_seed = random_seed
         self.num_rffs = num_rffs
         self.kernel_spec_parms = kernel_specific_params
         self.num_threads = num_threads
@@ -88,14 +91,15 @@ class AuxiliaryBaseclass():
         self.double_precision_fht = double_precision_fht
         if kernel_choice not in KERNEL_NAME_TO_CLASS:
             raise ValueError("An unrecognized kernel choice was supplied.")
-        self.kernel = KERNEL_NAME_TO_CLASS[kernel_choice](input_data.shape,
+        self.kernel = KERNEL_NAME_TO_CLASS[kernel_choice](dataset.get_xdim(),
                             num_rffs, random_seed, device,
                             self.num_threads, self.double_precision_fht,
                             kernel_spec_parms = self.kernel_spec_parms)
         self.device = device
         full_hparams = self.kernel.get_hyperparams()
-        full_hparams[2:] = hyperparams
-        self.kernel.set_hyperparams(full_hparams)
+        if full_hparams.shape[0] > 2:
+            full_hparams[2:] = hyperparams
+            self.kernel.set_hyperparams(full_hparams)
 
 
     def pre_prediction_checks(self, input_x):
