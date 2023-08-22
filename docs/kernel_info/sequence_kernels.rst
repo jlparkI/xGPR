@@ -32,13 +32,19 @@ comparisons.
        | "intercept": bool If True,
        | fit a y-intercept.
        | Defaults to True.
+       | "averaging": bool If True,
+       | average over the transformed features
+       | when summing them. This can be useful if
+       | you are trying to predict a sequence
+       | property that does not vary with sequence
+       | size. Defaults to False.
 
 
 If we have a sequence (or time series) of length N and d = conv_width,
 to measure the similarity of two sequences A and B, these kernels take all the
 length d subsequences of A and for each length d subsequence in A,
 evaluate an RBF kernel on it against all length d subsequences in B. The
-net similarity is the average across all of these. If implemented as
+net similarity is the sum across all of these. If implemented as
 described, of course, this kernel would be extremely inefficient. In xGPR,
 however, we implement this kernel in such a way we can achieve *linear
 scaling* in both number of datapoints and sequence length.

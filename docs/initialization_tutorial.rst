@@ -27,7 +27,9 @@ y-values based on this while it's training. Predictions are rescaled
 using the training-y mean and standard deviation so that they are on
 the original, expected scale, so these manipulations are largely
 invisible to the user. It's still good to be aware of this (so you
-don't feel the need to rescale the y-data yourself). The input x-values,
+don't feel the need to rescale the y-data yourself). You can turn
+off normalization of the input y-values if you'd like, although
+there's generally no reason to do this. The input x-values,
 on the other hand, are *not* rescaled -- if it's important to
 do this for your type of data, you'll need to do that part yourself.
 
@@ -37,9 +39,10 @@ with N datapoints and M features or a 3d array with N datapoints, M timepoints o
 tokens and D features per token / timepoint.
 To build a Dataset, do the following:::
 
-  from xGPR.data_handling.dataset_builder import build_online_dataset
+  from xGPR import build_online_dataset
   
-  my_dataset = build_online_dataset(X, Y, chunk_size = 2000)
+  #Note: normalize_y = True is default here
+  my_dataset = build_online_dataset(X, Y, chunk_size = 2000, normalize_y = True)
 
 
 
@@ -49,7 +52,7 @@ arrays containing the regression labels. The filepaths to these files (can be
 relative or absolute) are stored in two lists called xfiles and yfiles. In this
 case, to build a dataset, do the following:::
   
-  from xGPR.data_handling.dataset_builder import build_offline_fixed_vector_dataset
+  from xGPR import build_offline_fixed_vector_dataset
   
   my_dataset = build_offline_fixed_vector_dataset(xfiles, yfiles,
                   chunk_size = 2000, skip_safety_checks = False)
@@ -68,7 +71,7 @@ Finally, let's say you have the same lists of numpy files, but the x-arrays are 
 3d -- they are sequences, graphs or multivariate time series. In this case, do
 the following:::
 
-  from xGPR.data_handling.dataset_builder import build_offline_sequence_dataset
+  from xGPR import build_offline_sequence_dataset
   
   my_dataset = build_offline_sequence_dataset(xfiles, yfiles, chunk_size = 2000,
                   skip_safety_checks = False)
@@ -96,7 +99,7 @@ Setting up a model for fixed-length vector data
 
 Start by creating a model:::
 
-  from xGPR.xGP_Regression import xGPRegression
+  from xGPR import xGPRegression
   my_model = xGPRegression(training_rffs = 2048, fitting_rffs = 8192,
                         variance_rffs = 512, kernel_choice = "RBF",
                         device = "gpu", kernel_specific_params =
@@ -150,7 +153,7 @@ There are currently two ways to do convolution on multivariate sequence
 a dedicated convolution kernel, (e.g. ``FHTConv1d`` for sequences
 or ``GraphRBF`` for graphs), e.g.:::
 
-  from xGPR.xGP_Regression import xGPRegression
+  from xGPR import xGPRegression
   my_model = xGPRegression(training_rffs = 2048, fitting_rffs = 8192,
                         variance_rffs = 512, kernel_choice = "FHTConv1d",
                         device = "gpu", kernel_specific_params =
@@ -180,12 +183,12 @@ of kernel for sequences and time series that is completely
 different from the ``FHTConv1d`` kernel. It essentially mimics
 a three-layer 1d convolutional neural network:::
 
-  from xGPR.static_layers.fast_conv import FastConv1d
+  from xGPR.static_layers import FastConv1d
 
   conv_s_layer = FastConv1d(seq_width = 20,
-                               device = "gpu", conv_width = [9],
-                               num_features = 2048,
-                               random_seed = 123)
+                               device = "gpu", random_seed = 123,
+                               conv_width = [9],
+                               num_features = 2048)
 
   #The next line creates my_conv_dataset which we can use for training. 
   my_conv_dataset = conv_s_layer.conv1d_pretrain_feat_extract(my_sequence_dataset,
@@ -209,5 +212,5 @@ see the Available Kernels section on the main page.
 Once you've set up a training dataset and a model, you're ready to tune
 the kernel hyperparameters. It's possible to write your own hyperparameter
 tuning routine, and we'll illustrate how you can do this as well, but xGPR has a
-number of built-in approaches that we recommend, and we'll focus on these.
+number of built-in approaches, and we'll focus on these.
 To explore, continue to :doc:`Tuning hyperparameters in xGPR</tuning_tutorial>`.

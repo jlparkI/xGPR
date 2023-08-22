@@ -176,13 +176,11 @@ For noisy data, if you're in a hurry, ``tol = 1e-5``
 often gives almost equivalent results.
 For relatively noise-free data, where the model is already highly
 accurate and we would like it to be even more so, ``tol = 1e-7``
-is recommended. ``tol = 1e-8`` is usually expensive overkill,
-unless the data is nearly noise-free and you are using a large number
-of random features, in which case it may be worthwhile to make ``tol``
-smaller. When in doubt, a quick experiment on a subset of the training
-data may often prove helpful.
+is recommended. ``tol = 1e-8`` is nearly always expensive overkill.
+If in doubt, a quick experiment on a small subset of the data can
+be helpful.
 
-If ``fitting_rffs`` is small (e.g. 2048), you can fit using a single
+If ``fitting_rffs`` is small (e.g. 512), you can fit using a single
 pass over the data, no preconditioner required! by using ``mode = exact``,
 for example:::
 
@@ -202,14 +200,9 @@ may be a good default. To fit this way, use:::
   my_model.fit(training_dataset, random_seed = 123, mode = "lbfgs")
 
 We also include a couple of stochastic gradient descent methods.
-One of these, ``mode = "amsgrad``, is fairly limited; it does not
-require a preconditioner (and will ignore it if you supply one),
-but it is seldom able to achieve much better than ``tol = 1e-3``,
-which may be adequate for very noisy data, but is still definitely
-not optimal.
-
-More useful is ``mode = sgd``, which uses stochastic
-variance reduced gradient descent (SVRG). Without preconditioning,
+At present these are mostly useful for testing purposes because
+they are not competitive with CG in our experiments. ``mode = sgd`` uses
+stochastic variance reduced gradient descent (SVRG). Without preconditioning,
 this method too is very bad, so we recommend
 always using a preconditioner for SVRG. To fit using SVRG, use:::
 
@@ -237,5 +230,4 @@ tuning scheme, you can supply the argument ``suppress_var = True``
 to avoid calculating variance (since you won't need it). This
 saves a single additional iteration over the dataset.
 
-To see how to make predictions and cluster or visualize data
-with a fitted model, continue to :doc:`Making predictions</prediction_tutorial>`.
+To see how to make predictions continue to :doc:`Making predictions</prediction_tutorial>`.

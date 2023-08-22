@@ -1,7 +1,7 @@
 Overview of xGPR
 ===============================================
 
-To fit a model in xGPR, we need to do the following
+To fit a regression model in xGPR, we need to do the following
 four things.
 
   + Construct a Dataset object which contains the training data as numpy arrays
@@ -18,6 +18,13 @@ four things.
 
   + Fit the model to the training data. See
     :doc:`Fitting a model</fitting_tutorial>`.
+
+
+If you want to run approximate kernel k-means or kernel PCA on your data, this is
+just a one-step process:
+
+  + Construct 
+
 
 The Tutorials and Examples explain each step in greater detail. If you're
 like us, you might find it helpful to look at the examples first,
@@ -84,7 +91,7 @@ of the data.
 Initially, then, you want to get a quick and dirty readout
 on how well a given kernel or feature representation is likely to
 perform. For these initial experiments, we suggest using a small
-number of random features to tune hyperparameters (e.g. 1024 - 2048).
+number of random features to tune hyperparameters (e.g. 512 - 2048).
 While larger numbers of random features will provde much better performance,
 this quick initial screen can help you decide which feature set
 or kernel you want, and it will give you a starting set of hyperparameters
@@ -100,7 +107,7 @@ saturate for hyperparameter tuning more quickly than for
 fitting.
 
 For fitting, we've
-generally found that 8192 - 32768 (or a similar number, we like to use
+generally found that 8192 - 16384 (or a similar number, we like to use
 powers of two but this is not required) random features provides good
 performance. Again, it's always possible to
 improve performance a little by using more -- it really depends

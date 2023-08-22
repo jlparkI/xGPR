@@ -1,6 +1,6 @@
 xGPR
 ================================
-Fast Bayesian machine learning for
+Efficient Bayesian machine learning for
 sequences, graphs and tabular data.
 
 .. toctree::
@@ -22,8 +22,8 @@ Examples / Tutorials
   Examples <notebooks/examples>
 
 
-User Manual
-============
+Fitting Gaussian process models
+================================
 
 .. toctree::
   :maxdepth: 2
@@ -34,7 +34,15 @@ User Manual
 
    Fitting the model <fitting_tutorial>
    
-   Making predictions, saving models, clustering and visualizing data <prediction_tutorial>
+   Making predictions, saving models <prediction_tutorial>
+
+
+Kernel PCA and clustering
+==========================
+.. toctree::
+  :maxdepth: 2
+
+   Clustering and visualizing data <auxiliary_tutorial>
 
 
 Available kernels

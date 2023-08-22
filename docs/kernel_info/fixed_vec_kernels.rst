@@ -74,7 +74,7 @@ case, for example, features from 0:21 in the input would share one
 lengthscale, features from 21:36 would share another, and features from
 36: would share another lengthscale (0 and len(feature_vector) are automatically
 added to the beginning and end of split_points). This technique can be
-very powerful but also does make tuning more complicated and more time-consuming,
+very powerful but also does make tuning more complicated and much slower,
 especially if the number of lengthscales is very large, so use judiciously.
 The lengthscales learned by ``MiniARD`` during tuning can be used as crude
 measures of relative importance (larger = more important group of features).

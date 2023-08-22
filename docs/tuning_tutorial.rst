@@ -3,9 +3,10 @@ Tutorial -- Tuning hyperparameters
 
 Let's assume we have a Dataset, created as illustrated in the previous
 tutorial. We'll now use it to
-tune hyperparameters. All of the currently supported kernels in xGPR have
-two (Linear, Poly, GraphPoly) or three (FHTConv1d, RBF, GraphConv1d, Matern)
-tunable hyperparameters. All kernels share two tunable hyperparameters:
+tune hyperparameters. Most of the currently supported kernels in xGPR have
+two (Linear, Poly, GraphPoly) or three (FHTConv1d, RBF, GraphRBF, Matern)
+tunable hyperparameters; the only exception right now is the MiniARD kernel.
+All kernels share two tunable hyperparameters:
 *lambda*, which measures how "noisy" the data is, and *beta* or the 
 amplitude, which measures how far the data deviates from the mean. If you
 call ``my_model.get_hyperparams()``, these are the first two in the array
@@ -112,26 +113,20 @@ this will return the log of the boundaries.
 If you find that optimization is suggesting hyperparameter values which are
 close to or on the bounds, you might want to set new more generous bounds.
 The default bounds for ``lambda`` (the first hyperparamter, shared by all
-kernels) are pretty generous and seldom need to be moved. Indeed, the lower
-bound on ``lambda`` should only be moved with caution, because extremely
-small ``lambda`` values may make the model difficult to fit. ``beta``, the
+kernels) are pretty generous and seldom need to be moved. ``beta``, the
 second hyperparameter (shared by all kernels) has more conservative default
 bounds, and these may occasionally need to be expanded. The kernel-specific
 hyperparameter (for RBF, Matern and convolution kernels) has pretty generous
 default bounds but it may rarely be necessary to expand them.
 
 A more common use case is *contracting* the bounds, i.e. setting a smaller search
-space so optimization can proceed more efficiently. This is often helpful.
+space so optimization can proceed more efficiently.
 You can after tuning or fitting get the model to generate a bounding box of
 a specified width (and to clip that box anywhere it goes past the default
 boundaries) by calling:::
 
-  my_new_bounds = my_model.suggest_bounds(box_width = 1, consider_all_shared = False)
+  my_new_bounds = my_model.suggest_bounds(box_width = 1)
 
-The ``crude`` methods are sometimes better at nailing down the best value for the
-kernel-specific hyperparameter (lengthscale) than the two shared hyperparameters
-*lambda* and *beta*. If ``consider_all_shared`` is True, the box edges for
-*lambda* and *beta* will be set to the default bounds for the kernel.
 
 
 Tuning hyperparameters using marginal likelihood with "crude" methods
@@ -148,7 +143,7 @@ which use matrix decompositions, or using the iterative ``fine``
 methods. The crude methods are often a good starting
 point. They are fast if you use a small number of random
 features, they can be used on a subset of the training data,
-and using our novel strategies, they often converge in
+and they often converge in
 < 20 iterations. Unfortunately, scaling to large numbers of
 random features, especially on large datasets (> 1 million datapoints),
 with the ``crude`` methods is poor. Thus, it is best to think
@@ -213,7 +208,6 @@ decrease this for greater efficiency.
 hyperparameters *lambda* and *beta* are considered for each possible kernel-
 specific hyperparameter value. Increasing these may lead to a (generally
 negligible) boost in performance, but it is almost never necessary -- we
-recommend leaving this as default.
 recommend leaving this as default. Finally, if ``subsample`` is less than
 1 -- if it is 0.1, for example -- this fraction of the training data will
 be sampled when tuning hyperparameters. Keep in mind that using more of the
@@ -438,10 +432,10 @@ these strategies is not impossible but is expensive.
 To execute this approach using either Bayes or Nelder-Mead (choose only
 one obviously):::
 
-  from xGPR.tuning_toolkit.direct_fitting_optimizer import Direct_Fitting_Optimizer
-  from xGPR.tuning_toolkit.bayesian_fitting_optimizer import Bayesian_Fitting_Optimizer
+  from xGPR import DirectFittingOptimizer
+  from xGPR import BayesianFittingOptimizer
 
-  hparams = Direct_Fitting_Optimizer(my_model, train_dataset, bounds,
+  hparams = DirectFittingOptimizer(my_model, train_dataset, bounds,
                        optim_method = "Powell",
                        max_feval = 25, validation_dset = None,
                        preset_hparams = None, random_state = 123,
@@ -450,7 +444,7 @@ one obviously):::
                        pretransform_dir = None,
                        mode = "cg")
   
-  hparams, cv_hparams, scores = Bayesian_Fitting_Optimizer(my_model, train_dataset, bounds,
+  hparams, cv_hparams, scores = BayesianFittingOptimizer(my_model, train_dataset, bounds,
                        max_feval = 25, validation_dset = None,
                        preset_hparams = None, random_state = 123,
                        score_type = "mae", tol = 1e-3,
@@ -488,7 +482,7 @@ idea). For Direct, we can specify an ``optim_method`` that is either
 
 These approaches are highly scalable (they scale well with increasing
 dataset size and/or number of random features) but also slower for small
-- moderate size datasets. There is a much higher risk of overfitting than
+- moderate size datasets. There is a higher risk of overfitting than
 with marginal likelihood based approaches. The hyperparameters of your
 model are automatically set to the best result from the tuning
 procedure, so you can fit as soon as the procedure finishes.

@@ -469,7 +469,7 @@ class xGPRegression(GPRegressionBaseclass):
             random_seed (int): The random seed for the random number generator.
             run_diagnostics (bool): If True, the number of conjugate
                 gradients and the preconditioner diagnostics ratio are returned.
-            mode (str): Must be one of "sgd", "amsgrad", "cg", "lbfgs", "exact".
+            mode (str): Must be one of "sgd", "cg", "lbfgs", "exact".
                 Determines the approach used. If 'exact', self.kernel.get_num_rffs
                 must be <= constants.constants.MAX_CLOSED_FORM_RFFS.
             suppress_var (bool): If True, do not calculate variance. This is generally only
@@ -518,7 +518,7 @@ class xGPRegression(GPRegressionBaseclass):
 
         else:
             raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
-                        "'lbfgs', 'cg', 'sgd', 'amsgrad', 'exact'.")
+                        "'lbfgs', 'cg', 'sgd', 'exact'.")
         if not suppress_var:
             if self.verbose:
                 print("Now performing variance calculations...")

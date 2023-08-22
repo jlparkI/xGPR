@@ -9,6 +9,10 @@ It is designed to run on either CPU or GPU, to
 model tabular data, sequence & time series data and graph data, and to
 fit datasets too large to load into memory in a straightforward way.
 
+Unlike other libraries for fitting GPs, xGPR is able to fit hundreds of
+thousands of datapoints -- including graphs and sequences -- efficiently
+while achieving performance competitive with deep learning for many tasks.
+
 
 Limitations of xGPR
 -------------------

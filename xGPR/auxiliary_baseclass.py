@@ -99,7 +99,8 @@ class AuxiliaryBaseclass():
         full_hparams = self.kernel.get_hyperparams()
         if full_hparams.shape[0] > 2:
             full_hparams[2:] = hyperparams
-            self.kernel.set_hyperparams(full_hparams)
+        full_hparams[1] = 0
+        self.kernel.set_hyperparams(full_hparams)
 
 
     def pre_prediction_checks(self, input_x):

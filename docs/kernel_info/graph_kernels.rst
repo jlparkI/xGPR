@@ -24,7 +24,7 @@ for details.
      - | "intercept": bool If True,
        | fit a y-intercept.
        | Defaults to True.
-       | "graph_averaging": bool If True,
+       | "averaging": bool If True,
        | average over the transformed features
        | when summing them. This is useful if
        | you are trying to predict a graph
@@ -40,7 +40,7 @@ for details.
        | "intercept": bool If True,
        | fit a y-intercept.
        | Defaults to True.
-       | "graph_averaging": bool If True,
+       | "averaging": bool If True,
        | average over the transformed features
        | when summing them. This is useful if
        | you are trying to predict a graph
@@ -57,7 +57,7 @@ for details.
        | "intercept": bool If True,
        | fit a y-intercept.
        | Defaults to True.
-       | "graph_averaging": bool If True,
+       | "averaging": bool If True,
        | average over the transformed features
        | when summing them. This is useful if
        | you are trying to predict a graph
@@ -83,5 +83,5 @@ need fewer random features to achieve good performance.
 
 Tuning hyperparameters for GraphArcCosine and GraphPoly is
 usually quite straightforward since there are only two.
-On the other hand, they are slightly slower than GraphRBF
+On the other hand, they are a little slower than GraphRBF
 for both fitting and inference.
