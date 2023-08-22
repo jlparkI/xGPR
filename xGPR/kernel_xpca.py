@@ -70,6 +70,7 @@ class KernelxPCA(AuxiliaryBaseclass):
         self.n_components = n_components
 
         #Initialize the kPCA model.
+        dataset.device = self.device
         self.z_mean = self.get_mapped_data_statistics(dataset)
         self.eigvecs = self.initialize_kpca(dataset)
         dataset.device = "cpu"

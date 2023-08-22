@@ -125,8 +125,8 @@ requirements file with numpy not yet installed.
 
 Updated dataset builder so that different batches with different
 xdim[1] are now accepted when building a dataset. This obviates
-the need to zero-pad data (although note that zero-padding is
-generally advisable for consistency).
+the need to zero-pad data (although note that zero-padding can
+still be used).
 
 ### Version 0.1.2.3
 
@@ -138,3 +138,8 @@ to cpu.
 Fixed a bug involving variable-length sequence inputs to
 FHT-conv1d kernels. Sped up the nan checking for dataset building.
 
+### Version 0.1.3.0
+
+Added sequence / graph averaging to all convolution kernels as
+an option. Added kernel PCA and clustering tools that do not require
+a fitted model as input.
