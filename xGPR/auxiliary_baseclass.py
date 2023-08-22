@@ -84,6 +84,8 @@ class AuxiliaryBaseclass():
         self.random_seed = random_seed
         self.num_rffs = num_rffs
         self.kernel_spec_parms = kernel_specific_params
+        #We should never use a y-intercept for kPCA or clustering.
+        self.kernel_spec_parms["intercept"] = False
         self.num_threads = num_threads
 
         self.verbose = verbose
