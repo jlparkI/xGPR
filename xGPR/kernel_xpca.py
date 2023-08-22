@@ -164,19 +164,17 @@ class KernelxPCA(AuxiliaryBaseclass):
         l_mat, _ = np.linalg.qr(l_mat)
 
         if self.kernel.device == "cpu":
-            acc_results = np.zeros((self.n_components, self.kernel.get_num_rffs()))
+            acc_results = np.zeros((self.kernel.get_num_rffs(), self.n_components))
             svd_calculator, cho_calculator = np.linalg.svd, np.linalg.cholesky
             tri_solver = scipy.linalg.solve_triangular
             qr_calculator = np.linalg.qr
         else:
             mempool = cp.get_default_memory_pool()
-            acc_results = cp.zeros((self.n_components, self.kernel.get_num_rffs()))
+            acc_results = cp.zeros((self.kernel.get_num_rffs(), self.n_components))
             svd_calculator, cho_calculator = cp.linalg.svd, cp.linalg.cholesky
             tri_solver = cupyx.scipy.linalg.solve_triangular
             qr_calculator = cp.linalg.qr
             l_mat = cp.asarray(l_mat)
-
-        acc_results = acc_results.T
 
         self.single_pass_gauss(dataset, self.kernel, l_mat, acc_results)
 
@@ -214,12 +212,12 @@ class KernelxPCA(AuxiliaryBaseclass):
 
 
     @property
-    def num_components(self):
-        """Property definition for the num_components."""
+    def n_components(self):
+        """Property definition."""
         return self._num_components
 
-    @num_components.setter
-    def num_components(self, value):
+    @n_components.setter
+    def n_components(self, value):
         """Setter for num_components."""
         if not isinstance(value, int):
             raise ValueError("Tried to set num_components using something that "
