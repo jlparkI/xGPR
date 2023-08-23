@@ -84,11 +84,17 @@ Package Reference
 
 Citations
 ======================
-If using xGPR in research intended for publication, please cite:
+If using xGPR in research intended for publication, please cite either:
 
-Jonathan Parkinson, & Wei Wang. (2023). Scalable Gaussian process regression
-enables accurate prediction of protein and small molecule properties
-with uncertainty quantitation.
+Linear-Scaling Kernels for Protein Sequences and Small Molecules Outperform Deep Learning While Providing Uncertainty Quantitation and Improved Interpretability
+Jonathan Parkinson and Wei Wang
+Journal of Chemical Information and Modeling 2023 63 (15), 4589-4601
+DOI: 10.1021/acs.jcim.3c00601 
+
+OR the preprint:
+
+Jonathan Parkinson, & Wei Wang. (2023). Linear-Scaling Kernels for Protein Sequences and Small Molecules Outperform Deep Learning
+While Providing Uncertainty Quantitation and Improved Interpretability.
 `https://arxiv.org/abs/2302.03294 <https://arxiv.org/abs/2302.03294>`_
 
 
