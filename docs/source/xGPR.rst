@@ -1,20 +1,32 @@
 xGPR package
 ============
 
-Subpackages
------------
-
-.. toctree::
-   :maxdepth: 4
-
-   xGPR.data_handling
-   xGPR.random_feature_generation
-   xGPR.scoring_toolkit
-   xGPR.static_layers
-   xGPR.tuning_toolkit
-
 Submodules
 ----------
+
+xGPR.auxiliary\_baseclass module
+--------------------------------
+
+.. automodule:: xGPR.auxiliary_baseclass
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+xGPR.kernel\_fgen module
+------------------------
+
+.. automodule:: xGPR.kernel_fgen
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+xGPR.kernel\_xpca module
+------------------------
+
+.. automodule:: xGPR.kernel_xpca
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 xGPR.regression\_baseclass module
 ---------------------------------

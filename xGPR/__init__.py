@@ -12,3 +12,5 @@ from .tuning_toolkit.direct_fitting_optimizer import DirectFittingOptimizer
 
 from .kernel_xpca import KernelxPCA
 from .kernel_fgen import KernelFGen
+
+from .static_layers import FastConv1d

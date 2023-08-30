@@ -78,7 +78,7 @@ Package Reference
 .. toctree::
   :maxdepth: 1
 
-  API <packrefs>
+  API <api_docs/packrefs>
 
 
 
