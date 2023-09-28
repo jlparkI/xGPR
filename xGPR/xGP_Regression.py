@@ -26,8 +26,8 @@ from .optimizers.lb_optimizer import shared_hparam_search
 from .optimizers.crude_grid_optimizer import crude_grid_tuning
 
 from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
-from .fitting_toolkit.sgd_fitting_toolkit import sgdModelFit
-from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext
+from .fitting_toolkit.lsr1_fitting_toolkit import lSR1
+from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext, cg_fit_lib_internal
 from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
 
 from .scoring_toolkit.approximate_nmll_calcs import estimate_logdet, estimate_nmll
@@ -469,7 +469,7 @@ class xGPRegression(GPRegressionBaseclass):
             random_seed (int): The random seed for the random number generator.
             run_diagnostics (bool): If True, the number of conjugate
                 gradients and the preconditioner diagnostics ratio are returned.
-            mode (str): Must be one of "sgd", "cg", "lbfgs", "exact".
+            mode (str): Must be one of "cg", "lbfgs", "exact".
                 Determines the approach used. If 'exact', self.kernel.get_num_rffs
                 must be <= constants.constants.MAX_CLOSED_FORM_RFFS.
             suppress_var (bool): If True, do not calculate variance. This is generally only
@@ -483,7 +483,7 @@ class xGPRegression(GPRegressionBaseclass):
 
         Returns:
             Does not return anything unless run_diagnostics is True.
-            n_iter (int): The number of iterations for conjugate gradients, L-BFGS or sgd.
+            n_iter (int): The number of iterations if applicable.
             losses (list): The loss on each iteration. Only for SGD and CG, otherwise,
                 empty list.
 
@@ -501,7 +501,11 @@ class xGPRegression(GPRegressionBaseclass):
             self.weights, n_iter, losses = calc_weights_exact(dataset, self.kernel)
 
         elif mode == "cg":
-            self.weights, n_iter, losses = cg_fit_lib_ext(self.kernel, dataset, tol,
+            if run_diagnostics:
+                self.weights, n_iter, losses = cg_fit_lib_internal(self.kernel, dataset, tol,
+                    max_iter, preconditioner, self.verbose)
+            else:
+                self.weights, n_iter, losses = cg_fit_lib_ext(self.kernel, dataset, tol,
                     max_iter, preconditioner, self.verbose)
 
         elif mode == "lbfgs":
@@ -509,16 +513,15 @@ class xGPRegression(GPRegressionBaseclass):
                     self.device, self.verbose)
             self.weights, n_iter, losses = model_fitter.fit_model_lbfgs(max_iter, tol)
 
-        elif mode == "sgd":
-            model_fitter = sgdModelFit(self.kernel.get_lambda(), self.device, self.verbose)
-            self.weights, n_iter, losses = model_fitter.fit_model(dataset,
-                    self.kernel, tol = tol, max_epochs = max_iter,
-                    preconditioner = preconditioner, manual_lr = manual_lr)
+        elif mode == "lsr1":
+            model_fitter = lSR1(dataset, self.kernel,
+                    self.device, self.verbose, preconditioner, 10)
+            self.weights, n_iter, losses = model_fitter.fit_model(max_iter, tol)
 
 
         else:
             raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
-                        "'lbfgs', 'cg', 'sgd', 'exact'.")
+                        "'lbfgs', 'cg', 'lsr1', 'exact'.")
         if not suppress_var:
             if self.verbose:
                 print("Now performing variance calculations...")

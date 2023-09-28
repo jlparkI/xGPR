@@ -105,11 +105,18 @@ def test_fit_gpu(kernel, conv_kernel, random_seed, conv_width = 3,
                 get_var)
 
     print(f"CG score, gpu, {kernel}: {cg_score}")
+    ######################
+    import pickle
+    out_data = {"model":gpu_mod, "kernel":kernel, "dset":train_dataset}
+    with open(f"{kernel}.pk", "wb") as fhandle:
+        pickle.dump(out_data, fhandle)
+    #########################
 
     gpu_mod.fitting_rffs = exact_fitting_rffs
     gpu_mod.fit(train_dataset,  random_seed = random_seed, mode = "exact")
     exact_score = evaluate_model(gpu_mod, train_dataset, test_dataset,
                 get_var)
+
 
     print(f"Exact score, gpu, {kernel}: {exact_score}")
     return cg_score, exact_score

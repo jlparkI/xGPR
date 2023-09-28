@@ -7,5 +7,4 @@ python test_exact_fit.py
 python test_lbfgs_fit.py
 python test_offline_cg_fit.py
 python test_pretransformed_fit.py
-python test_svrg_fit.py
 cd ..
