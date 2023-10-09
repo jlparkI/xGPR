@@ -37,7 +37,7 @@ def cpuFastHadamardTransform(np.ndarray[floating, ndim=3] Z,
                 int numThreads):
     """Wraps fastHadamard3dArray_ from transform_functions.c and uses
     it to perform a fast Hadamard transform (unnormalized) on the last
-    dimension of a 3d array of doubles. This function performs all of the bounds checks,
+    dimension of a 3d array. This function performs all of the bounds checks,
     type checks etc and should not be bypassed.
 
     Args:
@@ -83,7 +83,7 @@ def cpuFastHadamardTransform2D(np.ndarray[floating, ndim=2] Z,
                 int numThreads):
     """Wraps fastHadamard2dArray_ from transform_functions.c and uses
     it to perform a fast Hadamard transform (unnormalized) on the last
-    dimension of a 2d array of doubles. This function performs all of the bounds checks,
+    dimension of a 2d array. This function performs all of the bounds checks,
     type checks etc and should not be bypassed.
 
     Args:
@@ -129,7 +129,7 @@ def cpuSORFTransform(np.ndarray[floating, ndim=3] Z,
                 np.ndarray[np.int8_t, ndim=3] radem,
                 int numThreads):
     """Wraps SORFBlockTransform_ from transform_functions.c and uses
-    it to perform the SORF operation on a 3d array of floats.
+    it to perform the SORF operation on a 3d array.
     This wrapper performs all of the bounds checks,
     type checks etc and should not be bypassed.
 
@@ -187,8 +187,7 @@ def cpuSRHT(np.ndarray[floating, ndim=2] Z,
                 np.ndarray[np.int64_t, ndim=1] sampler,
                 int compression_size,
                 int numThreads):
-    """Wraps SRHTBlockTransform_ from transform_functions.c and uses
-    it to perform the SRHT operation on a 2d array of floats.
+    """Wraps SRHTBlockTransform_ from transform_functions.c.
     This wrapper performs all of the bounds checks,
     type checks etc and should not be bypassed.
 

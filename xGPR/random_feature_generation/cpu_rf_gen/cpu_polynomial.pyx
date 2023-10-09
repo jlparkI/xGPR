@@ -11,7 +11,7 @@ cimport numpy as np
 cimport cython
 from cython cimport floating
 from libc cimport stdint
-from libc.stdint cimport int8_t
+from libc.stdint cimport int8_t, int32_t
 import math
 
 
@@ -167,10 +167,106 @@ def cpuPolyFHT(np.ndarray[floating, ndim=3] reshapedX,
             rather the features that are generated are stored in outputArray. Shape is (N x D x C)
             for N datapoints. C must be a power of 2.
         radem (np.ndarray): A stack of diagonal matrices with elements drawn from the
-            Rademacher distribution. Shape must be (polydegree x D x C).
+            Rademacher distribution. Shape must be (3 * polydegree x D x C).
         chiArr (np.ndarray): A stack of diagonal matrices stored as an
             array of shape (polydegree, D, C) drawn from a chi distribution.
-        permutator (cp.ndarray): Array of shape (polydegree x D x C) that permutes the
+        outputArray (np.ndarray): A numpy array in which the generated features will be
+            stored. Is modified in-place.
+        polydegree (int): The degree of the polynomial kernel that we approximate. Should
+            be <= 4 (for very high-degree polynomial kernels we are probably better off
+            switching to an RBF or convolution kernel).
+        num_threads (int): Number of threads to use for FHT.
+
+    Raises:
+        ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
+    """
+    cdef const char *errCode
+    cdef np.ndarray[floating, ndim=3] reshapedXCopy = reshapedX.copy()
+    cdef int j
+    cdef uintptr_t addr_input = reshapedXCopy.ctypes.data
+    cdef uintptr_t addr_chi = chiArr.ctypes.data
+    cdef uintptr_t addr_output = outputArray.ctypes.data
+    
+
+    if reshapedX.shape[0] == 0:
+        raise ValueError("There must be at least one datapoint.")
+    if reshapedX.shape[0] != outputArray.shape[0] or reshapedX.shape[1] != outputArray.shape[1] or\
+            reshapedX.shape[2] != outputArray.shape[2]:
+        raise ValueError("The number of datapoints in the outputs and the inputs do "
+                "not agree.")
+    if radem.shape[0] != 3 * polydegree or chiArr.shape[0] != polydegree:
+        raise ValueError("radem & chiArr must have length polydegree for dim 0.")
+    
+    if chiArr.shape[2] != radem.shape[2] or chiArr.shape[1] != radem.shape[1]:
+        raise ValueError("chiArr must have same shape[1] and shape[2] as radem.")
+    logdim = np.log2(reshapedX.shape[2])
+    if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
+        raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
+    if radem.shape[2] != reshapedX.shape[2] or radem.shape[1] != reshapedX.shape[1]:
+        raise ValueError("reshapedX shape[1] and shape[2] must == radem shape[1] and shape[2].")
+
+    if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
+        or not chiArr.flags["C_CONTIGUOUS"]:
+        raise ValueError("One or more arguments is not C contiguous.")
+
+
+
+    outputArray[:] = reshapedX
+    if reshapedX.dtype == "float32" and chiArr.dtype == "float32" and outputArray.dtype == "float32":
+        errCode = SORFBlockTransform_[float](<float*>addr_output, &radem[0,0,0],
+                        reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2],
+                        numThreads)
+        outputArray *= chiArr[0:1, :, :]
+
+        if errCode.decode("UTF-8") != "no_error":
+            raise Exception("Fatal error encountered while performing graph convolution.")
+
+        for j in range(1, polydegree):
+            reshapedXCopy[:] = reshapedX
+            errCode = SORFBlockTransform_[float](<float*>addr_input, &radem[3*j,0,0],
+                        reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2],
+                        numThreads)
+            reshapedXCopy *= chiArr[j:j+1, :, :]
+            outputArray *= reshapedXCopy
+    elif reshapedX.dtype == "float64" and chiArr.dtype == "float64" and outputArray.dtype == "float64":
+        errCode = SORFBlockTransform_[double](<double*>addr_output, &radem[0,0,0],
+                        reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2],
+                        numThreads)
+        outputArray *= chiArr[0:1, :, :]
+
+        if errCode.decode("UTF-8") != "no_error":
+            raise Exception("Fatal error encountered while performing graph convolution.")
+
+        for j in range(1, polydegree):
+            reshapedXCopy[:] = reshapedX
+            errCode = SORFBlockTransform_[double](<double*>addr_input, &radem[3*j,0,0],
+                        reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2],
+                        numThreads)
+            reshapedXCopy *= chiArr[j:j+1, :, :]
+            outputArray *= reshapedXCopy
+    else:
+        raise ValueError("Unexpected types passed to wrapped C++ function.")
+
+
+
+'''@cython.boundscheck(False)
+@cython.wraparound(False)
+def cpuPolyFHT(np.ndarray[floating, ndim=3] reshapedX,
+                np.ndarray[np.int8_t, ndim=3] radem,
+                np.ndarray[np.int32_t, ndim=3] permutator,
+                np.ndarray[floating, ndim=3] outputArray,
+                int polydegree, int numThreads):
+    """Uses the wrapped PolyFHT_ and numpy operations to apply a pairwise
+    polynomial kernel to all elements of two graphs.
+
+    Args:
+        reshapedX (np.ndarray): Raw data reshaped so that the random features
+            transformation can be applied. This array is not modified in place --
+            rather the features that are generated are stored in outputArray. Shape is (N x D x C)
+            for N datapoints. C must be a power of 2.
+        radem (np.ndarray): A stack of diagonal matrices with elements drawn from the
+            Rademacher distribution. Shape must be (polydegree x D x C).
+        permutator (np.ndarray): Array of shape (polydegree x D x C) that permutes the
             columns of reshapedX when random features are generated.
         outputArray (np.ndarray): A numpy array in which the generated features will be
             stored. Is modified in-place.
@@ -248,3 +344,4 @@ def cpuPolyFHT(np.ndarray[floating, ndim=3] reshapedX,
             outputArray *= reshapedXCopy
     else:
         raise ValueError("Unexpected types passed to wrapped C++ function.")
+'''

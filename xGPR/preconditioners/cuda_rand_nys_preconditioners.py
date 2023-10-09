@@ -65,10 +65,12 @@ class Cuda_RandNysPreconditioner(cpx_LinearOperator):
 
         lambda_ = kernel.get_lambda()
 
-        self.inv_eig = s_mat + lambda_**2
-        mask = self.inv_eig > 1e-14
-        self.inv_eig[mask] = 1 / self.inv_eig[mask]
+        self.eig = s_mat + lambda_**2
+        self.inv_eig = self.eig.copy()
+        mask = self.eig > 1e-14
+        self.inv_eig[mask] = 1 / self.eig[mask]
         self.inv_eig[mask==False] = 0.0
+        self.eig[mask==False] = 0.0
 
         min_eig = s_mat.min()
         self.achieved_ratio = min_eig / lambda_**2
@@ -80,6 +82,15 @@ class Cuda_RandNysPreconditioner(cpx_LinearOperator):
         vectors xvec."""
         xprod = self.u_mat.T @ xvec
         xprod1 = self.u_mat @ (self.inv_eig[:,None] * self.prefactor * xprod)
+        xprod2 = xvec - (self.u_mat @ xprod)
+        return xprod2 + xprod1
+
+
+    def rev_batch_matvec(self, xvec):
+        """Returns a matvec of the non-inverted preconditioner with a set of input
+        vectors xvec."""
+        xprod = self.u_mat.T @ xvec
+        xprod1 = self.u_mat @ (self.eig[:,None] * xprod) / self.prefactor
         xprod2 = xvec - (self.u_mat @ xprod)
         return xprod2 + xprod1
 
