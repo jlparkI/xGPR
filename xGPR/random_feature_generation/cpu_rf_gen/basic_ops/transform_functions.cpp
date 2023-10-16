@@ -39,13 +39,12 @@
 #define VALID_INPUTS 0
 #define INVALID_INPUTS 1
 #define EPS_TOLERANCE 0.0
-#define MAX_THREADS 8
 
 /*!
  * # fastHadamard3dArray_
  *
  * Performs an unnormalized Hadamard transform along the last
- * dimension of an input 3d array, floats only. The transform is performed
+ * dimension of an input 3d array. The transform is performed
  * in place so nothing is returned.
  *
  * ## Args:
@@ -89,7 +88,7 @@ const char *fastHadamard3dArray_(T Z[], int zDim0, int zDim1, int zDim2,
  * # fastHadamard2dArray_
  *
  * Performs an unnormalized Hadamard transform along the last
- * dimension of an input 2d array, floats only. The transform is performed
+ * dimension of an input 2d array. The transform is performed
  * in place so nothing is returned.
  *
  * ## Args:
@@ -227,7 +226,7 @@ const char *SRHTBlockTransform_(T Z[], int8_t *radem,
  *
  * Performs the SORF operation for one thread for a chunk of
  * the input array Z from startRow through endRow (each thread
- * works on its own group of rows), for arrays of floats only.
+ * works on its own group of rows).
  *
  * ## Args:
  *
@@ -274,7 +273,7 @@ void *ThreadSORFRows3D(T arrayStart[], int8_t* rademArray,
  *
  * Performs the SRHT operation for one thread for a chunk of
  * the input array Z from startRow through endRow (each thread
- * works on its own group of rows), for arrays of floats only.
+ * works on its own group of rows).
  */
 template <typename T>
 void *ThreadSRHTRows2D(T arrayStart[], int8_t* rademArray,
@@ -297,7 +296,7 @@ void *ThreadSRHTRows2D(T arrayStart[], int8_t* rademArray,
  *
  * Performs the fast Hadamard transform for one thread for a chunk of
  * the input array Z from startRow through endRow (each thread
- * works on its own group of rows), when the input is an array of floats.
+ * works on its own group of rows).
  */
 template <typename T>
 void *ThreadTransformRows3D(T arrayStart[], int startPosition,
@@ -316,7 +315,7 @@ void *ThreadTransformRows3D(T arrayStart[], int startPosition,
  *
  * Performs the fast Hadamard transform for one thread for a chunk of
  * the input array Z from startRow through endRow (each thread
- * works on its own group of rows), when the input is an array of floats.
+ * works on its own group of rows).
  */
 template <typename T>
 void *ThreadTransformRows2D(T arrayStart[], int startPosition,

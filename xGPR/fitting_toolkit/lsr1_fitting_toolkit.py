@@ -121,6 +121,7 @@ class lSR1:
             losses.append(loss)
             if loss < tol:
                 break
+            self.n_iter += 1
 
         if self.device == "gpu":
             wvec = cp.asarray(wvec)
@@ -147,22 +148,66 @@ class lSR1:
             wvec (ndarray): The updated wvec.
             last_wvec (ndarray): Current wvec (which is now the last wvec).
         """
-        s_k = self.zero_arr((s_k.shape[0], 2))
-        s_k[:,1] = -self.inv_hess_vector_prod(grad)
-        s_k[:,0] = wvec
+        grad_update = self.zero_arr((wvec.shape[0], 2))
+        s_k = -self.inv_hess_vector_prod(grad)
+        grad_update[:,1] = s_k
+        grad_update[:,0] = wvec
 
-        new_loss, new_grad = self.cost_fun_regression(s_k, 
-                        z_trans_y, init_norms)
+        grad_update = self.cost_fun_regression(grad_update)
 
-        y_k = new_grad - grad
+        y_k = (grad_update.sum(axis=1) - z_trans_y) - grad
         pcounter = self.update_hess(y_k, s_k, pcounter)
-        ared = new_loss - loss
-        #pred = -(grad.T @ s_k + 0.5 * s_k.T @ self.hess_vector_prod(s_k))
-        if (ared / loss) < 1.5:
-            wvec += s_k
-            return new_grad, new_loss, pcounter
-        
-        return grad, loss, pcounter
+
+        new_grad, new_loss, step_size = self.optimize_step_size(grad, grad_update,
+                loss, init_norms, z_trans_y)
+
+        print(step_size)
+        wvec += step_size * s_k
+        return new_grad, new_loss, pcounter
+
+
+
+
+    def optimize_step_size(self, old_grad, grad_update, loss, init_norms,
+            z_trans_y, c1=0.1, c2=0.5):
+        """Find a step size satisfying the Wolfe conditions.
+
+        Args:
+            old_grad (ndarray): A (num_rffs) shape array with the
+                last gradient.
+            grad_update (ndarray): A (num_rffs, 2) shape array where
+                the first column is the component of the gradient due
+                to the current wvec, while the second is the component
+                due to the shift.
+            loss (float): The current loss.
+            init_norms (float): The initial loss; divide by this so losses
+                are 'scaled' for easier interpretation.
+            z_trans_y (ndarray): The product Z^T @ y; shape (num_rffs).
+            c1 (float): The c1 constant for the Wolfe conditions.
+            c2 (float): The c2 constant for the Wolfe conditions.
+
+        Returns:
+            new_grad (ndarray): A (num_rffs) shape array containing the
+                new gradient.
+            new_loss (float): The new loss value.
+            step_size (float): The selected step size.
+        """
+        step_sizes = np.logspace(1,-4,20).tolist()
+        for step_size in step_sizes:
+            s_k = grad_update[:,1]
+            new_grad = (grad_update[:,0] + grad_update[:,1] * step_size) - \
+                    z_trans_y
+            new_loss = float((new_grad**2).sum())
+            left_dot_prod = float(new_grad.T @ s_k)
+            right_dot_prod = float(old_grad.T @ s_k)
+
+            # The strong Wolfe conditions.
+            condition1 = new_loss <= loss * init_norms + c1 * step_size * right_dot_prod
+            condition2 = np.abs(left_dot_prod) <= c2 * np.abs(right_dot_prod)
+            if condition1 and condition2:
+                break
+
+        return new_grad, new_loss / init_norms, step_size
 
 
     def update_hess(self, y_k, s_k, pcounter):
@@ -178,27 +223,22 @@ class lSR1:
         y_kh = self.inv_hess_vector_prod(y_k)
         s_kb = self.hess_vector_prod(s_k)
 
-        update_term = y_k - s_kb
-        denominator = np.abs(float((update_term).T @ s_k))
-        #If the denominator of the SR1 update is too small, take no other action.
-        criterion = np.sqrt(float((update_term**2).sum())) * np.sqrt(float((s_k**2).sum())) * 1e-8
-        criterion = denominator >= criterion
-        if not criterion:
-            if self.verbose:
-                print(f"Small denominator {denominator} encountered in SR1 "
-                        "procedure. This is a minor nonfatal issue if infrequent "
-                        "and is printed only for informational "
-                        "purposes.")
+        h_update = s_k - y_kh
+        b_update = y_k - s_kb
+        criterion_lhs = np.abs(float(s_k.T @ (y_k - s_kb)))
+        criterion_rhs = 1e-8 * float(s_k.T @ s_k) * float(b_update.T @ b_update)
 
-        else:
-            self.stored_mvecs[:,pcounter] = s_k - y_kh
-            self.stored_nconstants[pcounter] = self.stored_mvecs[:,pcounter].T @ y_k
-            self.stored_bvecs[:,pcounter] = y_k - s_kb
-            self.stored_bconstants[pcounter] = self.stored_bvecs[:,pcounter].T @ s_k
+        if criterion_lhs >= criterion_rhs:
+            self.stored_mvecs[:,pcounter] = h_update
+            self.stored_nconstants[pcounter] = h_update.T @ y_k
+            self.stored_bvecs[:,pcounter] = b_update
+            self.stored_bconstants[pcounter] = b_update.T @ s_k
             pcounter += 1
             if pcounter >= (self.init_history_size + self.recent_history_size):
                 pcounter = self.init_history_size
             self.n_updates += 1
+        else:
+            print("ubba")
         return pcounter
 
 
@@ -253,21 +293,20 @@ class lSR1:
         return ovec
 
 
-    def cost_fun_regression(self, wvec, z_trans_y, init_norm):
+    def cost_fun_regression(self, wvec):
         """The cost function for finding the weights for
-        regression. Returns both the current loss and the gradient.
+        regression. Returns an adjustable calculation for the
+        gradient so that caller can determine step size based
+        on the results.
 
         Args:
-            wvec (np.ndarray): The current set of weights.
-            z_trans_y: A cupy or numpy array (depending on device)
-                containing Z.T @ y, where Z is the random features
-                generated for all of the training datapoints.
-            init_norm (float): The initial loss. Used to scale the error
-                so it is on a 0-1 scale.
+            wvec (np.ndarray): A (num_rffs, 2) shape array. The first
+                column is the current set of weights; the second
+                is the proposed shift vector assuming step size 1.
 
         Returns:
-            loss (float): The current loss.
-            grad (np.ndarray): The gradient for the current set of weights.
+            xprod (np.ndarray): A (num_rffs, 2) shape array, containing
+                (Z^T Z + lambda**2) @ wvec.
         """
         xprod = self.lambda_**2 * wvec
         if self.dataset.pretransformed:
@@ -278,12 +317,7 @@ class lSR1:
                 xtrans = self.kernel.transform_x(xdata)
                 xprod += (xtrans.T @ (xtrans @ wvec))
 
-
-        grad = xprod - z_trans_y
-        loss = float((grad**2).sum()) / init_norm
-
         if self.verbose:
             if self.n_iter % 5 == 0:
-                print(f"Nfev {self.n_iter} complete")
-        self.n_iter += 1
-        return loss, grad
+                print(f"Nfev {self.n_iter}")
+        return xprod
