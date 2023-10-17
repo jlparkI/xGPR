@@ -4,7 +4,7 @@ features in the input vector is large -- even 600 is on
 the large side."""
 import numpy as np
 try:
-    from cuda_rf_gen_module import gpuExactQuadratic
+    from cuda_rf_gen_module import cudaExactQuadratic
 except:
     pass
 
@@ -57,7 +57,6 @@ class ExactQuadratic(KernelBaseclass):
 
         self.poly_func = None
         self.device = device
-        self.chi_arr = self.chi_arr.astype(self.dtype)
 
 
 
@@ -65,7 +64,7 @@ class ExactQuadratic(KernelBaseclass):
         """Called when device is changed. Moves
         some of the object parameters to the appropriate device."""
         if new_device == "gpu":
-            self.poly_func = gpuExactQuadratic
+            self.poly_func = cudaExactQuadratic
         else:
             self.poly_func = cpuExactQuadratic
 

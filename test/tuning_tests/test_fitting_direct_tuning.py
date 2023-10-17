@@ -6,7 +6,7 @@ import sys
 
 import numpy as np
 
-from xGPR.tuning_toolkit.direct_fitting_optimizer import Direct_Fitting_Optimizer
+from xGPR.tuning_toolkit.direct_fitting_optimizer import DirectFittingOptimizer
 #TODO: Remove this path modification
 sys.path.append("..")
 from utils.model_constructor import get_models
@@ -36,7 +36,7 @@ class CheckDirectFittingOptimizer(unittest.TestCase):
 
         bounds = np.array([ [-1.2, 0.0], [0.0,1.2], [-2,0.0] ])
 
-        best_hparams = Direct_Fitting_Optimizer(gpu_mod,
+        best_hparams = DirectFittingOptimizer(gpu_mod,
                 optim_method = "Powell",
                 train_dset = offline_train,
                 bounds = bounds, max_feval = 50,

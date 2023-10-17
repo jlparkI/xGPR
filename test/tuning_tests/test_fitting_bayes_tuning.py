@@ -6,7 +6,7 @@ import sys
 
 import numpy as np
 
-from xGPR.tuning_toolkit.bayesian_fitting_optimizer import Bayesian_Fitting_Optimizer
+from xGPR.tuning_toolkit.bayesian_fitting_optimizer import BayesianFittingOptimizer
 #TODO: Remove this path modification
 sys.path.append("..")
 from utils.model_constructor import get_models
@@ -36,7 +36,7 @@ class CheckBayesianFittingOptimizer(unittest.TestCase):
 
         bounds = np.array([ [-1.2, 0.0], [0.0,1.2], [-2,0.0] ])
 
-        best_hparams, _, _ = Bayesian_Fitting_Optimizer(gpu_mod,
+        best_hparams, _, _ = BayesianFittingOptimizer(gpu_mod,
                 train_dset = offline_train,
                 bounds = bounds, max_feval = 50,
                 validation_dset = offline_test,
