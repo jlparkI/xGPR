@@ -19,7 +19,6 @@ class CheckPipeline(unittest.TestCase):
 
     def test_fit_cpu(self):
         """Test on cpu."""
-        return
         print("Now running CPU tests. Some of these (primarily any "
                 "involving ARD kernels) may take a minute.")
         for kernel_name, (is_conv, exp_score) in IMPLEMENTED_KERNELS.items():
