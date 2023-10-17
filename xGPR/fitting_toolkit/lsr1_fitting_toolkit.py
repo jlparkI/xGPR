@@ -121,6 +121,7 @@ class lSR1:
             losses.append(loss)
             if loss < tol:
                 break
+            print(f"Loss: {loss}")
             self.n_iter += 1
 
         if self.device == "gpu":
@@ -161,7 +162,6 @@ class lSR1:
         new_grad, new_loss, step_size = self.optimize_step_size(grad, grad_update,
                 loss, init_norms, z_trans_y)
 
-        print(step_size)
         wvec += step_size * s_k
         return new_grad, new_loss, pcounter
 
@@ -237,8 +237,6 @@ class lSR1:
             if pcounter >= (self.init_history_size + self.recent_history_size):
                 pcounter = self.init_history_size
             self.n_updates += 1
-        else:
-            print("ubba")
         return pcounter
 
 
