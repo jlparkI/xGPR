@@ -58,7 +58,7 @@ class lBFGSModelFit:
             self.dtype = np.float64
         self.n_iter = 0
 
-    def fit_model_lbfgs(self, max_iter = 500, tol = 3e-09):
+    def fit_model_lbfgs(self, max_iter = 500, tol = 3e-09, preconditioner = None):
         """Finds an optimal set of weights using the information already
         provided to the class constructor.
 
@@ -68,6 +68,7 @@ class lBFGSModelFit:
                 allowed to specify since setting a larger / smaller tol
                 can result in very poor results with L-BFGS (either very
                 large number of iterations or poor performance).
+            preconditioner: Either None or a valid preconditioner object.
 
         Returns:
             wvec: A cupy or numpy array depending on device that contains the
@@ -77,7 +78,7 @@ class lBFGSModelFit:
         init_weights = np.zeros((self.kernel.get_num_rffs()))
         res = minimize(self.cost_fun, options={"maxiter":max_iter, "ftol":tol},
                     method = "L-BFGS-B",
-                    x0 = init_weights, args = (z_trans_y),
+                    x0 = init_weights, args = (z_trans_y, preconditioner),
                     jac = True, bounds = None)
 
         wvec = res.x
@@ -86,7 +87,7 @@ class lBFGSModelFit:
         return wvec, self.n_iter, []
 
 
-    def cost_fun(self, weights, z_trans_y):
+    def cost_fun(self, weights, z_trans_y, preconditioner):
         """The cost function for finding the weights using
         L-BFGS. Returns both the current loss and the gradient.
 
@@ -115,6 +116,9 @@ class lBFGSModelFit:
 
         grad = xprod - z_trans_y
         loss = 0.5 * (wvec.T @ xprod) - z_trans_y.T @ wvec
+        if preconditioner is not None:
+            grad = preconditioner.batch_matvec(grad[:,None])[:,0]
+
 
         if self.device == "gpu":
             grad = cp.asnumpy(grad).astype(np.float64)

@@ -511,7 +511,8 @@ class xGPRegression(GPRegressionBaseclass):
         elif mode == "lbfgs":
             model_fitter = lBFGSModelFit(dataset, self.kernel,
                     self.device, self.verbose)
-            self.weights, n_iter, losses = model_fitter.fit_model_lbfgs(max_iter, tol)
+            self.weights, n_iter, losses = model_fitter.fit_model_lbfgs(max_iter, tol,
+                    preconditioner)
 
         elif mode == "lsr1":
             model_fitter = lSR1(dataset, self.kernel,
