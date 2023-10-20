@@ -529,12 +529,13 @@ class xGPRegression(GPRegressionBaseclass):
             #TODO: This is a little bit of a hack; we use exact variance calc
             #UNLESS we are dealing with a linear kernel with a very large number
             #of input features. Find a better / more satisfactory way to resolve this.
-            if self.kernel_choice == "Linear":
+            if self.kernel_choice in ["Linear", "ExactQuadratic"]:
                 if self.kernel.get_num_rffs() > constants.MAX_VARIANCE_RFFS:
                     self.var = InterDevicePreconditioner(self.kernel, dataset,
                         self.variance_rffs, False, random_seed, "srht")
                     self.exact_var_calculation = False
                 else:
+                    self.variance_rffs = self.kernel.get_num_rffs()
                     self.var = calc_variance_exact(self.kernel, dataset, self.kernel_choice,
                                 self.variance_rffs)
             else:

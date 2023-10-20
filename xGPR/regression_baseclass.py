@@ -565,7 +565,7 @@ class GPRegressionBaseclass():
         if value > constants.MAX_VARIANCE_RFFS:
             raise ValueError("Currently to keep computational expense at acceptable "
                     f"levels variance rffs is capped at {constants.MAX_VARIANCE_RFFS}.")
-        if value > self.fitting_rffs:
+        if value > self.fitting_rffs and self.kernel_choice not in ["Linear", "ExactQuadratic"]:
             raise ValueError("variance_rffs must be <= fitting_rffs.")
         self._variance_rffs = value
 
