@@ -170,14 +170,13 @@ const char *approxPolynomial_(int8_t *radem, T reshapedX[],
     polyMultAndCopyDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX,
                 copyBuffer, radem, numElementsPerRow, numElements, normConstant);
     cudaHTransform3d<T>(copyBuffer, reshapedDim0, reshapedDim1, reshapedDim2);
+    for (int k=1; k < 5; k++){
+        polyMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(copyBuffer,
+                radem + k * numElementsPerRow,
+                numElementsPerRow, numElements, normConstant);
+        cudaHTransform3d<T>(copyBuffer, reshapedDim0, reshapedDim1, reshapedDim2);
+    }
     
-    polyMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(copyBuffer,
-            radem + numElementsPerRow, numElementsPerRow, numElements, normConstant);
-    cudaHTransform3d<T>(copyBuffer, reshapedDim0, reshapedDim1, reshapedDim2);
-
-    polyMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(copyBuffer,
-            radem + 2 * numElementsPerRow, numElementsPerRow, numElements, normConstant);
-    cudaHTransform3d<T>(copyBuffer, reshapedDim0, reshapedDim1, reshapedDim2);
     polyOutArrayCopyTransfer<T><<<outputBlocks, DEFAULT_THREADS_PER_BLOCK>>>(copyBuffer,
             chiArr, outArray, numFreqs, numElementsPerRow,
             numElements);
@@ -187,19 +186,15 @@ const char *approxPolynomial_(int8_t *radem, T reshapedX[],
     // times.
     for (int i=1; i < polydegree; i++){
         polyMultAndCopyDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX,
-                copyBuffer, radem + (i * 3 * numElementsPerRow),
+                copyBuffer, radem + (i * 5 * numElementsPerRow),
                 numElementsPerRow, numElements, normConstant);
         cudaHTransform3d<T>(copyBuffer, reshapedDim0, reshapedDim1, reshapedDim2);
-    
-        polyMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(copyBuffer,
-            radem + (i * 3 + 1) * numElementsPerRow,
-            numElementsPerRow, numElements, normConstant);
-        cudaHTransform3d<T>(copyBuffer, reshapedDim0, reshapedDim1, reshapedDim2);
-
-        polyMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(copyBuffer,
-            radem + (i * 3 + 2) * numElementsPerRow,
-            numElementsPerRow, numElements, normConstant);
-        cudaHTransform3d<T>(copyBuffer, reshapedDim0, reshapedDim1, reshapedDim2);
+        for (int k=1; k < 5; k++){
+            polyMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(copyBuffer,
+                radem + (i * 5 + k) * numElementsPerRow,
+                numElementsPerRow, numElements, normConstant);
+            cudaHTransform3d<T>(copyBuffer, reshapedDim0, reshapedDim1, reshapedDim2);
+        }
         polyOutArrayMultTransfer<T><<<outputBlocks, DEFAULT_THREADS_PER_BLOCK>>>(copyBuffer,
             chiArr, outArray, numFreqs, numElementsPerRow,
             numElements, i);

@@ -144,7 +144,7 @@ Added sequence / graph averaging to all convolution kernels as
 an option. Added kernel PCA and clustering tools that do not require
 a fitted model as input.
 
-### Version 0.1.3.1
+### Version 0.1.3.2
 
 Version for internal use; contains exact polynomial regression for
 low-degree polynomials (a quadratic). Also experimenting with

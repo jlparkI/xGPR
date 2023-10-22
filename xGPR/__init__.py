@@ -1,6 +1,6 @@
 #Version number. Updated if generating a new release.
 #Otherwise, do not change.
-__version__ = "0.1.3.1"
+__version__ = "0.1.3.2"
 
 #Key imports.
 from .xGP_Regression import xGPRegression

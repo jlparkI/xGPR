@@ -159,16 +159,13 @@ void *threadApproxPolynomial(T inArray[], T copyBuffer[], int8_t *radem,
                     startRow, endRow);
     transformRows3D<T>(copyBuffer, startRow, 
                     endRow, dim1, dim2);
-    multiplyByDiagonalRademacherMat<T>(copyBuffer,
-                    radem + rowSize, dim1, dim2, 
+    for (int k=1; k < 5; k++){
+        multiplyByDiagonalRademacherMat<T>(copyBuffer,
+                    radem + k * rowSize, dim1, dim2, 
                     startRow, endRow);
-    transformRows3D<T>(copyBuffer, startRow, 
+        transformRows3D<T>(copyBuffer, startRow, 
                     endRow, dim1, dim2);
-    multiplyByDiagonalRademacherMat<T>(copyBuffer,
-                    radem + 2 * rowSize, dim1, dim2, 
-                    startRow, endRow);
-    transformRows3D<T>(copyBuffer, startRow, 
-                    endRow, dim1, dim2);
+    }
     // Now transfer it to the output array.
     outArrayCopyTransfer(copyBuffer, outputArray, chiArr, dim1,
             dim2, numFreqs, startRow, endRow);
@@ -178,20 +175,17 @@ void *threadApproxPolynomial(T inArray[], T copyBuffer[], int8_t *radem,
     // using the appropriate rows of chiArr and radem.
     for (int i = 1; i < polydegree; i++){
         multiplyByDiagonalRademAndCopy(inArray, copyBuffer,
-                    radem + (3 * i) * rowSize, dim1, dim2,
+                    radem + (5 * i) * rowSize, dim1, dim2,
                     startRow, endRow);
         transformRows3D<T>(copyBuffer, startRow, 
                     endRow, dim1, dim2);
-        multiplyByDiagonalRademacherMat<T>(copyBuffer,
-                    radem + (3 * i + 1) * rowSize, dim1, dim2, 
+        for (int k=1; k < 5; k++){
+            multiplyByDiagonalRademacherMat<T>(copyBuffer,
+                    radem + (5 * i + k) * rowSize, dim1, dim2, 
                     startRow, endRow);
-        transformRows3D<T>(copyBuffer, startRow, 
+            transformRows3D<T>(copyBuffer, startRow, 
                     endRow, dim1, dim2);
-        multiplyByDiagonalRademacherMat<T>(copyBuffer,
-                    radem + (3 * i + 2) * rowSize, dim1, dim2, 
-                    startRow, endRow);
-        transformRows3D<T>(copyBuffer, startRow, 
-                    endRow, dim1, dim2);
+        }
         outArrayMatTransfer(copyBuffer, outputArray, chiArr, dim1,
                 dim2, numFreqs, startRow, endRow, i);
     }
