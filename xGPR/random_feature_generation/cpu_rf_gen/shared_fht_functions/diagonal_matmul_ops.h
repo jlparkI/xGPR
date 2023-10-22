@@ -1,14 +1,7 @@
-#ifndef BASIC_ARRAY_OPERATIONS_H
-#define BASIC_ARRAY_OPERATIONS_H
+#ifndef DIAGONAL_MATMUL_OPERATIONS_H
+#define DIAGONAL_MATMUL_OPERATIONS_H
+#include <stdint.h>
 
-
-template <typename T>
-void transformRows3D(T xArray[], int startRow, int endRow,
-                    int dim1, int dim2);
-
-template <typename T>
-void transformRows2D(T xArray[], int startRow, int endRow,
-                    int dim1);
 
 template <typename T>
 void multiplyByDiagonalRademacherMat2D(T xArray[],
@@ -21,6 +14,14 @@ void multiplyByDiagonalRademacherMat(T xArray[],
                     const int8_t *rademArray,
                     int dim1, int dim2,
                     int startRow, int endRow);
+
+template <typename T>
+void multiplyByDiagonalRademAndCopy(T xArray[],
+                    T copyBuffer[],
+                    const int8_t *rademArray,
+                    int dim1, int dim2,
+                    int startRow, int endRow);
+
 
 template <typename T>
 void conv1dMultiplyByRadem(T xArray[],

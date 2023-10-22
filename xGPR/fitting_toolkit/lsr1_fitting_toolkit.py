@@ -108,7 +108,7 @@ class lSR1:
 
         wvec = self.zero_arr((self.kernel.get_num_rffs()))
         grad = -z_trans_y.copy()
-        init_norms = float((z_trans_y**2).sum())
+        init_norms = max(float((z_trans_y**2).sum()), 1e-12)
 
 
         loss, pcounter = 1, 0
@@ -192,7 +192,7 @@ class lSR1:
             new_loss (float): The new loss value.
             step_size (float): The selected step size.
         """
-        step_sizes = np.logspace(1,-4,20).tolist()
+        step_sizes = np.logspace(1,-10,40).tolist()
         for step_size in step_sizes:
             s_k = grad_update[:,1]
             new_grad = (grad_update[:,0] + grad_update[:,1] * step_size) - \

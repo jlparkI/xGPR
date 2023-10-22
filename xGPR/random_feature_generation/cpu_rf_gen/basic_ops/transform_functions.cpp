@@ -33,12 +33,12 @@
 #include <vector>
 #include <thread>
 #include "transform_functions.h"
-#include "../shared_fht_functions/basic_array_operations.h"
+#include "../shared_fht_functions/hadamard_transforms.h"
+#include "../shared_fht_functions/diagonal_matmul_ops.h"
 
 
 #define VALID_INPUTS 0
 #define INVALID_INPUTS 1
-#define EPS_TOLERANCE 0.0
 
 /*!
  * # fastHadamard3dArray_

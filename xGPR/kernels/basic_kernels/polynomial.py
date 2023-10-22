@@ -118,8 +118,7 @@ class Polynomial(KernelBaseclass):
 
         Returns:
             output_x: A cupy or numpy array depending on self.device
-                containing the results of random feature generation. Note
-                that num_freqs rffs are generated, not num_rffs.
+                containing the results of random feature generation.
         """
         if len(input_x.shape) != 2:
             raise ValueError("Input to ClassicPoly must be a 2d array.")

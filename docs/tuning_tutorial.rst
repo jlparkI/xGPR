@@ -71,12 +71,9 @@ follow.
        | supplied validation set.
      - | Scales well to large numbers of random
        | features and large datasets.
-     - | Much more prone to overfitting than
+     - | More prone to overfitting than
        | marginal likelihood
        | methods.
-       |
-       | While more scalable than "crude",
-       | it's fairly slow.
        |
        | Works much better if a good starting
        | point is supplied.
@@ -420,76 +417,20 @@ Tuning hyperparameters by validation set performance
 We can also tune hyperparameters using performance on a validation
 set, or using cross-validation. This is really only recommended if
 you have a good validation set to work with; cross-validations are
-slow. It's easy to write your own function to do this, or you can
-use the ``tuning_toolkit`` in xGPR.
+slow. It's easy to write your own function to do this. Your function
+should 1) fit the model using an input set of hyperparameters (see
+the :doc:`Fitting tutorial</fitting_tutorial>` on how to fit the
+model using a specified set of hyperparamters), then make predictions
+for a validation set (see the :doc:`Prediction tutorial</prediction_tutorial>`,
+then score those predictions (e.g. using mean absolute error) and return
+this. Next, pass your function to an optimization routine (e.g. in Optuna or
+scipy).
 
-In this approach, the model is fitted repeatedly using different hyperparameter
-combinations and the hyperparameters are optimized using Bayesian optimization
-or Direct (Powell or Nelder-Mead). Direct needs a good starting point to work
-well, Bayesian needs good boundaries to work well. Searching the whole space using
-these strategies is not impossible but is expensive.
-
-To execute this approach using either Bayes or Nelder-Mead (choose only
-one obviously):::
-
-  from xGPR import DirectFittingOptimizer
-  from xGPR import BayesianFittingOptimizer
-
-  hparams = DirectFittingOptimizer(my_model, train_dataset, bounds,
-                       optim_method = "Powell",
-                       max_feval = 25, validation_dset = None,
-                       preset_hparams = None, random_state = 123,
-                       score_type = "mae", tol = 1e-3,
-                       cg_tol = 1e-6, verbose = True,
-                       pretransform_dir = None,
-                       mode = "cg")
-  
-  hparams, cv_hparams, scores = BayesianFittingOptimizer(my_model, train_dataset, bounds,
-                       max_feval = 25, validation_dset = None,
-                       preset_hparams = None, random_state = 123,
-                       score_type = "mae", tol = 1e-3,
-                       cg_tol = 1e-6, verbose = True,
-                       pretransform_dir = None,
-                       mode = "cg")
-
-
-Aside from the datasets and model, the options shown are the defaults.
-Notice that you have to pass a valid model object you have created,
-and that both methods require you to specify a set of boundaries -- this
-will be an *N x 2* numpy array where *N* is the number of hyperparameters
-(to see what this is for your chosen kernel, run ``my_model.get_hyperparams()``).
-To get the model to suggest a good set of boundaries for you, if you've already
-done some preliminary tuning with the model, see "A quick note on hyperparameter
-tuning bounds" above. Also note that in this case, the model is using
-``fitting_rffs`` and not ``training_rffs``, because it is being fitted repeatedly,
-so be sure to set ``fitting_rffs`` to what you want it to be.
-
-``score_type`` can be one of "mae" or "mse", indicating to optimize
-mean absolute or mean squared error. "max_feval" controls the max
-number of function evaluations. ``cg_tol``, ``pretransform_dir`` and
-``mode`` control control how fitting is performed on each iteration.
-(For more details on these, see the :doc:`Fitting tutorial</fitting_tutorial>`.
-
-In this case we've supplied a validation dataset, which must be an OnlineDataset
-or OfflineDataset just like our training set. If we specify ``None`` instead,
-the optimizer will use cross-validations, which are more expensive. If
-``preset_hparams`` is None, a starting point will be randomly chosen --
-this is fine for Bayesian optimization, but will slow things down greatly
-for Direct (for Direct, obtaining a good starting point is a good
-idea). For Direct, we can specify an ``optim_method`` that is either
-"Nelder-Mead" or "Powell". Nelder-Mead tends to be better but slower
-(many more iterations to converge).
-
-These approaches are highly scalable (they scale well with increasing
+This approach is scalable (it scales well with increasing
 dataset size and/or number of random features) but also slower for small
 - moderate size datasets. There is a higher risk of overfitting than
-with marginal likelihood based approaches. The hyperparameters of your
-model are automatically set to the best result from the tuning
-procedure, so you can fit as soon as the procedure finishes.
-
-Finally, notice that the ``Bayesian_Fitting_Optimizer`` also returns all
-of the points it evaluated and the corresponding scores, which can
-sometimes be informative.
+with marginal likelihood based approaches, and uncertainty calibration
+may be poorer.
 
 
 Other methods
