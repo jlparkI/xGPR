@@ -19,7 +19,7 @@ const char *approxPolynomial_(int8_t *radem, T reshapedX[],
             int numFreqs);
 
 template <typename T>
-void *ThreadApproxPolynomial(T inArray[], T copyBuffer[], int8_t *radem,
+void *threadApproxPolynomial(T inArray[], T copyBuffer[], int8_t *radem,
         T chiArr[], double *outputArray, int polydegree, int dim1,
         int dim2, int numFreqs, int startRow, int endRow);
 

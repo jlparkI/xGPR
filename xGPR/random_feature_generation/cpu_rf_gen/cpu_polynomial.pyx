@@ -187,7 +187,6 @@ def cpuPolyFHT(np.ndarray[floating, ndim=3] reshapedX,
     """
     cdef const char *errCode
     cdef np.ndarray[floating, ndim=3] reshapedXCopy = reshapedX.copy()
-    cdef int j
     cdef uintptr_t addr_input = reshapedX.ctypes.data
     cdef uintptr_t addr_cbuffer = reshapedXCopy.ctypes.data
     cdef uintptr_t addr_chi = chiArr.ctypes.data
@@ -217,7 +216,7 @@ def cpuPolyFHT(np.ndarray[floating, ndim=3] reshapedX,
 
 
     if reshapedX.dtype == "float32" and chiArr.dtype == "float32":
-        errCode = approxPolynomial_[float](int8_t *radem, <float*>addr_input,
+        errCode = approxPolynomial_[float](&radem[0,0,0], <float*>addr_input,
             <float*>addr_cbuffer, <float*>addr_chi, &outputArray[0,0],
             numThreads, polydegree, reshapedX.shape[0], reshapedX.shape[1],
             reshapedX.shape[2], numFreqs);
@@ -226,7 +225,7 @@ def cpuPolyFHT(np.ndarray[floating, ndim=3] reshapedX,
             raise Exception("Fatal error encountered while generating random features.")
 
     elif reshapedX.dtype == "float64" and chiArr.dtype == "float64":
-        errCode = approxPolynomial_[double](int8_t *radem, <double*>addr_input,
+        errCode = approxPolynomial_[double](&radem[0,0,0], <double*>addr_input,
             <double*>addr_cbuffer, <double*>addr_chi, &outputArray[0,0],
             numThreads, polydegree, reshapedX.shape[0], reshapedX.shape[1],
             reshapedX.shape[2], numFreqs);

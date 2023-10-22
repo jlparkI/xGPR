@@ -50,6 +50,7 @@ class TestPolyFHT(unittest.TestCase):
         for outcome in outcomes:
             self.assertTrue(outcome)
 
+
     def test_classic_poly(self):
         """Tests the classic polynomial kernel."""
         num_feats = 56
@@ -85,9 +86,10 @@ def run_evaluation(ndatapoints, num_feats, num_freqs,
     """Runs an evaluation using some set of input settings
     (e.g. use CPU or GPU, use X number of frequencies etc."""
     if kernel_type == "classic":
-        xdata, col_sampler, radem, features, xdim2 = get_classic_matrices(ndatapoints,
+        xdata, col_sampler, radem, features = get_classic_matrices(ndatapoints,
                         num_feats, num_freqs, polydegree, precision)
-        true_features = get_classic_features(xdata, radem, col_sampler, precision)
+        true_features = get_classic_features(xdata, radem, col_sampler,
+                precision, num_freqs)
         conv_fun = cpuPolyFHT
     else:
         xdata, col_sampler, radem, features, xdim2 = get_graph_matrices(ndatapoints,
@@ -95,8 +97,13 @@ def run_evaluation(ndatapoints, num_feats, num_freqs,
         true_features = get_graph_features(xdata, radem, col_sampler, xdim2, precision)
         conv_fun = cpuGraphPolyFHT
 
-    conv_fun(xdata, radem, col_sampler, features,
-            polydegree, num_threads)
+    if kernel_type == "classic":
+        conv_fun(xdata, radem, col_sampler, features,
+                polydegree, num_threads, num_freqs)
+    else:
+        conv_fun(xdata, radem, col_sampler, features,
+                polydegree, num_threads)
+
     if precision == "float":
         outcome = np.allclose(features, true_features, rtol=1e-4, atol=1e-4)
     else:
@@ -114,11 +121,17 @@ def run_evaluation(ndatapoints, num_feats, num_freqs,
         conv_fun = gpuPolyFHT
 
     col_sampler = cp.asarray(col_sampler)
+    xold = xdata.copy()
     xdata = cp.asarray(xdata)
     features = cp.asarray(features)
     radem = cp.asarray(radem)
-    conv_fun(xdata, radem, col_sampler, features,
+    if kernel_type == "classic":
+        conv_fun(xdata, radem, col_sampler, features,
+            polydegree, num_threads, num_freqs)
+    else:
+        conv_fun(xdata, radem, col_sampler, features,
             polydegree, num_threads)
+
     features = cp.asnumpy(features)
     if precision == "float":
         outcome_cuda = np.allclose(features, true_features, rtol=1e-4, atol=1e-4)
@@ -177,11 +190,11 @@ def get_classic_matrices(ndatapoints, num_feats, num_freqs, polydegree,
     radem_array = np.asarray([-1,1], dtype=np.int8)
     radem_diag = rng.choice(radem_array, size=(3 * polydegree, nblocks,
                     padded_dims), replace=True)
-    features = np.zeros((ndatapoints, nblocks, padded_dims))
+    features = np.zeros((ndatapoints, num_freqs))
     if precision == "float":
         return padded_x.astype(np.float32), S.astype(np.float32),\
-                radem_diag, features.astype(np.float32), num_feats
-    return padded_x, S, radem_diag, features, num_feats
+                radem_diag, features
+    return padded_x, S, radem_diag, features
 
 
 def get_graph_features(xdata, radem, S, init_calc_freqsize,
@@ -224,7 +237,8 @@ def get_graph_features(xdata, radem, S, init_calc_freqsize,
     return true_features
 
 
-def get_classic_features(xdata, radem, S, precision = "double"):
+def get_classic_features(xdata, radem, S, precision = "double",
+        num_freqs = 24):
     """A very slow and clunky python version of the feature calculation.
     Intended to double-check the Cython version and make sure it is correct.
     This function is for the classic poly feature generation."""
@@ -251,7 +265,10 @@ def get_classic_features(xdata, radem, S, precision = "double"):
         x_updated *= S[j,:,:]
         true_features *= x_updated
 
-    return true_features
+    true_features = true_features.reshape((true_features.shape[0],
+        true_features.shape[1] * true_features.shape[2]))
+
+    return true_features[:,:num_freqs]
 
 
 if __name__ == "__main__":

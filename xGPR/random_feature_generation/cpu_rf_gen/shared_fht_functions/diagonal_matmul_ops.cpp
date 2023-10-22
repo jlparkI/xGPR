@@ -201,6 +201,7 @@ void multiplyByDiagonalRademAndCopy(T xArray[],
     
     for(i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
+        outElement = copyBuffer + i * rowStride;
         for (j = 0; j < rowStride; j++){
             *outElement = *xElement * rademArray[j] * normConstant;
             xElement++;
