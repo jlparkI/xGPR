@@ -126,13 +126,12 @@ class Polynomial(KernelBaseclass):
                     self.padded_dims), self.dtype)
         retyped_input[:,:,1:input_x.shape[1] + 1] = input_x[:,None,:]
         retyped_input[:,:,0] = 1
-        output_x = self.zero_arr((input_x.shape[0], self.nblocks,
-                        self.padded_dims), dtype = self.dtype)
+        output_x = self.zero_arr((input_x.shape[0], self.num_freqs),
+                dtype = self.out_type)
 
         self.poly_func(retyped_input, self.radem_diag,
-                self.chi_arr, output_x, self.polydegree, self.num_threads)
-        output_x = output_x.reshape((output_x.shape[0], output_x.shape[1] *
-                        output_x.shape[2]))[:,:self.num_rffs].astype(self.out_type)
+                self.chi_arr, output_x, self.polydegree,
+                self.num_threads, self.num_freqs)
         scaling_constant = self.hyperparams[1] * np.sqrt(1 / self.num_freqs)
         output_x *= scaling_constant
         return output_x
