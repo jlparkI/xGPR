@@ -198,7 +198,7 @@ def cpuPolyFHT(np.ndarray[floating, ndim=3] reshapedX,
             numFreqs > (reshapedX.shape[1] * reshapedX.shape[2]):
         raise ValueError("The number of datapoints in the outputs and the inputs do "
                 "not agree.")
-    if radem.shape[0] != 5 * polydegree or chiArr.shape[0] != polydegree:
+    if radem.shape[0] != 3 * polydegree or chiArr.shape[0] != polydegree:
         raise ValueError("radem & chiArr must have length polydegree for dim 0.")
     
     if chiArr.shape[2] != radem.shape[2] or chiArr.shape[1] != radem.shape[1]:

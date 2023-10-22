@@ -188,7 +188,7 @@ def get_classic_matrices(ndatapoints, num_feats, num_freqs, polydegree,
             random_state = 123)
 
     radem_array = np.asarray([-1,1], dtype=np.int8)
-    radem_diag = rng.choice(radem_array, size=(5 * polydegree, nblocks,
+    radem_diag = rng.choice(radem_array, size=(3 * polydegree, nblocks,
                     padded_dims), replace=True)
     features = np.zeros((ndatapoints, num_freqs))
     if precision == "float":
@@ -251,22 +251,14 @@ def get_classic_features(xdata, radem, S, precision = "double",
     cFHT(true_features, 2)
     true_features *= radem[2:3,:,:] * norm_constant
     cFHT(true_features, 2)
-    true_features *= radem[3:4,:,:] * norm_constant
-    cFHT(true_features, 2)
-    true_features *= radem[4:5,:,:] * norm_constant
-    cFHT(true_features, 2)
     true_features *= S[0,:,:]
 
     for j in range(1, S.shape[0]):
-        x_updated = xdata * radem[5*j,:,:] * norm_constant
+        x_updated = xdata * radem[3*j,:,:] * norm_constant
         cFHT(x_updated, 2)
-        x_updated *= radem[5*j+1,:,:] * norm_constant
+        x_updated *= radem[3*j+1,:,:] * norm_constant
         cFHT(x_updated, 2)
-        x_updated *= radem[5*j+2,:,:] * norm_constant
-        cFHT(x_updated, 2)
-        x_updated *= radem[5*j+3,:,:] * norm_constant
-        cFHT(x_updated, 2)
-        x_updated *= radem[5*j+4,:,:] * norm_constant
+        x_updated *= radem[3*j+2,:,:] * norm_constant
         cFHT(x_updated, 2)
         x_updated *= S[j,:,:]
         true_features *= x_updated

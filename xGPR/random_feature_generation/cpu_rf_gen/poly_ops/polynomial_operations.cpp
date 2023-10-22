@@ -7,7 +7,6 @@
  * + cpuExactQuadratic_
  * Generates features for an exact quadratic.
  */
-#include <Python.h>
 #include <vector>
 #include <thread>
 #include "polynomial_operations.h"
@@ -159,7 +158,7 @@ void *threadApproxPolynomial(T inArray[], T copyBuffer[], int8_t *radem,
                     startRow, endRow);
     transformRows3D<T>(copyBuffer, startRow, 
                     endRow, dim1, dim2);
-    for (int k=1; k < 5; k++){
+    for (int k=1; k < 3; k++){
         multiplyByDiagonalRademacherMat<T>(copyBuffer,
                     radem + k * rowSize, dim1, dim2, 
                     startRow, endRow);
@@ -175,13 +174,13 @@ void *threadApproxPolynomial(T inArray[], T copyBuffer[], int8_t *radem,
     // using the appropriate rows of chiArr and radem.
     for (int i = 1; i < polydegree; i++){
         multiplyByDiagonalRademAndCopy(inArray, copyBuffer,
-                    radem + (5 * i) * rowSize, dim1, dim2,
+                    radem + (3 * i) * rowSize, dim1, dim2,
                     startRow, endRow);
         transformRows3D<T>(copyBuffer, startRow, 
                     endRow, dim1, dim2);
-        for (int k=1; k < 5; k++){
+        for (int k=1; k < 3; k++){
             multiplyByDiagonalRademacherMat<T>(copyBuffer,
-                    radem + (5 * i + k) * rowSize, dim1, dim2, 
+                    radem + (3 * i + k) * rowSize, dim1, dim2, 
                     startRow, endRow);
             transformRows3D<T>(copyBuffer, startRow, 
                     endRow, dim1, dim2);
