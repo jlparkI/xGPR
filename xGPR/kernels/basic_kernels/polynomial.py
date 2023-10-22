@@ -81,7 +81,7 @@ class Polynomial(KernelBaseclass):
             self.nblocks = ceil(self.num_freqs / self.padded_dims)
         else:
             self.nblocks = 1
-        self.radem_diag = rng.choice(radem_array, size=(5 * self.polydegree,
+        self.radem_diag = rng.choice(radem_array, size=(3 * self.polydegree,
                         self.nblocks, self.padded_dims), replace=True)
         self.chi_arr = chi.rvs(df=self.padded_dims,
                 size=(self.polydegree, self.nblocks, self.padded_dims),
