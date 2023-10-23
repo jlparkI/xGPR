@@ -3,9 +3,8 @@ import os
 
 import numpy as np
 
-from xGPR.data_handling.dataset_builder import build_offline_fixed_vector_dataset
+from xGPR.data_handling.dataset_builder import build_offline_np_dataset
 from xGPR.data_handling.dataset_builder import build_online_dataset
-from xGPR.data_handling.dataset_builder import build_offline_sequence_dataset
 
 RANDOM_STATE = 123
 
@@ -39,11 +38,7 @@ def build_test_dataset(conv_kernel = False, xsuffix = "trainxvalues.npy",
     xtrain_files.sort()
     ytrain_files.sort()
 
-    if not conv_kernel:
-        offline_data = build_offline_fixed_vector_dataset(xtrain_files,
-                ytrain_files, chunk_size = 2000)
-    else:
-        offline_data = build_offline_sequence_dataset(xtrain_files,
+    offline_data = build_offline_np_dataset(xtrain_files,
                 ytrain_files, chunk_size = 2000)
     xvalues, yvalues = [], []
     for xfile, yfile in zip(xtrain_files, ytrain_files):

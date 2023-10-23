@@ -13,7 +13,7 @@ except:
     pass
 import numpy as np
 
-from .data_handling.dataset_builder import build_offline_fixed_vector_dataset
+from .data_handling.dataset_builder import build_offline_np_dataset
 from .kernels import KERNEL_NAME_TO_CLASS
 from .constants import constants
 
@@ -336,7 +336,7 @@ class GPRegressionBaseclass():
                 mempool = cp.get_default_memory_pool()
                 mempool.free_all_blocks()
 
-        tuning_dataset = build_offline_fixed_vector_dataset(xfiles,
+        tuning_dataset = build_offline_np_dataset(xfiles,
                             yfiles, chunk_size = max_chunk_size,
                             skip_safety_checks = True)
         tuning_dataset.pretransformed = True
