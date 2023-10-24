@@ -87,7 +87,7 @@ class xGPRegression(GPRegressionBaseclass):
                         verbose = verbose, num_threads = num_threads,
                         double_precision_fht = double_precision_fht)
 
-    def predict(self, input_x, get_var = True,
+    def predict(self, input_x, get_var = False,
             chunk_size = 2000):
         """Generate a predicted value for each
         input datapoint -- and if desired the variance.
