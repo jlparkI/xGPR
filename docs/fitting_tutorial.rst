@@ -8,70 +8,6 @@ Fitting is faster, easier and more foolproof than tuning,
 but there's still some knobs we can turn to make it as
 fast as possible.
 
-Pretransforming data and when to do it
----------------------------------------
-
-The first option is *pretransforming the data*. This means
-generating all of the random features for the training set and
-saving them on disk, so they only have to be generated once.
-Depending on your hardware and the size of the dataset, this
-can be either beneficial or counterproductive.
-
-Although we don't recommend training on CPU,
-for CPU, pretransforming data is generally much faster and
-is recommended.
-For GPU, if the number of features for each input datapoint
-is small, loading the data to memory and generating features
-on the fly can actually be *faster* than pre-generating the
-features and loading them from disk, just because loading them
-from disk is slow. The exception is convolution kernels, for
-which pretransformation speeds things up even on
-GPU, especially if the sequences are long / graphs are large,
-in which case pretransform is highly recommended.
-Of course, if your hard drive happens to be an SSD, this
-can make the pretransformation approach much faster.
-
-There is one other consideration, which is disk space. If you're
-using ``fitting_rffs = 32768``, for example, this means that we
-generate 32,768 random features for each training set datapoint.
-If we pretransform, we're saving those 32,768 features somewhere
-on disk. For 1 million datapoints, with 32,768 random features
-each, we're looking at 131 GB of disk space already, which may be
-ok depending on hardware. If you have 10 million datapoints,
-however, 1.3 TB might be more problematic! In this case, you're
-better off generating the features as needed for each minibatch
-during fitting, as opposed to using up an absurd amount of disk
-space to store pregenerated features.
-
-If given all of the above you decide it makes sense to pretransform,
-you do it like this:::
-
-  pretransformed_dataset = my_model.pretransform_data(training_dataset,
-                  pretransform_dir = "~/temp_dir", random_seed = 123,
-                  preset_hyperparams = None)
-
-The pretransformed data will be saved as numpy arrays under whatever
-directory you supply as ``pretransform_dir``. Note that you can use
-``None`` for hyperparams if the model was just tuned. Otherwise,
-if you have a specific set of hyperparameters you'd like to use, you
-*must* supply them to ``pretransform_data``, because
-``pretransform_data`` will use those hyperparameters when generating
-the random features. If not ``None``, the hyperparams should be
-a numpy array of shape (N) for N kernel hyperparameters. To see how
-many hyperparameters your kernel has, use ``my_model.get_hyperparams()``.
-Note that you must supply the *natural log* of the hyperparameters,
-not the actual values -- supplying the actual values instead of the
-natural log can lead to fairly strange results. (All xGP_Regression
-functions you can call to retrieve hyperparameters return the log
-of the hyperparameters unless you specify otherwise.)
-
-Once you have your pretransformed_dataset, you can use it in all
-subsequent fitting steps in place of your training set.
-Once you're done with your pretransformed dataset at the end of fitting,
-you can clean up the files associated with it as follows:::
-
-  pretransformed_dataset.delete_dataset_files()
-
 
 Preconditioning
 ----------------
@@ -177,10 +113,8 @@ often gives almost equivalent results.
 For relatively noise-free data, where the model is already highly
 accurate and we would like it to be even more so, ``tol = 1e-7``
 is recommended. ``tol = 1e-8`` is nearly always expensive overkill.
-If in doubt, a quick experiment on a small subset of the data can
-be helpful.
 
-If ``fitting_rffs`` is small (e.g. 512), you can fit using a single
+If ``num_rffs`` is small (e.g. 512), you can fit using a single
 pass over the data, no preconditioner required! by using ``mode = exact``,
 for example:::
 
@@ -194,36 +128,11 @@ to get the same result, and may
 require a large number of iterations, so it's not recommended for
 anything except small datasets, where iterations are relatively cheap.
 With that said, it works quite well for small datasets and
-neither requires nor uses a preconditioner, so on a small dataset it
+doesn't require a preconditioner, so on a small dataset it
 may be a good default. To fit this way, use:::
 
   my_model.fit(training_dataset, random_seed = 123, mode = "lbfgs")
 
-We also include a couple of stochastic gradient descent methods.
-At present these are mostly useful for testing purposes because
-they are not competitive with CG in our experiments. ``mode = sgd`` uses
-stochastic variance reduced gradient descent (SVRG). Without preconditioning,
-this method too is very bad, so we recommend
-always using a preconditioner for SVRG. To fit using SVRG, use:::
-
-  my_model.fit(training_dataset, random_seed = 123, mode = "sgd",
-                preconditioner = preconditioner, manual_lr = None,
-                tol = 1e-6, max_iter = 500)
-
-Note that ``max_iter`` in this case is the maximum number of epochs;
-all other arguments have the same meaning as for CG. If ``manual_lr``
-is None, SVRG will try to automatically select a good learning rate;
-if a float is supplied, it will use that as the starting learning
-rate instead. THe automatic learning rate selection is fairly limited
-and you *may* be able to do better yourself using careful learning
-rate tuning (e.g. fitting with ``max_iter = 2`` using different learning
-rate settings), although this can be a lot of work.
-
-In general, we've found that SVRG with preconditioning can like CG
-achieve very tight tolerances if needed, but CG in all of our
-experiments was much more efficient, requiring many fewer iterations
-and of course with no learning rate tuning required. We therefore
-prefer CG.
 
 Finally, if you're fitting a model as part of some hyperparameter
 tuning scheme, you can supply the argument ``suppress_var = True``

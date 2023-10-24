@@ -79,14 +79,14 @@ follow.
        | point is supplied.
 
 It's worth noting that when tuning using marginal likelihood, we often
-don't need that many ``training_rffs`` to achieve good performance.
+don't need that many ``num_rffs`` to achieve good performance.
 Refer to the graph in :doc:`Overview</overview>`; notice that
 performance on held out data plateaus rapidly as the number of
 random features used for tuning increases. Generally, then, it's
 not a bad idea to start using a ``crude`` method with 
-a small number of ``training_rffs``, then if this is close
+a small number of ``num_rffs``, then if this is close
 to desired performance but not quite there, use a larger number of
-``training_rffs`` with approximate marginal likelihood (or validation
+``num_rffs`` with approximate marginal likelihood (or validation
 set performance). If you are just using a ``crude`` method to
 get a "starting point, it is also possible to use it
 on a subset of the training data (we'll show you how to do this
@@ -322,14 +322,12 @@ Here are the two currently supported options:::
              starting_hyperparams = None, random_seed = 123,
              max_iter = 50, nmll_rank = 1024, nmll_probes = 25,
              nmll_iter = 500, nmll_tol = 1e-6,
-             pretransform_dir = None,
              preconditioner_mode = "srht_2")
 
   hparams, nfev, best_score = my_model.tune_hyperparams_fine_bayes(my_dataset, bounds = None,
              random_seed = 123, max_bayes_iter = 30, tol = 1e-1,
              nmll_rank = 1024, nmll_probes = 25, nmll_iter = 500,
-             nmll_tol = 1e-6, pretransform_dir = None,
-             preconditioner_mode = "srht_2")
+             nmll_tol = 1e-6, preconditioner_mode = "srht_2")
 
 
 Note that ``fine_bayes`` is only an option for kernels with < 5 hyperparameters.
@@ -349,24 +347,6 @@ narrower than the default xGPR boundaries, which are too wide of a space
 for ``fine_bayes`` to search efficiently. See "A quick note on 
 tuning hyperparameter bounds" above to see how to get xGPR to
 suggest bounds for you after an initial round of ``crude`` tuning.
-
-``pretransform_dir`` defaults to None. If it's *not* None, it should
-be a valid filepath to a location where xGPR can temporarily store
-random features when they are generated (xGPR will cleanup when it's
-done). On each pass over the dataset, it then loads the saved random
-features instead of generating them. This isn't necessarily faster --
-it can be slow, because loading large quantities of data from disk
-obviously is not fast. This may be faster than generating
-random features on the fly *if*:
-
-#. You are using a convolution kernel (especially if the sequences /
-   graphs are long or large).
-#. You are tuning on CPU (in this case, using a pretransform_dir
-   is recommended.
-
-Using a pretransform_dir is not recommended if the number of random
-features you are using * the number of datapoints * 4 (bytes per
-float) is on par with your available disk space.
 
 To understand the other options, note that the marginal likelihood
 approximation is iterative -- it loops over the dataset repeatedly

@@ -64,8 +64,6 @@ Miscellaneous
 
   How-to: Experimental and custom hyperparameter tuning methods <other_hyperparam_tuning.rst>
 
-  Tips for training on CPU (if you absolutely must) <cpu_training>  
-
   Frequently asked questions <FAQ>
 
   About / Contact <contact>

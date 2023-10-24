@@ -47,14 +47,15 @@ To build a Dataset, do the following:::
 
 
 Alternatively, let's say you have 100 numpy files (.npy) on disk, each of which
-is an N x M array of features, and 100 corresponding numpy files that are 1d
+is a 2d (fixed vector) or 3d (graphs, sequences) array of features, and
+100 corresponding numpy files that are 1d
 arrays containing the regression labels. The filepaths to these files (can be
 relative or absolute) are stored in two lists called xfiles and yfiles. In this
 case, to build a dataset, do the following:::
   
   from xGPR import build_offline_fixed_vector_dataset
   
-  my_dataset = build_offline_fixed_vector_dataset(xfiles, yfiles,
+  my_dataset = build_offline_np_dataset(xfiles, yfiles,
                   chunk_size = 2000, skip_safety_checks = False)
 
 
@@ -66,16 +67,6 @@ If you're *confident* your data is clean, you can make dataset construction
 faster by setting ``skip_safety_checks`` to True. (Note, however, that if some
 of your arrays *do* have problems and you skipped safety checks, you run
 the risk of some really interesting errors during training.)
-
-Finally, let's say you have the same lists of numpy files, but the x-arrays are each
-3d -- they are sequences, graphs or multivariate time series. In this case, do
-the following:::
-
-  from xGPR import build_offline_sequence_dataset
-  
-  my_dataset = build_offline_sequence_dataset(xfiles, yfiles, chunk_size = 2000,
-                  skip_safety_checks = False)
-
 
 The Dataset objects returned by any of these three `dataset_builder` functions
 can be used interchangeably -- they only differ in their construction.
@@ -100,12 +91,14 @@ Setting up a model for fixed-length vector data
 Start by creating a model:::
 
   from xGPR import xGPRegression
-  my_model = xGPRegression(training_rffs = 2048, fitting_rffs = 8192,
+  my_model = xGPRegression(num_rffs = 2048,
                         variance_rffs = 512, kernel_choice = "RBF",
                         device = "gpu", kernel_specific_params =
                         {"matern_nu":5/2, "conv_width":9, "polydegree":2},
                         verbose = True, num_threads = 2)
 
+  my_model.initialize(my_dataset, random_seed = 123, hyperparams = None,
+                          bounds = None)
 
 ``kernel_choice`` is the kernel. For a list of options, and for help choosing, see
 the Available Kernels section on the main page.
@@ -139,10 +132,35 @@ result and we want it to be a little better, we can double the number of RFFs
 we're using. Using more RFFs means xGPR will take longer to train however. To
 see how RFFs affect training time and accuracy, see :doc:`Overview</overview>`.
 
-``training_rffs``, ``fitting_rffs`` and ``variance_rffs`` control how accurately
-xGPR approximates an exact GP during hyperparameter tuning, model fitting, and
-when calculating uncertainty on predictions, respectively. See
-:doc:`Overview</overview>` for details.
+``num_rffs`` and ``variance_rffs`` control how accurately
+xGPR approximates an exact GP when making predictions and when estimating
+uncertainty. See :doc:`Overview</overview>` for details.
+
+Calling initialize
+---------------------
+
+Notice that after we create the model we immediately call ``initialize``.
+Calling ``initialize`` sets up the kernel using a specific random seed,
+set of hyperparameters and tuning search boundaries. If you have hyperparameters
+or bounds you want to use from previous experiments, you can pass them
+to ``initialize``. If you change the number of random features the model is
+using, you will need to call ``initialize`` again before fitting / tuning.
+
+For example, let's say you've tuned hyperparameters using ``num_rffs=1024``,
+and now you want to fit the model using a larger number of random features.
+(Accuracy is improved to a more significant extent by increasing the number
+of RFFs used for fitting than it is by increasing the number used for tuning,
+and tuning is more expensive because it involves fitting the model multiple
+times. It is often therefore beneficial to tune with a smaller number of RFFs
+then increase the number used for fitting.) In this case, you could re-initialize
+like this:::
+
+  hparams = my_model.get_hyperparams()
+  my_model.num_rffs = 2048
+  my_model.initialize(my_dataset, random_seed = 123, hyperparams = hparams)
+
+and by passing in the hyperparameters, you ensure these are used by the
+new re-initialized kernel.
 
 
 Setting up a model for convolution
@@ -154,7 +172,7 @@ a dedicated convolution kernel, (e.g. ``FHTConv1d`` for sequences
 or ``GraphRBF`` for graphs), e.g.:::
 
   from xGPR import xGPRegression
-  my_model = xGPRegression(training_rffs = 2048, fitting_rffs = 8192,
+  my_model = xGPRegression(num_rffs = 2048,
                         variance_rffs = 512, kernel_choice = "FHTConv1d",
                         device = "gpu", kernel_specific_params =
                         {"conv_width":9}, verbose = True)

@@ -9,7 +9,7 @@ variance, however, you'll need to take care of that piece yourself.
 To make predictions:::
 
   predicted_mean, predicted_variance = my_model.predict(xtest, chunk_size = 2000,
-                                           get_var = True)
+                                           get_var = False)
 
 xtest in this case is a numpy array with the same ``shape[1]`` and (if a convolution
 kernel) ``shape[2]`` as your original data. You don't need to build a Dataset when

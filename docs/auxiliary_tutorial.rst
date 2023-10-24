@@ -57,8 +57,8 @@ Here's how to do approximate kPCA in xGPR:::
   my_pca_transformed_data = kernel_xpca.predict(my_input_numpy_array,
                                            chunk_size = 2000)
 
-Note some important things here. First, the ``KernelxPCA`` is like a greatly slimmed-
-down xGPRegression model that doesn't do hyperparameter tuning and is fitted
+Note some important things here. First, the ``KernelxPCA`` is like an
+xGPRegression model that doesn't do hyperparameter tuning and is fitted
 as soon as it's created (for a large dataset and/or num_rffs, this may take a minute.)
 This means that you have to supply (the log of) the
 hyperparameters as a numpy array. All xGPR kernels have at least two hyperparameters,
