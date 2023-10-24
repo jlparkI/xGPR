@@ -20,10 +20,8 @@ class CheckDirectTuning(unittest.TestCase):
         RBF kernel for simplicity (tuning & fitting with other
         kernels is tested under the complete pipeline tests."""
         online_data, _ = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", online_data.get_xdim())
-        cpu_mod.training_rffs = 512
+        cpu_mod, gpu_mod = get_models("RBF", online_data)
         bounds = np.array([[-2,0],    [0,2],    [-3,0]])
-        cpu_mod.kernel = None
         _, niter, best_score = cpu_mod.tune_hyperparams_fine_direct(online_data,
                 optim_method = "Powell",
                 max_iter = 50, bounds = bounds,
@@ -35,9 +33,7 @@ class CheckDirectTuning(unittest.TestCase):
         self.assertTrue(best_score < 430)
 
         if gpu_mod is not None:
-            gpu_mod.training_rffs = 512
-            gpu_mod.kernel = None
-            _, niter, scores = gpu_mod.tune_hyperparams_fine_direct(online_data,
+            _, niter, best_score = gpu_mod.tune_hyperparams_fine_direct(online_data,
                 optim_method = "Powell",
                 max_iter = 50, bounds = bounds,
                 random_seed = 123,

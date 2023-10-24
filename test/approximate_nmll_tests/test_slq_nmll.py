@@ -28,8 +28,7 @@ class CheckApproximateNMLL(unittest.TestCase):
     def test_approximate_preconditioned_nmll(self):
         """Test the approximate nmll function using preconditioning."""
         online_data, _ = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", online_data.get_xdim(), training_rffs = NUM_RFFS,
-                                    fitting_rffs = NUM_RFFS)
+        cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs = NUM_RFFS)
 
         outcome = run_exact_approx_comparison(cpu_mod, EASY_HPARAMS, online_data,
                                 512, "cpu")
@@ -61,8 +60,8 @@ class CheckApproximateNMLL(unittest.TestCase):
     def test_approximate_nmll(self):
         """Test the approximate nmll function, NO preconditioning."""
         online_data, _ = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", online_data.get_xdim(),
-                        training_rffs = NUM_RFFS, fitting_rffs = NUM_RFFS)
+        cpu_mod, gpu_mod = get_models("RBF", online_data,
+                        num_rffs = NUM_RFFS)
 
         outcome = run_exact_approx_comparison(cpu_mod, EASY_HPARAMS, online_data,
                                 0, "cpu")

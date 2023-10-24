@@ -32,15 +32,10 @@ def calc_zty(dataset, kernel):
 
     y_trans_y = 0
 
-    if dataset.pretransformed:
-        for xdata, ydata in dataset.get_chunked_data():
-            z_trans_y += xdata.T @ ydata
-            y_trans_y += float( (ydata**2).sum() )
-    else:
-        for xdata, ydata in dataset.get_chunked_data():
-            zdata = kernel.transform_x(xdata)
-            z_trans_y += zdata.T @ ydata
-            y_trans_y += float( (ydata**2).sum() )
+    for xdata, ydata in dataset.get_chunked_data():
+        zdata = kernel.transform_x(xdata)
+        z_trans_y += zdata.T @ ydata
+        y_trans_y += float( (ydata**2).sum() )
     return z_trans_y, y_trans_y
 
 
@@ -70,21 +65,15 @@ def calc_design_mat(dataset, kernel):
         z_trans_z = cp.zeros((num_rffs, num_rffs))
         z_trans_y = cp.zeros((num_rffs))
     y_trans_y = 0.0
-    if dataset.pretransformed:
-        for xfeatures, ydata in dataset.get_chunked_data():
-            z_trans_y += xfeatures.T @ ydata
-            z_trans_z += xfeatures.T @ xfeatures
-            y_trans_y += ydata.T @ ydata
-    else:
-        for i, (xdata, ydata) in enumerate(dataset.get_chunked_data()):
-            xfeatures = kernel.transform_x(xdata)
-            z_trans_y += xfeatures.T @ ydata
-            z_trans_z += xfeatures.T @ xfeatures
-            y_trans_y += ydata.T @ ydata
-            if i % 2 == 0:
-                if kernel.device == "gpu":
-                    mempool = cp.get_default_memory_pool()
-                    mempool.free_all_blocks()
+    for i, (xdata, ydata) in enumerate(dataset.get_chunked_data()):
+        xfeatures = kernel.transform_x(xdata)
+        z_trans_y += xfeatures.T @ ydata
+        z_trans_z += xfeatures.T @ xfeatures
+        y_trans_y += ydata.T @ ydata
+        if i % 2 == 0:
+            if kernel.device == "gpu":
+                mempool = cp.get_default_memory_pool()
+                mempool.free_all_blocks()
                 
     return z_trans_z, z_trans_y, float(y_trans_y)
 
@@ -144,11 +133,7 @@ def calc_var_design_mat(dataset, kernel, variance_rffs):
         z_trans_z = np.zeros((variance_rffs, variance_rffs))
     else:
         z_trans_z = cp.zeros((variance_rffs, variance_rffs))
-    if dataset.pretransformed:
-        for xfeatures in dataset.get_chunked_x_data():
-            z_trans_z += xfeatures[:,:variance_rffs].T @ xfeatures[:,:variance_rffs]
-    else:
-        for xdata in dataset.get_chunked_x_data():
-            xfeatures = kernel.transform_x(xdata)
-            z_trans_z += xfeatures[:,:variance_rffs].T @ xfeatures[:,:variance_rffs]
+    for xdata in dataset.get_chunked_x_data():
+        xfeatures = kernel.transform_x(xdata)
+        z_trans_z += xfeatures[:,:variance_rffs].T @ xfeatures[:,:variance_rffs]
     return z_trans_z

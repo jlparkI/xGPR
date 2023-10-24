@@ -38,13 +38,9 @@ cdef class GPU_ConjugateGrad:
                 This array is modified in-place.
         """
         matvec[:] = 0
-        if dataset.pretransformed:
-            for x in dataset.get_chunked_x_data():
-                matvec += x.T @ (x @ vec)
-        else:
-            for x in dataset.get_chunked_x_data():
-                Z = kernel.transform_x(x)
-                matvec += Z.T @ (Z @ vec)
+        for x in dataset.get_chunked_x_data():
+            Z = kernel.transform_x(x)
+            matvec += Z.T @ (Z @ vec)
         matvec += kernel.get_lambda()**2 * vec
 
 
@@ -174,13 +170,9 @@ cdef class CPU_ConjugateGrad:
                 This array is modified in-place.
         """
         matvec[:] = 0
-        if dataset.pretransformed:
-            for x in dataset.get_chunked_x_data():
-                matvec += x.T @ (x @ vec)
-        else:
-            for x in dataset.get_chunked_x_data():
-                Z = kernel.transform_x(x)
-                matvec += Z.T @ (Z @ vec)
+        for x in dataset.get_chunked_x_data():
+            Z = kernel.transform_x(x)
+            matvec += Z.T @ (Z @ vec)
         matvec += kernel.get_lambda()**2 * vec
 
 

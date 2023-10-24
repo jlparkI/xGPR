@@ -3,7 +3,6 @@
 The GPRegressionBaseclass describes class attributes and methods shared by
 model classes like xGPRegression.
 """
-import os
 import sys
 import warnings
 
@@ -13,7 +12,6 @@ except:
     pass
 import numpy as np
 
-from .data_handling.dataset_builder import build_offline_np_dataset
 from .kernels import KERNEL_NAME_TO_CLASS
 from .constants import constants
 
@@ -41,10 +39,7 @@ class GPRegressionBaseclass():
         device (str): One of "gpu", "cpu". The user can update this as desired.
             All predict / tune / fit operations are carried out using the
             current device.
-        training_rffs (int): The number of random Fourier features used for
-            tuning the hyperparameters.
-        fitting_rffs (int): The number of random Fourier features used for
-            fitting the model and generating the posterior predictive mean.
+        num_rffs (int): The number of random Fourier features used.
         variance_rffs (int): The number of random Fourier features used for
             calculating posterior predictive variance.
         kernel_specific_params (dict): Contains kernel-specific parameters --
@@ -69,7 +64,7 @@ class GPRegressionBaseclass():
             linear).
     """
 
-    def __init__(self, training_rffs, fitting_rffs, variance_rffs = 16,
+    def __init__(self, num_rffs = 256, variance_rffs = 16,
                     kernel_choice="RBF", device = "cpu",
                     kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     verbose = True,
@@ -78,11 +73,9 @@ class GPRegressionBaseclass():
         """Constructor.
 
         Args:
-            training_rffs (int): The number of random Fourier features
-                to use for hyperparameter tuning.
-            fitting_rffs (int): The number of random Fourier features
-                to use for posterior predictive mean (i.e. the predicted
-                value for new datapoints).
+            num_rffs (int): The number of random Fourier features
+                to use. For certain kernels (Linear) this will be set
+                by the data.
             variance_rffs (int): The number of random Fourier features
                 to use for posterior predictive variance (i.e. calculating
                 uncertainty on predictions). Defaults to 64.
@@ -107,9 +100,8 @@ class GPRegressionBaseclass():
         self.var = None
         self.device = device
 
-        self.training_rffs = training_rffs
-        self.fitting_rffs = fitting_rffs
-        #Variance_rffs must be <= fitting_rffs. Always set second
+        self.num_rffs = num_rffs
+        #Variance_rffs must be <= num_rffs. Always set second
         self.variance_rffs = variance_rffs
 
         self.kernel_spec_parms = kernel_specific_params
@@ -121,6 +113,34 @@ class GPRegressionBaseclass():
 
         self.double_precision_fht = double_precision_fht
         self.exact_var_calculation = True
+
+
+    def initialize(self, dataset, random_seed = 123, hyperparams = None, input_bounds = None):
+        """Initializes the kernel using the supplied dataset and random seed.
+        If the kernel has already been initialized, no further action is
+        taken.
+
+        Args:
+            dataset: An Online or Offline dataset for training.
+            random_seed (int): A random seed to set up the kernel.
+            hyperparams (ndarray): Either None or a numpy array. If not None,
+                must be a numpy array such that shape[0] == the number of hyperparameters
+                for the selected kernel. The kernel hyperparameters are then initialized
+                to the specified value. If None, default hyperparameters are used which
+                should then be tuned.
+            input_bounds (np.ndarray): The bounds for optimization. Defaults to
+                None, in which case the kernel uses its default bounds.
+                If supplied, must be a 2d numpy array of shape (num_hyperparams, 2).
+
+        Raises:
+            ValueError: A ValueError is raised if invalid inputs are supplied.
+        """
+        self.kernel = self._initialize_kernel(self.kernel_choice, dataset.get_xdim(),
+                        self.num_rffs, random_seed, input_bounds)
+        self.weights, self.var = None, None
+        if hyperparams is not None:
+            self.kernel.check_hyperparams(hyperparams)
+            self.kernel.set_hyperparams(hyperparams, logspace = True)
 
 
     def pre_prediction_checks(self, input_x, get_var):
@@ -159,97 +179,12 @@ class GPRegressionBaseclass():
         return x_array
 
 
-    def transform_data(self, input_x, chunk_size = 2000):
-        """Generate the random features for each chunk
-        of an input array. This function is a generator
-        so it will yield the random features as blocks
-        of shape (chunk_size, fitting_rffs).
-
-        Args:
-            input_x (np.ndarray): The input data. Should be a 2d numpy
-                array (if non-convolution kernel) or 3d (if convolution
-                kernel).
-            chunk_size (int): The number of datapoints to process at
-                a time. Lower values limit memory consumption. Defaults
-                to 2000.
-
-        Yields:
-            x_trans (array): An array containing the random features
-                generated for a chunk of the input. Shape is
-                (chunk_size, fitting_rffs).
-
-        Raises:
-            ValueError: If the dimensionality or type of the input does
-                not match what is expected, or if the model has
-                not yet been fitted, a ValueError is raised.
-        """
-        xdata = self.pre_prediction_checks(input_x, False)
-        for i in range(0, xdata.shape[0], chunk_size):
-            cutoff = min(i + chunk_size, xdata.shape[0])
-            yield self.kernel.transform_x(xdata[i:cutoff, :])
-
-
     def get_hyperparams(self):
         """Simple helper function to return hyperparameters if the model
         has already been tuned or fitted."""
         if self.kernel is None:
             return None
         return self.kernel.get_hyperparams()
-
-
-
-    def suggest_bounds(self, box_width = 1.0, consider_all_shared = False):
-        """Returns suggested boundaries for hyperparameter tuning.
-        This should be called after initial "crude"
-        tuning has been conducted before more expensive "fine-
-        tuning" is conducted.
-
-        Args:
-            box_width (int): The width of the box to draw for
-                kernel-specific hyperparameters. For shared
-                hyperparameters (noise, amplitude) the box
-                width is determined automatically.
-            consider_all_shared (bool): If True, for lambda and beta
-                (the two shared hyperparameters), the box boundaries
-                are set at the default boundaries for the kernel.
-                This can sometimes be beneficial since many "crude"
-                methods are better at finding good values for the
-                kernel-specific parameter (lengthscale) than for lambda /
-                beta.
-
-        Returns:
-            bounds (array): A numpy array of shape (n, 2),
-                where n is the number of hyperparameters. If
-                tuning has not yet been conducted, a warning
-                is generated and None is returned instead. Passing
-                None as bounds to a hyperparameter tuning
-                function will just result in using the
-                specified kernel's defaults."""
-        if self.kernel is None:
-            warnings.warn("Tuning has not yet been performed. "
-                    "The kernel default boundaries are suggested. "
-                    "Returning None.")
-            return None
-        start_pt = self.kernel.get_hyperparams(logspace = True)
-        #Round to nearest decimal place to avoid any minor
-        #fluctuations in boundaries stemming from slight
-        #adjustments to crude tuning strategy.
-        start_pt = np.round(start_pt, 1)
-        default_bounds = self.kernel.get_bounds(logspace = True)
-
-        suggested_bounds = []
-        for i in range(start_pt.shape[0]):
-            suggested_bounds.append([start_pt[i] - box_width,
-                start_pt[i] + box_width])
-
-        suggested_bounds = np.asarray(suggested_bounds)
-        suggested_bounds[:,0] = np.max([suggested_bounds[:,0],
-                        default_bounds[:,0]], axis=0)
-        suggested_bounds[:,1] = np.min([suggested_bounds[:,1],
-                        default_bounds[:,1]], axis=0)
-        if consider_all_shared:
-            suggested_bounds[0:2,:] = default_bounds[0:2,:]
-        return suggested_bounds
 
 
 
@@ -294,211 +229,83 @@ class GPRegressionBaseclass():
         return kernel
 
 
-    def _pretransform_dataset(self, dataset, pretransform_location):
-        """Pretransforms a dataset, generating the random features without
-        applying the activation function then saving these pre-generated
-        features (to which only the final processing step needs to be applied)
-        to disk. If the number of features is small but the number of datapoints
-        is large, or if an SSD hard drive is available, this can bring about
-        a substantial speedup.
-
-        Args:
-            dataset: An object of class CPUOnlineDataset, CPUOfflineDataset,
-                GPUOnlineDataset or GPUOfflineDataset. Contains the prechecked
-                data as either a list of on-disk arrays or a set of numpy arrays.
-            pretransform_location (str): A valid filepath to a directory where
-                the pretransformed arrays can be saved.
+    def _run_pre_nmll_prep(self, dataset, bounds = None, nmll_rank = None):
+        """Runs key steps / checks needed if about to calculate
+        NMLL.
         """
-        if self.verbose:
-            print("Now pretransforming data.")
+        dataset.device = self.device
         if self.kernel is None:
-            raise ValueError("Tried to pretransform data without an initialized kernel.")
-        current_dir = os.getcwd()
-        os.chdir(pretransform_location)
-        xfiles, yfiles = [], []
-        max_chunk_size = 0
-
-        for i, (xbatch, ybatch) in enumerate(dataset.get_chunked_data()):
-            xfile, yfile = f"PRETRANSFORMED_{i}_X.npy", f"PRETRANSFORMED_{i}_Y.npy"
-            xbatch = self.kernel.transform_x(xbatch)
-            if self.device == "gpu":
-                xbatch = cp.asnumpy(xbatch).astype(np.float32)
-                ybatch = cp.asnumpy(ybatch)
-            else:
-                xbatch = xbatch.astype(np.float32)
-            ybatch = ybatch * dataset.get_ystd() + dataset.get_ymean()
-            np.save(xfile, xbatch)
-            np.save(yfile, ybatch)
-            xfiles.append(xfile)
-            yfiles.append(yfile)
-            max_chunk_size = max(max_chunk_size, xbatch.shape[0])
-            if self.device == "gpu":
-                mempool = cp.get_default_memory_pool()
-                mempool.free_all_blocks()
-
-        tuning_dataset = build_offline_np_dataset(xfiles,
-                            yfiles, chunk_size = max_chunk_size,
-                            skip_safety_checks = True)
-        tuning_dataset.pretransformed = True
-        tuning_dataset.parent_xdim = dataset.get_xdim()
-
-        os.chdir(current_dir)
-        return tuning_dataset
-
-
-
-
-
-    def _run_pretuning_prep(self, input_dataset, random_seed, input_bounds = None,
-                        nmll_method = "exact"):
-        """Checks the dataset supplied by the user to ensure
-        it is consistent with the kernel choice and other user selections.
-        Initializes the kernel and pretransforms the data (if appropriate).
-
-        Args:
-            dataset: Object of class OnlineDataset or OfflineDataset.
-                You should generate this object using either the
-                build_online_dataset, build_offline_fixed_vector_dataset
-                or build_offline_sequence_dataset functions under
-                data_handling.dataset_builder, or a static_layer if applicable.
-            random_seed (int): A random seed for the random number generator.
-            input_bounds (np.ndarray): The bounds for optimization. Defaults to
-                None, in which case the kernel uses its default bounds.
-                If supplied, must be a 2d numpy array of shape (num_hyperparams, 2).
-            nmll_method (str): "exact" or something else. If exact, only up to
-                MAX_CLOSED_FORM_RFFS random features are allowed.
-
-        Returns:
-            bounds (np.ndarray): If input_bounds were specified, these are the input_bounds
-                specified by the user. If not, they are the kernel's defaults.
-        """
-        if self.verbose:
-            print("starting_tuning")
-        if input_dataset.pretransformed:
-            raise ValueError("You cannot supply a pretransformed dataset for tuning.")
-
-        input_dataset.device = self.device
-        self.kernel = None
+            raise ValueError("Must call self.initialize before calculating NMLL.")
         self.weights, self.var = None, None
+        if nmll_rank is not None:
+            if nmll_rank >= self.kernel.get_num_rffs():
+                raise ValueError("NMLL rank must be < the number of rffs.")
 
-        if self.device == "gpu":
-            mempool = cp.get_default_memory_pool()
-            mempool.free_all_blocks()
-        self.kernel = self._initialize_kernel(self.kernel_choice, input_dataset.get_xdim(),
-                        self.training_rffs, random_seed, input_bounds)
+        optim_bounds = bounds
+        if optim_bounds is None:
+            optim_bounds = self.kernel.get_bounds()
+        return optim_bounds
 
-        if input_bounds is None:
-            bounds = self.kernel.get_bounds(logspace=True)
-        else:
-            bounds = input_bounds
-        #We check num rffs AFTER initializing the kernel, since one kernel (Linear!)
-        #will override requested number of rffs.
-        if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS and nmll_method == "exact":
-            raise ValueError(f"At most {constants.MAX_CLOSED_FORM_RFFS} can be used "
+
+    def _run_singlepoint_nmll_prep(self, dataset, exact_method = False,
+            nmll_rank = None):
+        """Runs key steps / checks needed if about to calculate
+        NMLL at a single point, in which case bounds are not needed.
+        """
+        dataset.device = self.device
+        if self.kernel is None:
+            raise ValueError("Must call self.initialize before calculating NMLL.")
+        self.weights, self.var = None, None
+        if nmll_rank is not None:
+            if nmll_rank >= self.kernel.get_num_rffs():
+                raise ValueError("NMLL rank must be < the number of rffs.")
+        if exact_method:
+            if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
+                raise ValueError(f"At most {constants.MAX_CLOSED_FORM_RFFS} can be used "
                         "for tuning hyperparameters using this method. Try tuning "
                         "using approximate nmll instead.")
 
-        return bounds
 
-
-    def _post_tuning_cleanup(self, input_dataset, best_hyperparams):
-        """Runs some post-tuning cleanup operations
-        that are common to all optimization strategies."""
-        if self.verbose:
-            print("Tuning complete.")
-        input_dataset.device = "cpu"
-        self.kernel.set_hyperparams(best_hyperparams, logspace=True)
-        if self.device == "gpu":
-            mempool = cp.get_default_memory_pool()
-            mempool.free_all_blocks()
-
-
-    #############################
-    #The next block of functions are used for fitting models once the hyperparameters
-    #have been tuned (or, alternatively, fitting using user-supplied hyperparameters).
-    #############################
-
-
-    def pretransform_data(self, input_dataset, pretransform_dir,
-            random_seed = 123, preset_hyperparams = None):
-        """Pretransforms the data using the kernel (initializing one if
-        none present), in other words, pre-generates random features and
-        saves them on disk. This is GREATLY preferable if you are fitting
-        on CPU, and even on GPU may be much faster for convolution kernels.
-        It may however take up a large amount of diskspace if both the
-        dataset and the number of random features are very large.
-
-        Args:
-            input_dataset: A Dataset object.
-            random_seed (int): A random seed for the random number generator.
-            hyperparams (np.ndarray): Either None or a user-supplied numpy array
-                containing the hyperparameters. It must be valid for the kernel
-                in question. If None, the hyperparameters must already have been
-                tuned so that self.kernel is not None. If neither of these is True,
-                a ValueError will be raised.
-            pretransform_dir (str): A valid filepath to a directory.
-
-        Returns:
-            output_datset: A Dataset object with the pretransformed training data.
+    def _run_post_nmll_cleanup(self, dataset, hyperparams = None):
+        """Runs key steps / checks needed if just finished
+        calculating NMLL.
         """
-        self._run_fitting_prep(input_dataset, random_seed, preset_hyperparams)
-        fitting_dataset = self._pretransform_dataset(input_dataset, pretransform_dir)
-        fitting_dataset.device = self.device
-        return fitting_dataset
+        dataset.device = "cpu"
+        if hyperparams is not None:
+            self.kernel.set_hyperparams(hyperparams, logspace=True)
 
 
-    def _run_fitting_prep(self, input_dataset, random_seed, hyperparams = None):
-        """Checks the dataset supplied by the user to ensure
-        it is consistent with the kernel choice and other user selections.
 
-        Args:
-            dataset: A Dataset object.
-            random_seed (int): A random seed for the random number generator.
-            hyperparams (np.ndarray): Either None or a user-supplied numpy array
-                containing the hyperparameters. It must be valid for the kernel
-                in question. If None, the hyperparameters must already have been
-                tuned so that self.kernel is not None. If neither of these is True,
-                a ValueError will be raised.
+    def _run_pre_fitting_prep(self, dataset, preset_hyperparams = None,
+            max_rank = None):
+        """Runs key steps / checks needed if about to fit the
+        model.
         """
-        if self.device == "gpu":
-            mempool = cp.get_default_memory_pool()
-            mempool.free_all_blocks()
+        dataset.device = self.device
+        self.trainy_mean = dataset.get_ymean()
+        self.trainy_std = dataset.get_ystd()
 
-        input_dataset.device = self.device
-
-        self.weights, self.var = None, None
-        self.exact_var_calculation = True
-        self.trainy_mean = input_dataset.get_ymean()
-        self.trainy_std = input_dataset.get_ystd()
-
-        if hyperparams is None:
-            if self.kernel is None:
-                raise ValueError("In order to fit, either hyperparameters should first "
-                        "have been tuned, or user-specified hyperparameters must be "
-                        "supplied.")
-            starting_hparams = self.kernel.get_hyperparams(logspace = True)
-        else:
-            starting_hparams = hyperparams
-        #It's better to reinitialize the kernel. This may seem wasteful BUT it's
-        #actually very cheap for FHT kernels AND if the user has changed anything
-        #(kernel_spec_parms,
-        #fitting_rffs etc.) since the time that they initialized the model,
-        #we'll need to reinitialize the kernel anyway. As long as we've kept
-        #the hyperparameters -- that's the important piece. Also, as long
-        #as user is using the same random seed, kernel will be the same anyway.
-        if input_dataset.pretransformed:
-            xdim = input_dataset.parent_xdim
-        else:
-            xdim = input_dataset.get_xdim()
-        self.kernel = self._initialize_kernel(self.kernel_choice,
-                        xdim, self.fitting_rffs, random_seed)
-
-        self.kernel.check_hyperparams(starting_hparams)
-        self.kernel.set_hyperparams(starting_hparams, logspace = True)
-
+        if self.kernel is None:
+            raise ValueError("Must call self.initialize before fitting.")
         if self.variance_rffs > self.kernel.get_num_rffs():
             raise ValueError("The number of variance rffs should be <= the number "
                     "of random features for the kernel.")
+
+        if preset_hyperparams is not None:
+            self.kernel.check_hyperparams(preset_hyperparams)
+            self.kernel.set_hyperparams(preset_hyperparams, logspace = True)
+        if max_rank is not None:
+            if max_rank < 1:
+                raise ValueError("Invalid value for max_rank.")
+            if max_rank >= self.kernel.get_num_rffs():
+                raise ValueError("Max rank should be < the number of rffs.")
+
+
+    def _run_post_fitting_cleanup(self, dataset):
+        """Runs key steps / checks needed if just finished
+        fitting the model.
+        """
+        dataset.device = "cpu"
 
 
 
@@ -512,11 +319,16 @@ class GPRegressionBaseclass():
 
     @kernel_spec_parms.setter
     def kernel_spec_parms(self, value):
-        """Setter for kernel_spec_parms."""
+        """Setter for kernel_spec_parms. If the
+        user is changing this, the kernel needs to be
+        re-initialized."""
         if not isinstance(value, dict):
             raise ValueError("Tried to set kernel_spec_parms to something that "
                     "was not a dict!")
         self._kernel_spec_parms = value
+        self.kernel = None
+        self.weights = None
+        self.var = None
 
 
     @property
@@ -526,33 +338,32 @@ class GPRegressionBaseclass():
 
     @kernel_choice.setter
     def kernel_choice(self, value):
-        """Setter for the kernel_choice attribute."""
+        """Setter for the kernel_choice attribute. If
+        the user is changing this, the kernel needs to
+        be re-initialized."""
         if not isinstance(value, str):
             raise ValueError("You supplied a kernel_choice that is not a string.")
         if value not in KERNEL_NAME_TO_CLASS:
             raise ValueError("You supplied an unrecognized kernel.")
         self._kernel_choice = value
+        self.kernel = None
+        self.weights = None
+        self.var = None
 
     @property
-    def fitting_rffs(self):
-        """Property definition for the fitting_rffs attribute."""
-        return self._fitting_rffs
+    def num_rffs(self):
+        """Property definition for the num_rffs attribute."""
+        return self._num_rffs
 
-    @fitting_rffs.setter
-    def fitting_rffs(self, value):
-        """Setter for the fitting_rffs attribute."""
-        self._fitting_rffs = value
-
-
-    @property
-    def training_rffs(self):
-        """Property definition for the training_rffs attribute."""
-        return self._training_rffs
-
-    @training_rffs.setter
-    def training_rffs(self, value):
-        """Setter for the training_rffs attribute."""
-        self._training_rffs = value
+    @num_rffs.setter
+    def num_rffs(self, value):
+        """Setter for the num_rffs attribute. If the
+        user is changing this, the kernel needs to
+        be re-initialized."""
+        self._num_rffs = value
+        self.kernel = None
+        self.weights = None
+        self.var = None
 
     @property
     def variance_rffs(self):
@@ -561,13 +372,22 @@ class GPRegressionBaseclass():
 
     @variance_rffs.setter
     def variance_rffs(self, value):
-        """Setter for the variance_rffs attribute."""
+        """Setter for the variance_rffs attribute. If the
+        user is changing this, the kernel may need to
+        be re-initialized, at least if variance has already
+        been calculated. Need to be careful here, because
+        for certain fitting procedures, the fit() routine
+        does reset variance_rffs."""
         if value > constants.MAX_VARIANCE_RFFS:
             raise ValueError("Currently to keep computational expense at acceptable "
                     f"levels variance rffs is capped at {constants.MAX_VARIANCE_RFFS}.")
-        if value > self.fitting_rffs and self.kernel_choice not in ["Linear", "ExactQuadratic"]:
-            raise ValueError("variance_rffs must be <= fitting_rffs.")
+        if value > self.num_rffs and self.kernel_choice not in ["Linear", "ExactQuadratic"]:
+            raise ValueError("variance_rffs must be <= num_rffs.")
         self._variance_rffs = value
+        if self.var is not None:
+            self.kernel = None
+            self.weights = None
+            self.var = None
 
 
     @property
@@ -582,7 +402,8 @@ class GPRegressionBaseclass():
             self._num_threads = 2
             raise ValueError("Num threads if supplied must be an integer from 1 to 24.")
         self._num_threads = value
-
+        if self.kernel is not None:
+            self.kernel.num_threads = num_threads
 
     @property
     def double_precision_fht(self):
@@ -594,6 +415,8 @@ class GPRegressionBaseclass():
     def double_precision_fht(self, value):
         """Setter for the double_precision_fht attribute."""
         self._double_precision_fht = value
+        if self.kernel is not None:
+            self.kernel.double_precision = double_precision
 
 
     @property

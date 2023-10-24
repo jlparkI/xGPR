@@ -7,7 +7,7 @@ as appopriate to determine which component is failing."""
 import unittest
 
 from current_kernel_list import IMPLEMENTED_KERNELS
-from fitting_utils import test_fit_cpu, test_fit_gpu
+from fitting_utils import test_fit
 
 RANDOM_SEED = 123
 
@@ -22,8 +22,8 @@ class CheckPipeline(unittest.TestCase):
         print("Now running CPU tests. Some of these (primarily any "
                 "involving ARD kernels) may take a minute.")
         for kernel_name, (is_conv, exp_score) in IMPLEMENTED_KERNELS.items():
-            cg_score, exact_score = test_fit_cpu(kernel_name, is_conv, RANDOM_SEED,
-                conv_width = 3, get_var = True)
+            cg_score, exact_score = test_fit(kernel_name, is_conv, RANDOM_SEED,
+                conv_width = 3, get_var = True, device="cpu")
             self.assertTrue(cg_score > exp_score)
             self.assertTrue(exact_score > exp_score)
 
@@ -31,8 +31,8 @@ class CheckPipeline(unittest.TestCase):
         """Test on gpu."""
         print("Now running GPU tests.")
         for kernel_name, (is_conv, exp_score) in IMPLEMENTED_KERNELS.items():
-            cg_score, exact_score = test_fit_gpu(kernel_name, is_conv, RANDOM_SEED,
-                conv_width = 3, get_var = True)
+            cg_score, exact_score = test_fit(kernel_name, is_conv, RANDOM_SEED,
+                conv_width = 3, get_var = True, device="gpu")
             self.assertTrue(cg_score > exp_score)
             self.assertTrue(exact_score > exp_score)
 

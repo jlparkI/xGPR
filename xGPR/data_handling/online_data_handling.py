@@ -38,17 +38,12 @@ class OnlineDataset(DatasetBaseclass):
             are of size chunk_size. This limits memory consumption
             (by avoiding situations where we try to featurize
             too many datapoints at once).
-        pretransformed_ (bool): If True, the data has already been
-            "featurized" or transformed and the xfiles do not
-            need to be run through the kernel. This can save time
-            during fitting if an SSD is available. Default is False.
         normalize_y (bool): If True, the y-values are normalized.
             Generally a good idea.
     """
     def __init__(self, xdata, ydata,
                        device = "cpu",
                        chunk_size = 2000,
-                       pretransformed = False,
                        normalize_y = True):
         """Constructor for the OnlineDataset class.
 
@@ -60,14 +55,8 @@ class OnlineDataset(DatasetBaseclass):
                 are of size chunk_size. This limits memory consumption
                 (by avoiding situations where we try to featurize
                 too many datapoints at once).
-            pretransformed_ (bool): If True, the data has already been
-                "featurized" or transformed and the xfiles do not
-                need to be run through the kernel. This can save time
-                during fitting if an SSD is available. Default is False.
         """
-        super().__init__(pretransformed, xdata.shape, device, chunk_size)
-        if pretransformed:
-            raise ValueError("Only offline datasets can be pretransformed.")
+        super().__init__(xdata.shape, device, chunk_size)
         self.xdata_ = xdata
         self.ydata_ = ydata
         if normalize_y:

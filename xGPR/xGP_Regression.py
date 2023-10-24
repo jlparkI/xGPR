@@ -46,7 +46,7 @@ class xGPRegression(GPRegressionBaseclass):
     any attributes unique to it aside from those
     of the parent class."""
 
-    def __init__(self, training_rffs, fitting_rffs, variance_rffs = 16,
+    def __init__(self, num_rffs = 256, variance_rffs = 16,
                     kernel_choice="RBF",
                     device = "cpu",
                     kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
@@ -57,11 +57,8 @@ class xGPRegression(GPRegressionBaseclass):
         the parent class constructor.
 
         Args:
-            training_rffs (int): The number of random Fourier features
-                to use for hyperparameter tuning.
-            fitting_rffs (int): The number of random Fourier features
-                to use for posterior predictive mean (i.e. the predicted
-                value for new datapoints).
+            num_rffs (int): The number of random Fourier features
+                to use.
             variance_rffs (int): The number of random Fourier features
                 to use for posterior predictive variance (i.e. calculating
                 uncertainty on predictions). Defaults to 64.
@@ -84,14 +81,11 @@ class xGPRegression(GPRegressionBaseclass):
                 with negligible benefit -- but this option is useful for testing.
                 Defaults to False.
         """
-        super().__init__(training_rffs, fitting_rffs, variance_rffs,
+        super().__init__(num_rffs, variance_rffs,
                         kernel_choice, device = device,
                         kernel_specific_params = kernel_specific_params,
                         verbose = verbose, num_threads = num_threads,
                         double_precision_fht = double_precision_fht)
-
-
-
 
     def predict(self, input_x, get_var = True,
             chunk_size = 2000):
@@ -190,11 +184,7 @@ class xGPRegression(GPRegressionBaseclass):
                 This value has decent predictive value for assessing how
                 well the preconditioner is likely to perform.
         """
-        self._run_fitting_prep(dataset, random_state, preset_hyperparams)
-        if max_rank < 1:
-            raise ValueError("Invalid value for max_rank.")
-        if max_rank >= self.fitting_rffs:
-            raise ValueError("Max rank should be < self.fitting_rffs.")
+        self._run_pre_fitting_prep(dataset, preset_hyperparams, max_rank)
 
         if self.device == "gpu":
             preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, max_rank,
@@ -204,6 +194,7 @@ class xGPRegression(GPRegressionBaseclass):
         else:
             preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, max_rank,
                         self.verbose, random_state, method)
+        self._run_post_fitting_cleanup(dataset)
         return preconditioner, preconditioner.achieved_ratio
 
 
@@ -224,6 +215,8 @@ class xGPRegression(GPRegressionBaseclass):
             negloglik (float): The negative marginal log likelihood for the
                 input hyperparameters.
         """
+        self._run_singlepoint_nmll_prep(dataset, exact_method = True)
+
         self.kernel.set_hyperparams(hyperparams, logspace=True)
         nsamples = dataset.get_ndatapoints()
         z_trans_z, z_trans_y, y_trans_y = calc_design_mat(dataset, self.kernel)
@@ -260,6 +253,7 @@ class xGPRegression(GPRegressionBaseclass):
 
         if self.verbose:
             print("Evaluated NMLL.")
+        self._run_post_nmll_cleanup(dataset)
         return negloglik
 
 
@@ -287,6 +281,8 @@ class xGPRegression(GPRegressionBaseclass):
             negloglik (float): The negative marginal log likelihood.
             grad (np.ndarray): The gradient of the NMLL w/r/t the hyperparameters.
         """
+        self._run_singlepoint_nmll_prep(dataset, exact_method = True)
+
         init_hparams = self.kernel.get_hyperparams()
         self.kernel.set_hyperparams(hyperparams, logspace=True)
         hparams = self.kernel.get_hyperparams(logspace=False)
@@ -327,13 +323,14 @@ class xGPRegression(GPRegressionBaseclass):
         #nan instead of raising an error.
         if np.isnan(negloglik):
             return constants.DEFAULT_SCORE_IF_PROBLEM, hyperparams - init_hparams
+        self._run_post_nmll_cleanup(dataset)
         return float(negloglik), grad
+
 
 
     def approximate_nmll(self, hyperparams, dataset, max_rank = 1024,
             nsamples = 25, random_seed = 123, niter = 1000,
-            tol = 1e-6, pretransform_dir = None,
-            preconditioner_mode = "srht_2"):
+            tol = 1e-6, preconditioner_mode = "srht_2"):
         """Calculates the approximate negative marginal log likelihood (the model
         'score') using stochastic Lanczos quadrature with preconditioning.
         Slower than exact for very small numbers of random features, but
@@ -359,11 +356,6 @@ class xGPRegression(GPRegressionBaseclass):
                 the accuracy of the estimate but increases computational
                 expense.
             tol (float): If tol is reached, iterations will be stopped early.
-            pretransform_dir (str): Either None or a valid filepath where pretransformed
-                data can be saved. If not None, the dataset is "pretransformed" before
-                each round of fitting. This can take up a lot of disk space if the number
-                of random features is large, but can greatly increase speed of fitting
-                for convolution kernels with large # random features.
             preconditioner_mode (str): One of "srht", "srht_2". Determines the mode of
                 preconditioner construction. "srht" is cheaper, requiring one pass over
                 the dataset, but lower quality. "srht_2" requires two passes over the
@@ -376,27 +368,23 @@ class xGPRegression(GPRegressionBaseclass):
             inv_trace (float): The approximate inverse of the trace. Only
                 returned if retrieve_trace is True.
         """
+        self._run_singlepoint_nmll_prep(dataset, exact_method = False,
+            nmll_rank = max_rank)
+        if self.kernel is None:
+            raise ValueError("Must call self.initialize before calculating NMLL.")
+        self.weights, self.var = None, None
+
         self.kernel.set_hyperparams(hyperparams, logspace = True)
-        if max_rank >= self.kernel.get_num_rffs():
-            raise ValueError("For calculating approximate NMLL with a preconditioner, "
-                    "the specified preconditioner rank must be < the number of random "
-                    "features.")
-
-        train_dataset = dataset
-        if pretransform_dir is not None:
-            train_dataset = self._pretransform_dataset(dataset, pretransform_dir)
-            train_dataset.device = self.kernel.device
-
         preconditioner = None
         if self.verbose:
             print("Now building preconditioner...")
 
         if max_rank > 0:
-            preconditioner = RandNysTuningPreconditioner(self.kernel, train_dataset, max_rank,
+            preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, max_rank,
                         False, random_seed, preconditioner_mode)
             if preconditioner.achieved_ratio > 250 and 2 * max_rank < self.kernel.get_num_rffs():
                 rank = 2 * max_rank
-                preconditioner = RandNysTuningPreconditioner(self.kernel, train_dataset, rank,
+                preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, rank,
                         False, random_seed, preconditioner_mode)
 
         if self.verbose:
@@ -418,7 +406,7 @@ class xGPRegression(GPRegressionBaseclass):
                         random_seed, preconditioner)
 
         if preconditioner is None:
-            z_trans_y, y_trans_y = calc_zty(train_dataset, self.kernel)
+            z_trans_y, y_trans_y = calc_zty(dataset, self.kernel)
         else:
             z_trans_y = preconditioner.get_zty()
             y_trans_y = preconditioner.get_yty()
@@ -426,7 +414,7 @@ class xGPRegression(GPRegressionBaseclass):
         resid[:,0,0] = z_trans_y / dataset.get_ndatapoints()
         resid[:,0,1:] = probes
 
-        x_k, alphas, betas = cg_operator.fit(train_dataset, self.kernel,
+        x_k, alphas, betas = cg_operator.fit(dataset, self.kernel,
                     preconditioner, resid, niter, tol, verbose = False,
                     nmll_settings = True)
 
@@ -434,12 +422,12 @@ class xGPRegression(GPRegressionBaseclass):
 
         logdet = estimate_logdet(alphas, betas, self.kernel.get_num_rffs(),
                         preconditioner, self.device)
-        nmll = estimate_nmll(train_dataset, self.kernel, logdet, x_k,
+        nmll = estimate_nmll(dataset, self.kernel, logdet, x_k,
                         z_trans_y, y_trans_y)
         if self.verbose:
             print("NMLL evaluation completed.")
-        if pretransform_dir is not None:
-            train_dataset.delete_dataset_files()
+
+        self._run_post_nmll_cleanup(dataset)
         return float(nmll)
 
 
@@ -447,8 +435,7 @@ class xGPRegression(GPRegressionBaseclass):
     def fit(self, dataset, preconditioner = None,
                 tol = 1e-6, preset_hyperparams=None, max_iter = 500,
                 random_seed = 123, run_diagnostics = False,
-                mode = "cg", suppress_var = False,
-                manual_lr = None):
+                mode = "cg", suppress_var = False):
         """Fits the model after checking that the input data
         is consistent with the kernel choice and other user selections.
 
@@ -476,10 +463,6 @@ class xGPRegression(GPRegressionBaseclass):
                 useful when optimizing hyperparameters, since otherwise we want to calculate
                 the variance. It is best to leave this as default False unless performing
                 hyperparameter optimization.
-            manual_lr (float): Either None or a float. If not None, this is the initial
-                learning rate used for stochastic gradient descent or ams grad (ignored
-                for all other fitting modes). If None, the algorithm will try to determine
-                a good initial learning rate itself.
 
         Returns:
             Does not return anything unless run_diagnostics is True.
@@ -490,13 +473,16 @@ class xGPRegression(GPRegressionBaseclass):
         Raises:
             ValueError: The input dataset is checked for validity before tuning is
                 initiated, an error is raised if problems are found."""
-        self._run_fitting_prep(dataset, random_seed, preset_hyperparams)
+        self._run_pre_fitting_prep(dataset, preset_hyperparams)
+        self.weights, self.var = None, None
+        self.exact_var_calculation = True
+
         if self.verbose:
             print("starting fitting")
 
         if mode == "exact":
             if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
-                raise ValueError("You specified 'exact' fitting, but self.fitting_rffs is "
+                raise ValueError("You specified 'exact' fitting, but the number of rffs is "
                         f"> {constants.MAX_CLOSED_FORM_RFFS}.")
             self.weights, n_iter, losses = calc_weights_exact(dataset, self.kernel)
 
@@ -548,6 +534,8 @@ class xGPRegression(GPRegressionBaseclass):
         if self.device == "gpu":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
+        self._run_post_fitting_cleanup(dataset)
+
         if run_diagnostics:
             return n_iter, losses
 
@@ -566,8 +554,7 @@ class xGPRegression(GPRegressionBaseclass):
     def tune_hyperparams_fine_bayes(self, dataset, bounds = None, random_seed = 123,
                     max_bayes_iter = 30, tol = 1e-1, nmll_rank = 1024,
                     nmll_probes = 25, nmll_iter = 500,
-                    nmll_tol = 1e-6, pretransform_dir = None,
-                    preconditioner_mode = "srht_2"):
+                    nmll_tol = 1e-6, preconditioner_mode = "srht_2"):
         """Tunes the hyperparameters using Bayesian optimization, WITHOUT
         using gradient information. This algorithm is not very efficient for searching the entire
         hyperparameter space, BUT for 3 and 4 hyperparameter kernels, it can be very effective
@@ -602,12 +589,6 @@ class xGPRegression(GPRegressionBaseclass):
             nmll_tol (float): The convergence tolerance for approximate NMLL.
                 A smaller value may improve accuracy of estimation but with
                 increased computational cost.
-            pretransform_dir (str): Either None or a valid filepath where pretransformed
-                data can be saved. If not None, the dataset is "pretransformed" before
-                each round of evaluations when using approximate NMLL. This can take up a
-                lot of disk space if the number of random features is large, but can
-                greatly increase speed of fitting for convolution kernels with large #
-                random features.
             preconditioner_mode (str): One of "srht", "srht_2". Determines the mode of
                 preconditioner construction. "srht" is cheaper, requiring one pass over
                 the dataset, but lower quality. "srht_2" requires two passes over the
@@ -626,25 +607,23 @@ class xGPRegression(GPRegressionBaseclass):
                 if you try to use it on a kernel with > 4 hyperparameters (since
                 Bayesian tuning loses efficiency in high dimensions rapidly).
         """
-        if nmll_rank >= self.training_rffs:
-            raise ValueError("NMLL rank must be < the number of training rffs.")
-        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "approximate")
+        optim_bounds = self._run_pre_nmll_prep(dataset, bounds, nmll_rank)
+
         nmll_params = (nmll_rank, nmll_probes, random_seed,
-                    nmll_iter, nmll_tol, pretransform_dir,
-                    preconditioner_mode)
+                    nmll_iter, nmll_tol, preconditioner_mode)
 
         hyperparams, best_score, n_feval = pure_bayes_tuning(self.approximate_nmll,
-                        dataset, bounds, random_seed,
+                        dataset, optim_bounds, random_seed,
                         max_iter = max_bayes_iter,
                         verbose = self.verbose, tol = tol,
                         nmll_params = nmll_params)
-        self._post_tuning_cleanup(dataset, hyperparams)
+        self._run_post_nmll_cleanup(dataset, hyperparams)
         return hyperparams, n_feval, best_score
 
 
 
 
-    def tune_hyperparams_crude_grid(self, dataset, bounds = None, random_seed = 123,
+    def tune_hyperparams_crude_grid(self, dataset, bounds = None,
                     n_gridpoints = 30, n_pts_per_dim = 10, subsample = 1,
                     eigval_quotient = 1e6, min_eigval = 1e-5):
         """Tunes the hyperparameters using gridsearch, but with
@@ -663,8 +642,6 @@ class xGPRegression(GPRegressionBaseclass):
             bounds (np.ndarray): The bounds for optimization. If None, default
                 boundaries for the kernel will be used. Otherwise, must be an
                 array of shape (# hyperparams, 2).
-            random_seed (int): A random seed for the random
-                number generator. Defaults to 123.
             n_gridpoints (int): The number of gridpoints per non-shared hparam.
             n_pts_per_dim (int): The number of grid points per shared hparam.
             subsample (float): A value in the range [0.01,1] that indicates what
@@ -705,15 +682,16 @@ class xGPRegression(GPRegressionBaseclass):
                 searcing a smaller space, however, you can save time by using
                 a smaller # (e.g. 5).
         """
-        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "exact")
+        optim_bounds = self._run_pre_nmll_prep(dataset, bounds)
+
         num_hparams = self.kernel.get_hyperparams().shape[0]
         if num_hparams == 2:
             best_score, hyperparams = shared_hparam_search(np.array([]), self.kernel,
-                    dataset, bounds, n_pts_per_dim, 3, subsample = subsample)
+                    dataset, optim_bounds, n_pts_per_dim, 3, subsample = subsample)
             n_feval, scores = 1, ()
         elif num_hparams == 3:
             hyperparams, scores, best_score = crude_grid_tuning(self.kernel,
-                                dataset, bounds, self.verbose,
+                                dataset, optim_bounds, self.verbose,
                                 n_gridpoints, subsample = subsample,
                                 eigval_quotient = eigval_quotient,
                                 min_eigval = min_eigval)
@@ -723,7 +701,7 @@ class xGPRegression(GPRegressionBaseclass):
             raise ValueError("The crude grid procedure is only appropriate for "
                     "kernels with 2-3 hyperparameters.")
 
-        self._post_tuning_cleanup(dataset, hyperparams)
+        self._run_post_nmll_cleanup(dataset, hyperparams)
         return hyperparams, n_feval, best_score, scores
 
 
@@ -798,15 +776,16 @@ class xGPRegression(GPRegressionBaseclass):
                 searcing a smaller space, however, you can save time by using
                 a smaller # (e.g. 5).
         """
-        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "exact")
+        optim_bounds = self._run_pre_nmll_prep(dataset, bounds)
+
         num_hparams = self.kernel.get_hyperparams().shape[0]
         if num_hparams == 2:
             best_score, hyperparams = shared_hparam_search(np.array([]), self.kernel,
-                    dataset, bounds, n_pts_per_dim, n_cycles, subsample = subsample)
+                    dataset, optim_bounds, n_pts_per_dim, n_cycles, subsample = subsample)
             n_feval, scores = 1, ()
         elif 5 > num_hparams > 2:
             hyperparams, scores, best_score, n_feval = bayes_grid_tuning(self.kernel,
-                                dataset, bounds, random_seed, max_bayes_iter,
+                                dataset, optim_bounds, random_seed, max_bayes_iter,
                                 self.verbose, bayes_tol,
                                 n_pts_per_dim, n_cycles, n_init_pts,
                                 subsample = subsample,
@@ -817,7 +796,7 @@ class xGPRegression(GPRegressionBaseclass):
             raise ValueError("The crude_bayes procedure is only appropriate for "
                     "kernels with 3-4 hyperparameters.")
 
-        self._post_tuning_cleanup(dataset, hyperparams)
+        self._run_post_nmll_cleanup(dataset, hyperparams)
         return hyperparams, n_feval, best_score, scores
 
 
@@ -827,8 +806,7 @@ class xGPRegression(GPRegressionBaseclass):
                     optim_method = "Powell", starting_hyperparams = None,
                     random_seed = 123, max_iter = 50, nmll_rank = 1024,
                     nmll_probes = 25, nmll_iter = 500,
-                    nmll_tol = 1e-6, pretransform_dir = None,
-                    preconditioner_mode = "srht_2"):
+                    nmll_tol = 1e-6, preconditioner_mode = "srht_2"):
         """Tunes hyperparameters using either Nelder-Mead or Powell (Powell
         preferred), with an approximate NMLL calculation instead of exact.
         This is generally not useful for searching the whole hyperparameter space.
@@ -863,12 +841,6 @@ class xGPRegression(GPRegressionBaseclass):
             nmll_tol (float): The convergence tolerance for approximate NMLL.
                 A smaller value may improve accuracy of estimation but with
                 increased computational cost.
-            pretransform_dir (str): Either None or a valid filepath where pretransformed
-                data can be saved. If not None, the dataset is "pretransformed" before
-                each round of evaluations when using approximate NMLL. This can take up a
-                lot of disk space if the number of random features is large, but can
-                greatly increase speed of fitting for convolution kernels with large #
-                random features.
             preconditioner_mode (str): One of "srht", "srht_2". Determines the mode of
                 preconditioner construction. "srht" is cheaper, requiring one pass over
                 the dataset, but lower quality. "srht_2" requires two passes over the
@@ -885,33 +857,23 @@ class xGPRegression(GPRegressionBaseclass):
                 initiated. If problems are found, a ValueError will provide an
                 explanation of the error.
         """
+        optim_bounds = self._run_pre_nmll_prep(dataset, bounds, nmll_rank)
+
         if optim_method not in ["Powell", "Nelder-Mead"]:
             raise ValueError("optim_method must be in ['Powell', 'Nelder-Mead']")
         #If the user passed starting hyperparams, use them. Otherwise,
-        #if a kernel already exists, use those hyperparameters. Otherwise...
+        #use whatever the kernel has as a default.
         init_hyperparams = starting_hyperparams
-        if init_hyperparams is None and self.kernel is not None:
+        if init_hyperparams is None:
             init_hyperparams = self.kernel.get_hyperparams()
             init_hyperparams = np.round(init_hyperparams, 1)
 
-        if nmll_rank >= self.training_rffs:
-            raise ValueError("NMLL rank must be < the number of training rffs.")
-        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "approximate")
-        #If kernel was only just now created by run_pretuning_prep and
-        #no starting hyperparams were passed, use the mean of the bounds.
-        #This is...not good in general, but running multiple restarts with NM
-        #is pretty expensive, which is why user is recommended to specify a
-        #starting point for NM. The mean of the bounds is a (bad) default.
-        if init_hyperparams is None:
-            init_hyperparams = np.mean(bounds, axis=1)
-
-        bounds_tuples = list(map(tuple, bounds))
+        bounds_tuples = list(map(tuple, optim_bounds))
         if self.verbose:
             print("Now beginning NM minimization.")
 
         args = (dataset, nmll_rank, nmll_probes, random_seed,
-                    nmll_iter, nmll_tol, pretransform_dir,
-                    preconditioner_mode)
+                    nmll_iter, nmll_tol, preconditioner_mode)
 
         if optim_method == "Powell":
             res = minimize(self.approximate_nmll, x0 = init_hyperparams,
@@ -923,7 +885,7 @@ class xGPRegression(GPRegressionBaseclass):
                         "xatol":1e-1, "fatol":1e-1},
                 method=optim_method, args = args, bounds = bounds_tuples)
 
-        self._post_tuning_cleanup(dataset, res.x)
+        self._run_post_nmll_cleanup(dataset, res.x)
         return res.x, res.nfev, res.fun
 
 
@@ -975,16 +937,17 @@ class xGPRegression(GPRegressionBaseclass):
                 initiated. If problems are found, a ValueError will provide an
                 explanation of the error.
         """
+        optim_bounds = self._run_pre_nmll_prep(dataset, bounds)
+
         if subsample < 0.01 or subsample > 1:
             raise ValueError("subsample must be in the range [0.01, 1].")
 
         init_hyperparams = starting_hyperparams
-        if init_hyperparams is None and self.kernel is not None:
+        if init_hyperparams is None:
             init_hyperparams = self.kernel.get_hyperparams(logspace=True)
 
-        bounds = self._run_pretuning_prep(dataset, random_seed, bounds, "exact")
         best_x, best_score, net_iterations = None, np.inf, 0
-        bounds_tuples = list(map(tuple, bounds))
+        bounds_tuples = list(map(tuple, optim_bounds))
 
         if init_hyperparams is None:
             init_hyperparams = self.kernel.get_hyperparams(logspace=True)
@@ -1007,12 +970,12 @@ class xGPRegression(GPRegressionBaseclass):
             if self.verbose:
                 print(f"Restart {iteration} completed. Best score is {best_score}.")
 
-            init_hyperparams = [rng.uniform(low = bounds[j,0], high = bounds[j,1])
-                    for j in range(bounds.shape[0])]
+            init_hyperparams = [rng.uniform(low = optim_bounds[j,0], high = optim_bounds[j,1])
+                    for j in range(optim_bounds.shape[0])]
             init_hyperparams = np.asarray(init_hyperparams)
 
         if best_x is None:
             raise ValueError("All restarts failed to find acceptable hyperparameters.")
 
-        self._post_tuning_cleanup(dataset, best_x)
+        self._run_post_nmll_cleanup(dataset, best_x)
         return best_x, net_iterations, best_score

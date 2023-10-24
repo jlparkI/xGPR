@@ -20,15 +20,15 @@ RANDOM_STATE = 123
 
 
 def run_kernelspecific_test(kernel_choice, conv_kernel = False,
-                training_rffs = 512, fitting_rffs = 512,
-                conv_ard_kernel = False, averaging = False):
+                training_rffs = 512, conv_ard_kernel = False,
+                averaging = False):
     """Compares a numerical gradient with an exact gradient using
     generic hyperparameters and generic kernel settings."""
     online_data, _ = build_test_dataset(conv_kernel)
     xdata, ydata, _ = online_data.get_next_minibatch(2000)
-    cpu_mod, gpu_mod = get_models(kernel_choice, online_data.get_xdim(),
-                        training_rffs = training_rffs, fitting_rffs = fitting_rffs,
-                        conv_ard_kernel = conv_ard_kernel, averaging = averaging)
+    cpu_mod, gpu_mod = get_models(kernel_choice, online_data,
+                        num_rffs = training_rffs, conv_ard_kernel = conv_ard_kernel,
+                        averaging = averaging)
 
     eps = np.sqrt(np.finfo(np.float32).eps)
 
@@ -50,7 +50,6 @@ def run_kernelspecific_test(kernel_choice, conv_kernel = False,
     cpu_costcomp = cpu_costcomp < 0.25
 
     if gpu_mod is not None:
-        online_data.device = "gpu"
         gpu_cost, gpu_grad = gpu_mod.exact_nmll_gradient(params, online_data)
         xdata, ydata = cp.asarray(xdata), cp.asarray(ydata)
 

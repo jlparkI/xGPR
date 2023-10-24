@@ -19,9 +19,6 @@ class DatasetBaseclass(ABC):
     that both share a common API.
 
     Attributes:
-        pretransformed (bool): If True, random features have
-            already been generated, and the stored data IS
-            random features.
         device (str): Must be one of ['cpu', 'gpu']. Indicates
             the device on which calculations will be
             performed.
@@ -36,18 +33,14 @@ class DatasetBaseclass(ABC):
             minibatches only.
         chunk_size (int): Either the chunk_size for online datasets or the
             largest allowed array size for offline datasets.
-        parent_xdim (tuple): The xdim for the parent (IF this is a pretransformed
-            dataset), otherwise, None.
     """
-    def __init__(self, pretransformed, xdim, device, chunk_size):
-        self.pretransformed = pretransformed
+    def __init__(self, xdim, device, chunk_size):
         self.device = device
         self.xdim_ = xdim
 
         self.mbatch_counter = 0
         self.mbatch_row = 0
         self.chunk_size = chunk_size
-        self.parent_xdim = None
 
     @abc.abstractmethod
     def get_chunked_data(self):
@@ -79,26 +72,6 @@ class DatasetBaseclass(ABC):
     def get_ystd(self):
         """Abstract method to force child class to
         implement get_ystd"""
-
-    @property
-    def pretransformed(self):
-        """Property definition for the pretransformed attribute."""
-        return self._pretransformed
-
-    @pretransformed.setter
-    def pretransformed(self, value):
-        """Setter for the pretransformed attribute."""
-        self._pretransformed = value
-
-    @property
-    def parent_xdim(self):
-        """Property definition for the parent_xdim attribute."""
-        return self._parent_xdim
-
-    @parent_xdim.setter
-    def parent_xdim(self, value):
-        """Setter for the parent_xdim attribute."""
-        self._parent_xdim = value
 
     def get_xdim(self):
         """Returns the xdim list describing the size of the

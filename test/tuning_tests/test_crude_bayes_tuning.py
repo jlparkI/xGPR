@@ -17,13 +17,11 @@ class CheckCrudeBayesTuning(unittest.TestCase):
         RBF kernel for simplicity (tuning & fitting with other
         kernels is tested under the complete pipeline tests."""
         online_data, _ = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", online_data.get_xdim())
-        cpu_mod.training_rffs = 512
+        cpu_mod, gpu_mod = get_models("RBF", online_data)
         _, _, best_score, _ = cpu_mod.tune_hyperparams_crude_bayes(online_data)
         self.assertTrue(best_score < 430)
 
         if gpu_mod is not None:
-            gpu_mod.training_rffs = 512
             _, _, best_score, _ = gpu_mod.tune_hyperparams_crude_bayes(online_data)
             self.assertTrue(best_score < 430)
 

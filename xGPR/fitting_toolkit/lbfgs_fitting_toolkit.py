@@ -105,13 +105,9 @@ class lBFGSModelFit:
         if self.device == "gpu":
             wvec = cp.asarray(wvec).astype(self.dtype)
         xprod = self.lambda_**2 * wvec
-        if self.dataset.pretransformed:
-            for xdata in self.dataset.get_chunked_x_data():
-                xprod += (xdata.T @ (xdata @ wvec))
-        else:
-            for xdata in self.dataset.get_chunked_x_data():
-                xtrans = self.kernel.transform_x(xdata)
-                xprod += (xtrans.T @ (xtrans @ wvec))
+        for xdata in self.dataset.get_chunked_x_data():
+            xtrans = self.kernel.transform_x(xdata)
+            xprod += (xtrans.T @ (xtrans @ wvec))
 
 
         grad = xprod - z_trans_y

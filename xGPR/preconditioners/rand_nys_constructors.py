@@ -27,17 +27,11 @@ def single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose):
             in which Z^T Z @ q_mat will be stored.
         verbose (bool): Whether to print updates.
     """
-    if dataset.pretransformed:
-        for j, xdata in enumerate(dataset.get_chunked_x_data()):
-            acc_results += xdata.T @ (xdata @ q_mat)
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
-    else:
-        for j, xdata in enumerate(dataset.get_chunked_x_data()):
-            xdata = kernel.transform_x(xdata)
-            acc_results += xdata.T @ (xdata @ q_mat)
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
+    for j, xdata in enumerate(dataset.get_chunked_x_data()):
+        xdata = kernel.transform_x(xdata)
+        acc_results += xdata.T @ (xdata @ q_mat)
+        if j % 10 == 0 and verbose:
+            print(f"Chunk {j} complete.")
 
 
 
@@ -63,21 +57,13 @@ def single_pass_gauss_zty(dataset, kernel, q_mat, acc_results,
         y_trans_y (float): The product y^T y.
     """
     y_trans_y = 0.0
-    if dataset.pretransformed:
-        for j, (xdata, ydata) in enumerate(dataset.get_chunked_data()):
-            z_trans_y += xdata.T @ ydata
-            y_trans_y += ydata.T @ ydata
-            acc_results += xdata.T @ (xdata @ q_mat)
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
-    else:
-        for j, (xdata, ydata) in enumerate(dataset.get_chunked_data()):
-            xdata = kernel.transform_x(xdata)
-            z_trans_y += xdata.T @ ydata
-            y_trans_y += ydata.T @ ydata
-            acc_results += xdata.T @ (xdata @ q_mat)
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
+    for j, (xdata, ydata) in enumerate(dataset.get_chunked_data()):
+        xdata = kernel.transform_x(xdata)
+        z_trans_y += xdata.T @ ydata
+        y_trans_y += ydata.T @ ydata
+        acc_results += xdata.T @ (xdata @ q_mat)
+        if j % 10 == 0 and verbose:
+            print(f"Chunk {j} complete.")
     return y_trans_y
 
 
@@ -93,17 +79,11 @@ def single_pass_srht(dataset, kernel, compressor, acc_results, verbose):
             in which Z^T Z @ q_mat will be stored.
         verbose (bool): Whether to print updates.
     """
-    if dataset.pretransformed:
-        for j, xdata in enumerate(dataset.get_chunked_x_data()):
-            acc_results += compressor.transform_x(xdata).T @ xdata
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
-    else:
-        for j, xdata in enumerate(dataset.get_chunked_x_data()):
-            xdata = kernel.transform_x(xdata)
-            acc_results += compressor.transform_x(xdata).T @ xdata
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
+    for j, xdata in enumerate(dataset.get_chunked_x_data()):
+        xdata = kernel.transform_x(xdata)
+        acc_results += compressor.transform_x(xdata).T @ xdata
+        if j % 10 == 0 and verbose:
+            print(f"Chunk {j} complete.")
 
 
 
@@ -123,21 +103,13 @@ def single_pass_srht_zty(dataset, kernel, compressor, acc_results, z_trans_y,
         verbose (bool): Whether to print updates.
     """
     y_trans_y = 0.0
-    if dataset.pretransformed:
-        for j, (xdata, ydata) in enumerate(dataset.get_chunked_data()):
-            z_trans_y += xdata.T @ ydata
-            y_trans_y += ydata.T @ ydata
-            acc_results += compressor.transform_x(xdata).T @ xdata
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
-    else:
-        for j, (xdata, ydata) in enumerate(dataset.get_chunked_data()):
-            xdata = kernel.transform_x(xdata)
-            z_trans_y += xdata.T @ ydata
-            y_trans_y += ydata.T @ ydata
-            acc_results += compressor.transform_x(xdata).T @ xdata
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
+    for j, (xdata, ydata) in enumerate(dataset.get_chunked_data()):
+        xdata = kernel.transform_x(xdata)
+        z_trans_y += xdata.T @ ydata
+        y_trans_y += ydata.T @ ydata
+        acc_results += compressor.transform_x(xdata).T @ xdata
+        if j % 10 == 0 and verbose:
+            print(f"Chunk {j} complete.")
 
     return y_trans_y
 

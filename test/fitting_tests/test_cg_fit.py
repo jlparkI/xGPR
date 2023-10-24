@@ -26,8 +26,7 @@ class CheckCGFit(unittest.TestCase):
         """Test using preconditioned cg, which should easily fit
         in under 10 epochs."""
         online_data, _ = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", online_data.get_xdim())
-        cpu_mod.fitting_rffs = NUM_RFFS
+        cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs = NUM_RFFS)
 
         preconditioner, _ = cpu_mod.build_preconditioner(online_data,
             max_rank = 256, method = "srht", preset_hyperparams = HPARAM)
@@ -39,8 +38,6 @@ class CheckCGFit(unittest.TestCase):
         self.assertTrue(niter < 10)
 
         if gpu_mod is not None:
-            gpu_mod.fitting_rffs = NUM_RFFS
-
             preconditioner, _ = gpu_mod.build_preconditioner(online_data,
                 max_rank = 256, method = "srht",
                 preset_hyperparams = HPARAM)
@@ -55,8 +52,7 @@ class CheckCGFit(unittest.TestCase):
     def test_nonpreconditioned_cg(self):
         """Test using non-preconditioned cg."""
         online_data, _ = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", online_data.get_xdim())
-        cpu_mod.fitting_rffs = NUM_RFFS
+        cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs = NUM_RFFS)
         cpu_mod.verbose = False
 
         niter, _ = cpu_mod.fit(online_data,
@@ -66,7 +62,6 @@ class CheckCGFit(unittest.TestCase):
         self.assertTrue(niter < 80)
 
         if gpu_mod is not None:
-            gpu_mod.fitting_rffs = NUM_RFFS
             gpu_mod.verbose = False
             niter, _ = gpu_mod.fit(online_data,
                 max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,

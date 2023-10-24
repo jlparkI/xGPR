@@ -307,13 +307,9 @@ class lSR1:
                 (Z^T Z + lambda**2) @ wvec.
         """
         xprod = self.lambda_**2 * wvec
-        if self.dataset.pretransformed:
-            for xdata in self.dataset.get_chunked_x_data():
-                xprod += (xdata.T @ (xdata @ wvec))
-        else:
-            for xdata in self.dataset.get_chunked_x_data():
-                xtrans = self.kernel.transform_x(xdata)
-                xprod += (xtrans.T @ (xtrans @ wvec))
+        for xdata in self.dataset.get_chunked_x_data():
+            xtrans = self.kernel.transform_x(xdata)
+            xprod += (xtrans.T @ (xtrans @ wvec))
 
         if self.verbose:
             if self.n_iter % 5 == 0:

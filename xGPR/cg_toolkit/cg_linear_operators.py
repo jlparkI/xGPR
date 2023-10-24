@@ -51,11 +51,7 @@ class CPU_CGLinearOperator(LinearOperator):
             print(f"Iteration {self.n_iter}")
         self.n_iter += 1
         xprod = self.kernel.get_lambda()**2 * x
-        if self.dataset.pretransformed:
-            for xdata in self.dataset.get_chunked_x_data():
-                xprod += (xdata.T @ (xdata @ x))
-        else:
-            for xdata in self.dataset.get_chunked_x_data():
-                xdata = self.kernel.transform_x(xdata)
-                xprod += (xdata.T @ (xdata @ x))
+        for xdata in self.dataset.get_chunked_x_data():
+            xdata = self.kernel.transform_x(xdata)
+            xprod += (xdata.T @ (xdata @ x))
         return xprod

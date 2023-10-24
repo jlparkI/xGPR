@@ -26,15 +26,13 @@ class CheckPreconditioners(unittest.TestCase):
         can achieve a beta / lambda_**2 similar to expected."""
         print("**********Testing SRHT**************")
         online_data, _ = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", online_data.get_xdim())
-        cpu_mod.fitting_rffs = 4100
+        cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs=4100)
         _, ratio = cpu_mod.build_preconditioner(online_data,
             max_rank = 256, method = "srht", preset_hyperparams = HPARAM)
         self.assertTrue(ratio < 0.3)
 
         #If CUDA is available...
         if gpu_mod is not None:
-            gpu_mod.fitting_rffs = 4100
             _, ratio = gpu_mod.build_preconditioner(online_data,
                 max_rank = 256, method = "srht", preset_hyperparams = HPARAM)
             self.assertTrue(ratio < 0.3)
@@ -46,15 +44,13 @@ class CheckPreconditioners(unittest.TestCase):
         can achieve a beta / lambda_**2 similar to expected."""
         print("*********Testing Non-SRHT**************")
         online_data, _ = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", online_data.get_xdim())
-        cpu_mod.fitting_rffs = 4100
+        cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs=4100)
         _, ratio = cpu_mod.build_preconditioner(online_data,
             max_rank = 256, method = "gauss", preset_hyperparams = HPARAM)
         self.assertTrue(ratio < 0.3)
 
         #If CUDA is available...
         if gpu_mod is not None:
-            gpu_mod.fitting_rffs = 4100
             _, ratio = gpu_mod.build_preconditioner(online_data,
                 max_rank = 256, method = "gauss", preset_hyperparams = HPARAM)
             self.assertTrue(ratio < 0.3)

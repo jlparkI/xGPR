@@ -112,10 +112,7 @@ class KernelxPCA(AuxiliaryBaseclass):
             train_mean = np.zeros((self.kernel.get_num_rffs()))
 
         for x_data in dataset.get_chunked_x_data():
-            if dataset.pretransformed:
-                x_features = x_data
-            else:
-                x_features = self.kernel.transform_x(x_data)
+            x_features = self.kernel.transform_x(x_data)
             w_1 = x_data.shape[0] / (x_data.shape[0] + ndpoints)
             w_2 = ndpoints / (ndpoints + x_data.shape[0])
             x_features_mean = x_features.mean(axis=0)
@@ -137,15 +134,10 @@ class KernelxPCA(AuxiliaryBaseclass):
             acc_results (array): A (num_rffs, rank) array
                 in which Z^T Z @ q_mat will be stored.
         """
-        if dataset.pretransformed:
-            for xdata in dataset.get_chunked_x_data():
-                x_trans = xdata - self.z_mean[None,:]
-                acc_results += x_trans.T @ (x_trans @ q_mat)
-        else:
-            for xdata in dataset.get_chunked_x_data():
-                xdata = kernel.transform_x(xdata)
-                xdata -= self.z_mean[None,:]
-                acc_results += xdata.T @ (xdata @ q_mat)
+        for xdata in dataset.get_chunked_x_data():
+            xdata = kernel.transform_x(xdata)
+            xdata -= self.z_mean[None,:]
+            acc_results += xdata.T @ (xdata @ q_mat)
 
 
     def initialize_kpca(self, dataset):

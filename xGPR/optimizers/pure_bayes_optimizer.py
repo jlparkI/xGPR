@@ -50,14 +50,12 @@ def pure_bayes_tuning(cost_function, tuning_dataset,
     scores = []
     hparam_vals = list(hparam_vals)
     nmll_rank, nmll_probes, random_seed,\
-                    nmll_iter, nmll_tol, pretransform_dir,\
-                    preconditioner_mode = nmll_params
+                    nmll_iter, nmll_tol, preconditioner_mode = nmll_params
 
     for i, hparam_val in enumerate(hparam_vals):
         score = cost_function(hparam_val, tuning_dataset, max_rank = nmll_rank,
                 nsamples = nmll_probes, random_seed = random_seed,
                 niter = nmll_iter, tol = nmll_tol,
-                pretransform_dir = pretransform_dir,
                 preconditioner_mode = preconditioner_mode)
         scores.append(score)
         if verbose:
@@ -76,7 +74,6 @@ def pure_bayes_tuning(cost_function, tuning_dataset,
         score = cost_function(new_hparam, tuning_dataset, max_rank = nmll_rank,
                 nsamples = nmll_probes, random_seed = random_seed,
                 niter = nmll_iter, tol = nmll_tol,
-                pretransform_dir = pretransform_dir,
                 preconditioner_mode = preconditioner_mode)
         hparam_vals.append(new_hparam)
         scores.append(min(score, np.max(scores)))

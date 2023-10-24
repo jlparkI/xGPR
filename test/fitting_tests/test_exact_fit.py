@@ -28,13 +28,11 @@ class CheckExactFit(unittest.TestCase):
     def test_exact_fit(self):
         """Test exact fitting."""
         online_data, _ = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", online_data.get_xdim())
-        cpu_mod.fitting_rffs = NUM_RFFS
+        cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs = NUM_RFFS)
 
         cpu_mod.fit(online_data,  random_seed = RANDOM_SEED, mode = "exact")
 
         if gpu_mod is not None:
-            gpu_mod.fitting_rffs = NUM_RFFS
             gpu_mod.fit(online_data,  random_seed = RANDOM_SEED, mode = "exact")
 
 

@@ -44,10 +44,6 @@ class OfflineDataset(DatasetBaseclass):
             dataset. Should be checked and enforced by caller.
             Stored here for users of this object that need to know
             the largest file size in the dataset (in # datapoints).
-        pretransformed_ (bool): If True, the data has already been
-            "featurized" or transformed and the xfiles do not
-            need to be run through the kernel. This can save time
-            during fitting if an SSD is available. Default is False.
     """
     def __init__(self, xfiles,
                        yfiles,
@@ -55,8 +51,7 @@ class OfflineDataset(DatasetBaseclass):
                        trainy_mean_,
                        trainy_std_,
                        device = "cpu",
-                       chunk_size = 2000,
-                       pretransformed = False):
+                       chunk_size = 2000):
         """The class constructor for an OfflineDataset.
 
         Args:
@@ -73,12 +68,8 @@ class OfflineDataset(DatasetBaseclass):
             device (str): The current device.
             chunk_size (int): The largest allowed file size (in # datapoints)
                 for this dataset. Should be checked and enforced by caller.
-            pretransformed (bool): If True, the data has already been
-                "featurized" or transformed and the xfiles do not
-                need to be run through the kernel. This can save time
-                during fitting if an SSD is available. Default is False.
         """
-        super().__init__(pretransformed, xdim, device, chunk_size)
+        super().__init__(xdim, device, chunk_size)
         self.xfiles_ = [os.path.abspath(f) for f in xfiles]
         self.yfiles_ = [os.path.abspath(f) for f in yfiles]
         self.trainy_mean_ = trainy_mean_
@@ -95,8 +86,6 @@ class OfflineDataset(DatasetBaseclass):
         for xfile, yfile in zip(self.xfiles_, self.yfiles_):
             xchunk = self.array_loader(xfile)
             ychunk = self.array_loader(yfile).astype(self.dtype)
-            if self.pretransformed:
-                xchunk = xchunk.astype(self.dtype)
             ychunk -= self.trainy_mean_
             ychunk /= self.trainy_std_
             yield xchunk, ychunk
@@ -108,8 +97,6 @@ class OfflineDataset(DatasetBaseclass):
         only."""
         for xfile in self.xfiles_:
             xchunk = self.array_loader(xfile)
-            if self.pretransformed:
-                xchunk = xchunk.astype(self.dtype)
             yield xchunk
 
     def get_chunked_y_data(self):
@@ -163,8 +150,6 @@ class OfflineDataset(DatasetBaseclass):
                 self.mbatch_counter = 0
 
         xout = np.vstack(xdata)
-        if self.pretransformed:
-            xout = xout.astype(self.dtype)
         yout = np.concatenate(ydata).astype(self.dtype)
         if yout.shape[0] > batch_size:
             yout = yout[:batch_size]
@@ -176,18 +161,6 @@ class OfflineDataset(DatasetBaseclass):
             xout = cp.asarray(xout)
             yout = cp.asarray(yout)
         return xout, yout, end_epoch
-
-
-    def delete_dataset_files(self):
-        """Deletes all the xfiles and yfiles saved by the dataset.
-        Think twice before you do this! This is used by model
-        classes only when data is pretransformed, in which case
-        the temporarily saved pretransformed data can be deleted
-        at the end of tuning / fitting."""
-        for xfile, yfile in zip(self.xfiles_, self.yfiles_):
-            os.remove(xfile)
-            os.remove(yfile)
-        self.xfiles_, self.yfiles_ = [], []
 
 
     def get_yfiles(self):
@@ -208,3 +181,10 @@ class OfflineDataset(DatasetBaseclass):
         """Returns the standard deviation of the training
         y data."""
         return self.trainy_std_
+
+    def delete_dataset_files(self):
+        """Deletes the files referenced by this dataset. CAUTION:
+        Do not do this lightly!"""
+        for xfile, yfile in zip(self.xfiles_, self.yfiles_):
+            os.remove(xfile)
+            os.remove(yfile)
