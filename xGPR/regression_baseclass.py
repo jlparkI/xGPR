@@ -272,6 +272,8 @@ class GPRegressionBaseclass():
         """
         dataset.device = "cpu"
         if hyperparams is not None:
+            if len(hyperparams.shape) == 0:
+                hyperparams = hyperparams.reshape(1)
             self.kernel.set_hyperparams(hyperparams, logspace=True)
 
 

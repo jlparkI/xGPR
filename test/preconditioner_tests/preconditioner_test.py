@@ -14,7 +14,7 @@ from utils.model_constructor import get_models
 
 #A set of hyperparameters known to work well for our testing dataset
 #that we can use as a default.
-HPARAM = np.array([-0.67131348,  0.72078634, -1.00860899])
+HPARAM = np.array([-1.392, -1.00860899])
 
 
 class CheckPreconditioners(unittest.TestCase):

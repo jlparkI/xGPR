@@ -21,7 +21,7 @@ class CheckDirectTuning(unittest.TestCase):
         kernels is tested under the complete pipeline tests."""
         online_data, _ = build_test_dataset(conv_kernel = False)
         cpu_mod, gpu_mod = get_models("RBF", online_data)
-        bounds = np.array([[-2,0],    [0,2],    [-3,0]])
+        bounds = np.array([[-2,0],    [-3,0]])
         _, niter, best_score = cpu_mod.tune_hyperparams_fine_direct(online_data,
                 optim_method = "Powell",
                 max_iter = 50, bounds = bounds,

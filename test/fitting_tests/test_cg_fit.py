@@ -13,7 +13,7 @@ from utils.evaluate_model import evaluate_model
 
 #A set of hyperparameters known to work well for our testing dataset
 #that we can use as a default.
-HPARAM = np.array([-0.67131348,  0.72078634, -1.00860899])
+HPARAM = np.array([-1.3921, -1.00860899])
 
 NUM_RFFS = 4100
 RANDOM_SEED = 123

@@ -24,7 +24,7 @@ def estimate_logdet(alphas, betas, num_rffs, preconditioner = None,
 
     Returns:
         logdets (float): The estimated log determinant of
-            (lambda_**2 / beta_**2 + Z^T Z), where Z was calculated
+            (lambda_**2 + Z^T Z), where Z was calculated
             without multiplying by beta (the amplitude hyperparameter).
     """
     mat_diag = 1 / alphas
@@ -74,7 +74,6 @@ def estimate_nmll(dataset, kernel, logdet, x_k,
     """
     ndatapoints = dataset.get_ndatapoints()
     lambda_ = kernel.get_lambda()
-    beta_ = kernel.get_beta()
     num_rffs = kernel.get_num_rffs()
 
     nmll = y_trans_y - z_trans_y.T @ x_k[:,0]

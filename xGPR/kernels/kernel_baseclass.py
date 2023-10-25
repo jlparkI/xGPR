@@ -274,13 +274,6 @@ class KernelBaseclass(ABC):
         return self.hyperparams[0]
 
 
-    def get_beta(self):
-        """For convenience, we enable caller to retrieve only the
-        second hyperparameter, which is needed for a variety of
-        operations during fitting and tuning."""
-        return self.hyperparams[1]
-
-
     def check_hyperparams(self, hyperparams):
         """Checks a suggested set of hyperparameters passed
         by caller to ensure they are valid. This should be used

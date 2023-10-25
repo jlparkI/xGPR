@@ -12,8 +12,8 @@ class RBF(SORFKernelBaseclass):
     described in this docstring.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has three
-            hyperparameters: lambda_ (noise), beta_ (amplitude)
+        hyperparams (np.ndarray): This kernel has two
+            hyperparameters: lambda_ (noise)
             and sigma (inverse mismatch tolerance).
     """
 
@@ -37,7 +37,7 @@ class RBF(SORFKernelBaseclass):
                 sine_cosine_kernel = True, random_seed = random_seed,
                 double_precision = double_precision,
                 kernel_spec_parms = kernel_spec_parms)
-        self.hyperparams = np.ones((3))
-        self.bounds = np.asarray([[1e-3,1e1], [0.125, 8], [1e-6, 1e2]])
+        self.hyperparams = np.ones((2))
+        self.bounds = np.asarray([[3.2e-4,1e1], [1e-6, 1e2]])
 
         self.device = device

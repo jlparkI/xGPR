@@ -42,16 +42,16 @@ def calc_gradient_terms(dataset, kernel, device, subsample = 1):
     if device == "cpu":
         z_trans_z = np.zeros((num_rffs, num_rffs))
         z_trans_y = np.zeros((num_rffs))
-        dz_dsigma_ty = np.zeros((num_rffs, hparams.shape[0] - 2))
+        dz_dsigma_ty = np.zeros((num_rffs, hparams.shape[0] - 1))
         inner_deriv = np.zeros((num_rffs, num_rffs,
-                                hparams.shape[0] - 2))
+                                hparams.shape[0] - 1))
         transpose = np.transpose
     else:
         z_trans_z = cp.zeros((num_rffs, num_rffs))
         z_trans_y = cp.zeros((num_rffs))
-        dz_dsigma_ty = cp.zeros((num_rffs, hparams.shape[0] - 2))
+        dz_dsigma_ty = cp.zeros((num_rffs, hparams.shape[0] - 1))
         inner_deriv = cp.zeros((num_rffs, num_rffs,
-                                    hparams.shape[0] - 2))
+                                    hparams.shape[0] - 1))
         transpose = cp.transpose
 
     y_trans_y = 0
@@ -129,8 +129,7 @@ def exact_nmll_reg_grad(z_trans_z, z_trans_y, y_trans_y,
 
     grad = np.zeros((hparams.shape[0]))
 
-    #Note that in the following, lambda_ is hparams[0] and beta_ is
-    #hparams[1], both shared between all kernels.
+    #Note that in the following, lambda_ is hparams[0], shared between all kernels.
 
     #First calculate gradient w/r/t lambda...
     dnll_dlambda = (1 / hparams[0]**3) * ((z_trans_y.T @ weights) - y_trans_y)
@@ -139,21 +138,15 @@ def exact_nmll_reg_grad(z_trans_z, z_trans_y, y_trans_y,
     dnll_dlambda += hparams[0] * (chol_inv**2).sum()
     grad[0] = float(dnll_dlambda)
 
-    #All kernels have the beta hyperparameter -- calculate gradient w/r/t this...
-    dnll_dbeta = (weights.T @ (z_trans_z.T @ weights)) - (z_trans_y.T @ weights)
-    dnll_dbeta *= 1 / (hparams[0]**2 * hparams[1])
-    dnll_dbeta += id_trace / hparams[1]
-    grad[1] = float(dnll_dbeta)
 
     #Finally, calculate kernel-specific hyperparameter gradients.
-
-    for i in range(grad.shape[0] - 2):
+    for i in range(grad.shape[0] - 1):
         trace_term = cho_solver(z_trans_z_chol, inner_deriv[:,:,i])
         dnll_dsigma = 2 * (weights.T @ dz_dsigma_ty[:,i])
         dnll_dsigma -= (weights.T @ (inner_deriv[:,:,i] @ weights))
         dnll_dsigma *= (-0.5 / hparams[0]**2)
         dnll_dsigma += 0.5 * trace_term.trace()
-        grad[i+2] = float(dnll_dsigma)
+        grad[i+1] = float(dnll_dsigma)
 
     grad *= hparams
     return z_trans_z_chol, weights, grad

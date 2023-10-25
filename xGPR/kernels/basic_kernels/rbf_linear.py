@@ -108,8 +108,8 @@ class RBFLinear(KernelBaseclass, ABC):
                     "at least num_input_features + 2, and after the input length "
                     "is subtracted, the remainder should be a power of two. The number of "
                     "variance_rffs requested is not affected.")
-        self.hyperparams = np.ones((4))
-        self.bounds = np.asarray([[1e-3,1e1], [0.1, 10], [1e-2, 15], [1e-6, 1e2]])
+        self.hyperparams = np.ones((2))
+        self.bounds = np.asarray([[3.2e-4,1e1], [1e-6, 1e2]])
 
 
         self.num_freqs = int(self.internal_rffs / 2)
@@ -173,16 +173,16 @@ class RBFLinear(KernelBaseclass, ABC):
         """
         xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
                             dtype = self.dtype)
-        xtrans[:,:,:self.xdim[1]] = input_x[:,None,:] * self.hyperparams[3]
+        xtrans[:,:,:self.xdim[1]] = input_x[:,None,:] * self.hyperparams[1]
 
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         random_features = self.empty((input_x.shape[0], self.internal_rffs),
                         self.out_type)
         self.feature_gen(xtrans, random_features, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads, self.fit_intercept)
+                self.num_threads, self.fit_intercept)
 
         output_x[:,:self.internal_rffs] = random_features
-        output_x[:,self.internal_rffs:] = input_x * self.hyperparams[2] * self.hyperparams[1]
+        output_x[:,self.internal_rffs:] = input_x
         return output_x
 
 
@@ -194,17 +194,12 @@ class RBFLinear(KernelBaseclass, ABC):
 
 
     def kernel_specific_gradient(self, input_x):
-        """Since all kernels share the beta and lambda hyperparameters,
-        the gradient for these can be calculated by the parent class.
-        The gradient kernel-specific hyperparameters however is calculated
+        """The gradient kernel-specific hyperparameters is calculated
         using an array (dz_dsigma) specific to each
         kernel. The kernel-specific arrays are calculated here.
 
         Args:
             input_x: A cupy or numpy array containing the raw input data.
-            multiply_by_beta (bool): If False, skip multiplying by the amplitude
-                hyperparameter. Useful for certain hyperparameter tuning
-                routines.
 
         Returns:
             output_x: A cupy or numpy array containing the random feature
@@ -222,10 +217,10 @@ class RBFLinear(KernelBaseclass, ABC):
 
         output_grad[:,:self.internal_rffs,1:2] = self.gradfun(xtrans, random_features,
                         self.radem_diag, self.chi_arr, self.hyperparams[1],
-                        self.hyperparams[3], self.num_threads, self.fit_intercept)
+                        self.num_threads, self.fit_intercept)
 
-        output_grad[:,self.internal_rffs:,0] = input_x * self.hyperparams[1]
+        output_grad[:,self.internal_rffs:,0] = input_x
 
         output_x[:,:self.internal_rffs] = random_features
-        output_x[:,self.internal_rffs:] = input_x * self.hyperparams[2] * self.hyperparams[1]
+        output_x[:,self.internal_rffs:] = input_x
         return output_x, output_grad
