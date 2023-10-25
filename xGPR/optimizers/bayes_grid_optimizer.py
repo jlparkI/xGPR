@@ -11,7 +11,8 @@ from .lb_optimizer import shared_hparam_search
 
 def bayes_grid_tuning(kernel, dataset, bounds, random_seed,
                     max_iter, verbose, tol = 1e-1,
-                    n_cycles = 3, n_init_pts = 10,
+                    n_pts_per_dim = 10, n_cycles = 3,
+                    n_init_pts = 10,
                     subsample = 1,
                     eigval_quotient = 1e6,
                     min_eigval = 1e-6):
@@ -27,6 +28,7 @@ def bayes_grid_tuning(kernel, dataset, bounds, random_seed,
         max_iter (int): The maximum number of iterations.
         verbose (bool): If True, print regular updates.
         tol (float): The threshold for convergence.
+        n_pts_per_dim (int): The number of grid points per shared hparam.
         n_cycles (int): The number of cycles of "telescoping" grid search
             to run.
         n_init_pts (int): The number of initial grid points to evaluate before
@@ -56,12 +58,12 @@ def bayes_grid_tuning(kernel, dataset, bounds, random_seed,
             5 or <= 2 hyperparameters.
     """
 
-    if bounds.shape[0] >= 5 or bounds.shape[0] < 2:
+    if bounds.shape[0] >= 5 or bounds.shape[0] < 3:
         raise ValueError("Bayesian optimization is only allowed for kernels with "
-                "2 - 4 hyperparameters.")
+                "3 - 4 hyperparameters.")
 
 
-    if bounds.shape[0] == 2:
+    if bounds.shape[0] == 3:
         sigma_grid,_ = get_grid_pts(n_init_pts, bounds)
     else:
         sigma_grid = get_random_starting_pts(n_init_pts, bounds, random_seed)
@@ -75,8 +77,9 @@ def bayes_grid_tuning(kernel, dataset, bounds, random_seed,
 
     for i, sigma_pt in enumerate(sigma_grid):
         score, lb_val = shared_hparam_search(sigma_pt, kernel, dataset, bounds[:2,:],
-                        n_cycles = n_cycles, subsample = subsample,
-                        eigval_quotient = eigval_quotient, min_eigval = min_eigval)
+                        n_pts_per_dim = n_pts_per_dim, n_cycles = n_cycles,
+                        subsample = subsample, eigval_quotient = eigval_quotient,
+                        min_eigval = min_eigval)
 
         scores.append(score)
         lb_vals.append(lb_val)
@@ -93,7 +96,7 @@ def bayes_grid_tuning(kernel, dataset, bounds, random_seed,
             n_restarts_optimizer = 4)
 
 
-    sigma_bounds = bounds[1:, :]
+    sigma_bounds = bounds[2:, :]
     iternum = len(sigma_grid)
     for iternum in range(len(sigma_grid), max_iter):
         new_sigma, min_dist, surrogate = propose_new_point(
@@ -101,9 +104,10 @@ def bayes_grid_tuning(kernel, dataset, bounds, random_seed,
                             sigma_bounds, random_seed + iternum)
         if verbose:
             print(f"New hparams: {new_sigma}")
-        score, lb_val = shared_hparam_search(new_sigma, kernel, dataset, bounds[:1,:],
-                        n_cycles = n_cycles, subsample = subsample,
-                        eigval_quotient = eigval_quotient, min_eigval = min_eigval)
+        score, lb_val = shared_hparam_search(new_sigma, kernel, dataset, bounds[:2,:],
+                        n_pts_per_dim = n_pts_per_dim, n_cycles = n_cycles,
+                        subsample = subsample, eigval_quotient = eigval_quotient,
+                        min_eigval = min_eigval)
         sigma_grid.append(new_sigma)
         lb_vals.append(lb_val)
         scores.append(min(score, smallest_non_inf_val))
@@ -114,8 +118,8 @@ def bayes_grid_tuning(kernel, dataset, bounds, random_seed,
             print(f"Additional acquisition {iternum}.")
 
     best_hparams = np.empty((bounds.shape[0]))
-    best_hparams[1:] = sigma_grid[np.argmin(scores)]
-    best_hparams[:1]  = lb_vals[np.argmin(scores)]
+    best_hparams[2:] = sigma_grid[np.argmin(scores)]
+    best_hparams[:2]  = lb_vals[np.argmin(scores)]
     if verbose:
         print(f"Best score achieved: {np.round(np.min(scores), 4)}")
         print(f"Best hyperparams: {best_hparams}")
@@ -171,7 +175,7 @@ def get_random_starting_pts(num_sigma_vals, bounds, random_seed = 123):
     """For kernels with 4 or 5 hyperparameters, it is often more efficient
     to randomly populate the search space with an initial number of search
     points, and then build on these with Bayesian optimization. This function
-    generates the lambda_ grid plus random 'exploration' values for
+    generates the lambda_beta grid plus random 'exploration' values for
     the kernel-specific hyperparameters (aka 'sigma').
 
     Args:
@@ -183,7 +187,7 @@ def get_random_starting_pts(num_sigma_vals, bounds, random_seed = 123):
     Returns:
         sigma_grid (np.ndarray): The initial kernel-specific hyperparameter combinations to
             evaluate.
-        lambda_grid (np.ndarray): The shared hyperparameters to evaluate for each
+        lambda_beta_grid (np.ndarray): The shared hyperparameter combinations to evaluate for each
             sigma combination.
     """
     rng = np.random.default_rng(random_seed)
@@ -209,15 +213,15 @@ def get_grid_pts(num_pts_per_sigma, bounds):
             specific hyperparameters. NMLL is evaluated at each
             row in sigma_pts.
     """
-    if bounds.shape[0] == 1:
+    if bounds.shape[0] == 2:
         sigma_pts = [None]
-    elif bounds.shape[0] == 2:
-        sigma_pts = np.linspace(bounds[1,0], bounds[1,1],
-                                num_pts_per_sigma)
     elif bounds.shape[0] == 3:
-        sigma1 = np.linspace(bounds[1,0], bounds[1,1],
+        sigma_pts = np.linspace(bounds[2,0], bounds[2,1],
                                 num_pts_per_sigma)
-        sigma2 = np.linspace(bounds[2,0], bounds[2,1],
+    elif bounds.shape[0] == 4:
+        sigma1 = np.linspace(bounds[2,0], bounds[2,1],
+                                num_pts_per_sigma)
+        sigma2 = np.linspace(bounds[3,0], bounds[3,1],
                                 num_pts_per_sigma)
         sigma1, sigma2 = np.meshgrid(sigma1, sigma2)
         sigma_pts = np.array((sigma1.ravel(), sigma2.ravel())).T

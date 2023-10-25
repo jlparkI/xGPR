@@ -13,7 +13,7 @@ except:
 #TODO: Get rid of this path modification
 sys.path.append("..")
 from utils.model_constructor import get_models
-from xGPR import build_online_dataset
+
 
 #A list of the kernels to be tested.
 variable_length_kernels = ["FHTConv1d"]
@@ -43,10 +43,9 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
     for each that failed. This is a simple does it work or does it
     raise an exception test -- the correctness of the FHT operations
     is tested under the other tests in this folder."""
-    yvals = np.zeros((block1.shape[0]))
-    online_data = build_online_dataset(block1, yvals)
-    models = get_models(kernel, online_data,
-                        num_rffs = 1024, conv_ard_kernel = False)
+    models = get_models(kernel, block1.shape,
+                        training_rffs = 1024, fitting_rffs = 1024,
+                        conv_ard_kernel = False)
     outcomes = []
     for (model, device) in zip(models, ["cpu", "gpu"]):
         if model is None:

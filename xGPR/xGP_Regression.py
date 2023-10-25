@@ -305,8 +305,8 @@ class xGPRegression(GPRegressionBaseclass):
         except Exception as err:
             return constants.DEFAULT_SCORE_IF_PROBLEM, hyperparams - init_hparams
 
-        #Note that in the following, hparams[0] is lambda_, the hyperparameter
-        #shared by all kernels.
+        #Note that in the following, hparams[0] and hparams[1] are lambda_ and
+        #beta_, the two hyperparameters shared between all kernels.
         negloglik = (-0.5 / hparams[0]**2) * (z_trans_y.T @ weights)
 
         if self.device == "cpu":
@@ -624,7 +624,7 @@ class xGPRegression(GPRegressionBaseclass):
 
 
     def tune_hyperparams_crude_grid(self, dataset, bounds = None,
-                    n_gridpoints = 30, subsample = 1,
+                    n_gridpoints = 30, n_pts_per_dim = 10, subsample = 1,
                     eigval_quotient = 1e6, min_eigval = 1e-5):
         """Tunes the hyperparameters using gridsearch, but with
         a 'trick' that simplifies the problem greatly for 2-3 hyperparameter
@@ -643,6 +643,7 @@ class xGPRegression(GPRegressionBaseclass):
                 boundaries for the kernel will be used. Otherwise, must be an
                 array of shape (# hyperparams, 2).
             n_gridpoints (int): The number of gridpoints per non-shared hparam.
+            n_pts_per_dim (int): The number of grid points per shared hparam.
             subsample (float): A value in the range [0.01,1] that indicates what
                 fraction of the training set to use each time the score is
                 calculated (the same subset is used every time). In general, 1
@@ -684,12 +685,11 @@ class xGPRegression(GPRegressionBaseclass):
         optim_bounds = self._run_pre_nmll_prep(dataset, bounds)
 
         num_hparams = self.kernel.get_hyperparams().shape[0]
-        if num_hparams == 1:
+        if num_hparams == 2:
             best_score, hyperparams = shared_hparam_search(np.array([]), self.kernel,
-                    dataset, optim_bounds, 3, subsample = subsample)
-            hyperparams = np.array(hyperparams)
+                    dataset, optim_bounds, n_pts_per_dim, 3, subsample = subsample)
             n_feval, scores = 1, ()
-        elif num_hparams == 2:
+        elif num_hparams == 3:
             hyperparams, scores, best_score = crude_grid_tuning(self.kernel,
                                 dataset, optim_bounds, self.verbose,
                                 n_gridpoints, subsample = subsample,
@@ -699,7 +699,7 @@ class xGPRegression(GPRegressionBaseclass):
 
         else:
             raise ValueError("The crude grid procedure is only appropriate for "
-                    "kernels with 1-2 hyperparameters.")
+                    "kernels with 2-3 hyperparameters.")
 
         self._run_post_nmll_cleanup(dataset, hyperparams)
         return hyperparams, n_feval, best_score, scores
@@ -708,7 +708,7 @@ class xGPRegression(GPRegressionBaseclass):
 
 
     def tune_hyperparams_crude_bayes(self, dataset, bounds = None, random_seed = 123,
-                    max_bayes_iter = 30, bayes_tol = 1e-1,
+                    max_bayes_iter = 30, bayes_tol = 1e-1, n_pts_per_dim = 10,
                     n_cycles = 3, n_init_pts = 10, subsample = 1,
                     eigval_quotient = 1e6, min_eigval = 1e-5):
         """Tunes the hyperparameters using Bayesian optimization, but with
@@ -734,8 +734,9 @@ class xGPRegression(GPRegressionBaseclass):
                 array of shape (# hyperparams, 2).
             bayes_tol (float): Criteria for convergence for Bayesian
                 optimization.
+            n_pts_per_dim (int): The number of grid points per shared hparam.
             n_cycles (int): The number of cycles of "telescoping" grid search
-                to run. Increasing n_cycles usually only
+                to run. Increasing n_pts_per_dim and n_cycles usually only
                 results in very small improvements in performance.
             subsample (float): A value in the range [0.01,1] that indicates what
                 fraction of the training set to use each time the score is
@@ -778,23 +779,22 @@ class xGPRegression(GPRegressionBaseclass):
         optim_bounds = self._run_pre_nmll_prep(dataset, bounds)
 
         num_hparams = self.kernel.get_hyperparams().shape[0]
-        if num_hparams == 1:
+        if num_hparams == 2:
             best_score, hyperparams = shared_hparam_search(np.array([]), self.kernel,
-                    dataset, optim_bounds, n_cycles, subsample = subsample)
-            hyperparams = np.array(hyperparams)
+                    dataset, optim_bounds, n_pts_per_dim, n_cycles, subsample = subsample)
             n_feval, scores = 1, ()
-        elif 4 > num_hparams > 1:
+        elif 5 > num_hparams > 2:
             hyperparams, scores, best_score, n_feval = bayes_grid_tuning(self.kernel,
                                 dataset, optim_bounds, random_seed, max_bayes_iter,
                                 self.verbose, bayes_tol,
-                                n_cycles, n_init_pts,
+                                n_pts_per_dim, n_cycles, n_init_pts,
                                 subsample = subsample,
                                 eigval_quotient = eigval_quotient,
                                 min_eigval = min_eigval)
 
         else:
             raise ValueError("The crude_bayes procedure is only appropriate for "
-                    "kernels with 2-3 hyperparameters.")
+                    "kernels with 3-4 hyperparameters.")
 
         self._run_post_nmll_cleanup(dataset, hyperparams)
         return hyperparams, n_feval, best_score, scores
@@ -874,6 +874,7 @@ class xGPRegression(GPRegressionBaseclass):
 
         args = (dataset, nmll_rank, nmll_probes, random_seed,
                     nmll_iter, nmll_tol, preconditioner_mode)
+
         if optim_method == "Powell":
             res = minimize(self.approximate_nmll, x0 = init_hyperparams,
                 options={"maxfev":max_iter, "xtol":1e-1, "ftol":1},

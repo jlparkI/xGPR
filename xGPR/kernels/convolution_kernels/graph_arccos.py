@@ -26,8 +26,9 @@ class GraphArcCosine(KernelBaseclass):
     Only attributes unique to this child are described in this docstring.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has one
-            hyperparameter: lambda_ (noise).
+        hyperparams (np.ndarray): This kernel has three
+            hyperparameters: lambda_ (noise), beta_ (amplitude)
+            and sigma (inverse mismatch tolerance).
         padded_dims (int): The size of the expected input data
             after zero-padding to be a power of 2.
         init_calc_freqsize (int): The number of times the transform
@@ -93,8 +94,8 @@ class GraphArcCosine(KernelBaseclass):
         self.effective_dim = xdim[2] + 1
         self.order = kernel_spec_parms["order"]
 
-        self.hyperparams = np.ones((1))
-        self.bounds = np.asarray([[3.2e-4,1e1]])
+        self.hyperparams = np.ones((2))
+        self.bounds = np.asarray([[1e-3,1e1], [0.2, 5]])
         rng = np.random.default_rng(random_seed)
 
         self.padded_dims = 2**ceil(np.log2(max(self.effective_dim, 2)))
@@ -161,7 +162,8 @@ class GraphArcCosine(KernelBaseclass):
         reshaped_x[:,:,:input_x.shape[2]] = input_x
         reshaped_x[:,:,input_x.shape[2]] = 1.0
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
-                self.num_threads, self.order, self.fit_intercept)
+                self.num_threads, self.hyperparams[1], self.order,
+                self.fit_intercept)
         if self.graph_average:
             xtrans /= input_x.shape[1]
         return xtrans
@@ -169,7 +171,9 @@ class GraphArcCosine(KernelBaseclass):
 
 
     def kernel_specific_gradient(self, input_x):
-        """This kernel has no kernel-specific hyperparameters and hence
+        """Since all kernels share the beta and lambda hyperparameters,
+        the gradient for these can be calculated by the parent class.
+        This kernel has no kernel-specific hyperparameters and hence
         can return a shape[1] == 0 array for gradient.
         """
         xtrans = self.transform_x(input_x)

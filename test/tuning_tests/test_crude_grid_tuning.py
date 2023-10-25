@@ -19,12 +19,12 @@ class CheckCrudegridTuning(unittest.TestCase):
         online_data, _ = build_test_dataset(conv_kernel = False)
         cpu_mod, gpu_mod = get_models("RBF", online_data)
         _, _, best_score, _ = cpu_mod.tune_hyperparams_crude_grid(online_data,
-                                n_gridpoints = 40)
+                                n_gridpoints = 30)
         self.assertTrue(best_score < 430)
 
         if gpu_mod is not None:
             _, _, best_score, _ = gpu_mod.tune_hyperparams_crude_grid(online_data,
-                                n_gridpoints = 40)
+                                n_gridpoints = 30)
             self.assertTrue(best_score < 430)
 
 

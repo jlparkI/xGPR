@@ -10,7 +10,7 @@ from .bayes_grid_optimizer import get_grid_pts
 
 def crude_grid_tuning(kernel, dataset, init_bounds,
                     verbose, n_gridpoints = 30,
-                    subsample = 1,
+                    n_pts_per_dim = 10, subsample = 1,
                     eigval_quotient = 1e6,
                     min_eigval = 1e-6):
     """Conducts accelerated gridsearch optimization.
@@ -22,6 +22,7 @@ def crude_grid_tuning(kernel, dataset, init_bounds,
             for optimization.
         verbose (bool): If True, print regular updates.
         n_gridpoints (int): The number of gridpoints.
+        n_pts_per_dim (int): The number of grid points per shared hparam.
         subsample (float): A value in the range [0.01,1] that indicates what
             fraction of the training set to use each time the gradient is
             calculated (the same subset is used every time). In general, 1
@@ -45,8 +46,8 @@ def crude_grid_tuning(kernel, dataset, init_bounds,
             3 or <= 2 hyperparameters.
     """
     bounds = init_bounds.copy()
-    if bounds.shape[0] != 2:
-        raise ValueError("crude_grid is only allowed for kernels with 2 hyperparameters.")
+    if bounds.shape[0] != 3:
+        raise ValueError("crude_grid is only allowed for kernels with 3 hyperparameters.")
 
 
     sigma_grid,_ = get_grid_pts(n_gridpoints, bounds)
@@ -58,7 +59,8 @@ def crude_grid_tuning(kernel, dataset, init_bounds,
 
     for i, sigma_pt in enumerate(sigma_grid):
         score, lb_val = shared_hparam_search(sigma_pt, kernel, dataset, bounds[:2,:],
-                        n_cycles = 3, subsample = subsample,
+                        n_pts_per_dim = n_pts_per_dim, n_cycles = 3,
+                        subsample = subsample,
                         eigval_quotient = eigval_quotient,
                         min_eigval = min_eigval)
 
@@ -73,8 +75,8 @@ def crude_grid_tuning(kernel, dataset, init_bounds,
     scores = scores.tolist()
 
     best_hparams = np.empty((bounds.shape[0]))
-    best_hparams[1:] = sigma_grid[np.argmin(scores)]
-    best_hparams[:1]  = lb_vals[np.argmin(scores)]
+    best_hparams[2:] = sigma_grid[np.argmin(scores)]
+    best_hparams[:2]  = lb_vals[np.argmin(scores)]
     if verbose:
         print(f"Best score achieved: {np.round(np.min(scores), 4)}")
         print(f"Best hyperparams: {best_hparams}")

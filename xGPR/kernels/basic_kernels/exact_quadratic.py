@@ -17,8 +17,8 @@ class ExactQuadratic(KernelBaseclass):
     polynomial regression.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has one
-            hyperparameter: lambda_ (noise).
+        hyperparams (np.ndarray): This kernel has two
+            hyperparameters: lambda_ (noise), beta_ (amplitude).
         poly_func: A reference to the Cython-wrapped C function
             that will be used for feature generation.
     """
@@ -52,8 +52,8 @@ class ExactQuadratic(KernelBaseclass):
                 sine_cosine_kernel = False, double_precision = double_precision,
                 kernel_spec_parms = kernel_spec_parms)
 
-        self.hyperparams = np.ones((1))
-        self.bounds = np.asarray([[3.2e-4,1e1]])
+        self.hyperparams = np.ones((2))
+        self.bounds = np.asarray([[1e-3,1e1], [0.1, 10]])
 
         self.poly_func = None
         self.device = device
@@ -90,6 +90,7 @@ class ExactQuadratic(KernelBaseclass):
         output_x[:,-1] = 1
 
         self.poly_func(retyped_input, output_x, self.num_threads)
+        output_x *= self.hyperparams[1]
         return output_x
 
 
@@ -101,7 +102,9 @@ class ExactQuadratic(KernelBaseclass):
 
 
     def kernel_specific_gradient(self, input_x):
-        """This kernel has no kernel-specific hyperparameters and hence
+        """Since all kernels share the beta and lambda hyperparameters,
+        the gradient for these can be calculated by the parent class.
+        This kernel has no kernel-specific hyperparameters and hence
         can return a shape[1] == 0 array for gradient.
         """
         xtrans = self.transform_x(input_x)

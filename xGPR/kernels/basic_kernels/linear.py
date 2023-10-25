@@ -46,8 +46,8 @@ class Linear(KernelBaseclass):
         if len(xdim) > 2:
             raise ValueError("The Linear kernel is only applicable for "
                     "fixed vector input.")
-        self.hyperparams = np.ones((1))
-        self.bounds = np.asarray([[3.2e-4,1e1]])
+        self.hyperparams = np.ones((2))
+        self.bounds = np.asarray([[1e-3,1e1], [0.125, 8]])
 
         self.device = device
 
@@ -77,11 +77,13 @@ class Linear(KernelBaseclass):
             xtrans[:,0] = 1
         else:
             xtrans = input_x.astype(self.out_type)
-        return xtrans
+        return xtrans * self.hyperparams[1]
 
 
     def kernel_specific_gradient(self, input_x):
-        """This kernel has no kernel-specific hyperparameters and hence
+        """Since all kernels share the beta and lambda hyperparameters,
+        the gradient for these can be calculated by the parent class.
+        This kernel has no kernel-specific hyperparameters and hence
         can return a shape[1] == 0 array for gradient.
         """
         xtrans = self.transform_x(input_x)

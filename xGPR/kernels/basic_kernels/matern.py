@@ -14,9 +14,9 @@ class Matern(SORFKernelBaseclass):
     Only attributes unique to this child are described in this docstring.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has two
-            hyperparameters: lambda_ (noise), sigma (inverse
-            mismatch tolerance).
+        hyperparams (np.ndarray): This kernel has three
+            hyperparameters: lambda_ (noise), beta_ (amplitude)
+            and sigma (inverse mismatch tolerance).
         matern_nu (float): The nu hyperparamter of the Matern kernel.
             Set by the user. Must be >= 1/2, <= 5/2. Larger values
             indicate smoother functions are expected. 5/2 is
@@ -46,7 +46,7 @@ class Matern(SORFKernelBaseclass):
                 sine_cosine_kernel = True, random_seed = random_seed,
                 double_precision = double_precision,
                 kernel_spec_parms = kernel_spec_parms)
-        self.hyperparams = np.ones((2))
+        self.hyperparams = np.ones((3))
         if "matern_nu" not in kernel_spec_parms:
             raise ValueError("Tried to initialize a Matern kernel without supplying nu.")
 
@@ -58,6 +58,6 @@ class Matern(SORFKernelBaseclass):
                                     size=self.num_freqs)
                                     / (self.matern_nu * 2) )
         self.chi_arr /= chisamples
-        self.bounds = np.asarray([[3.2e-4,1e1], [1e-6, 1e2]])
+        self.bounds = np.asarray([[1e-3,1e1], [0.125, 8], [1e-6, 1e2]])
 
         self.device = device

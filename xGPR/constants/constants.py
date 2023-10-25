@@ -11,3 +11,8 @@ DEFAULT_KERNEL_SPEC_PARMS = {"matern_nu":5/2, "conv_width":9,
 #The following is used if an error is encountered during
 #matrix decomposition.
 DEFAULT_SCORE_IF_PROBLEM = 1e40
+
+#The following are hyperpriors that work well for MAP
+#gradient estimation.
+LAMBDA_HPRIOR = 2
+SIGMA_HPRIOR = 10

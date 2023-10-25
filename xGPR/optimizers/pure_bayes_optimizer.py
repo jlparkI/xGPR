@@ -41,7 +41,7 @@ def pure_bayes_tuning(cost_function, tuning_dataset,
     lhc_sampler = qmc.LatinHypercube(d = bounds.shape[0],
                             seed = random_seed)
 
-    if bounds.shape[0] <= 3:
+    if bounds.shape[0] == 3:
         hparam_vals = lhc_sampler.random(n=15)
     else:
         hparam_vals = lhc_sampler.random(n=25)

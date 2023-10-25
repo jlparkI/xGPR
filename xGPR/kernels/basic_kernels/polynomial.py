@@ -20,8 +20,8 @@ class Polynomial(KernelBaseclass):
     docstring, see also parent class.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has one
-            hyperparameters: lambda_ (noise).
+        hyperparams (np.ndarray): This kernel has two
+            hyperparameters: lambda_ (noise), beta_ (amplitude).
         polydegree (int): The degree of the polynomial to be applied.
         chi_arr (array): Array of shape (polydegree, init_calc_freqsize)
             for ensuring correct marginals on random feature generation.
@@ -71,8 +71,8 @@ class Polynomial(KernelBaseclass):
         if self.polydegree < 2 or self.polydegree > 4:
             raise ValueError("Polydegree should be in the range from 2 to 4.")
 
-        self.hyperparams = np.ones((1))
-        self.bounds = np.asarray([[3.2e-4,1e1]])
+        self.hyperparams = np.ones((2))
+        self.bounds = np.asarray([[1e-3,1e1], [0.1, 10]])
         self.padded_dims = 2**ceil(np.log2(max(self.xdim[-1] + 1, 2)))
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
@@ -124,7 +124,7 @@ class Polynomial(KernelBaseclass):
             raise ValueError("Input to ClassicPoly must be a 2d array.")
         retyped_input = self.zero_arr((input_x.shape[0], self.nblocks,
                     self.padded_dims), self.dtype)
-        retyped_input[:,:,1:input_x.shape[1]+1] = input_x[:,None,:]
+        retyped_input[:,:,1:input_x.shape[1] + 1] = input_x[:,None,:]
         retyped_input[:,:,0] = 1
         output_x = self.zero_arr((input_x.shape[0], self.num_freqs),
                 dtype = self.out_type)
@@ -132,9 +132,8 @@ class Polynomial(KernelBaseclass):
         self.poly_func(retyped_input, self.radem_diag,
                 self.chi_arr, output_x, self.polydegree,
                 self.num_threads, self.num_freqs)
-        scaling_constant = np.sqrt(1 / self.num_freqs)
+        scaling_constant = self.hyperparams[1] * np.sqrt(1 / self.num_freqs)
         output_x *= scaling_constant
-        output_x[:,0] = 1
         return output_x
 
 
@@ -146,7 +145,9 @@ class Polynomial(KernelBaseclass):
 
 
     def kernel_specific_gradient(self, input_x):
-        """This kernel has no kernel-specific hyperparameters and hence
+        """Since all kernels share the beta and lambda hyperparameters,
+        the gradient for these can be calculated by the parent class.
+        This kernel has no kernel-specific hyperparameters and hence
         can return a shape[1] == 0 array for gradient.
         """
         xtrans = self.transform_x(input_x)
