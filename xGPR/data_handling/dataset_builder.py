@@ -152,11 +152,11 @@ def build_offline_np_dataset(xlist, ylist, chunk_size = 2000,
     #If we ARE skipping safety checks, retrieve the dimensionality info we will
     #need by checking files without loading them.
     else:
-        xdim = [0,-1]
-        for xfile in xlist:
-            xshape = _get_array_file_shape(xfile)
-            xdim[1] = xshape[1]
-            xdim[0] += xshape[0]
+        xshape = _get_array_file_shape(xlist[0])
+        xdim[1] = xshape[1]
+        xdim[0] += xshape[0]
+        if expected_arrlen == 3:
+            xdim[2] = xshape[2]
 
     if normalize_y:
         trainy_mean, trainy_std = _get_offline_scaling_factors(ylist)
