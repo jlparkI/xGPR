@@ -502,7 +502,7 @@ class xGPRegression(GPRegressionBaseclass):
 
         elif mode == "lsr1":
             model_fitter = lSR1(dataset, self.kernel,
-                    self.device, self.verbose, preconditioner, 10)
+                    self.device, self.verbose, preconditioner, 200)
             self.weights, n_iter, losses = model_fitter.fit_model(max_iter, tol)
 
 

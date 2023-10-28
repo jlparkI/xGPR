@@ -33,10 +33,7 @@ class lSR1:
         n_iter (int): The number of function evaluations performed.
         n_updates (int): The number of Hessian updates to date. Not necessarily
             the same as n_iter, since Hessian updates can be skipped.
-        init_history_size (int): The number of previous gradient updates to store
-            without any overwrite.
-        recent_history_size (int): The number of previous gradient updates
-            to overwrite.
+        history_size (int): The number of previous gradient updates to store.
         losses (list): A list of loss values. Useful for comparing rate of
             convergence with other options.
         preconditioner: Either None or a valid preconditioner object.
@@ -47,22 +44,20 @@ class lSR1:
     """
 
     def __init__(self, dataset, kernel, device, verbose, preconditioner = None,
-            recent_history_size = 5):
+            history_size = 200):
         """Class constructor.
 
         Args:
-        dataset: An OnlineDataset or OfflineDatset containing all the
-            training data.
-        kernel: A kernel object that can generate random features for
-            the Dataset.
-        device (str): One of 'cpu', 'gpu'. Indicates where calculations
-            will be performed.
-        verbose (bool): If True, print regular updates.
-        preconditioner: Either None or a valid preconditioner object.
-        recent_history_size (int): The number of recent gradient updates
-            to store. The init_history_size plus this number
-            determines the total number of gradients which are
-            stored.
+            dataset: An OnlineDataset or OfflineDatset containing all the
+                training data.
+            kernel: A kernel object that can generate random features for
+                the Dataset.
+            device (str): One of 'cpu', 'gpu'. Indicates where calculations
+                will be performed.
+            verbose (bool): If True, print regular updates.
+            preconditioner: Either None or a valid preconditioner object.
+            history_size (int): The number of recent gradient updates
+                to store.
         """
         self.dataset = dataset
         self.kernel = kernel
@@ -77,15 +72,13 @@ class lSR1:
             self.dtype = np.float64
         self.n_iter = 0
         self.n_updates = 0
-        self.init_history_size = 50
-        self.recent_history_size = recent_history_size
+        self.history_size = history_size
 
         self.losses = []
         self.preconditioner = preconditioner
         self.stored_mvecs = self.zero_arr((self.kernel.get_num_rffs(),
-            self.init_history_size + self.recent_history_size))
-        self.stored_nconstants = self.zero_arr((self.init_history_size +
-            self.recent_history_size))
+            self.history_size))
+        self.stored_nconstants = self.zero_arr((self.history_size))
         self.stored_nconstants[:] = 1
 
         self.stored_bvecs = self.stored_mvecs.copy()
@@ -111,17 +104,16 @@ class lSR1:
         init_norms = max(float((z_trans_y**2).sum()), 1e-12)
 
 
-        loss, pcounter = 1, 0
         self.n_iter, self.n_updates = 0, 0
-        losses = [loss]
+        loss, losses = 1., [1.]
 
         for i in range(0, max_iter):
-            grad, loss, pcounter = self.update_params(pcounter, grad,
-                            loss, wvec, z_trans_y, init_norms)
+            grad, loss, step_size = self.update_params(grad, loss,
+                    wvec, z_trans_y, init_norms)
             losses.append(loss)
             if loss < tol:
                 break
-            print(f"Loss: {loss}")
+            print(f"Loss: {loss}, step_size {step_size}")
             self.n_iter += 1
 
         if self.device == "gpu":
@@ -131,13 +123,11 @@ class lSR1:
 
 
 
-    def update_params(self, pcounter, grad, loss,
-            wvec, z_trans_y, init_norms):
+    def update_params(self, grad, loss, wvec, z_trans_y, init_norms):
         """Updates the weight vector and the approximate hessian maintained
         by the algorithm.
 
         Args:
-            pcounter (int): Which of the columns of stored_mvecs to modify.
             grad (ndarray): The previous gradient of the weights. Shape (num_rffs).
             loss (float): The current loss value.
             wvec (ndarray): The current weight values.
@@ -157,13 +147,17 @@ class lSR1:
         grad_update = self.cost_fun_regression(grad_update)
 
         y_k = (grad_update.sum(axis=1) - z_trans_y) - grad
-        pcounter = self.update_hess(y_k, s_k, pcounter)
 
         new_grad, new_loss, step_size = self.optimize_step_size(grad, grad_update,
                 loss, init_norms, z_trans_y)
 
-        wvec += step_size * s_k
-        return new_grad, new_loss, pcounter
+        s_k *= step_size
+        y_k = new_grad - grad
+
+        self.update_hess(y_k, s_k)
+
+        wvec += s_k
+        return new_grad, new_loss, step_size
 
 
 
@@ -210,16 +204,15 @@ class lSR1:
         return new_grad, new_loss / init_norms, step_size
 
 
-    def update_hess(self, y_k, s_k, pcounter):
+    def update_hess(self, y_k, s_k):
         """Updates the hessian approximation.
 
         Args:
             y_k (ndarray): The shift in gradient on the current iteration.
             s_k (ndarray): The shift in the weight vector.
-
-        Returns:
-            pcounter (int): The updated pcounter.
         """
+        if self.n_updates >= self.history_size:
+            return
         y_kh = self.inv_hess_vector_prod(y_k)
         s_kb = self.hess_vector_prod(s_k)
 
@@ -229,16 +222,11 @@ class lSR1:
         criterion_rhs = 1e-8 * float(s_k.T @ s_k) * float(b_update.T @ b_update)
 
         if criterion_lhs >= criterion_rhs:
-            self.stored_mvecs[:,pcounter] = h_update
-            self.stored_nconstants[pcounter] = h_update.T @ y_k
-            self.stored_bvecs[:,pcounter] = b_update
-            self.stored_bconstants[pcounter] = b_update.T @ s_k
-            pcounter += 1
-            if pcounter >= (self.init_history_size + self.recent_history_size):
-                pcounter = self.init_history_size
+            self.stored_mvecs[:,self.n_updates] = h_update
+            self.stored_nconstants[self.n_updates] = h_update.T @ y_k
+            self.stored_bvecs[:,self.n_updates] = b_update
+            self.stored_bconstants[self.n_updates] = b_update.T @ s_k
             self.n_updates += 1
-        return pcounter
-
 
 
     def inv_hess_vector_prod(self, ivec):
@@ -257,10 +245,9 @@ class lSR1:
                 return ivec
             return self.preconditioner.batch_matvec(ivec[:,None])[:,0]
 
-        num_prods = min(self.n_updates, self.stored_mvecs.shape[1])
-        ovec = (self.stored_mvecs[:,:num_prods] * ivec[:,None]).sum(axis=0) / \
-                self.stored_nconstants[:num_prods]
-        ovec = (ovec[None,:] * self.stored_mvecs[:,:num_prods]).sum(axis=1)
+        ovec = (self.stored_mvecs[:,:self.n_updates] * ivec[:,None]).sum(axis=0) / \
+                self.stored_nconstants[:self.n_updates]
+        ovec = (ovec[None,:] * self.stored_mvecs[:,:self.n_updates]).sum(axis=1)
         if self.preconditioner is not None:
             ovec += self.preconditioner.batch_matvec(ivec[:,None])[:,0]
         return ovec
@@ -282,10 +269,9 @@ class lSR1:
                 return ivec
             return self.preconditioner.rev_batch_matvec(ivec[:,None])[:,0]
 
-        num_prods = min(self.n_updates, self.stored_bvecs.shape[1])
-        ovec = (self.stored_bvecs[:,:num_prods] * ivec[:,None]).sum(axis=0) / \
-                self.stored_bconstants[:num_prods]
-        ovec = (ovec[None,:] * self.stored_bvecs[:,:num_prods]).sum(axis=1)
+        ovec = (self.stored_bvecs[:,:self.n_updates] * ivec[:,None]).sum(axis=0) / \
+                self.stored_bconstants[:self.n_updates]
+        ovec = (ovec[None,:] * self.stored_bvecs[:,:self.n_updates]).sum(axis=1)
         if self.preconditioner is not None:
             ovec += self.preconditioner.rev_batch_matvec(ivec[:,None])[:,0]
         return ovec
