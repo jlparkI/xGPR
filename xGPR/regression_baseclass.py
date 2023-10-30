@@ -403,7 +403,7 @@ class GPRegressionBaseclass():
             raise ValueError("Num threads if supplied must be an integer from 1 to 24.")
         self._num_threads = value
         if self.kernel is not None:
-            self.kernel.num_threads = num_threads
+            self.kernel.num_threads = value
 
     @property
     def double_precision_fht(self):
@@ -416,7 +416,7 @@ class GPRegressionBaseclass():
         """Setter for the double_precision_fht attribute."""
         self._double_precision_fht = value
         if self.kernel is not None:
-            self.kernel.double_precision = double_precision
+            self.kernel.double_precision = value
 
 
     @property
