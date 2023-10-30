@@ -312,25 +312,6 @@ class KernelBaseclass(ABC):
         return self.num_rffs
 
 
-    def set_out_type(self, out_type = "f"):
-        """Temporarily changes the out data type, which will be
-        reset whenever the device is changed. This is convenient
-        for certain operations (e.g. pretransforming data)
-        which do not require double precision."""
-        if out_type == "f":
-            if self.device == "gpu":
-                self.out_type = cp.float32
-            else:
-                self.out_type = np.float32
-        elif out_type == "d":
-            if self.device == "gpu":
-                self.out_type = cp.float64
-            else:
-                self.out_type = np.float64
-        else:
-            raise ValueError("Unrecognized data type supplied to kernel.")
-
-
     @property
     def device(self):
         """Getter for the device property, which determines
