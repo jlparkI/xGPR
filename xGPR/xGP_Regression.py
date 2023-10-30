@@ -63,7 +63,6 @@ class xGPRegression(GPRegressionBaseclass):
                 to use for posterior predictive variance (i.e. calculating
                 uncertainty on predictions). Defaults to 64.
             kernel_choice (str): The kernel that the model will use.
-                Must be one of constants.ACCEPTABLE_KERNELS.
             device (str): Determines whether calculations are performed on
                 'cpu' or 'gpu'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).
@@ -97,7 +96,7 @@ class xGPRegression(GPRegressionBaseclass):
                 array (if non-convolution kernel) or 3d (if convolution
                 kernel).
             get_var (bool): If True, return (predictions, variance).
-                If False, return predictions. Defaults to True.
+                If False, return predictions.
             chunk_size (int): The number of datapoints to process at
                 a time. Lower values limit memory consumption. Defaults
                 to 2000.
