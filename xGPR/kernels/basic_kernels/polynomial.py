@@ -20,8 +20,8 @@ class Polynomial(KernelBaseclass):
     docstring, see also parent class.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has two
-            hyperparameters: lambda_ (noise), beta_ (amplitude).
+        hyperparams (np.ndarray): This kernel has one
+            hyperparameter: lambda_ (noise).
         polydegree (int): The degree of the polynomial to be applied.
         chi_arr (array): Array of shape (polydegree, init_calc_freqsize)
             for ensuring correct marginals on random feature generation.
@@ -71,8 +71,13 @@ class Polynomial(KernelBaseclass):
         if self.polydegree < 2 or self.polydegree > 4:
             raise ValueError("Polydegree should be in the range from 2 to 4.")
 
-        self.hyperparams = np.ones((2))
-        self.bounds = np.asarray([[1e-3,1e1], [0.1, 10]])
+        self.fit_intercept = True
+        if "intercept" in kernel_spec_parms:
+            if kernel_spec_parms["intercept"] is False:
+                self.fit_intercept = False
+
+        self.hyperparams = np.ones((1))
+        self.bounds = np.asarray([[1e-3,1e2]])
         self.padded_dims = 2**ceil(np.log2(max(self.xdim[-1] + 1, 2)))
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
@@ -132,8 +137,9 @@ class Polynomial(KernelBaseclass):
         self.poly_func(retyped_input, self.radem_diag,
                 self.chi_arr, output_x, self.polydegree,
                 self.num_threads, self.num_freqs)
-        scaling_constant = self.hyperparams[1] * np.sqrt(1 / self.num_freqs)
-        output_x *= scaling_constant
+        output_x *= np.sqrt(1 / self.num_freqs)
+        if self.fit_intercept:
+            output_x[:,0] = 1.
         return output_x
 
 

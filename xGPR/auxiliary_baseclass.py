@@ -53,9 +53,9 @@ class AuxiliaryBaseclass():
             num_rffs (int): The number of random Fourier features
                 to use for the auxiliary device.
             hyperparams (np.ndarray): A numpy array containing the kernel-specific
-                hyperparameter. If you have fitted an xGPR model, the first two
-                hyperparameters are general not kernel specific, so
-                my_model.get_hyperparams()[2:] will retrieve the hyperparameters you
+                hyperparameter. If you have fitted an xGPR model, the first
+                hyperparameter is in general not kernel specific, so
+                my_model.get_hyperparams()[1:] will retrieve the hyperparameters you
                 need. For most kernels there is only one kernel-specific hyperparameter.
                 For kernels with no kernel-specific hyperparameter (e.g. arc-cosine
                 and polynomial kernels), this argument is ignored.
@@ -99,9 +99,8 @@ class AuxiliaryBaseclass():
                             kernel_spec_parms = self.kernel_spec_parms)
         self.device = device
         full_hparams = self.kernel.get_hyperparams()
-        if full_hparams.shape[0] > 2:
-            full_hparams[2:] = hyperparams
-        full_hparams[1] = 0
+        if full_hparams.shape[0] > 1:
+            full_hparams[1:] = hyperparams
         self.kernel.set_hyperparams(full_hparams)
 
 

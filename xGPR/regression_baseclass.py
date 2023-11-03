@@ -4,8 +4,6 @@ The GPRegressionBaseclass describes class attributes and methods shared by
 model classes like xGPRegression.
 """
 import sys
-import warnings
-
 try:
     import cupy as cp
 except:

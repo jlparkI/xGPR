@@ -151,8 +151,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     true_features = get_features(xdata, kernel_width, dim2,
                             radem, s_mat, num_freqs, num_blocks, sigma,
                             precision, fit_intercept)
-    cpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, 1.0,
-            fit_intercept)
+    cpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, fit_intercept)
 
     outcome = check_results(true_features, features, precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
@@ -168,8 +167,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     features = cp.asarray(features)
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
-    gpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, 1.0,
-            fit_intercept)
+    gpuConv1dFGen(reshaped_x, radem, features, s_mat, 2, fit_intercept)
 
     features = cp.asnumpy(features)
     outcome_cuda = check_results(true_features, features, precision)
@@ -196,7 +194,7 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                             num_blocks, sigma, precision,
                             fit_intercept)
 
-    gradient = cpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma, 1.0,
+    gradient = cpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma,
             fit_intercept)
     gradient = gradient[:,:(2*num_freqs),0]
 
@@ -219,7 +217,7 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
 
-    gradient = gpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma, 1.0,
+    gradient = gpuConvGrad(reshaped_x, radem, features, s_mat, 2, sigma,
             fit_intercept)
     features = cp.asnumpy(features[:,:(2*num_freqs)])
     gradient = cp.asnumpy(gradient[:,:(2*num_freqs),0])
@@ -250,7 +248,7 @@ def run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                             fit_intercept)
 
     cpuConv1dArcCosFGen(reshaped_x, radem, features,
-                s_mat, 2, 1.0, 1, fit_intercept)
+                s_mat, 2, 1, fit_intercept)
 
     outcome = check_results(true_features, features[:,:num_freqs], precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
@@ -269,7 +267,7 @@ def run_arccos_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     radem = cp.asarray(radem)
 
     gpuConv1dArcCosFGen(reshaped_x, radem, features,
-                s_mat, 2, 1.0, 1, fit_intercept)
+                s_mat, 2, 1, fit_intercept)
 
 
     outcome_cuda = check_results(true_features, features[:,:num_freqs], precision)

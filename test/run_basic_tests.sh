@@ -13,5 +13,4 @@ python poly_fht.py
 python rbf_fht.py
 python ard_grad_fht.py
 python variable_length_seqs_test.py
-python exact_poly.py
 cd ..

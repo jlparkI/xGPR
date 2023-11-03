@@ -28,9 +28,9 @@ class MiniARD(KernelBaseclass):
     to this child are described in this docstring.
 
     Attributes:
-        hyperparams (np.ndarray): A length two + number of feature
-            classes array of hyperparameters: lambda_ (noise),
-            beta_ (amplitude) and the remainder are inverse lengthscales.
+        hyperparams (np.ndarray): A length one + number of feature
+            classes array of hyperparameters: lambda_ (noise)
+            and the remainder are inverse lengthscales.
         cosfunc: A convenience reference to either cp.cos or np.cos,
             as appropriate for current device.
         sinfunc: A convenience reference to either cp.sin or np.sin,
@@ -84,9 +84,9 @@ class MiniARD(KernelBaseclass):
         self.split_pts = np.sort([0] + kernel_spec_parms["split_points"] + [xdim[1]])
         self.check_split_points(xdim)
 
-        self.hyperparams = np.ones((1 + self.split_pts.shape[0]))
-        bounds = [[1e-3,1e1], [0.1, 10]] + [[1e-6, 1e2] for i in
-                range(self.hyperparams.shape[0] - 2)]
+        self.hyperparams = np.ones((self.split_pts.shape[0]))
+        bounds = [[1e-3,1e2]] + [[1e-6, 1e2] for i in
+                range(self.hyperparams.shape[0] - 1)]
         self.bounds = np.asarray(bounds)
 
         self.padded_dims = 2**ceil(np.log2(max(xdim[-1], 2)))
@@ -175,7 +175,7 @@ class MiniARD(KernelBaseclass):
         self.ard_position_key[:] = 0
         for i in range(1, self.split_pts.shape[0]):
             self.full_ard_weights[self.split_pts[i-1]:self.split_pts[i]] = \
-                    self.hyperparams[i + 1]
+                    self.hyperparams[i]
             self.ard_position_key[self.split_pts[i-1]:self.split_pts[i]] = i - 1
 
 
@@ -194,7 +194,7 @@ class MiniARD(KernelBaseclass):
 
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads, self.fit_intercept)
+                self.num_threads, self.fit_intercept)
         return output_x
 
 
@@ -275,5 +275,5 @@ class MiniARD(KernelBaseclass):
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         dz_dsigma = self.grad_fun(x_retyped, xtrans, self.precomputed_weights,
                 self.ard_position_key, self.full_ard_weights,
-                self.hyperparams[1], self.num_threads, self.fit_intercept)
+                self.num_threads, self.fit_intercept)
         return xtrans, dz_dsigma

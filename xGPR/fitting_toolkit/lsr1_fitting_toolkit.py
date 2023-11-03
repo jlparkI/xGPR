@@ -250,6 +250,8 @@ class lSR1:
         ovec = (ovec[None,:] * self.stored_mvecs[:,:self.n_updates]).sum(axis=1)
         if self.preconditioner is not None:
             ovec += self.preconditioner.batch_matvec(ivec[:,None])[:,0]
+        else:
+            ovec += ivec
         return ovec
 
 
@@ -274,6 +276,8 @@ class lSR1:
         ovec = (ovec[None,:] * self.stored_bvecs[:,:self.n_updates]).sum(axis=1)
         if self.preconditioner is not None:
             ovec += self.preconditioner.rev_batch_matvec(ivec[:,None])[:,0]
+        else:
+            ovec += ivec
         return ovec
 
 

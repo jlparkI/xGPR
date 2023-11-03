@@ -2,6 +2,8 @@
 >= what has been seen in the past for a similar # of RFFs and
 kernel. Tests either CG or exact fitting."""
 import sys
+import optuna
+import numpy as np
 
 #TODO: Get rid of this path alteration
 sys.path.append("..")
@@ -35,16 +37,20 @@ def test_fit(kernel, conv_kernel, random_seed, conv_width = 3,
 
     test_dataset, _ = build_test_dataset(conv_kernel = conv_kernel,
             xsuffix = "testxvalues.npy", ysuffix = "testyvalues.npy")
-    if model.get_hyperparams().shape[0] < 4:
-        model.tune_hyperparams_crude_bayes(train_dataset)
-    elif model.get_hyperparams().shape[0] == 4:
-        model.tune_hyperparams_crude_bayes(train_dataset, max_bayes_iter = 50)
+    nhparams = model.get_hyperparams().shape[0]
+    if nhparams < 3:
+        _, _, score = model.tune_hyperparams_lbfgs(train_dataset, n_restarts = 1)
+        #_, _, score = model.tune_hyperparams_direct(train_dataset,
+        #        nmll_method = "exact", tuning_method="Nelder-Mead",
+        #        max_iter=50)
+        print(score)
     else:
-        model.tune_hyperparams_crude_lbfgs(train_dataset, n_restarts = 1)
+        model.tune_hyperparams_lbfgs(train_dataset, n_restarts = 1)
+
+    hparams = model.get_hyperparams()
 
     print(f"Hyperparams, cpu, {kernel}: {model.get_hyperparams()}")
 
-    hparams = model.get_hyperparams()
     model.num_rffs = cg_fitting_rffs
     model.initialize(train_dataset, RANDOM_STATE, hyperparams=hparams)
 
@@ -72,3 +78,17 @@ def test_fit(kernel, conv_kernel, random_seed, conv_width = 3,
     print(f"Exact score, cpu, {kernel}: {exact_score}")
 
     return cg_score, exact_score
+
+
+def single_hparam_objective(trial, model, dataset):
+    """Wrapper on NMLL calculations enabling Optuna to tune."""
+    params = {"lambda":trial.suggest_float('lambda', 1e-6, 10, log=True)}
+    hparams = np.log(np.array([params['lambda']]))
+    return model.exact_nmll(hparams, dataset)
+
+def two_hparam_objective(trial, model, dataset):
+    """Wrapper on NMLL calculations enabling Optuna to tune."""
+    params = {"lambda":trial.suggest_float('lambda', 1e-6, 10, log=True),
+            "sigma":trial.suggest_float('sigma', 1e-5, 10, log=True)}
+    hparams = np.log(np.array([params['lambda'], params['sigma']]))
+    return model.exact_nmll(hparams, dataset)

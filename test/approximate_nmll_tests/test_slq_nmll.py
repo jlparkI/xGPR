@@ -13,13 +13,13 @@ from utils.evaluate_model import evaluate_model
 
 #A set of hyperparameters known to work well for our testing dataset
 #that we can use as a default.
-HPARAM = np.array([-0.67131348,  0.72078634, -1.00860899])
+HPARAM = np.array([np.log(0.0767),  np.log(0.358)])
 
 NUM_RFFS = 2100
 RANDOM_SEED = 123
 ERROR_MARGIN = 1.0
-EASY_HPARAMS = np.log(np.asarray([0.75, 1.25, 1.0]))
-HARD_HPARAMS = np.log(np.asarray([1e-3, 1.25, 1.0]))
+EASY_HPARAMS = np.array([0.,  1.0])
+HARD_HPARAMS = np.array([np.log(1e-3),  1.0])
 
 class CheckApproximateNMLL(unittest.TestCase):
     """Checks whether the approximate NMLL is a reasonably
@@ -65,7 +65,7 @@ class CheckApproximateNMLL(unittest.TestCase):
 
         outcome = run_exact_approx_comparison(cpu_mod, EASY_HPARAMS, online_data,
                                 0, "cpu")
-        print("Test with 'easy' hyperparameters for CPU: "
+        print("NO PRECONDITION: Test with 'easy' hyperparameters for CPU: "
                 f"result within {ERROR_MARGIN} percent? {outcome}")
         self.assertTrue(outcome)
 
@@ -73,7 +73,7 @@ class CheckApproximateNMLL(unittest.TestCase):
         if gpu_mod is not None:
             outcome = run_exact_approx_comparison(gpu_mod, EASY_HPARAMS, online_data,
                                 0, "gpu")
-            print("Test with 'easy' hyperparameters for GPU: "
+            print("NO PRECONDITION: Test with 'easy' hyperparameters for GPU: "
                 f"result within {ERROR_MARGIN} percent? {outcome}")
             self.assertTrue(outcome)
 
@@ -85,7 +85,7 @@ def run_exact_approx_comparison(model, hyperparams, dataset, max_rank, device):
     exact_nmll = model.exact_nmll(hyperparams, dataset)
     approx_nmll = model.approximate_nmll(hyperparams, dataset,
                     max_rank = max_rank, nsamples = 25,
-                    random_seed = 123, niter = 90, tol = 1e-3)
+                    random_seed = 123, niter = 200, tol = 1e-5)
     outcome = 100 * abs(approx_nmll - exact_nmll) / exact_nmll < ERROR_MARGIN
     print(f"Exact: {exact_nmll}, Approx: {approx_nmll}")
     return outcome

@@ -36,9 +36,9 @@ class KernelFGen(AuxiliaryBaseclass):
                 to use for the auxiliary device.
             dataset: A valid dataset object.
             hyperparams (np.ndarray): A numpy array containing the kernel-specific
-                hyperparameter. If you have fitted an xGPR model, the first two
-                hyperparameters are general not kernel specific, so
-                my_model.get_hyperparams()[2:] will retrieve the hyperparameters you
+                hyperparameter. If you have fitted an xGPR model, the first
+                hyperparameter is in general not kernel specific, so
+                my_model.get_hyperparams()[1:] will retrieve the hyperparameters you
                 need. For most kernels there is only one kernel-specific hyperparameter.
                 For kernels with no kernel-specific hyperparameter (e.g. arc-cosine
                 and polynomial kernels), this argument is ignored.

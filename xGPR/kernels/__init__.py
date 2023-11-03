@@ -5,7 +5,6 @@ from .basic_kernels.matern import Matern
 from .basic_kernels.rbf import RBF
 from .basic_kernels.linear import Linear
 from .basic_kernels.polynomial import Polynomial
-from .basic_kernels.exact_quadratic import ExactQuadratic
 
 from .convolution_kernels.fht_conv1d import FHTConv1d
 from .convolution_kernels.graph_rbf import GraphRBF
@@ -23,5 +22,4 @@ KERNEL_NAME_TO_CLASS = {"RBF":RBF,
         "Poly":Polynomial,
         "GraphPoly":GraphPolySum,
         "MiniARD":MiniARD,
-        "GraphArcCosine":GraphArcCosine,
-        "ExactQuadratic":ExactQuadratic}
+        "GraphArcCosine":GraphArcCosine}

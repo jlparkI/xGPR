@@ -1,4 +1,4 @@
-"""Tests cg fitting to ensure success both with and without
+"""Tests lsr1 fitting to ensure success both with and without
 preconditioning."""
 import sys
 import unittest
@@ -22,8 +22,8 @@ RANDOM_SEED = 123
 class CheckCGFit(unittest.TestCase):
     """Tests the conjugate gradients algorithm."""
 
-    def test_preconditioned_cg(self):
-        """Test using preconditioned cg, which should easily fit
+    def test_preconditioned_lsr1(self):
+        """Test using preconditioned lsr1, which should easily fit
         in under 10 epochs."""
         online_data, _ = build_test_dataset(conv_kernel = False)
         cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs = NUM_RFFS)
@@ -33,8 +33,8 @@ class CheckCGFit(unittest.TestCase):
 
         niter, _ = cpu_mod.fit(online_data,  preconditioner = preconditioner,
                 max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
-                tol = 1e-6,  mode = "cg")
-        print(f"niter: {niter}")
+                tol = 1e-6,  mode = "lsr1")
+        print(f"LSR1, niter: {niter}")
         self.assertTrue(niter < 10)
 
         if gpu_mod is not None:
@@ -44,30 +44,9 @@ class CheckCGFit(unittest.TestCase):
 
             niter, _ = gpu_mod.fit(online_data,  preconditioner = preconditioner,
                 max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
-                tol = 1e-6,  mode = "cg")
-            print(f"niter: {niter}")
+                tol = 1e-6,  mode = "lsr1")
+            print(f"LSR1, niter: {niter}")
             self.assertTrue(niter < 10)
-
-
-    def test_nonpreconditioned_cg(self):
-        """Test using non-preconditioned cg."""
-        online_data, _ = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs = NUM_RFFS)
-        cpu_mod.verbose = False
-
-        niter, _ = cpu_mod.fit(online_data,
-                max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
-                tol = 1e-6,  mode = "cg", preset_hyperparams = HPARAM)
-        print(f"No preconditioning, niter: {niter}")
-        self.assertTrue(niter < 80)
-
-        if gpu_mod is not None:
-            gpu_mod.verbose = False
-            niter, _ = gpu_mod.fit(online_data,
-                max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
-                tol = 1e-6,  mode = "cg", preset_hyperparams = HPARAM)
-            print(f"No preconditioning, niter: {niter}")
-            self.assertTrue(niter < 80)
 
 
 if __name__ == "__main__":

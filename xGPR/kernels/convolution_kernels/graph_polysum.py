@@ -22,8 +22,8 @@ class GraphPolySum(KernelBaseclass):
     graphs). Remarkably we can evaluate this in a very efficient way.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has two
-            hyperparameters: lambda_ (noise), beta_ (amplitude).
+        hyperparams (np.ndarray): This kernel has one
+            hyperparameters: lambda_ (noise).
         polydegree (int): The degree of the polynomial to be applied.
         chi_arr (array): Array of shape (polydegree, init_calc_freqsize)
             for ensuring correct marginals on random feature generation.
@@ -81,8 +81,8 @@ class GraphPolySum(KernelBaseclass):
             if kernel_spec_parms["averaging"]:
                 self.graph_average = True
 
-        self.hyperparams = np.ones((2))
-        self.bounds = np.asarray([[1e-3,1e1], [0.2, 5]])
+        self.hyperparams = np.ones((1))
+        self.bounds = np.asarray([[1e-3,1e2]])
 
         self.padded_dims = 2**ceil(np.log2(max(xdim[2], 2)))
         num_repeats = ceil(self.num_freqs / self.padded_dims)
@@ -150,13 +150,13 @@ class GraphPolySum(KernelBaseclass):
                             dtype = self.dtype)
         self.graph_poly_func(retyped_input, self.radem_diag,
                 self.chi_arr, output_x, self.polydegree, self.num_threads)
-        scaling_constant = self.hyperparams[1] * np.sqrt(1 / self.num_freqs)
+        scaling_constant = np.sqrt(1 / self.num_freqs)
         output_x = output_x[:,:self.num_rffs].astype(self.out_type) * scaling_constant
 
         if self.graph_average:
             output_x /= input_x.shape[1]
         if self.fit_intercept:
-            output_x[:,-1] = self.hyperparams[1]
+            output_x[:,-1] = 1.
         return output_x
 
 
