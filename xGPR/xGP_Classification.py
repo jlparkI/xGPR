@@ -2,22 +2,18 @@
 
 The xGPRegression class provides the tools needed to fit a regression
 model and make predictions for new datapoints. It inherits from
-ModelBaseclass.
+GPRegressionBaseclass.
 """
 import warnings
 try:
     import cupy as cp
-    from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
 import numpy as np
 from scipy.optimize import minimize
 
 from .constants import constants
-from .model_baseclass import ModelBaseclass
-from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
-from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
-from .preconditioners.inter_device_preconditioners import InterDevicePreconditioner
+from .model_baseclass import GPModelBaseclass
 
 from .scoring_toolkit.pure_bayes_optimizer import pure_bayes_tuning
 
@@ -26,35 +22,21 @@ from .fitting_toolkit.lsr1_fitting_toolkit import lSR1
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext, cg_fit_lib_internal
 from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
 
-from .scoring_toolkit.approximate_nmll_calcs import estimate_logdet
-from .scoring_toolkit.nmll_gradient_tools import exact_nmll_reg_grad, calc_gradient_terms
-from .scoring_toolkit.probe_generators import generate_normal_probes_gpu
-from .scoring_toolkit.probe_generators import generate_normal_probes_cpu
-from .scoring_toolkit.exact_nmll_calcs import calc_zty, calc_design_mat, direct_weight_calc
-from .scoring_toolkit.alpha_beta_optimizer import optimize_alpha_beta
-
-from cg_tools import CPU_ConjugateGrad, GPU_ConjugateGrad
 
 
 
-class xGPRegression(ModelBaseclass):
-    """A subclass of GPRegressionBaseclass that houses methods
-    unique to regression problems. Only attributes not shared by
-    the parent class are described here.
-    
-    trainy_mean (float): The mean of the training ydata. Determined during fitting.
-        Used for making predictions.
-    trainy_std (float): The standard deviation of the training ydata. Determined
-        during fitting. Used for making predictions.
-    """
+class kernelLogisticClassification(GPModelBaseclass):
+    """A subclass of GPModelBaseclass that houses methods
+    unique to regression problems. It does not have
+    any attributes unique to it aside from those
+    of the parent class."""
 
     def __init__(self, num_rffs = 256, variance_rffs = 16,
                     kernel_choice="RBF",
                     device = "cpu",
                     kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     verbose = True,
-                    num_threads = 2,
-                    double_precision_fht = False):
+                    num_threads = 2):
         """The constructor for xGPRegression. Passes arguments onto
         the parent class constructor.
 
@@ -80,16 +62,13 @@ class xGPRegression(ModelBaseclass):
                 generating random features. For most problems, it is not beneficial
                 to set this to True -- it merely increases computational expense
                 with negligible benefit -- but this option is useful for testing.
-                Defaults to False.
+                Defaults to False. For now we do not allow the user to set this,
+                but may in future if it's ever useful.
         """
         super().__init__(num_rffs, variance_rffs,
                         kernel_choice, device = device,
                         kernel_specific_params = kernel_specific_params,
                         verbose = verbose, num_threads = num_threads)
-        self.trainy_mean = 0.0
-        self.trainy_std = 1.0
-
-
 
     def predict(self, input_x, get_var = False,
             chunk_size = 2000):

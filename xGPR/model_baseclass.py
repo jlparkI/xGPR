@@ -1,7 +1,7 @@
-"""Describes the GPRegressionBaseclass from which other model classes inherit.
+"""Describes the ModelBaseclass from which other model classes inherit.
 
-The GPRegressionBaseclass describes class attributes and methods shared by
-model classes like xGPRegression.
+The ModelBaseclass describes class attributes and methods shared by
+model classes like xGPModel.
 """
 import sys
 try:
@@ -15,8 +15,8 @@ from .constants import constants
 
 
 
-class GPRegressionBaseclass():
-    """The base class for xGPR regression classes. Provides shared
+class ModelBaseclass():
+    """The base class for xGPR model classes. Provides shared
     methods and attributes.
 
     Attributes:
@@ -33,7 +33,8 @@ class GPRegressionBaseclass():
             the device specified by the user (cpu or gpu), or a preconditioner
             object for certain kernels (e.g. linear). The random features
             are used in conjunction with var to generate the posterior predictive
-            variance. The var is calculated during fitting.
+            variance. The var is calculated during fitting. Used by regression
+            classes only.
         device (str): One of "gpu", "cpu". The user can update this as desired.
             All predict / tune / fit operations are carried out using the
             current device.
@@ -47,10 +48,6 @@ class GPRegressionBaseclass():
             hyperparameter tuning and fitting.
         num_threads (int): The number of threads to use for random feature generation
             if running on CPU. If running on GPU, this argument is ignored.
-        trainy_mean (float): The mean of the training ydata. Determined during fitting.
-            Used for making predictions.
-        trainy_std (float): The standard deviation of the training ydata. Determined
-            during fitting. Used for making predictions.
         double_precision_fht (bool): If True, use double precision during FHT for
             generating random features. For most problems, it is not beneficial
             to set this to True -- it merely increases computational expense
@@ -66,8 +63,7 @@ class GPRegressionBaseclass():
                     kernel_choice="RBF", device = "cpu",
                     kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     verbose = True,
-                    num_threads = 2,
-                    double_precision_fht = False):
+                    num_threads = 2):
         """Constructor.
 
         Args:
@@ -95,6 +91,7 @@ class GPRegressionBaseclass():
         self.kernel_choice = kernel_choice
         self.kernel = None
         self.weights = None
+        # Classification classes don't use var
         self.var = None
         self.device = device
 
@@ -106,10 +103,11 @@ class GPRegressionBaseclass():
         self.num_threads = num_threads
 
         self.verbose = verbose
-        self.trainy_mean = 0.0
-        self.trainy_std = 1.0
 
-        self.double_precision_fht = double_precision_fht
+        # Currently we do not allow user to set double_precision_fht --
+        # only used for testing.
+        self.double_precision_fht = False
+        # Classification classes don't use exact_var
         self.exact_var_calculation = True
 
 

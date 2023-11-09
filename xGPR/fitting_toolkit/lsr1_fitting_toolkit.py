@@ -105,25 +105,26 @@ class lSR1:
 
 
         self.n_iter, self.n_updates = 0, 0
-        loss, losses = 1., [1.]
+        loss, grad_norms = 0., [1.]
 
         for i in range(0, max_iter):
             grad, loss, step_size = self.update_params(grad, loss,
-                    wvec, z_trans_y, init_norms)
-            losses.append(loss)
-            if loss < tol:
+                    wvec, z_trans_y)
+            grad_norms.append(float(grad.T @ grad) / init_norms)
+            if grad_norms[-1] < tol:
                 break
-            print(f"Loss: {loss}, step_size {step_size}")
+            if self.verbose and self.n_iter % 5 == 0:
+                print(f"Squared grad norm, normalized: {grad_norms[-1]}, step_size {step_size}", flush=True)
             self.n_iter += 1
 
         if self.device == "gpu":
             wvec = cp.asarray(wvec)
-        return wvec, self.n_iter, losses
+        return wvec, self.n_iter, grad_norms
 
 
 
 
-    def update_params(self, grad, loss, wvec, z_trans_y, init_norms):
+    def update_params(self, grad, loss, wvec, z_trans_y):
         """Updates the weight vector and the approximate hessian maintained
         by the algorithm.
 
@@ -132,24 +133,20 @@ class lSR1:
             loss (float): The current loss value.
             wvec (ndarray): The current weight values.
             z_trans_y (ndarray): The right hand side b in the equation Ax=b.
-            init_norms (float): The initial norm of z_trans_y. Useful for
-                ensuring the loss is scaled.
 
         Returns:
             wvec (ndarray): The updated wvec.
             last_wvec (ndarray): Current wvec (which is now the last wvec).
         """
-        grad_update = self.zero_arr((wvec.shape[0], 2))
+        new_wvec = self.zero_arr((wvec.shape[0], 2))
         s_k = -self.inv_hess_vector_prod(grad)
-        grad_update[:,1] = s_k
-        grad_update[:,0] = wvec
+        new_wvec[:,1] = s_k
+        new_wvec[:,0] = wvec
 
-        grad_update = self.cost_fun_regression(grad_update)
-
-        y_k = (grad_update.sum(axis=1) - z_trans_y) - grad
+        grad_update = self.cost_fun_regression(new_wvec)
 
         new_grad, new_loss, step_size = self.optimize_step_size(grad, grad_update,
-                loss, init_norms, z_trans_y)
+                loss, z_trans_y, new_wvec)
 
         s_k *= step_size
         y_k = new_grad - grad
@@ -162,8 +159,8 @@ class lSR1:
 
 
 
-    def optimize_step_size(self, old_grad, grad_update, loss, init_norms,
-            z_trans_y, c1=0.1, c2=0.5):
+    def optimize_step_size(self, old_grad, grad_update, loss,
+            z_trans_y, new_wvec, c1=0.1, c2=0.5):
         """Find a step size satisfying the Wolfe conditions.
 
         Args:
@@ -174,9 +171,9 @@ class lSR1:
                 to the current wvec, while the second is the component
                 due to the shift.
             loss (float): The current loss.
-            init_norms (float): The initial loss; divide by this so losses
-                are 'scaled' for easier interpretation.
             z_trans_y (ndarray): The product Z^T @ y; shape (num_rffs).
+            new_wvec (np.ndarray): A (num_rffs, 2) array with the
+                current wvec and the search direction.
             c1 (float): The c1 constant for the Wolfe conditions.
             c2 (float): The c2 constant for the Wolfe conditions.
 
@@ -187,21 +184,27 @@ class lSR1:
             step_size (float): The selected step size.
         """
         step_sizes = np.logspace(1,-10,40).tolist()
+        s_k = new_wvec[:,1]
+
         for step_size in step_sizes:
-            s_k = grad_update[:,1]
-            new_grad = (grad_update[:,0] + grad_update[:,1] * step_size) - \
-                    z_trans_y
-            new_loss = float((new_grad**2).sum())
+            proposed_wvec = new_wvec[:,0] + new_wvec[:,1] * step_size
+            new_grad = (grad_update[:,0] + grad_update[:,1] * step_size)
+
+            new_loss = float(0.5 * (proposed_wvec.T @ new_grad) -
+                    proposed_wvec.T @ z_trans_y)
+            new_grad -= z_trans_y
+
+            #new_loss = float((new_grad**2).sum())
             left_dot_prod = float(new_grad.T @ s_k)
             right_dot_prod = float(old_grad.T @ s_k)
 
             # The strong Wolfe conditions.
-            condition1 = new_loss <= loss * init_norms + c1 * step_size * right_dot_prod
+            condition1 = new_loss <= loss + c1 * step_size * right_dot_prod
             condition2 = np.abs(left_dot_prod) <= c2 * np.abs(right_dot_prod)
             if condition1 and condition2:
                 break
 
-        return new_grad, new_loss / init_norms, step_size
+        return new_grad, new_loss, step_size
 
 
     def update_hess(self, y_k, s_k):
