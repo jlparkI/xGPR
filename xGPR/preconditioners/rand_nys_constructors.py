@@ -34,8 +34,6 @@ def single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose):
             print(f"Chunk {j} complete.")
 
 
-
-
 def single_pass_gauss_zty(dataset, kernel, q_mat, acc_results,
                 z_trans_y, verbose):
     """Runs a single pass over the dataset using matvecs,
@@ -65,6 +63,7 @@ def single_pass_gauss_zty(dataset, kernel, q_mat, acc_results,
         if j % 10 == 0 and verbose:
             print(f"Chunk {j} complete.")
     return y_trans_y
+
 
 
 def single_pass_srht(dataset, kernel, compressor, acc_results, verbose):
@@ -277,6 +276,8 @@ def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
     if get_zty:
         return u_mat, s_mat, z_trans_y, y_trans_y
     return u_mat, s_mat, None, None
+
+
 
 
 def initialize_gauss(dataset, rank, kernel, random_state, verbose = False,

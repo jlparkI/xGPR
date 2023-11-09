@@ -5,7 +5,6 @@ model and make predictions for new datapoints. It inherits from
 GPRegressionBaseclass.
 """
 import warnings
-
 try:
     import cupy as cp
     from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
@@ -182,7 +181,6 @@ class xGPRegression(GPRegressionBaseclass):
                 well the preconditioner is likely to perform.
         """
         self._run_pre_fitting_prep(dataset, preset_hyperparams, max_rank)
-
         if self.device == "gpu":
             preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, max_rank,
                         self.verbose, random_state, method)
@@ -653,7 +651,7 @@ class xGPRegression(GPRegressionBaseclass):
 
 
     def tune_hyperparams_lbfgs(self, dataset, random_seed = 123,
-            max_iter = 20, n_restarts = 1, starting_hyperparams = None,
+            max_iter = 50, n_restarts = 1, starting_hyperparams = None,
             bounds = None, subsample = 1):
         """Tunes the hyperparameters using the L-BFGS algorithm, with
         NMLL as the objective.
