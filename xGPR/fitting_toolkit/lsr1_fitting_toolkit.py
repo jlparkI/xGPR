@@ -105,15 +105,14 @@ class lSR1:
 
 
         self.n_iter, self.n_updates = 0, 0
-        loss, grad_norms = 0., [1.]
+        grad_norms = [1.]
 
-        for i in range(0, max_iter):
-            grad, loss, step_size = self.update_params(grad, loss,
-                    wvec, z_trans_y)
+        while self.n_iter < max_iter:
+            grad, step_size = self.update_params(grad, wvec, z_trans_y)
             grad_norms.append(float(grad.T @ grad) / init_norms)
             if grad_norms[-1] < tol:
                 break
-            if self.verbose and self.n_iter % 5 == 0:
+            if self.verbose:
                 print(f"Squared grad norm, normalized: {grad_norms[-1]}, step_size {step_size}", flush=True)
             self.n_iter += 1
 
@@ -124,13 +123,12 @@ class lSR1:
 
 
 
-    def update_params(self, grad, loss, wvec, z_trans_y):
+    def update_params(self, grad, wvec, z_trans_y):
         """Updates the weight vector and the approximate hessian maintained
         by the algorithm.
 
         Args:
             grad (ndarray): The previous gradient of the weights. Shape (num_rffs).
-            loss (float): The current loss value.
             wvec (ndarray): The current weight values.
             z_trans_y (ndarray): The right hand side b in the equation Ax=b.
 
@@ -144,67 +142,22 @@ class lSR1:
         new_wvec[:,0] = wvec
 
         grad_update = self.cost_fun_regression(new_wvec)
+        self.update_hess(grad_update.sum(axis=1) - z_trans_y - grad, s_k)
 
-        new_grad, new_loss, step_size = self.optimize_step_size(grad, grad_update,
-                loss, z_trans_y, new_wvec)
+        step_size = float(z_trans_y.T @ s_k - s_k.T @ grad_update[:,0])
+        denom = float(s_k.T @ grad_update[:,1])
+        if np.abs(denom) < 1e-14:
+            step_size = 1e-10
+        else:
+            step_size /= denom
+        new_grad = (grad_update[:,0] + grad_update[:,1] * step_size) - \
+                z_trans_y
 
         s_k *= step_size
-        y_k = new_grad - grad
-
-        self.update_hess(y_k, s_k)
 
         wvec += s_k
-        return new_grad, new_loss, step_size
+        return new_grad, step_size
 
-
-
-
-    def optimize_step_size(self, old_grad, grad_update, loss,
-            z_trans_y, new_wvec, c1=0.1, c2=0.5):
-        """Find a step size satisfying the Wolfe conditions.
-
-        Args:
-            old_grad (ndarray): A (num_rffs) shape array with the
-                last gradient.
-            grad_update (ndarray): A (num_rffs, 2) shape array where
-                the first column is the component of the gradient due
-                to the current wvec, while the second is the component
-                due to the shift.
-            loss (float): The current loss.
-            z_trans_y (ndarray): The product Z^T @ y; shape (num_rffs).
-            new_wvec (np.ndarray): A (num_rffs, 2) array with the
-                current wvec and the search direction.
-            c1 (float): The c1 constant for the Wolfe conditions.
-            c2 (float): The c2 constant for the Wolfe conditions.
-
-        Returns:
-            new_grad (ndarray): A (num_rffs) shape array containing the
-                new gradient.
-            new_loss (float): The new loss value.
-            step_size (float): The selected step size.
-        """
-        step_sizes = np.logspace(1,-10,40).tolist()
-        s_k = new_wvec[:,1]
-
-        for step_size in step_sizes:
-            proposed_wvec = new_wvec[:,0] + new_wvec[:,1] * step_size
-            new_grad = (grad_update[:,0] + grad_update[:,1] * step_size)
-
-            new_loss = float(0.5 * (proposed_wvec.T @ new_grad) -
-                    proposed_wvec.T @ z_trans_y)
-            new_grad -= z_trans_y
-
-            #new_loss = float((new_grad**2).sum())
-            left_dot_prod = float(new_grad.T @ s_k)
-            right_dot_prod = float(old_grad.T @ s_k)
-
-            # The strong Wolfe conditions.
-            condition1 = new_loss <= loss + c1 * step_size * right_dot_prod
-            condition2 = np.abs(left_dot_prod) <= c2 * np.abs(right_dot_prod)
-            if condition1 and condition2:
-                break
-
-        return new_grad, new_loss, step_size
 
 
     def update_hess(self, y_k, s_k):
