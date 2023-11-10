@@ -63,7 +63,7 @@ def test_fit(kernel, conv_kernel, random_seed, conv_width = 3,
 
     model.fit(train_dataset,  preconditioner = preconditioner,
                 max_iter = 500, random_seed = random_seed,
-                tol = 1e-6,  mode = "lsr1")
+                tol = 1e-6,  mode = "cg")
     cg_score = evaluate_model(model, train_dataset, test_dataset,
             get_var)
 

@@ -22,7 +22,6 @@ from .preconditioners.inter_device_preconditioners import InterDevicePreconditio
 from .scoring_toolkit.pure_bayes_optimizer import pure_bayes_tuning
 
 from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
-from .fitting_toolkit.lsr1_fitting_toolkit import lSR1
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext, cg_fit_lib_internal
 from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
 
@@ -491,15 +490,9 @@ class xGPRegression(ModelBaseclass):
             self.weights, n_iter, losses = model_fitter.fit_model_lbfgs(max_iter, tol,
                     preconditioner)
 
-        elif mode == "lsr1":
-            model_fitter = lSR1(dataset, self.kernel,
-                    self.device, self.verbose, preconditioner, 200)
-            self.weights, n_iter, losses = model_fitter.fit_model(max_iter, tol)
-
-
         else:
             raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
-                        "'lbfgs', 'cg', 'lsr1', 'exact'.")
+                        "'lbfgs', 'cg', 'exact'.")
         if not suppress_var:
             if self.verbose:
                 print("Now performing variance calculations...")
