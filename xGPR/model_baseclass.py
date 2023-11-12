@@ -57,13 +57,18 @@ class ModelBaseclass():
             the limits of the random feature approximation). If False, a preconditioner
             is used. The preconditioner approach is only used for certain kernels (e.g.
             linear).
+        random_seed (int): The seed to the random number generator. Used throughout the
+            model class whenever randomness is desired. Can be reset by user.
+            Resetting the random seed -- like changing the number of rffs -- will
+            cause the kernel to be re-initialized.
     """
 
     def __init__(self, num_rffs = 256, variance_rffs = 16,
                     kernel_choice="RBF", device = "cpu",
                     kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     verbose = True,
-                    num_threads = 2):
+                    num_threads = 2,
+                    random_seed = 123):
         """Constructor.
 
         Args:
@@ -87,12 +92,16 @@ class ModelBaseclass():
                 during fitting and tuning. Defaults to True.
             num_threads (int): The number of threads to use for random feature generation
                 if running on CPU. If running on GPU, this argument is ignored.
+            random_seed (int): The seed to the random number generator.
         """
         self.kernel_choice = kernel_choice
         self.kernel = None
         self.weights = None
-        # Classification classes don't use var
+        # Classification classes don't use var or trainy_mean, trainy_std
         self.var = None
+        self.trainy_mean = 0
+        self.trainy_std = 1
+
         self.device = device
 
         self.num_rffs = num_rffs
@@ -109,34 +118,9 @@ class ModelBaseclass():
         self.double_precision_fht = False
         # Classification classes don't use exact_var
         self.exact_var_calculation = True
+        self.random_seed = random_seed
 
 
-    def initialize(self, dataset, random_seed = 123, hyperparams = None, input_bounds = None):
-        """Initializes the kernel using the supplied dataset and random seed.
-        If the kernel has already been initialized, no further action is
-        taken.
-
-        Args:
-            dataset: An Online or Offline dataset for training.
-            random_seed (int): A random seed to set up the kernel.
-            hyperparams (ndarray): Either None or a numpy array. If not None,
-                must be a numpy array such that shape[0] == the number of hyperparameters
-                for the selected kernel. The kernel hyperparameters are then initialized
-                to the specified value. If None, default hyperparameters are used which
-                should then be tuned.
-            input_bounds (np.ndarray): The bounds for optimization. Defaults to
-                None, in which case the kernel uses its default bounds.
-                If supplied, must be a 2d numpy array of shape (num_hyperparams, 2).
-
-        Raises:
-            ValueError: A ValueError is raised if invalid inputs are supplied.
-        """
-        self.kernel = self._initialize_kernel(self.kernel_choice, dataset.get_xdim(),
-                        self.num_rffs, random_seed, input_bounds)
-        self.weights, self.var = None, None
-        if hyperparams is not None:
-            self.kernel.check_hyperparams(hyperparams)
-            self.kernel.set_hyperparams(hyperparams, logspace = True)
 
 
     def pre_prediction_checks(self, input_x, get_var):
@@ -184,8 +168,7 @@ class ModelBaseclass():
 
 
 
-    def _initialize_kernel(self, kernel_choice, input_dims, num_rffs,
-                        random_seed, bounds = None):
+    def _initialize_kernel(self, dataset, hyperparams = None, bounds = None):
         """Selects and initializes an appropriate kernel object based on the
         kernel_choice string supplied by caller. The kernel is then moved to
         the appropriate device based on the 'device' supplied by caller
@@ -194,14 +177,11 @@ class ModelBaseclass():
         Args:
             kernel_choice (str): The kernel selection. Must be one of
                 constants.ACCEPTABLE_KERNELS.
-            input_dims (list): The dimensions of the data. A list of
-                [ndatapoints, x.shape[1]] for non-convolution data
-                or [ndatapoints, x.shape[1], x.shape[2]] for conv1d
-                data.
-            num_rffs (int): The number of random features the kernel
-                object should generate.
-            random_seed (int): The random seed to the random number
-                generator the kernel uses to initialize.
+            hyperparams (ndarray): Either None or a numpy array. If not None,
+                must be a numpy array such that shape[0] == the number of hyperparameters
+                for the selected kernel. The kernel hyperparameters are then initialized
+                to the specified value. If None, default hyperparameters are used which
+                should then be tuned.
             bounds (np.ndarray): The bounds on hyperparameter
                 tuning. Must have an appropriate shape for the
                 selected kernel. If None, the kernel will use
@@ -214,14 +194,18 @@ class ModelBaseclass():
             ValueError: Raises a value error if an unrecognized kernel
                 is supplied.
         """
-        if kernel_choice not in KERNEL_NAME_TO_CLASS:
+        if self.kernel_choice not in KERNEL_NAME_TO_CLASS:
             raise ValueError("An unrecognized kernel choice was supplied.")
-        kernel = KERNEL_NAME_TO_CLASS[kernel_choice](input_dims,
-                            num_rffs, random_seed, self.device,
+        kernel = KERNEL_NAME_TO_CLASS[self.kernel_choice](dataset.get_xdim(),
+                            self.num_rffs, self.random_seed, self.device,
                             self.num_threads, self.double_precision_fht,
                             kernel_spec_parms = self.kernel_spec_parms)
         if bounds is not None:
             kernel.set_bounds(bounds)
+        if hyperparams is not None:
+            self.kernel.check_hyperparams(hyperparams)
+            self.kernel.set_hyperparams(hyperparams, logspace = True)
+        self.weights, self.var = None, None
         return kernel
 
 
@@ -231,16 +215,13 @@ class ModelBaseclass():
         """
         dataset.device = self.device
         if self.kernel is None:
-            raise ValueError("Must call self.initialize before calculating NMLL.")
+            self._initialize_kernel(dataset, bounds = bounds)
         self.weights, self.var = None, None
         if nmll_rank is not None:
             if nmll_rank >= self.kernel.get_num_rffs():
                 raise ValueError("NMLL rank must be < the number of rffs.")
 
-        optim_bounds = bounds
-        if optim_bounds is None:
-            optim_bounds = self.kernel.get_bounds()
-        return optim_bounds
+        return self.kernel.get_bounds()
 
 
     def _run_singlepoint_nmll_prep(self, dataset, exact_method = False,
@@ -250,7 +231,7 @@ class ModelBaseclass():
         """
         dataset.device = self.device
         if self.kernel is None:
-            raise ValueError("Must call self.initialize before calculating NMLL.")
+            self._initialize_kernel(dataset)
         self.weights, self.var = None, None
         if nmll_rank is not None:
             if nmll_rank >= self.kernel.get_num_rffs():
@@ -282,14 +263,10 @@ class ModelBaseclass():
         self.trainy_std = dataset.get_ystd()
 
         if self.kernel is None:
-            raise ValueError("Must call self.initialize before fitting.")
+            self._initialize_kernel(dataset, hyperparams = preset_hyperparams)
         if self.variance_rffs > self.kernel.get_num_rffs():
             raise ValueError("The number of variance rffs should be <= the number "
                     "of random features for the kernel.")
-
-        if preset_hyperparams is not None:
-            self.kernel.check_hyperparams(preset_hyperparams)
-            self.kernel.set_hyperparams(preset_hyperparams, logspace = True)
         if max_rank is not None:
             if max_rank < 1:
                 raise ValueError("Invalid value for max_rank.")
@@ -394,9 +371,9 @@ class ModelBaseclass():
     @num_threads.setter
     def num_threads(self, value):
         """Setter for the num_threads attribute."""
-        if value > 24 or value < 1:
-            self._num_threads = 2
-            raise ValueError("Num threads if supplied must be an integer from 1 to 24.")
+        if value < 1:
+            self._num_threads = 1
+            raise ValueError("Num threads if supplied must be an integer > 1.")
         self._num_threads = value
         if self.kernel is not None:
             self.kernel.num_threads = value
@@ -413,6 +390,23 @@ class ModelBaseclass():
         self._double_precision_fht = value
         if self.kernel is not None:
             self.kernel.double_precision = value
+
+    @property
+    def random_seed(self):
+        """Property definition for the random_seed attribute."""
+        return self._random_seed
+
+
+    @random_seed.setter
+    def random_seed(self, value):
+        """Setter for the random_seed attribute. If this is
+        reset the kernel needs to be re-initialized."""
+        self._random_seed = value
+        if self.kernel is not None:
+            self.kernel.double_precision = value
+        self.kernel = None
+        self.weights = None
+        self.var = None
 
 
     @property

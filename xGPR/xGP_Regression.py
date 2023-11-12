@@ -40,11 +40,6 @@ class xGPRegression(ModelBaseclass):
     """A subclass of GPRegressionBaseclass that houses methods
     unique to regression problems. Only attributes not shared by
     the parent class are described here.
-    
-    trainy_mean (float): The mean of the training ydata. Determined during fitting.
-        Used for making predictions.
-    trainy_std (float): The standard deviation of the training ydata. Determined
-        during fitting. Used for making predictions.
     """
 
     def __init__(self, num_rffs = 256, variance_rffs = 16,
@@ -53,7 +48,7 @@ class xGPRegression(ModelBaseclass):
                     kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     verbose = True,
                     num_threads = 2,
-                    double_precision_fht = False):
+                    random_seed = 123):
         """The constructor for xGPRegression. Passes arguments onto
         the parent class constructor.
 
@@ -75,18 +70,13 @@ class xGPRegression(ModelBaseclass):
                 during fitting and tuning. Defaults to True.
             num_threads (int): The number of threads to use for random feature generation
                 if running on CPU. If running on GPU, this argument is ignored.
-            double_precision_fht (bool): If True, use double precision during FHT for
-                generating random features. For most problems, it is not beneficial
-                to set this to True -- it merely increases computational expense
-                with negligible benefit -- but this option is useful for testing.
-                Defaults to False.
+            random_seed (int): The seed to the random number generator.
         """
         super().__init__(num_rffs, variance_rffs,
                         kernel_choice, device = device,
                         kernel_specific_params = kernel_specific_params,
-                        verbose = verbose, num_threads = num_threads)
-        self.trainy_mean = 0.0
-        self.trainy_std = 1.0
+                        verbose = verbose, num_threads = num_threads,
+                        random_seed = random_seed)
 
 
 
@@ -154,8 +144,7 @@ class xGPRegression(ModelBaseclass):
 
 
     def build_preconditioner(self, dataset, max_rank = 512,
-                        preset_hyperparams = None, random_state = 123,
-                        method = "srht"):
+                        preset_hyperparams = None, method = "srht"):
         """Builds a preconditioner. The resulting preconditioner object
         can be supplied to fit and used for CG, L-BFGS, SGD etc.
 
@@ -171,7 +160,6 @@ class xGPRegression(ModelBaseclass):
                 of the tuning methods (e.g. tune_hyperparams_bayes_bfgs).
                 If supplied, must be a numpy array of shape (N, 2) where
                 N is the number of hyperparams for the kernel in question.
-            random_state (int): Seed for the random number generator.
             method (str): one of "srht", "srht_2" or "gauss". srht is MUCH faster for
                 large datasets and should always be preferred to "gauss".
                 "srht_2" runs two passes over the dataset. For the same max_rank,
@@ -190,12 +178,12 @@ class xGPRegression(ModelBaseclass):
         self._run_pre_fitting_prep(dataset, preset_hyperparams, max_rank)
         if self.device == "gpu":
             preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, max_rank,
-                        self.verbose, random_state, method)
+                        self.verbose, self.random_seed, method)
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
         else:
             preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, max_rank,
-                        self.verbose, random_state, method)
+                        self.verbose, self.random_seed, method)
         self._run_post_fitting_cleanup(dataset)
         return preconditioner, preconditioner.achieved_ratio
 
@@ -314,9 +302,9 @@ class xGPRegression(ModelBaseclass):
 
 
 
-    def approximate_nmll(self, hyperparams, dataset, random_seed = 123,
-            max_rank=1024, nsamples=25, niter=500,
-            tol=1e-6, preconditioner_mode="srht_2"):
+    def approximate_nmll(self, hyperparams, dataset, max_rank=1024,
+            nsamples=25, niter=500, tol=1e-6,
+            preconditioner_mode="srht_2"):
         """Calculates the approximate negative marginal log likelihood (the model
         'score') using stochastic Lanczos quadrature with preconditioning.
         Slower than exact for very small numbers of random features, but
@@ -329,7 +317,6 @@ class xGPRegression(ModelBaseclass):
                 set of hyperparameters that should be assigned to the kernel.
             dataset: An OnlineDataset or OfflineDataset containing the raw
                 data we will use for this evaluation.
-            random_seed (int): A seed for random number generation.
             max_rank (int): The preconditioner rank for approximate NMLL estimation.
                 A larger value may reduce the number of iterations for nmll approximation
                 to converge and improve estimation accuracy, but will also increase
@@ -367,11 +354,11 @@ class xGPRegression(ModelBaseclass):
 
         if max_rank > 0:
             preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, max_rank,
-                        False, random_seed, preconditioner_mode)
+                        False, self.random_seed, preconditioner_mode)
             if preconditioner.achieved_ratio > 250 and 2 * max_rank < self.kernel.get_num_rffs():
                 rank = 2 * max_rank
                 preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, rank,
-                        False, random_seed, preconditioner_mode)
+                        False, self.random_seed, preconditioner_mode)
 
         if self.verbose:
             print("Now fitting...")
@@ -383,13 +370,13 @@ class xGPRegression(ModelBaseclass):
             resid = cp.zeros((self.kernel.get_num_rffs(), 2, nsamples + 1),
                             dtype = cp.float64)
             probes = generate_normal_probes_gpu(nsamples, self.kernel.get_num_rffs(),
-                        random_seed, preconditioner)
+                        self.random_seed, preconditioner)
         else:
             cg_operator = CPU_ConjugateGrad()
             resid = np.zeros((self.kernel.get_num_rffs(), 2, nsamples + 1),
                             dtype = np.float64)
             probes = generate_normal_probes_cpu(nsamples, self.kernel.get_num_rffs(),
-                        random_seed, preconditioner)
+                        self.random_seed, preconditioner)
 
         if preconditioner is None:
             z_trans_y, y_trans_y = calc_zty(dataset, self.kernel)
@@ -424,8 +411,8 @@ class xGPRegression(ModelBaseclass):
 
     def fit(self, dataset, preconditioner = None,
                 tol = 1e-6, preset_hyperparams=None, max_iter = 500,
-                random_seed = 123, run_diagnostics = False,
-                mode = "cg", suppress_var = False):
+                run_diagnostics = False, mode = "cg",
+                suppress_var = False):
         """Fits the model after checking that the input data
         is consistent with the kernel choice and other user selections.
 
@@ -443,7 +430,6 @@ class xGPRegression(ModelBaseclass):
                 If supplied, must be a numpy array of shape (N, 2) where
                 N is the number of hyperparams for the kernel in question.
             max_iter (int): The maximum number of epochs for iterative strategies.
-            random_seed (int): The random seed for the random number generator.
             run_diagnostics (bool): If True, the number of conjugate
                 gradients and the preconditioner diagnostics ratio are returned.
             mode (str): Must be one of "cg", "lbfgs", "exact".
@@ -502,7 +488,7 @@ class xGPRegression(ModelBaseclass):
             if self.kernel_choice in ["Linear", "ExactQuadratic"]:
                 if self.kernel.get_num_rffs() > constants.MAX_VARIANCE_RFFS:
                     self.var = InterDevicePreconditioner(self.kernel, dataset,
-                        self.variance_rffs, False, random_seed, "srht")
+                        self.variance_rffs, False, self.random_seed, "srht")
                     self.exact_var_calculation = False
                 else:
                     self.variance_rffs = self.kernel.get_num_rffs()
@@ -533,7 +519,7 @@ class xGPRegression(ModelBaseclass):
 
 
 
-    def tune_hyperparams_direct(self, dataset, bounds = None, random_seed = 123,
+    def tune_hyperparams_direct(self, dataset, bounds = None,
                 max_iter = 50, tol = 1e-1, tuning_method = "bayes",
                 starting_hyperparams = None, n_restarts = 1,
                 nmll_method = "exact", nmll_rank=1024, nmll_probs=25,
@@ -551,8 +537,6 @@ class xGPRegression(ModelBaseclass):
                 in contrast to most other tuning routines, since this routine
                 is more seldom used for searching the whole hyperparameter space.
                 Must be a 2d numpy array of shape (num_hyperparams, 2).
-            random_seed (int): A random seed for the random
-                number generator.
             max_iter (int): The maximum number of iterations.
             tol (float): Criteria for convergence.
             tuning_method (str): One of 'bayes', 'Powell', 'Nelder-Mead'.
@@ -600,7 +584,7 @@ class xGPRegression(ModelBaseclass):
         """
         if nmll_method == "approximate":
             optim_bounds = self._run_pre_nmll_prep(dataset, bounds, nmll_rank)
-            args = (dataset, random_seed, nmll_rank, nmll_probs, nmll_iter,
+            args = (dataset, self.random_seed, nmll_rank, nmll_probs, nmll_iter,
                     nmll_tol, preconditioner_mode)
             cost_fun = self.approximate_nmll
         elif nmll_method == "exact":
@@ -613,12 +597,12 @@ class xGPRegression(ModelBaseclass):
 
         if tuning_method == "bayes":
             hyperparams, best_score, n_feval = pure_bayes_tuning(cost_fun,
-                        optim_bounds, random_seed, max_iter = max_iter,
+                        optim_bounds, self.random_seed, max_iter = max_iter,
                         verbose = self.verbose, tol = tol,
                         cost_args = args)
         elif tuning_method in ["Powell", "Nelder-Mead"]:
             bounds_tuples = list(map(tuple, optim_bounds))
-            rng = np.random.default_rng(random_seed)
+            rng = np.random.default_rng(self.random_seed)
 
             if starting_hyperparams is None:
                 x0 = [rng.uniform(low = optim_bounds[j,0],
@@ -651,7 +635,7 @@ class xGPRegression(ModelBaseclass):
 
 
 
-    def tune_hyperparams_lbfgs(self, dataset, random_seed = 123,
+    def tune_hyperparams_lbfgs(self, dataset,
             max_iter = 50, n_restarts = 1, starting_hyperparams = None,
             bounds = None, subsample = 1):
         """Tunes the hyperparameters using the L-BFGS algorithm, with
@@ -667,8 +651,6 @@ class xGPRegression(ModelBaseclass):
 
         Args:
             dataset: Object of class OnlineDataset or OfflineDataset.
-            random_seed (int): A random seed for the random
-                number generator. Defaults to 123.
             max_iter (int): The maximum number of iterations for
                 which l-bfgs should be run per restart.
             n_restarts (int): The maximum number of restarts to run l-bfgs.
@@ -707,7 +689,7 @@ class xGPRegression(ModelBaseclass):
         best_x, best_score, net_iterations = None, np.inf, 0
         bounds_tuples = list(map(tuple, optim_bounds))
 
-        rng = np.random.default_rng(random_seed)
+        rng = np.random.default_rng(self.random_seed)
         args, cost_fun = (dataset, subsample), self.exact_nmll_gradient
 
         for iteration in range(n_restarts):
