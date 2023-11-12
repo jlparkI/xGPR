@@ -34,9 +34,17 @@ class DatasetBaseclass(ABC):
         chunk_size (int): Either the chunk_size for online datasets or the
             largest allowed array size for offline datasets.
     """
-    def __init__(self, xdim, device, chunk_size):
+    def __init__(self, xdim, device, chunk_size,
+            trainy_mean, trainy_std, max_class):
         self.device = device
-        self.xdim_ = xdim
+        self._xdim = xdim
+
+        #Trainy_mean and trainy_std are used
+        #for regression, while max_class is used
+        #for classification.
+        self._trainy_mean = trainy_mean
+        self._trainy_std = trainy_std
+        self._max_class = max_class
 
         self.mbatch_counter = 0
         self.mbatch_row = 0
@@ -63,24 +71,31 @@ class DatasetBaseclass(ABC):
         """Abstract method to force child class to
         implement get_next_minibatch."""
 
-    @abc.abstractmethod
     def get_ymean(self):
-        """Abstract method to force child class to
-        implement get_ymean"""
+        """Returns the mean of the training y data.
+        Only useful if data is for regression."""
+        return self._trainy_mean
 
-    @abc.abstractmethod
     def get_ystd(self):
-        """Abstract method to force child class to
-        implement get_ystd"""
+        """Returns the standard deviation of the training
+        y data. Only useful if data is for regression."""
+        return self._trainy_std
+
+
+    def get_n_classes(self):
+        """Gets the largest category number in the training
+        data. Only useful if data is for classification."""
+        return self._max_class
+
 
     def get_xdim(self):
         """Returns the xdim list describing the size of the
         dataset."""
-        return self.xdim_
+        return self._xdim
 
     def get_ndatapoints(self):
         """Returns the number of datapoints."""
-        return self.xdim_[0]
+        return self._xdim[0]
 
     def reset_index(self):
         """Restarts minibatch collection at the beginning

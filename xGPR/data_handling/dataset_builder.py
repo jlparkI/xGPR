@@ -12,9 +12,8 @@ from .offline_data_handling import OfflineDataset
 
 
 def build_regression_dataset(xdata, ydata, chunk_size, normalize_y = True):
-    """A wrapper for the build_online_regression_dataset and
-    build_offline_np_regression_dataset functions. Builds a dataset intended
-    for use for regression.
+    """A wrapper for the dataset builder functions for online
+    and offline data. Builds a dataset intended for use for regression.
 
     Args:
         xdata (np.ndarray): Either a numpy array containing the x-values
@@ -49,19 +48,18 @@ def build_regression_dataset(xdata, ydata, chunk_size, normalize_y = True):
             types are supplied.
     """
     if isinstance(xdata, list) and isinstance(ydata, list):
-        return build_offline_np_regression_dataset(xdata, ydata,
-                chunk_size, normalize_y)
+        return build_offline_np_dataset(xdata, ydata,
+                chunk_size, normalize_y, task_type = "regression")
     if isinstance(xdata, np.ndarray) and isinstance(ydata, np.ndarray):
-        return build_online_regression_dataset(xdata, ydata,
-                chunk_size, normalize_y)
+        return build_online_dataset(xdata, ydata,
+                chunk_size, normalize_y, task_type = "regression")
     raise ValueError("Unexpected argument types to build_regression_dataset.")
 
 
 
 def build_classification_dataset(xdata, ydata, chunk_size):
-    """A wrapper for the build_online_classification_dataset and
-    build_offline_np_classification_dataset functions. Builds a dataset intended
-    for use for classification.
+    """A wrapper for the dataset builder functions for online
+    and offline data. Builds a dataset intended for use for classification.
 
     Args:
         xdata (np.ndarray): Either a numpy array containing the x-values
@@ -78,7 +76,8 @@ def build_classification_dataset(xdata, ydata, chunk_size):
             arrays. The number of datapoints in each should
             match the corresponding element of xlist. The category
             for each datapoint should be specified as an integer in
-            1 - max category.
+            [0, max category]. E.g. if there are three categories
+            they will be numbereed 0, 1, 2.
         chunk_size (int): The maximum size of data chunks that
             will be returned to callers. Limits memory consumption.
             Defaults to 2000. If working with files on disk, the
@@ -95,18 +94,18 @@ def build_classification_dataset(xdata, ydata, chunk_size):
             types are supplied.
     """
     if isinstance(xdata, list) and isinstance(ydata, list):
-        return build_offline_np_classification_dataset(xdata, ydata,
-                chunk_size, normalize_y)
+        return build_offline_np_dataset(xdata, ydata,
+                chunk_size, normalize_y = False, task_type = "classification")
     if isinstance(xdata, np.ndarray) and isinstance(ydata, np.ndarray):
-        return build_offline_np_regression_dataset(xdata, ydata,
-                chunk_size, normalize_y)
+        return build_offline_np_dataset(xdata, ydata,
+                chunk_size, normalize_y = False, task_type = "classification")
     raise ValueError("Unexpected argument types to build_regression_dataset.")
 
 
 
 
-def build_online_regression_dataset(xdata, ydata, chunk_size = 2000,
-        normalize_y = True):
+def build_online_dataset(xdata, ydata, chunk_size = 2000,
+        normalize_y = True, task_type = "regression"):
     """build_online_dataset constructs an OnlineDataset
     object for data stored in memory, after first checking
     that some validity requirements are satisfied.
@@ -120,6 +119,8 @@ def build_online_regression_dataset(xdata, ydata, chunk_size = 2000,
         normalize_y (bool): If True, y values are normalized. Generally a
             good idea, unless you have already selected hyperparameters based
             on prior knowledge.
+        task_type (str): One of "regression", "classification". Indicates
+            what purpose the dataset will be used for.
 
     Returns:
         dataset (OnlineDataset): An object of class OnlineDataset
@@ -134,8 +135,13 @@ def build_online_regression_dataset(xdata, ydata, chunk_size = 2000,
         raise ValueError("X and y must be numpy arrays!")
     if len(ydata.shape) != 1:
         raise ValueError("Y must be a 1d numpy array.")
-    if xdata.dtype != "float64" or ydata.dtype != "float64":
-        raise ValueError("Both x and y must be arrays of datatype np.float64.")
+    if xdata.dtype not in ("float64", "float32"):
+        raise ValueError("x must be an array of type float32 or type float64.")
+    if ydata.dtype != "float64" and task_type == "regression":
+        raise ValueError("For regression, ydata must be an array of type float64.")
+    if task_type == "classification" and not issubclass(ydata.dtype.type, np.integer):
+        raise ValueError("For classification, ydata must be an array of integers.")
+
     if ydata.shape[0] != xdata.shape[0]:
         raise ValueError("Different number of datapoints in x and y.")
     if np.isnan(xdata).any():
@@ -144,13 +150,23 @@ def build_online_regression_dataset(xdata, ydata, chunk_size = 2000,
         raise ValueError("Values > 1e15 or < -1e15 encountered. "
                     "Please rescale your data and check for np.inf.")
 
+    if normalize_y and task_type == "regression":
+        ymean, ystd = ydata.mean(), ydata.std()
+    else:
+        ymean, ystd = 0., 1.
+    if task_type == "classification":
+        max_class = ydata.max()
+        if ydata.min() != 0:
+            raise ValueError("For classification, there must be a zero category.")
+
     dataset = OnlineDataset(xdata, ydata, chunk_size = chunk_size,
-            normalize_y = normalize_y)
+            trainy_mean = ymean, trainy_std = ystd, max_class = max_class)
     return dataset
 
 
-def build_offline_np_regression_dataset(xlist, ylist, chunk_size = 2000,
-        normalize_y = True, skip_safety_checks = False):
+def build_offline_np_dataset(xlist, ylist, chunk_size = 2000,
+        normalize_y = True, skip_safety_checks = False,
+        task_type = "regression"):
     """Constructs an OfflineDataset for data stored on disk
     as a list of npy files, after checking validity requirements.
 
@@ -181,6 +197,8 @@ def build_offline_np_regression_dataset(xlist, ylist, chunk_size = 2000,
             this is a slow step and for a large dataset can take some
             time. Only skip_safety_checks if you have already checked your
             data and are confident that all is in order.
+        task_type (str): One of "regression", "classification". Indicates
+            what purpose the dataset will be used for.
 
     Returns:
         dataset (OfflineDataset): An object of class OfflineDataset
@@ -252,13 +270,52 @@ def build_offline_np_regression_dataset(xlist, ylist, chunk_size = 2000,
         if expected_arrlen == 3:
             xdim[2] = xshape[2]
 
-    if normalize_y:
+    if normalize_y and task_type == "regression":
         trainy_mean, trainy_std = _get_offline_scaling_factors(ylist)
     else:
         trainy_mean, trainy_std = 0.0, 1.0
+    if task_type == "classification":
+        max_class, class_data_err = _get_offline_ymax(ylist)
+        if class_data_err:
+            raise ValueError("For classification, there must be a zero category, "
+                "and all yfiles must be integers.")
+
     dataset = OfflineDataset(xlist, ylist, tuple(xdim),
-                trainy_mean, trainy_std, chunk_size = chunk_size)
+                trainy_mean = trainy_mean, trainy_std = trainy_std,
+                max_class = max_class, chunk_size = chunk_size)
     return dataset
+
+
+def _get_offline_ymax(yfiles):
+    """Gets the max category for 'offline' data stored on disk.
+
+    Args:
+        yfiles (list): A list of valid filepaths for
+            .npy files (numpy arrays) containing the
+            y-values for all datapoints.
+
+    Returns:
+        max_class (int): The maximum category found in the data.
+        class_data_err (bool): If True, one or more of the files
+            has an incorrect format (noninteger data) or there
+            is no zero category.
+    """
+    max_class, min_class, class_data_err = 0, 1, False
+    for yfile in yfiles:
+        y_data = np.load(yfile)
+        if not issubclass(y_data.dtype.type, np.integer):
+            class_data_err = True
+            break
+        if y_data.max() > max_class:
+            max_class = y_data.max()
+        if y_data.min() < min_class:
+            min_class = y_data.min()
+
+    if max_class == 0 or min_class != 0:
+        class_data_err = True
+    return max_class, class_data_err
+
+
 
 
 def _get_offline_scaling_factors(yfiles):

@@ -1,9 +1,8 @@
-"""This module describes the OfflineDataset class.
+"""This module describes the OfflineDataset
+for regression and classification.
 
-The OfflineDataset class bundles together attributes for handling
-a dataset stored on disk. These objects are generally created by
-the build_dataset method of GPModelBaseclass and should not be
-created directly by the user. The dataset can return a specific
+The OfflineDataset bundles together attributes for handling
+a dataset stored on disk. The dataset can return a specific
 chunk of data from the list provided to it, can serve as a generator
 and return all chunks in succession, or can provide a minibatch.
 """
@@ -22,34 +21,21 @@ from .data_handling_baseclass import DatasetBaseclass
 
 class OfflineDataset(DatasetBaseclass):
     """The OfflineDataset class handles datasets which are stored on
-    disk. It should be created using the build_dataset method of
-    GPModelBaseclass, which performs a number of checks to ensure
-    the data is valid before creating this object. Creating the object
-    directly without using build_dataset bypasses those checks and is
-    not recommended.
+    disk. Only unique attributes not shared by parent class are
+    described here.
 
     Attributes:
-        xfiles_ (list): A list of absolute filepaths to the locations
+        _xfiles (list): A list of absolute filepaths to the locations
             of each xfile. Each xfile is a numpy array saved as a .npy.
-        yfiles_ (list): A list of absolute filepaths to the locations
+        _yfiles (list): A list of absolute filepaths to the locations
             of each yfile. Each yfile is a numpy array saved as a .npy.
-        xdim_ (list): A list of length 2 (for 2d arrays) or 3 (for 3d
-            arrays) where element 0 is the number of datapoints in the
-            dataset, element 1 is shape[1] and element 2 is shape[2]
-            (for 3d arrays for convolution kernels only).
-        trainy_mean_ (float): The mean of the y-values.
-        trainy_std_ (float): The standard deviation of the y-values.
-        device (str): The current device.
-        chunk_size (int): The largest allowed file size for this
-            dataset. Should be checked and enforced by caller.
-            Stored here for users of this object that need to know
-            the largest file size in the dataset (in # datapoints).
     """
     def __init__(self, xfiles,
                        yfiles,
                        xdim,
-                       trainy_mean_,
-                       trainy_std_,
+                       trainy_mean = 0.,
+                       trainy_std = 1.,
+                       max_class = 1,
                        device = "cpu",
                        chunk_size = 2000):
         """The class constructor for an OfflineDataset.
@@ -63,31 +49,31 @@ class OfflineDataset(DatasetBaseclass):
                 arrays) where element 0 is the number of datapoints in the
                 dataset, element 1 is shape[1] and element 2 is shape[2]
                 (for 3d arrays for convolution kernels only).
-            trainy_mean (float): The mean of the y-values.
+            trainy_mean (float): The mean of the y-values. Only used for
+                regression.
             trainy_std (float): The standard deviation of the y-values.
+                Only used for regression.
+            max_class (int): The largest category number in the data. Only
+                used for classification.
             device (str): The current device.
             chunk_size (int): The largest allowed file size (in # datapoints)
                 for this dataset. Should be checked and enforced by caller.
         """
-        super().__init__(xdim, device, chunk_size)
-        self.xfiles_ = [os.path.abspath(f) for f in xfiles]
-        self.yfiles_ = [os.path.abspath(f) for f in yfiles]
-        self.trainy_mean_ = trainy_mean_
-        self.trainy_std_ = trainy_std_
-
-        self.mbatch_counter = 0
-        self.mbatch_row = 0
+        super().__init__(xdim, device, chunk_size, trainy_mean,
+                trainy_std, max_class)
+        self._xfiles = [os.path.abspath(f) for f in xfiles]
+        self._yfiles = [os.path.abspath(f) for f in yfiles]
 
 
     def get_chunked_data(self):
         """A generator that returns the data stored in each
         file in the data list in order with paired x and y
         data."""
-        for xfile, yfile in zip(self.xfiles_, self.yfiles_):
+        for xfile, yfile in zip(self._xfiles, self._yfiles):
             xchunk = self.array_loader(xfile)
             ychunk = self.array_loader(yfile).astype(self.dtype)
-            ychunk -= self.trainy_mean_
-            ychunk /= self.trainy_std_
+            ychunk -= self._trainy_mean
+            ychunk /= self._trainy_std
             yield xchunk, ychunk
 
 
@@ -95,7 +81,7 @@ class OfflineDataset(DatasetBaseclass):
         """A generator that returns the data stored in each
         file in the data list in order, retrieving x data
         only."""
-        for xfile in self.xfiles_:
+        for xfile in self._xfiles:
             xchunk = self.array_loader(xfile)
             yield xchunk
 
@@ -103,9 +89,9 @@ class OfflineDataset(DatasetBaseclass):
         """A generator that returns the data stored in each
         file in the data list in order, retrieving y data
         only."""
-        for yfile in self.yfiles_:
+        for yfile in self._yfiles:
             ydata = self.array_loader(yfile).astype(self.dtype)
-            yield (ydata - self.trainy_mean_) / self.trainy_std_
+            yield (ydata - self._trainy_mean) / self._trainy_std
 
 
 
@@ -130,14 +116,12 @@ class OfflineDataset(DatasetBaseclass):
         xdata, ydata = [], []
         num_dpoints = 0
         while num_dpoints < batch_size:
-            xbatch = self.array_loader(self.xfiles_[self.mbatch_counter])
-            ybatch = self.array_loader(self.yfiles_[self.mbatch_counter])
+            xbatch = self.array_loader(self._xfiles[self.mbatch_counter])
+            ybatch = self.array_loader(self._yfiles[self.mbatch_counter])
             cutoff = max(1, min(xbatch.shape[0], self.mbatch_row + batch_size - num_dpoints))
             num_dpoints += xbatch.shape[0]
-            if len(xbatch.shape) == 3:
-                xdata.append(xbatch[self.mbatch_row:cutoff,:,:])
-            else:
-                xdata.append(xbatch[self.mbatch_row:cutoff,:])
+
+            xdata.append(xbatch[self.mbatch_row:cutoff,...])
             ydata.append(ybatch[self.mbatch_row:cutoff])
             if cutoff < (xbatch.shape[0] - 1):
                 self.mbatch_row = cutoff
@@ -145,7 +129,7 @@ class OfflineDataset(DatasetBaseclass):
 
             self.mbatch_row = 0
             self.mbatch_counter += 1
-            if self.mbatch_counter >= len(self.xfiles_):
+            if self.mbatch_counter >= len(self._xfiles):
                 end_epoch = True
                 self.mbatch_counter = 0
 
@@ -155,8 +139,8 @@ class OfflineDataset(DatasetBaseclass):
             yout = yout[:batch_size]
             xout = xout[:batch_size,:]
 
-        yout -= self.trainy_mean_
-        yout /= self.trainy_std_
+        yout -= self._trainy_mean
+        yout /= self._trainy_std
         if self.device == "gpu":
             xout = cp.asarray(xout)
             yout = cp.asarray(yout)
@@ -166,25 +150,9 @@ class OfflineDataset(DatasetBaseclass):
     def get_yfiles(self):
         """Returns a copy of the list of yfiles stored by the
         dataset."""
-        return copy.copy(self.yfiles_)
+        return copy.copy(self._yfiles)
 
     def get_xfiles(self):
         """Returns a copy of the list of xfiles stored by the
         dataset."""
-        return copy.copy(self.xfiles_)
-
-    def get_ymean(self):
-        """Returns the mean of the training y data."""
-        return self.trainy_mean_
-
-    def get_ystd(self):
-        """Returns the standard deviation of the training
-        y data."""
-        return self.trainy_std_
-
-    def delete_dataset_files(self):
-        """Deletes the files referenced by this dataset. CAUTION:
-        Do not do this lightly!"""
-        for xfile, yfile in zip(self.xfiles_, self.yfiles_):
-            os.remove(xfile)
-            os.remove(yfile)
+        return copy.copy(self._xfiles)
