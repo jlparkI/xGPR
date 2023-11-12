@@ -11,7 +11,101 @@ from .online_data_handling import OnlineDataset
 from .offline_data_handling import OfflineDataset
 
 
-def build_online_dataset(xdata, ydata, chunk_size = 2000,
+def build_regression_dataset(xdata, ydata, chunk_size, normalize_y = True):
+    """A wrapper for the build_online_regression_dataset and
+    build_offline_np_regression_dataset functions. Builds a dataset intended
+    for use for regression.
+
+    Args:
+        xdata (np.ndarray): Either a numpy array containing the x-values
+            or a list of valid filepaths to .npy numpy arrays containing
+            the x-data. If the latter, these must all be either
+            2d arrays where shape[1] is the number of features or
+            3d arrays where shape[1] is the number of timepoints
+            or sequence elements and shape[2] is the number of
+            features for each timepoint / sequence element. They
+            should be one or the other, not both.
+        ydata (np.ndarray): Either a numpy array containing the y-values
+            or a list of valid filepaths to .npy numpy
+            arrays containing the y-data. These must all be 1d
+            arrays. The number of datapoints in each should
+            match the corresponding element of xlist.
+        chunk_size (int): The maximum size of data chunks that
+            will be returned to callers. Limits memory consumption.
+            Defaults to 2000. If working with files on disk, the
+            files will be checked to ensure that none of them is
+            > than this size.
+        normalize_y (bool): If True, y values are normalized. Generally a
+            good idea, unless you have already selected hyperparameters based
+            on prior knowledge.
+
+    Returns:
+        dataset: An object of class OnlineDataset or OfflineDataset
+            that can be passed to the hyperparameter tuning
+            and fitting routines of the model classes.
+
+    Raises:
+        ValueError: A ValueError is raised if inappropriate argument
+            types are supplied.
+    """
+    if isinstance(xdata, list) and isinstance(ydata, list):
+        return build_offline_np_regression_dataset(xdata, ydata,
+                chunk_size, normalize_y)
+    if isinstance(xdata, np.ndarray) and isinstance(ydata, np.ndarray):
+        return build_online_regression_dataset(xdata, ydata,
+                chunk_size, normalize_y)
+    raise ValueError("Unexpected argument types to build_regression_dataset.")
+
+
+
+def build_classification_dataset(xdata, ydata, chunk_size):
+    """A wrapper for the build_online_classification_dataset and
+    build_offline_np_classification_dataset functions. Builds a dataset intended
+    for use for classification.
+
+    Args:
+        xdata (np.ndarray): Either a numpy array containing the x-values
+            or a list of valid filepaths to .npy numpy arrays containing
+            the x-data. If the latter, these must all be either
+            2d arrays where shape[1] is the number of features or
+            3d arrays where shape[1] is the number of timepoints
+            or sequence elements and shape[2] is the number of
+            features for each timepoint / sequence element. They
+            should be one or the other, not both.
+        ydata (np.ndarray): Either a numpy array containing the y-values
+            or a list of valid filepaths to .npy numpy
+            arrays containing the y-data. These must all be 1d
+            arrays. The number of datapoints in each should
+            match the corresponding element of xlist. The category
+            for each datapoint should be specified as an integer in
+            1 - max category.
+        chunk_size (int): The maximum size of data chunks that
+            will be returned to callers. Limits memory consumption.
+            Defaults to 2000. If working with files on disk, the
+            files will be checked to ensure that none of them is
+            > than this size.
+
+    Returns:
+        dataset: An object of class OnlineDataset or OfflineDataset
+            that can be passed to the hyperparameter tuning
+            and fitting routines of the model classes.
+
+    Raises:
+        ValueError: A ValueError is raised if inappropriate argument
+            types are supplied.
+    """
+    if isinstance(xdata, list) and isinstance(ydata, list):
+        return build_offline_np_classification_dataset(xdata, ydata,
+                chunk_size, normalize_y)
+    if isinstance(xdata, np.ndarray) and isinstance(ydata, np.ndarray):
+        return build_offline_np_regression_dataset(xdata, ydata,
+                chunk_size, normalize_y)
+    raise ValueError("Unexpected argument types to build_regression_dataset.")
+
+
+
+
+def build_online_regression_dataset(xdata, ydata, chunk_size = 2000,
         normalize_y = True):
     """build_online_dataset constructs an OnlineDataset
     object for data stored in memory, after first checking
@@ -55,7 +149,7 @@ def build_online_dataset(xdata, ydata, chunk_size = 2000,
     return dataset
 
 
-def build_offline_np_dataset(xlist, ylist, chunk_size = 2000,
+def build_offline_np_regression_dataset(xlist, ylist, chunk_size = 2000,
         normalize_y = True, skip_safety_checks = False):
     """Constructs an OfflineDataset for data stored on disk
     as a list of npy files, after checking validity requirements.

@@ -4,8 +4,8 @@ __version__ = "0.1.3.2"
 
 #Key imports.
 from .xGP_Regression import xGPRegression
-from .data_handling.dataset_builder import build_online_dataset
-from .data_handling.dataset_builder import build_offline_np_dataset
+from .data_handling.dataset_builder import build_regression_dataset
+from .data_handling.dataset_builder import build_classification_dataset
 
 from .kernel_xpca import KernelxPCA
 from .kernel_fgen import KernelFGen
