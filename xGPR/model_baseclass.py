@@ -159,6 +159,39 @@ class ModelBaseclass():
         return x_array
 
 
+    def set_hyperparams(self, hyperparams, dataset = None):
+        """Sets the hyperparameters to those supplied if
+        the kernel already exists, creates a kernel if it
+        doesn't already exist. If the kernel doesn't already
+        exist a dataset needs to be supplied to tell the
+        kernel what size its inputs will be.
+
+        Args:
+            hyperparams (ndarray): A numpy array such that shape[0] == the number of
+                hyperparameters for the selected kernel.
+            dataset: Either None or a valid dataset object. If the kernel already
+                exists (i.e. if set hyperparams or any of the tuning / fitting /
+                scoring routines has already been called) no dataset is required
+                and this argument is ignored. If the kernel does NOT exist,
+                this argument is required.
+
+        Raises:
+            ValueError: A ValueError is raised if the kernel does not exist but
+                a dataset was not supplied.
+        """
+        if self.kernel is None and dataset is None:
+            raise ValueError("A dataset is required if the kernel has not already "
+                    "been initialized. The kernel is initialized by calling set_hyperparams "
+                    "or fit or any of the hyperparameter tuning / scoring routines.")
+        if self.kernel is not None:
+            self.kernel.check_hyperparams(hyperparams)
+            self.kernel.set_hyperparams(hyperparams, logspace = True)
+            self.weights = None
+            self.var = None
+        else:
+            self._initialize_kernel(dataset, hyperparams)
+
+
     def get_hyperparams(self):
         """Simple helper function to return hyperparameters if the model
         has already been tuned or fitted."""
