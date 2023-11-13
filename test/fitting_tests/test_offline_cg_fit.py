@@ -16,7 +16,6 @@ from utils.evaluate_model import evaluate_model
 HPARAM = np.array([np.log(np.sqrt(0.0767)),  np.log(0.358)])
 
 NUM_RFFS = 4100
-RANDOM_SEED = 123
 
 
 class CheckCGFit(unittest.TestCase):
@@ -32,7 +31,7 @@ class CheckCGFit(unittest.TestCase):
             max_rank = 256, method = "srht", preset_hyperparams = HPARAM)
 
         niter, _ = cpu_mod.fit(offline_data,  preconditioner = preconditioner,
-                max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
+                max_iter = 500, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg")
         print(f"niter: {niter}")
         self.assertTrue(niter < 10)
@@ -43,7 +42,7 @@ class CheckCGFit(unittest.TestCase):
                 preset_hyperparams = HPARAM)
 
             niter, _ = gpu_mod.fit(offline_data,  preconditioner = preconditioner,
-                max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
+                max_iter = 500, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg")
             print(f"niter: {niter}")
             self.assertTrue(niter < 10)
@@ -57,8 +56,9 @@ class CheckCGFit(unittest.TestCase):
         cpu_mod.verbose = False
 
         niter, _ = cpu_mod.fit(offline_data,
-                max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
-                tol = 1e-6,  mode = "cg", preset_hyperparams = HPARAM)
+                max_iter = 500, run_diagnostics = True,
+                tol = 1e-6,  mode = "cg",
+                preset_hyperparams = HPARAM)
         print(f"No preconditioning, niter: {niter}")
         self.assertTrue(niter < 80)
 
@@ -66,8 +66,9 @@ class CheckCGFit(unittest.TestCase):
             gpu_mod.fitting_rffs = NUM_RFFS
             gpu_mod.verbose = False
             niter, _ = gpu_mod.fit(offline_data,
-                max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
-                tol = 1e-6,  mode = "cg", preset_hyperparams = HPARAM)
+                max_iter = 500, run_diagnostics = True,
+                tol = 1e-6,  mode = "cg",
+                preset_hyperparams = HPARAM)
             print(f"No preconditioning, niter: {niter}")
             self.assertTrue(niter < 80)
 

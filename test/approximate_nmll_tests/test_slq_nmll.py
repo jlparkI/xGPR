@@ -16,7 +16,6 @@ from utils.evaluate_model import evaluate_model
 HPARAM = np.array([np.log(0.0767),  np.log(0.358)])
 
 NUM_RFFS = 2100
-RANDOM_SEED = 123
 ERROR_MARGIN = 1.0
 EASY_HPARAMS = np.array([0.,  1.0])
 HARD_HPARAMS = np.array([np.log(1e-3),  1.0])
@@ -85,7 +84,7 @@ def run_exact_approx_comparison(model, hyperparams, dataset, max_rank, device):
     exact_nmll = model.exact_nmll(hyperparams, dataset)
     approx_nmll = model.approximate_nmll(hyperparams, dataset,
                     max_rank = max_rank, nsamples = 25,
-                    random_seed = 123, niter = 200, tol = 1e-5)
+                    niter = 200, tol = 1e-5)
     outcome = 100 * abs(approx_nmll - exact_nmll) / exact_nmll < ERROR_MARGIN
     print(f"Exact: {exact_nmll}, Approx: {approx_nmll}")
     return outcome

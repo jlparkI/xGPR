@@ -4,23 +4,16 @@ The xGPClassification class provides the tools needed to fit a regression
 model and make predictions for new datapoints. It inherits from
 ModelBaseclass.
 """
-import warnings
 try:
     import cupy as cp
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
 import numpy as np
-from scipy.optimize import minimize
 
 from .constants import constants
-from .model_baseclass import GPModelBaseclass
-
-from .scoring_toolkit.pure_bayes_optimizer import pure_bayes_tuning
+from .model_baseclass import ModelBaseclass
 
 from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
-from .fitting_toolkit.lsr1_fitting_toolkit import lSR1
-from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext, cg_fit_lib_internal
-from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
 
 
 
@@ -97,26 +90,34 @@ class xGPClassification(ModelBaseclass):
                 not yet been fitted, a ValueError is raised.
         """
         xdata = self.pre_prediction_checks(input_x, get_var = False)
-        preds, var = [], []
-
-        lambda_ = self.kernel.get_lambda()
+        preds = []
 
         for i in range(0, xdata.shape[0], chunk_size):
             cutoff = min(i + chunk_size, xdata.shape[0])
             xfeatures = self.kernel.transform_x(xdata[i:cutoff, :])
-            preds.append((xfeatures @ ).sum(axis = 1))
+            pred = xfeatures @ self.weights
+
+            # Numerically stable softmax and sigmoid. 2.71828 is e.
+            # The cutpoint of 20 on the sigmoid is arbitrary but
+            # any large choice will give the same result.
+            if self.n_classes == 2:
+                pred = (1 / (1 + 2.71828**(pred.clip(max=30)))).flatten()
+            else:
+                pred -= pred.max(axis=1)[:,None]
+                pred = 2.71828**pred
+                pred /= pred.sum(axis=1)[:,None]
+
+            preds.append(pred)
 
         if self.device == "gpu":
-            preds = cp.asnumpy(cp.concatenate(preds))
-        else:
-            preds = np.concatenate(preds)
-        return preds * self.trainy_std + self.trainy_mean
+            return cp.asnumpy(cp.concatenate(preds))
+        return preds
 
 
 
     def fit(self, dataset, tol = 1e-6,
                 preset_hyperparams=None, max_iter = 500,
-                random_seed = 123, run_diagnostics = False,
+                run_diagnostics = False,
                 mode = "lbfgs"):
         """Fits the model after checking that the input data
         is consistent with the kernel choice and other user selections.
@@ -150,6 +151,7 @@ class xGPClassification(ModelBaseclass):
                 initiated, an error is raised if problems are found."""
         self._run_pre_fitting_prep(dataset, preset_hyperparams)
         self.weights = None
+        self.n_classes = dataset.max_class + 1
 
         if self.verbose:
             print("starting fitting")
@@ -157,9 +159,9 @@ class xGPClassification(ModelBaseclass):
 
         if mode == "lbfgs":
             model_fitter = lBFGSModelFit(dataset, self.kernel,
-                    self.device, self.verbose)
-            self.weights, n_iter, losses = model_fitter.fit_model_lbfgs(max_iter, tol,
-                    preconditioner)
+                    self.device, self.verbose, task_type = "classification",
+                    n_classes = self.n_classes)
+            self.weights, n_iter, losses = model_fitter.fit_model_lbfgs(max_iter, tol)
 
 
         else:

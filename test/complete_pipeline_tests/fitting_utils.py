@@ -52,7 +52,7 @@ def test_fit(kernel, conv_kernel, random_seed, conv_width = 3,
     print(f"Hyperparams, cpu, {kernel}: {model.get_hyperparams()}")
 
     model.num_rffs = cg_fitting_rffs
-    model.initialize(train_dataset, RANDOM_STATE, hyperparams=hparams)
+    model.set_hyperparams(hparams, train_dataset)
 
     if kernel == "Linear":
         preconditioner, _ = model.build_preconditioner(train_dataset,
@@ -62,17 +62,16 @@ def test_fit(kernel, conv_kernel, random_seed, conv_width = 3,
             max_rank = 256, method = "srht")
 
     model.fit(train_dataset,  preconditioner = preconditioner,
-                max_iter = 500, random_seed = random_seed,
-                tol = 1e-6,  mode = "cg")
+                max_iter = 500, tol = 1e-6,  mode = "cg")
     cg_score = evaluate_model(model, train_dataset, test_dataset,
             get_var)
 
     print(f"CG score, cpu, {kernel}: {cg_score}")
 
     model.num_rffs = exact_fitting_rffs
-    model.initialize(train_dataset, RANDOM_STATE, hyperparams = hparams)
+    model.set_hyperparams(hparams, train_dataset)
 
-    model.fit(train_dataset,  random_seed = random_seed, mode = "exact")
+    model.fit(train_dataset, mode = "exact")
     exact_score = evaluate_model(model, train_dataset, test_dataset,
             get_var)
     print(f"Exact score, cpu, {kernel}: {exact_score}")

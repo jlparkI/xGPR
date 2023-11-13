@@ -13,7 +13,7 @@ except:
 #TODO: Get rid of this path modification
 sys.path.append("..")
 from utils.model_constructor import get_models
-from xGPR import build_online_dataset
+from xGPR import build_regression_dataset
 
 
 #A list of the kernels to be tested.
@@ -44,7 +44,7 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
     for each that failed. This is a simple does it work or does it
     raise an exception test -- the correctness of the FHT operations
     is tested under the other tests in this folder."""
-    online_dataset = build_online_dataset(block1,
+    online_dataset = build_regression_dataset(block1,
             np.zeros((block1.shape[0])))
     models = get_models(kernel, online_dataset,
                         num_rffs = 1024,

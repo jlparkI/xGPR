@@ -159,12 +159,13 @@ class ModelBaseclass():
         return x_array
 
 
-    def set_hyperparams(self, hyperparams, dataset = None):
+    def set_hyperparams(self, hyperparams = None, dataset = None):
         """Sets the hyperparameters to those supplied if
         the kernel already exists, creates a kernel if it
         doesn't already exist. If the kernel doesn't already
         exist a dataset needs to be supplied to tell the
-        kernel what size its inputs will be.
+        kernel what size its inputs will be. If hyperparams is None,
+        the kernel is initialized.
 
         Args:
             hyperparams (ndarray): A numpy array such that shape[0] == the number of
@@ -183,13 +184,15 @@ class ModelBaseclass():
             raise ValueError("A dataset is required if the kernel has not already "
                     "been initialized. The kernel is initialized by calling set_hyperparams "
                     "or fit or any of the hyperparameter tuning / scoring routines.")
-        if self.kernel is not None:
+        if hyperparams is None and dataset is None:
+            raise ValueError("Should supply hyperparams and/or a dataset.")
+        if self.kernel is None:
+            self._initialize_kernel(dataset, hyperparams)
+        else:
             self.kernel.check_hyperparams(hyperparams)
             self.kernel.set_hyperparams(hyperparams, logspace = True)
             self.weights = None
             self.var = None
-        else:
-            self._initialize_kernel(dataset, hyperparams)
 
 
     def get_hyperparams(self):
@@ -229,17 +232,16 @@ class ModelBaseclass():
         """
         if self.kernel_choice not in KERNEL_NAME_TO_CLASS:
             raise ValueError("An unrecognized kernel choice was supplied.")
-        kernel = KERNEL_NAME_TO_CLASS[self.kernel_choice](dataset.get_xdim(),
+        self.kernel = KERNEL_NAME_TO_CLASS[self.kernel_choice](dataset.get_xdim(),
                             self.num_rffs, self.random_seed, self.device,
                             self.num_threads, self.double_precision_fht,
                             kernel_spec_parms = self.kernel_spec_parms)
         if bounds is not None:
-            kernel.set_bounds(bounds)
+            self.kernel.set_bounds(bounds)
         if hyperparams is not None:
             self.kernel.check_hyperparams(hyperparams)
             self.kernel.set_hyperparams(hyperparams, logspace = True)
         self.weights, self.var = None, None
-        return kernel
 
 
     def _run_pre_nmll_prep(self, dataset, bounds = None, nmll_rank = None):

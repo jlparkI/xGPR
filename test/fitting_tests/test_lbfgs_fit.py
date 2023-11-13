@@ -15,7 +15,6 @@ from utils.evaluate_model import evaluate_model
 HPARAM = np.array([np.log(np.sqrt(0.0767)),  np.log(0.358)])
 
 NUM_RFFS = 4100
-RANDOM_SEED = 123
 
 
 class CheckLBFGSFit(unittest.TestCase):
@@ -28,14 +27,14 @@ class CheckLBFGSFit(unittest.TestCase):
         cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs = NUM_RFFS)
 
         niter, _ = cpu_mod.fit(online_data,
-                max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
+                max_iter = 500, run_diagnostics = True,
                 mode = "lbfgs", preset_hyperparams = HPARAM)
         print(f"niter: {niter}")
         self.assertTrue(niter < 150)
 
         if gpu_mod is not None:
             niter, _ = gpu_mod.fit(online_data,
-                max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
+                max_iter = 500, run_diagnostics = True,
                 tol = 1e-6,  mode = "lbfgs", preset_hyperparams = HPARAM)
             print(f"niter: {niter}")
             self.assertTrue(niter < 150)

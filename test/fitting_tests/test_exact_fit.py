@@ -15,7 +15,6 @@ from utils.evaluate_model import evaluate_model
 HPARAM = np.array([np.log(np.sqrt(0.0767)),  np.log(0.358)])
 
 NUM_RFFS = 2100
-RANDOM_SEED = 123
 
 
 class CheckExactFit(unittest.TestCase):
@@ -30,10 +29,10 @@ class CheckExactFit(unittest.TestCase):
         online_data, _ = build_test_dataset(conv_kernel = False)
         cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs = NUM_RFFS)
 
-        cpu_mod.fit(online_data,  random_seed = RANDOM_SEED, mode = "exact")
+        cpu_mod.fit(online_data, mode = "exact")
 
         if gpu_mod is not None:
-            gpu_mod.fit(online_data,  random_seed = RANDOM_SEED, mode = "exact")
+            gpu_mod.fit(online_data, mode = "exact")
 
 
 if __name__ == "__main__":

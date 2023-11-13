@@ -11,7 +11,7 @@ from .online_data_handling import OnlineDataset
 from .offline_data_handling import OfflineDataset
 
 
-def build_regression_dataset(xdata, ydata, chunk_size, normalize_y = True):
+def build_regression_dataset(xdata, ydata, chunk_size = 2000, normalize_y = True):
     """A wrapper for the dataset builder functions for online
     and offline data. Builds a dataset intended for use for regression.
 
@@ -57,7 +57,7 @@ def build_regression_dataset(xdata, ydata, chunk_size, normalize_y = True):
 
 
 
-def build_classification_dataset(xdata, ydata, chunk_size):
+def build_classification_dataset(xdata, ydata, chunk_size = 2000):
     """A wrapper for the dataset builder functions for online
     and offline data. Builds a dataset intended for use for classification.
 
@@ -150,17 +150,19 @@ def build_online_dataset(xdata, ydata, chunk_size = 2000,
         raise ValueError("Values > 1e15 or < -1e15 encountered. "
                     "Please rescale your data and check for np.inf.")
 
-    if normalize_y and task_type == "regression":
-        ymean, ystd = ydata.mean(), ydata.std()
+    if task_type == "regression":
+        if normalize_y:
+            dataset = OnlineDataset(xdata, ydata, chunk_size = chunk_size,
+                trainy_mean = ydata.mean(), trainy_std = ydata.std())
+        else:
+            dataset = OnlineDataset(xdata, ydata, chunk_size = chunk_size)
+
     else:
-        ymean, ystd = 0., 1.
-    if task_type == "classification":
-        max_class = ydata.max()
+        dataset = OnlineDataset(xdata, ydata, chunk_size = chunk_size,
+            max_class = ydata.max())
         if ydata.min() != 0:
             raise ValueError("For classification, there must be a zero category.")
 
-    dataset = OnlineDataset(xdata, ydata, chunk_size = chunk_size,
-            trainy_mean = ymean, trainy_std = ystd, max_class = max_class)
     return dataset
 
 
@@ -271,6 +273,7 @@ def build_offline_np_dataset(xlist, ylist, chunk_size = 2000,
             xdim[2] = xshape[2]
 
     if normalize_y and task_type == "regression":
+        max_class = 1
         trainy_mean, trainy_std = _get_offline_scaling_factors(ylist)
     else:
         trainy_mean, trainy_std = 0.0, 1.0

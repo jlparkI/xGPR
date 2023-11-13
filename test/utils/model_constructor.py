@@ -18,8 +18,8 @@ def get_models(kernel_choice, dataset, conv_width = 3, num_rffs = 512,
         split_pts = [8]
 
     cpu_mod = xGPReg(num_rffs = num_rffs, kernel_choice = kernel_choice,
-                        device = "cpu", double_precision_fht = False,
-                        kernel_specific_params = {"matern_nu":5/2,
+            random_seed = RANDOM_STATE, device = "cpu",
+            kernel_specific_params = {"matern_nu":5/2,
                             "conv_width":conv_width, "polydegree":2,
                             "split_points":split_pts, "order":2,
                             "intercept":True, "averaging":averaging})
@@ -30,7 +30,7 @@ def get_models(kernel_choice, dataset, conv_width = 3, num_rffs = 512,
     else:
         gpu_mod = copy.deepcopy(cpu_mod)
         gpu_mod.device = "gpu"
-        gpu_mod.initialize(dataset, RANDOM_STATE)
+        gpu_mod.set_hyperparams(dataset = dataset)
 
-    cpu_mod.initialize(dataset, RANDOM_STATE)
+    cpu_mod.set_hyperparams(dataset = dataset)
     return cpu_mod, gpu_mod
