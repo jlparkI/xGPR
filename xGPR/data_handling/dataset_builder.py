@@ -97,7 +97,7 @@ def build_classification_dataset(xdata, ydata, chunk_size = 2000):
         return build_offline_np_dataset(xdata, ydata,
                 chunk_size, normalize_y = False, task_type = "classification")
     if isinstance(xdata, np.ndarray) and isinstance(ydata, np.ndarray):
-        return build_offline_np_dataset(xdata, ydata,
+        return build_online_dataset(xdata, ydata,
                 chunk_size, normalize_y = False, task_type = "classification")
     raise ValueError("Unexpected argument types to build_regression_dataset.")
 

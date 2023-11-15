@@ -39,10 +39,8 @@ def test_fit(kernel, conv_kernel, random_seed, conv_width = 3,
             xsuffix = "testxvalues.npy", ysuffix = "testyvalues.npy")
     nhparams = model.get_hyperparams().shape[0]
     if nhparams < 3:
-        _, _, score = model.tune_hyperparams_lbfgs(train_dataset, n_restarts = 1)
-        #_, _, score = model.tune_hyperparams_direct(train_dataset,
-        #        nmll_method = "exact", tuning_method="Nelder-Mead",
-        #        max_iter=50)
+        #_, _, score = model.tune_hyperparams_lbfgs(train_dataset, n_restarts = 1)
+        _, _, score = model.tune_hyperparams_crude(train_dataset)
         print(score)
     else:
         model.tune_hyperparams_lbfgs(train_dataset, n_restarts = 1)

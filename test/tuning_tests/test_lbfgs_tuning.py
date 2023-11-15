@@ -1,0 +1,33 @@
+"""Tests the LBFGS tuning algorithm to ensure
+we get performance on par with expectations."""
+import sys
+import unittest
+
+#TODO: Get rid of this path alteration
+sys.path.append("..")
+from utils.build_test_dataset import build_test_dataset
+from utils.model_constructor import get_models
+
+
+class CheckLBFGSTuning(unittest.TestCase):
+    """Tests the LBFGS tuning algorithm."""
+
+    def test_lbfgs_tuning(self):
+        """Test the LBFGS tuning algorithm using an
+        RBF kernel for simplicity (tuning & fitting with other
+        kernels is tested under the complete pipeline tests."""
+        online_data, _ = build_test_dataset(conv_kernel = False)
+        cpu_mod, gpu_mod = get_models("RBF", online_data)
+        _, _, best_score = cpu_mod.tune_hyperparams_lbfgs(online_data,
+                n_restarts = 1, max_iter = 50)
+        self.assertTrue(best_score < 430)
+
+        if gpu_mod is not None:
+            _, _, best_score = gpu_mod.tune_hyperparams_lbfgs(online_data,
+                n_restarts = 1, max_iter = 50)
+            print(gpu_mod.get_hyperparams())
+            self.assertTrue(best_score < 430)
+
+
+if __name__ == "__main__":
+    unittest.main()

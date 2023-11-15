@@ -103,14 +103,17 @@ class lBFGSModelFit:
         if self.task_type == "regression":
             z_trans_y, _ = calc_zty(self.dataset, self.kernel)
             init_weights = np.zeros((self.kernel.get_num_rffs()))
-
-        elif self.task_type == "classification" and self.n_classes == 2:
-            init_weights = np.zeros((self.kernel.get_num_rffs()))
-
-        res = minimize(self.cost_fun, options={"maxiter":max_iter, "ftol":tol},
+            res = minimize(self.cost_fun, options={"maxiter":max_iter, "ftol":tol},
                     method = "L-BFGS-B",
                     x0 = init_weights, args = (z_trans_y, preconditioner),
                     jac = True, bounds = None)
+
+        elif self.task_type == "classification" and self.n_classes == 2:
+            init_weights = np.zeros((self.kernel.get_num_rffs()))
+            res = minimize(self.cost_fun, options={"maxiter":max_iter, "ftol":tol},
+                    method = "L-BFGS-B",
+                    x0 = init_weights, jac = True, bounds = None)
+
 
         wvec = res.x
         if self.device == "gpu":
@@ -169,12 +172,12 @@ class lBFGSModelFit:
         if self.device == "gpu":
             wvec = cp.asarray(wvec).astype(self.dtype)
         grad = self.lambda_**2 * wvec
-        loss = 0
+        loss = self.lambda_**2 * (wvec.T @ wvec)
 
         for xdata, ydata in self.dataset.get_chunked_data():
             xtrans = self.kernel.transform_x(xdata)
-            pred = xtrans @ wvec
-            pred = (1 / (1 + 2.71828**(pred.clip(max=30)))).flatten()
+            pred = (xtrans @ -wvec).clip(max=30)
+            pred = (1 / (1 + 2.71828**pred)).flatten()
             pred = pred.clip(min=1e-12, max=1e12)
             grad += (xtrans.T @ (pred - ydata)).flatten()
             loss -= (self.log(pred) * ydata + (1 - ydata) * self.log(1 - pred)).sum()

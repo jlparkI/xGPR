@@ -85,7 +85,7 @@ class DatasetBaseclass(ABC):
     def get_n_classes(self):
         """Gets the largest category number in the training
         data. Only useful if data is for classification."""
-        return self._max_class
+        return self._max_class + 1
 
 
     def get_xdim(self):

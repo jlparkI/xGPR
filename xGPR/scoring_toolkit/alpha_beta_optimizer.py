@@ -9,8 +9,9 @@ likelihood reported for a given lambda is as
 favorable as possible."""
 import numpy as np
 
+
 def optimize_alpha_beta(lambda_, nll_terms, ndatapoints, nrffs,
-        preset_ab = None):
+        beta_max = 10., beta_min = 0.1):
     """Optimizes alpha and beta for a given value
     of lambda_ so that the marginal likelihood is
     at its best value for that setting for lambda_.
@@ -23,22 +24,16 @@ def optimize_alpha_beta(lambda_, nll_terms, ndatapoints, nrffs,
             for different values of alpha and beta.
         ndatapoints (int): The number of datapoints.
         nrffs (int): The number of random features or features.
-        preset_ab: Either None or a two element array.
-            If not None, instead of optimizing
-            alpha and beta, the preset values are used and the
-            score is returned. This is really only used for testing.
+        beta_max (float): The max value for beta.
+        beta_min (float): The min value for beta.
 
     Returns:
         score (float): The negative marginal log likelihood for
             the optimized alpha and beta.
         alpha_beta (ndarray): The optimized alpha and beta.
     """
-    if preset_ab is not None:
-        score = nll_terms[0] / preset_ab[0] + 0.5 * (ndatapoints - nrffs) * \
-            np.log(preset_ab[0]) + nll_terms[1] + 0.5 * nrffs * np.log(preset_ab[1])
-        return score, preset_ab
-
     beta = np.sqrt(2 * nll_terms[0] / (ndatapoints * lambda_**2))
+    beta = max(min(beta, beta_max), beta_min)
     score = nll_terms[0] / (beta * lambda_)**2 + (ndatapoints - nrffs) * np.log(lambda_)
     score += nll_terms[1] + ndatapoints * np.log(beta)
     return score + 0.5 * ndatapoints * np.log(2*np.pi), beta

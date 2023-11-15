@@ -207,13 +207,11 @@ class RBFLinear(KernelBaseclass, ABC):
         random_features = self.empty((input_x.shape[0], self.internal_rffs),
                 self.out_type)
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
-        output_grad = self.zero_arr((input_x.shape[0], self.num_rffs, 2), self.out_type)
+        output_grad = self.zero_arr((input_x.shape[0], self.num_rffs, 1), self.out_type)
 
-        output_grad[:,:self.internal_rffs,1:2] = self.gradfun(xtrans, random_features,
-                        self.radem_diag, self.chi_arr,
-                        self.hyperparams[1], self.num_threads, self.fit_intercept)
-
-        output_grad[:,self.internal_rffs:,0] = input_x
+        output_grad[:,:self.internal_rffs,0:1] = self.gradfun(xtrans, random_features,
+                        self.radem_diag, self.chi_arr, self.hyperparams[1],
+                        self.num_threads, self.fit_intercept)
 
         output_x[:,:self.internal_rffs] = random_features
         output_x[:,self.internal_rffs:] = input_x

@@ -26,13 +26,12 @@ class CheckDirectTuning(unittest.TestCase):
                 continue
             mod.verbose = False
             bounds = np.array([[-3,0], [-3,0]])
-            for tuning_method, nmll_method, max_iter in [("Powell", "exact", 50),
-                    ("bayes", "approximate", 35)]:
+            for tuning_method, nmll_method, max_iter in [("Nelder-Mead", "approximate", 100),
+                        ("Powell", "exact", 100)]:
                 _, niter, best_score = mod.tune_hyperparams_direct(online_data,
-                        tuning_method = tuning_method, n_restarts=3,
-                        max_iter = max_iter, random_seed = 123,
-                        nmll_method = nmll_method, nmll_rank = 256,
-                        bounds = bounds)
+                        tuning_method = tuning_method, n_restarts=1,
+                        max_iter = max_iter, nmll_method = nmll_method,
+                        nmll_rank = 128, bounds = bounds)
                 print(mod.get_hyperparams())
                 print("*************")
                 print(f"{tuning_method}, {mod.device}, {nmll_method}")

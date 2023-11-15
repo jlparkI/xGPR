@@ -18,7 +18,7 @@ from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
 
 
 
-class xGPClassification(ModelBaseclass):
+class xGPClassifier(ModelBaseclass):
     """A subclass of GPModelBaseclass that houses methods
     unique to classification problems. Only attributes unique
     to this child are described here.
@@ -101,7 +101,8 @@ class xGPClassification(ModelBaseclass):
             # The cutpoint of 20 on the sigmoid is arbitrary but
             # any large choice will give the same result.
             if self.n_classes == 2:
-                pred = (1 / (1 + 2.71828**(pred.clip(max=30)))).flatten()
+                pred = (-pred).clip(max=30)
+                pred = (1 / (1 + 2.71828**pred)).flatten()
             else:
                 pred -= pred.max(axis=1)[:,None]
                 pred = 2.71828**pred
@@ -151,7 +152,7 @@ class xGPClassification(ModelBaseclass):
                 initiated, an error is raised if problems are found."""
         self._run_pre_fitting_prep(dataset, preset_hyperparams)
         self.weights = None
-        self.n_classes = dataset.max_class + 1
+        self.n_classes = dataset.get_n_classes()
 
         if self.verbose:
             print("starting fitting")

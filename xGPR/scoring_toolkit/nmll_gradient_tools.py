@@ -9,7 +9,6 @@ except:
 from scipy.linalg import solve_triangular, cho_solve
 from .alpha_beta_optimizer import optimize_alpha_beta
 
-
 def calc_gradient_terms(dataset, kernel, device, subsample = 1):
     """Calculates terms needed for the gradient calculation.
     Specific for negative marginal log likelihood (NMLL),
@@ -130,8 +129,9 @@ def exact_nmll_reg_grad(z_trans_z, z_trans_y, y_trans_y,
         nll1 = float(0.5 * (y_trans_y - z_trans_y.T @ weights))
         nll2 = float(np.log(np.diag(z_trans_z_chol)).sum())
 
-    negloglik, beta = optimize_alpha_beta(hparams[0], np.array([nll1, nll2]),
-                       ndatapoints, z_trans_z.shape[0])
+    nrffs = float(z_trans_z.shape[0])
+    negloglik, beta = optimize_alpha_beta(hparams[0],
+                np.array([nll1, nll2]), float(ndatapoints), nrffs)
 
     grad = np.zeros((hparams.shape[0]))
 
