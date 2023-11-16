@@ -1,20 +1,21 @@
 """This module 'compresses' the output of another kernel using
-SRHT operations. This can be useful if we want to project from
+SORF operations. This can be useful if we want to project from
 a high-dimensional random feature space back into a lower
 more manageable space for hyperparameter tuning purposes."""
 from math import ceil
 
 import numpy as np
-from cpu_rf_gen_module import cpuSRHT
+from cpu_rf_gen_module import cpuSORFTransform
+from scipy.stats import chi
 
 try:
     import cupy as cp
-    from cuda_rf_gen_module import cudaSRHT
+    from cuda_rf_gen_module import cudaPySORFTransform
 except:
     pass
 
 
-class SRHTCompressor():
+class SORFCompressor():
     """This class provides the tools needed to compress the output
     of another kernel to a specified dimensionality.
 
@@ -23,10 +24,8 @@ class SRHTCompressor():
         input_size (int): The expected size of the input.
         padded_dims (int): The next largest power of two greater
             than input_size. Used for padding the input.
-        radem: A numpy or cupy diagonal matrix drawn from a
+        radem: A stack of numpy or cupy diagonal matrices drawn from a
             Rademacher distribution of shape (padded_dims).
-        col_sampler (np.ndarray): A numpy array of shape (compression_size)
-            that permutes the columns of the compressed data.
         compressor_func: A reference to an appropriate wrapped C++ function.
         device: Either "cpu" or "gpu".
         double_precision (bool): If True, input is assumed to be
@@ -59,10 +58,8 @@ class SRHTCompressor():
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
         rng = np.random.default_rng(random_seed)
-        self.radem = rng.choice(radem_array, size=(self.padded_dims),
+        self.radem = rng.choice(radem_array, size=(3, 1, self.padded_dims),
                                 replace=True)
-        self.col_sampler = rng.permutation(self.padded_dims)
-        self.truncated_sampler = self.col_sampler[:self.compression_size]
         self.compressor_func = None
         self.device = device
         self.num_threads = 2
@@ -85,19 +82,17 @@ class SRHTCompressor():
         if features.shape[1] != self.input_size or len(features.shape) != 2:
             raise ValueError("Input with unexpected size passed to a compressor "
                     "module.")
-        xfeatures = features.astype(self.dtype)
-        if features.shape[1] < self.padded_dims:
-            xfeatures = self.zero_arr((features.shape[0], self.padded_dims), self.dtype)
-            xfeatures[:,:features.shape[1]] = features
-        else:
-            xfeatures = features.astype(self.dtype)
+        xfeatures = self.zero_arr((features.shape[0], 1, self.padded_dims), self.dtype)
+        xfeatures[:,0,:features.shape[1]] = features
         if no_compression:
-            self.compressor_func(xfeatures, self.radem, self.col_sampler,
-                self.padded_dims, self.num_threads)
-            return xfeatures
+            scaling_factor = np.sqrt( self.radem.shape[0] / self.padded_dims )
+            self.compressor_func(xfeatures, self.radem, self.num_threads)
+            return xfeatures[:,0,:]
 
-        self.compressor_func(xfeatures, self.radem, self.truncated_sampler,
-                self.compression_size, self.num_threads)
+        self.compressor_func(xfeatures, self.radem, self.num_threads)
+        scaling_factor = np.sqrt( self.radem.shape[0] / self.compression_size )
+        xfeatures = xfeatures[:,0,:]
+        xfeatures *= scaling_factor
         return xfeatures[:,:self.compression_size]
 
 
@@ -132,7 +127,7 @@ class SRHTCompressor():
             if not isinstance(self.radem, np.ndarray):
                 self.radem = cp.asnumpy(self.radem)
             self.zero_arr = np.zeros
-            self.compressor_func = cpuSRHT
+            self.compressor_func = cpuSORFTransform
             if self.double_precision:
                 self.dtype = np.float64
             else:
@@ -141,7 +136,7 @@ class SRHTCompressor():
         elif value == "gpu":
             self.radem = cp.asarray(self.radem)
             self.zero_arr = cp.zeros
-            self.compressor_func = cudaSRHT
+            self.compressor_func = cudaPySORFTransform
             if self.double_precision:
                 self.dtype = cp.float64
             else:

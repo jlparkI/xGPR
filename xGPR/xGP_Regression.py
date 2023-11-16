@@ -18,6 +18,7 @@ from .model_baseclass import ModelBaseclass
 from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
 from .preconditioners.inter_device_preconditioners import InterDevicePreconditioner
+from .preconditioners.rand_nys_constructors import srht_ratio_check
 
 from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext, cg_fit_lib_internal
@@ -142,9 +143,59 @@ class xGPRegression(ModelBaseclass):
 
 
 
+    def check_rank_ratio(self, dataset, sample_frac = 0.1, max_rank = 512):
+        """Determines what ratio a particular max_rank would achieve by using a random
+        sample of the data. This can be used to determine if a particular max_rank is
+        'good enough' to achieve a fast fit, and if so, that max_rank can be used
+        for fitting. If the number of rffs is > 8192, this function will use
+        8192 by default for better speed (we can get away with this thanks to
+        eigenvalue interlacing on random matrices). Note that this procedure
+        is not advisable for a small number of datapoints (e.g. < 5,000);
+        for those cases, just building the full preconditioner is easier.
 
-    def build_preconditioner(self, dataset, max_rank = 512,
-                        preset_hyperparams = None, method = "srht"):
+        Args:
+            dataset: A Dataset object.
+            max_rank (int): The maximum rank for the preconditioner, which
+                uses a low-rank approximation to the matrix inverse. Larger
+                numbers mean a more accurate approximation and thus reduce
+                the number of iterations, but make the preconditioner more
+                expensive to construct.
+            sample_frac (float): The fraction of the data to sample. Must be in
+                [0.01, 1].
+
+        Returns:
+            achieved_ratio (float): The min eigval of the preconditioner over
+                lambda, the noise hyperparameter shared between all kernels.
+                This value has decent predictive value for assessing how
+                well a preconditioner built with this max_rank is likely to perform.
+        """
+        if sample_frac < 0.01 or sample_frac > 1:
+            raise ValueError("sample_frac must be in the range [0.01, 1]")
+
+        reset_num_rffs = False
+        if self.num_rffs > 8192:
+            hparams = self.kernel.get_hyperparams()
+            reset_num_rffs, num_rffs = True, self.num_rffs
+            self.num_rffs = 8192
+            self.set_hyperparams(hparams, dataset)
+
+        self._run_pre_fitting_prep(dataset, max_rank)
+        s_mat = srht_ratio_check(dataset, max_rank, self.kernel, self.random_seed,
+                self.verbose, sample_frac)
+        ratio = float(s_mat.min() / self.kernel.get_lambda()**2) / sample_frac
+
+        if reset_num_rffs:
+            hparams = self.kernel.get_hyperparams()
+            self.num_rffs = num_rffs
+            self.set_hyperparams(hparams, dataset)
+
+        self._run_post_fitting_cleanup(dataset)
+        return ratio
+
+
+
+
+    def build_preconditioner(self, dataset, max_rank = 512, method = "srht"):
         """Builds a preconditioner. The resulting preconditioner object
         can be supplied to fit and used for CG, L-BFGS, SGD etc.
 
@@ -155,18 +206,12 @@ class xGPRegression(ModelBaseclass):
                 numbers mean a more accurate approximation and thus reduce
                 the number of iterations, but make the preconditioner more
                 expensive to construct.
-            preset_hyperparams: Either None or a numpy array. If None,
-                hyperparameters must already have been tuned using one
-                of the tuning methods (e.g. tune_hyperparams_bayes_bfgs).
-                If supplied, must be a numpy array of shape (N, 2) where
-                N is the number of hyperparams for the kernel in question.
-            method (str): one of "srht", "srht_2" or "gauss". srht is MUCH faster for
-                large datasets and should always be preferred to "gauss".
-                "srht_2" runs two passes over the dataset. For the same max_rank,
-                the preconditioner built by "srht_2" will generally reduce the
-                number of CG iterations by 25-30% compared with a preconditioner
-                built by "gauss" or "srht", but it does of course incur the
-                additional expense of a second pass over the dataset.
+            method (str): one of "srht", "srht_2" or "gauss". Only use "gauss"
+                for testing. "srht_2" runs two passes over the dataset. For
+                the same max_rank, the preconditioner built by "srht_2"
+                will generally reduce the number of CG iterations by 25-30%
+                compared with a preconditioner built by "srht", but it does
+                of course incur the expense of a second pass over the dataset.
 
         Returns:
             preconditioner: A preconditioner object.
@@ -175,7 +220,7 @@ class xGPRegression(ModelBaseclass):
                 This value has decent predictive value for assessing how
                 well the preconditioner is likely to perform.
         """
-        self._run_pre_fitting_prep(dataset, preset_hyperparams, max_rank)
+        self._run_pre_fitting_prep(dataset, max_rank)
         if self.device == "gpu":
             preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, max_rank,
                         self.verbose, self.random_seed, method)
@@ -192,8 +237,9 @@ class xGPRegression(ModelBaseclass):
     def exact_nmll(self, hyperparams, dataset):
         """Calculates the exact negative marginal log likelihood (the model
         'score') using matrix decompositions. Fast for small numbers of random
-        features but poor scaling to larger numbers. Can be numerically unstable
-        for extreme hyperparameter values, since it uses a cholesky decomposition.
+        features but poor scaling to larger numbers. Will return a default
+        large number if numerical instability is encountered (only occurs
+        for extreme hyperparameter values).
 
         Args:
             hyperparams (np.ndarray): A numpy array containing the new
@@ -250,8 +296,9 @@ class xGPRegression(ModelBaseclass):
         """Calculates the gradient of the negative marginal log likelihood w/r/t
         the hyperparameters for a specified set of hyperparameters using
         exact methods (matrix decompositions). Fast for small numbers of
-        random features, very slow for large. Can be numerically unstable
-        for extreme hyperparameter values, since it uses a cholesky decomposition.
+        random features but poor scaling to larger numbers. Will return a default
+        large number if numerical instability is encountered (only occurs
+        for extreme hyperparameter values).
 
         Args:
             hyperparams (np.ndarray): The set of hyperparameters at which
@@ -408,9 +455,8 @@ class xGPRegression(ModelBaseclass):
 
 
     def fit(self, dataset, preconditioner = None,
-                tol = 1e-6, preset_hyperparams=None, max_iter = 500,
-                run_diagnostics = False, mode = "cg",
-                suppress_var = False):
+            tol = 1e-6, max_iter = 500, mode = "cg", suppress_var = False,
+            run_diagnostics = False):
         """Fits the model after checking that the input data
         is consistent with the kernel choice and other user selections.
 
@@ -422,14 +468,7 @@ class xGPRegression(ModelBaseclass):
             tol (float): The threshold below which iterative strategies (L-BFGS, CG,
                 SGD) are deemed to have converged. Defaults to 1e-5. Note that how
                 reaching the threshold is assessed may depend on the algorithm.
-            preset_hyperparams: Either None or a numpy array. If None,
-                hyperparameters must already have been tuned using one
-                of the tuning methods (e.g. tune_hyperparams_bayes_bfgs).
-                If supplied, must be a numpy array of shape (N, 2) where
-                N is the number of hyperparams for the kernel in question.
             max_iter (int): The maximum number of epochs for iterative strategies.
-            run_diagnostics (bool): If True, the number of conjugate
-                gradients and the preconditioner diagnostics ratio are returned.
             mode (str): Must be one of "cg", "lbfgs", "exact".
                 Determines the approach used. If 'exact', self.kernel.get_num_rffs
                 must be <= constants.constants.MAX_CLOSED_FORM_RFFS.
@@ -437,6 +476,8 @@ class xGPRegression(ModelBaseclass):
                 useful when optimizing hyperparameters, since otherwise we want to calculate
                 the variance. It is best to leave this as default False unless performing
                 hyperparameter optimization.
+            run_diagnostics (bool): If True, the number of conjugate
+                gradients and the preconditioner diagnostics ratio are returned.
 
         Returns:
             Does not return anything unless run_diagnostics is True.
@@ -447,7 +488,7 @@ class xGPRegression(ModelBaseclass):
         Raises:
             ValueError: The input dataset is checked for validity before tuning is
                 initiated, an error is raised if problems are found."""
-        self._run_pre_fitting_prep(dataset, preset_hyperparams)
+        self._run_pre_fitting_prep(dataset)
         self.weights, self.var = None, None
         self.exact_var_calculation = True
 
@@ -511,7 +552,7 @@ class xGPRegression(ModelBaseclass):
 
     #############################
     #The next block of functions are used for tuning hyperparameters. We provide
-    #a couple of strategies and of course the user can easily create their own
+    #several strategies and of course the user can easily create their own
     #(e.g. using Optuna).
     #############################
 

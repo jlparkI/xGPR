@@ -288,8 +288,7 @@ class ModelBaseclass():
 
 
 
-    def _run_pre_fitting_prep(self, dataset, preset_hyperparams = None,
-            max_rank = None):
+    def _run_pre_fitting_prep(self, dataset, max_rank = None):
         """Runs key steps / checks needed if about to fit the
         model.
         """
@@ -298,7 +297,7 @@ class ModelBaseclass():
         self.trainy_std = dataset.get_ystd()
 
         if self.kernel is None:
-            self._initialize_kernel(dataset, hyperparams = preset_hyperparams)
+            self._initialize_kernel(dataset)
         if self.variance_rffs > self.kernel.get_num_rffs():
             raise ValueError("The number of variance rffs should be <= the number "
                     "of random features for the kernel.")
