@@ -1,13 +1,5 @@
 """This tool enables easy generation of random features for
-approximate kernel k-means clustering. For now, it's essentially
-a light wrapper on the kernel classes. In future, we may add
-a k-means implementation of our own within this class, so the
-end user does not need to use say scikit-learn's implementation.
-This is important since scikit-learn's implementation requires
-the whole dataset to 'live' in memory, which is obviously
-not convenient if a large number of random features is used.
-For now, then, this is probably best used in conjunction with
-a small number of random features."""
+approximate kernel k-means clustering or for other tasks."""
 import numpy as np
 try:
     import cupy as cp
