@@ -78,7 +78,7 @@ class Polynomial(KernelBaseclass):
 
         self.hyperparams = np.ones((1))
         self.bounds = np.asarray([[1e-3,1e2]])
-        self.padded_dims = 2**ceil(np.log2(max(self.xdim[-1] + 1, 2)))
+        self.padded_dims = 2**ceil(np.log2(max(self._xdim[-1] + 1, 2)))
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
         rng = np.random.default_rng(random_seed)

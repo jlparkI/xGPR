@@ -134,7 +134,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         """
         xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
                             dtype = self.dtype)
-        xtrans[:,:,:self.xdim[1]] = input_x[:,None,:] * self.hyperparams[1]
+        xtrans[:,:,:self._xdim[1]] = input_x[:,None,:] * self.hyperparams[1]
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
                 self.num_threads, False)
@@ -169,7 +169,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         """
         xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
                             dtype = self.dtype)
-        xtrans[:,:,:self.xdim[1]] = input_x[:,None,:]
+        xtrans[:,:,:self._xdim[1]] = input_x[:,None,:]
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         dz_dsigma = self.gradfun(xtrans, output_x, self.radem_diag, self.chi_arr,
                 self.hyperparams[1], self.num_threads, False)

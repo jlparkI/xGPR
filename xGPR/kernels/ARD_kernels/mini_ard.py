@@ -72,7 +72,7 @@ class MiniARD(KernelBaseclass):
         super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = True,
                 double_precision = double_precision,
                 kernel_spec_parms = kernel_spec_parms)
-        if len(self.xdim) != 2:
+        if len(self._xdim) != 2:
             raise ValueError("The dimensionality of the input is inappropriate for "
                         "the kernel you have selected.")
         if "split_points" not in kernel_spec_parms:
@@ -190,7 +190,7 @@ class MiniARD(KernelBaseclass):
         """
         xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
                             dtype = self.dtype)
-        xtrans[:,:,:self.xdim[1]] = (input_x * self.full_ard_weights[None,:])[:,None,:]
+        xtrans[:,:,:self._xdim[1]] = (input_x * self.full_ard_weights[None,:])[:,None,:]
 
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
@@ -239,7 +239,7 @@ class MiniARD(KernelBaseclass):
 
             ident_mat *= padded_chi_arr[i*self.padded_dims:(i+1)*self.padded_dims]
 
-            precomp_weights.append(ident_mat.T[:,:self.xdim[-1]])
+            precomp_weights.append(ident_mat.T[:,:self._xdim[-1]])
 
         self.precomputed_weights = np.vstack(precomp_weights)[:self.num_freqs,:]
         if not self.double_precision:

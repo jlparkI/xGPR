@@ -11,7 +11,7 @@ from .online_data_handling import OnlineDataset
 from .offline_data_handling import OfflineDataset
 
 
-def build_regression_dataset(xdata, ydata, chunk_size = 2000, normalize_y = True):
+def build_regression_dataset(xdata, ydata, chunk_size:int = 2000, normalize_y:bool = True):
     """A wrapper for the dataset builder functions for online
     and offline data. Builds a dataset intended for use for regression.
 
@@ -57,7 +57,7 @@ def build_regression_dataset(xdata, ydata, chunk_size = 2000, normalize_y = True
 
 
 
-def build_classification_dataset(xdata, ydata, chunk_size = 2000):
+def build_classification_dataset(xdata, ydata, chunk_size:int = 2000):
     """A wrapper for the dataset builder functions for online
     and offline data. Builds a dataset intended for use for classification.
 
@@ -104,8 +104,8 @@ def build_classification_dataset(xdata, ydata, chunk_size = 2000):
 
 
 
-def build_online_dataset(xdata, ydata, chunk_size = 2000,
-        normalize_y = True, task_type = "regression"):
+def build_online_dataset(xdata, ydata, chunk_size:int = 2000,
+        normalize_y:bool = True, task_type:str = "regression"):
     """build_online_dataset constructs an OnlineDataset
     object for data stored in memory, after first checking
     that some validity requirements are satisfied.
@@ -166,9 +166,9 @@ def build_online_dataset(xdata, ydata, chunk_size = 2000,
     return dataset
 
 
-def build_offline_np_dataset(xlist, ylist, chunk_size = 2000,
-        normalize_y = True, skip_safety_checks = False,
-        task_type = "regression"):
+def build_offline_np_dataset(xlist:list, ylist:list, chunk_size:int = 2000,
+        normalize_y:bool = True, skip_safety_checks:bool = False,
+        task_type:str = "regression"):
     """Constructs an OfflineDataset for data stored on disk
     as a list of npy files, after checking validity requirements.
 
@@ -289,7 +289,7 @@ def build_offline_np_dataset(xlist, ylist, chunk_size = 2000,
     return dataset
 
 
-def _get_offline_ymax(yfiles):
+def _get_offline_ymax(yfiles:list):
     """Gets the max category for 'offline' data stored on disk.
 
     Args:
@@ -321,7 +321,7 @@ def _get_offline_ymax(yfiles):
 
 
 
-def _get_offline_scaling_factors(yfiles):
+def _get_offline_scaling_factors(yfiles:list):
     """Gets scaling factors (mean and standard deviation)
     for 'offline' data stored on disk.
 
@@ -353,7 +353,7 @@ def _get_offline_scaling_factors(yfiles):
     return trainy_mean, trainy_std
 
 
-def _get_array_file_shape(npy_file):
+def _get_array_file_shape(npy_file:str):
     """Gets the shape of a .npy file array without loading it
     to memory."""
     with open(npy_file, 'rb') as f_handle:

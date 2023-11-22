@@ -162,7 +162,7 @@ class RBFLinear(KernelBaseclass, ABC):
         """
         xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
                             dtype = self.dtype)
-        xtrans[:,:,:self.xdim[1]] = input_x[:,None,:] * self.hyperparams[1]
+        xtrans[:,:,:self._xdim[1]] = input_x[:,None,:] * self.hyperparams[1]
 
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         random_features = self.empty((input_x.shape[0], self.internal_rffs),
@@ -203,7 +203,7 @@ class RBFLinear(KernelBaseclass, ABC):
         """
         xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
                             dtype = self.dtype)
-        xtrans[:,:,:self.xdim[1]] = input_x[:,None,:]
+        xtrans[:,:,:self._xdim[1]] = input_x[:,None,:]
         random_features = self.empty((input_x.shape[0], self.internal_rffs),
                 self.out_type)
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)

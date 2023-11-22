@@ -37,37 +37,19 @@ def test_fit(kernel, conv_kernel, random_seed, conv_width = 3,
 
     test_dataset, _ = build_test_dataset(conv_kernel = conv_kernel,
             xsuffix = "testxvalues.npy", ysuffix = "testyvalues.npy")
-    nhparams = model.get_hyperparams().shape[0]
-    if nhparams < 3:
-        #_, _, score = model.tune_hyperparams_lbfgs(train_dataset, n_restarts = 1)
-        _, _, score = model.tune_hyperparams_crude(train_dataset)
-        print(score)
-    else:
-        model.tune_hyperparams_lbfgs(train_dataset, n_restarts = 1)
-
-    hparams = model.get_hyperparams()
+    model.tune_hyperparams(train_dataset, n_restarts = 1, tol=1e-2,
+            tuning_method = "L-BFGS-B")
 
     print(f"Hyperparams, cpu, {kernel}: {model.get_hyperparams()}")
-
     model.num_rffs = cg_fitting_rffs
-    model.set_hyperparams(hparams, train_dataset)
 
-    if kernel == "Linear":
-        preconditioner, _ = model.build_preconditioner(train_dataset,
-            max_rank = 24, method = "srht")
-    else:
-        preconditioner, _ = model.build_preconditioner(train_dataset,
-            max_rank = 256, method = "srht")
-
-    model.fit(train_dataset,  preconditioner = preconditioner,
-                max_iter = 500, tol = 1e-6,  mode = "cg")
+    model.fit(train_dataset, max_iter = 500, tol = 1e-6,  mode = "cg")
     cg_score = evaluate_model(model, train_dataset, test_dataset,
             get_var)
 
     print(f"CG score, cpu, {kernel}: {cg_score}")
 
     model.num_rffs = exact_fitting_rffs
-    model.set_hyperparams(hparams, train_dataset)
 
     model.fit(train_dataset, mode = "exact")
     exact_score = evaluate_model(model, train_dataset, test_dataset,
@@ -75,17 +57,3 @@ def test_fit(kernel, conv_kernel, random_seed, conv_width = 3,
     print(f"Exact score, cpu, {kernel}: {exact_score}")
 
     return cg_score, exact_score
-
-
-def single_hparam_objective(trial, model, dataset):
-    """Wrapper on NMLL calculations enabling Optuna to tune."""
-    params = {"lambda":trial.suggest_float('lambda', 1e-6, 10, log=True)}
-    hparams = np.log(np.array([params['lambda']]))
-    return model.exact_nmll(hparams, dataset)
-
-def two_hparam_objective(trial, model, dataset):
-    """Wrapper on NMLL calculations enabling Optuna to tune."""
-    params = {"lambda":trial.suggest_float('lambda', 1e-6, 10, log=True),
-            "sigma":trial.suggest_float('sigma', 1e-5, 10, log=True)}
-    hparams = np.log(np.array([params['lambda'], params['sigma']]))
-    return model.exact_nmll(hparams, dataset)

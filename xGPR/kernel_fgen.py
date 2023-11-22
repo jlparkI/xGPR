@@ -16,11 +16,11 @@ class KernelFGen(AuxiliaryBaseclass):
     a selected kernel, typically for use in e.g.
     kernel k-means clustering."""
 
-    def __init__(self, num_rffs, hyperparams, dataset,
-            kernel_choice = "RBF", device = "cpu",
-            kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
-            random_seed = 123, verbose = True, num_threads = 2,
-            double_precision_fht = False):
+    def __init__(self, num_rffs:int, hyperparams, dataset,
+            kernel_choice:str = "RBF", device:str = "cpu",
+            kernel_specific_params:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
+            random_seed:int = 123, verbose:bool = True, num_threads:int = 2,
+            double_precision_fht:bool = False):
         """The constructor.
 
         Args:
@@ -60,7 +60,7 @@ class KernelFGen(AuxiliaryBaseclass):
                         double_precision_fht)
 
 
-    def predict(self, input_x, chunk_size = 2000):
+    def predict(self, input_x, chunk_size:int = 2000):
         """Generates random features for the input."""
         xdata = self.pre_prediction_checks(input_x)
         preds = []

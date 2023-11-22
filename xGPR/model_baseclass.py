@@ -63,12 +63,12 @@ class ModelBaseclass():
             cause the kernel to be re-initialized.
     """
 
-    def __init__(self, num_rffs = 256, variance_rffs = 16,
-                    kernel_choice="RBF", device = "cpu",
-                    kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
-                    verbose = True,
-                    num_threads = 2,
-                    random_seed = 123):
+    def __init__(self, num_rffs:int = 256, variance_rffs:int = 16,
+            kernel_choice:str = "RBF", device:str = "cpu",
+            kernel_specific_params:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
+            verbose:bool = True,
+            num_threads:int = 2,
+            random_seed:int = 123):
         """Constructor.
 
         Args:
@@ -123,7 +123,7 @@ class ModelBaseclass():
 
 
 
-    def pre_prediction_checks(self, input_x, get_var):
+    def pre_prediction_checks(self, input_x, get_var:bool):
         """Checks input data to ensure validity.
 
         Args:
@@ -255,7 +255,7 @@ class ModelBaseclass():
         self.weights, self.var = None, None
 
 
-    def _run_pre_nmll_prep(self, dataset, bounds = None, nmll_rank = None):
+    def _run_pre_nmll_prep(self, dataset, bounds = None):
         """Runs key steps / checks needed if about to calculate
         NMLL.
         """
@@ -263,14 +263,10 @@ class ModelBaseclass():
         if self.kernel is None:
             self._initialize_kernel(dataset, bounds = bounds)
         self.weights, self.var = None, None
-        if nmll_rank is not None:
-            if nmll_rank >= self.kernel.get_num_rffs():
-                raise ValueError("NMLL rank must be < the number of rffs.")
-
         return self.kernel.get_bounds()
 
 
-    def _run_singlepoint_nmll_prep(self, dataset, exact_method = False):
+    def _run_singlepoint_nmll_prep(self, dataset, exact_method:bool = False):
         """Runs key steps / checks needed if about to calculate
         NMLL at a single point, in which case bounds are not needed.
         """

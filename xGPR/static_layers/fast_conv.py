@@ -41,8 +41,8 @@ class FastConv1d:
             depending on device.
     """
 
-    def __init__(self, seq_width, device = "cpu", random_seed = 123,
-            conv_width = [9], num_features = 512):
+    def __init__(self, seq_width:int, device:str = "cpu", random_seed:int = 123,
+            conv_width:list = [9], num_features:int = 512):
         """Constructor for the FastConv1d class.
 
         Args:
@@ -86,7 +86,7 @@ class FastConv1d:
 
 
 
-    def conv1d_pretrain_feat_extract(self, input_dataset, output_dir):
+    def conv1d_pretrain_feat_extract(self, input_dataset, output_dir:str):
         """Performs feature extraction using a 1d convolution kernel,
         saves the results to a specified location, and returns an
         OfflineDataset. This function should be used if it is
@@ -154,7 +154,7 @@ class FastConv1d:
         return updated_dataset
 
 
-    def conv1d_x_feat_extract(self, x_array, chunk_size = 2000):
+    def conv1d_x_feat_extract(self, x_array, chunk_size:int = 2000):
         """Performs feature extraction using a 1d convolution kernel
         and returns an array containing the result. This function should
         be used if it is desired to generate features for sequence /

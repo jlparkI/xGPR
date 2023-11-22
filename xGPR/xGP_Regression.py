@@ -5,6 +5,7 @@ model and make predictions for new datapoints. It inherits from
 ModelBaseclass.
 """
 import warnings
+import typing
 try:
     import cupy as cp
     from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
@@ -43,13 +44,14 @@ class xGPRegression(ModelBaseclass):
     the parent class are described here.
     """
 
-    def __init__(self, num_rffs = 256, variance_rffs = 16,
-                    kernel_choice="RBF",
-                    device = "cpu",
-                    kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
-                    verbose = True,
-                    num_threads = 2,
-                    random_seed = 123):
+    def __init__(self, num_rffs:int = 256,
+                    variance_rffs:int = 16,
+                    kernel_choice:str = "RBF",
+                    device:str = "cpu",
+                    kernel_specific_params:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
+                    verbose:bool = True,
+                    num_threads:int = 2,
+                    random_seed:int = 123) -> None:
         """The constructor for xGPRegression. Passes arguments onto
         the parent class constructor.
 
@@ -81,8 +83,8 @@ class xGPRegression(ModelBaseclass):
 
 
 
-    def predict(self, input_x, get_var = False,
-            chunk_size = 2000):
+    def predict(self, input_x, get_var:bool = False,
+            chunk_size:int = 2000):
         """Generate a predicted value for each
         input datapoint -- and if desired the variance.
 
@@ -143,7 +145,7 @@ class xGPRegression(ModelBaseclass):
 
 
 
-    def check_rank_ratio(self, dataset, sample_frac = 0.1, max_rank = 512):
+    def check_rank_ratio(self, dataset, sample_frac:float = 0.1, max_rank:int = 512):
         """Determines what ratio a particular max_rank would achieve by using a random
         sample of the data. This can be used to determine if a particular max_rank is
         'good enough' to achieve a fast fit, and if so, that max_rank can be used
@@ -169,6 +171,9 @@ class xGPRegression(ModelBaseclass):
                 This value has decent predictive value for assessing how
                 well a preconditioner built with this max_rank is likely to perform.
         """
+        original_dataset_device = dataset.device
+        dataset.device = self.device
+
         if sample_frac < 0.01 or sample_frac > 1:
             raise ValueError("sample_frac must be in the range [0.01, 1]")
 
@@ -188,13 +193,14 @@ class xGPRegression(ModelBaseclass):
             self.num_rffs = num_rffs
             self.set_hyperparams(hparams, dataset)
 
+        dataset.device = original_dataset_device
         return ratio
 
 
 
-    def _autoselect_preconditioner(self, dataset, max_rank = 3000,
-            increment_size = 512, always_use_srht2 = False,
-            ratio_target = 30, tuning = False):
+    def _autoselect_preconditioner(self, dataset, max_rank:int = 3000,
+            increment_size:int = 512, always_use_srht2:bool = False,
+            ratio_target:float = 30., tuning:bool = False):
         """Uses an automated algorithm to choose a preconditioner that
         is up to max_rank in size. For internal use only.
 
@@ -215,11 +221,12 @@ class xGPRegression(ModelBaseclass):
         Returns:
             preconditioner: A preconditioner object.
         """
-
         sample_frac, method, ratio, rank = 0.2, "srht", np.inf, 512
-        if rank >= self.num_rffs:
-            rank = self.num_rffs - 1
-            ratio = 1
+        actual_num_rffs = self.kernel.get_num_rffs()
+
+        if rank >= actual_num_rffs:
+            rank = actual_num_rffs - 1
+            ratio = 0.5 * ratio_target
 
         if dataset.get_ndatapoints() < 5000:
             sample_frac = 1
@@ -229,12 +236,12 @@ class xGPRegression(ModelBaseclass):
                     max_rank = rank)
             if ratio > ratio_target:
                 if (rank + increment_size) < max_rank and \
-                        (rank + increment_size) < self.num_rffs:
+                        (rank + increment_size) < actual_num_rffs:
                     rank += increment_size
                 else:
                     rank = max_rank
-                    if rank > self.num_rffs:
-                        rank = self.num_rffs - 1
+                    if rank > actual_num_rffs:
+                        rank = actual_num_rffs - 1
                     method = "srht_2"
                     break
 
@@ -243,6 +250,7 @@ class xGPRegression(ModelBaseclass):
 
         if always_use_srht2:
             method = "srht_2"
+
 
         if tuning:
             preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, rank,
@@ -262,7 +270,7 @@ class xGPRegression(ModelBaseclass):
 
 
 
-    def build_preconditioner(self, dataset, max_rank = 512, method = "srht"):
+    def build_preconditioner(self, dataset, max_rank:int = 512, method:str = "srht"):
         """Builds a preconditioner. The resulting preconditioner object
         can be supplied to fit and used for CG, L-BFGS, SGD etc.
 
@@ -359,7 +367,7 @@ class xGPRegression(ModelBaseclass):
 
 
 
-    def exact_nmll_gradient(self, hyperparams, dataset, subsample = 1):
+    def exact_nmll_gradient(self, hyperparams, dataset, subsample:float = 1):
         """Calculates the gradient of the negative marginal log likelihood w/r/t
         the hyperparameters for a specified set of hyperparameters using
         exact methods (matrix decompositions). Fast for small numbers of
@@ -415,7 +423,7 @@ class xGPRegression(ModelBaseclass):
 
 
 
-    def approximate_nmll(self, hyperparams, dataset, manual_settings = None):
+    def approximate_nmll(self, hyperparams, dataset, manual_settings:dict = None):
         """Calculates the approximate negative marginal log likelihood (the model
         'score') using stochastic Lanczos quadrature with preconditioning.
         Slower than exact for very small numbers of random features, but
@@ -523,11 +531,12 @@ class xGPRegression(ModelBaseclass):
 
 
     def fit(self, dataset, preconditioner = None,
-            tol = 1e-6, max_iter = 500, mode = "cg",
-            suppress_var = False, max_rank = 3000,
-            autoselect_target_ratio = 30.,
-            always_use_srht2 = False,
-            run_diagnostics = False):
+            tol:float = 1e-6, max_iter:int = 500,
+            mode:str = "cg", suppress_var:bool = False,
+            max_rank:int = 3000,
+            autoselect_target_ratio:float = 30.,
+            always_use_srht2:bool = False,
+            run_diagnostics:bool = False):
         """Fits the model after checking that the input data
         is consistent with the kernel choice and other user selections.
 
@@ -647,8 +656,10 @@ class xGPRegression(ModelBaseclass):
     #############################
 
 
-    def tune_hyperparams_crude(self, dataset, bounds = None, random_seed = 123,
-                    max_bayes_iter = 30, subsample = 1):
+    def tune_hyperparams_crude(self, dataset, bounds = None,
+                    random_seed:int = 123,
+                    max_bayes_iter:int = 30,
+                    subsample:float = 1):
         """Tunes the hyperparameters using Bayesian optimization, but with
         a 'trick' that simplifies the problem greatly for 2-4 hyperparameter
         kernels. Hyperparameters are scored using an exact NMLL calculation.
@@ -658,8 +669,7 @@ class xGPRegression(ModelBaseclass):
         low risk of overfitting and is easy to use. It is therefore
         intended as a "quick-and-dirty" method. We recommend using
         this with a small number of random features (e.g. 500 - 3000)
-        and if performance is insufficient, fine-tune hyperparameters
-        using a method with better scalability.
+        and call self.tune_hyperparams to fine-tune further if needed.
 
         Args:
             dataset: Object of class OnlineDataset or OfflineDataset.
@@ -719,10 +729,11 @@ class xGPRegression(ModelBaseclass):
         return hyperparams, n_feval, best_score
 
 
-    def tune_hyperparams_direct(self, dataset, bounds = None,
-                max_iter = 50, tol = 1, tuning_method = "Powell",
-                starting_hyperparams = None, n_restarts = 1,
-                nmll_method = "exact", manual_settings = None):
+    def tune_hyperparams(self, dataset, bounds = None,
+            max_iter:int = 50, tuning_method:str = "Powell",
+            starting_hyperparams = None, tol:float = 1e-2,
+            n_restarts:int = 1, nmll_method:str = "exact",
+            manual_settings:dict = None):
         """Tunes the hyperparameters WITHOUT using gradient information.
         The methods included here can be extremely efficient for one-
         and two-hyperparameter kernels but are not recommended for kernels
@@ -732,35 +743,41 @@ class xGPRegression(ModelBaseclass):
 
         Args:
             dataset: Object of class OnlineDataset or OfflineDataset.
-            bounds (np.ndarray): The bounds for optimization. Must be supplied,
-                in contrast to most other tuning routines, since this routine
-                is more seldom used for searching the whole hyperparameter space.
-                Must be a 2d numpy array of shape (num_hyperparams, 2).
+            bounds (np.ndarray): The bounds for optimization. If None, default
+                boundaries for the kernel will be used. Otherwise, must be an
+                array of shape (# hyperparams, 2).
             max_iter (int): The maximum number of iterations.
-            tol (float): Criteria for convergence.
-            tuning_method (str): One of 'Powell', 'Nelder-Mead'.
-                Nelder-Mead is usually better than Powell but may
-                take many more iterations to converge.
+            tuning_method (str): One of 'Powell', 'Nelder-Mead', 'L-BFGS-B'.
+                'Nelder-Mead' and 'Powell' do not perform gradient calculations
+                so have much better scaling to large numbers of RFFs but may take
+                more iterations to converge. 'Nelder-Mead' takes longer
+                to converge than 'Powell' but is more precise.
+                'L-BFGS-B' uses exact gradient calculations if 'nmll_method=exact',
+                which have poor scaling to > 4000 RFFs but can converge quite
+                quickly. With 'nmll_method=approximate', it uses a finite
+                difference approximation. For a good guideline on which
+                method to prefer, see the User Guide.
             starting_hyperparams: Either None or a numpy array of shape (nhparams)
                 where (nhparams) is the number of hyperparameters for the selected
-                kernel. If None, a starting point is randomly selected using
-                random_seed.
-            n_restarts (int): The number of times to restart the optimizer.
-                Ignored if starting hyperparameters are supplied.
-            nmll_method (str): One of 'exact', 'approximate'. 'Exact' is fast
-                and accurate if num_rffs is small but scales poorly to large
-                num_rffs. 'approximate' has better scaling but is only accurate
-                so long as the `approx_nmll_settings` are reasonable.
-            manual_settings: Either None (default) or a dict. If None, the function will
-                try to automatically choose settings that will give a good
+                kernel. If None, a default is used.
+            tol (float): The largest shift in NMLL before the algorithm is
+                asssumed to have converged.
+            n_restarts (int): The number of times to restart the optimizer from
+                a new random starting point.
+            nmll_method (str): One of 'exact', 'approximate'. 'Exact' is very fast
+                if num_rffs is small but has cubic scaling with num_rffs. On GPU,
+                it can work well up to 8,000 RFFs or so.
+                'approximate' is slow but has better scaling (i.e. the
+                time taken increases linearly with the number of RFFs).
+            manual_settings: Either None (default) or a dict. Ignored if 
+                'nmll_method' is 'exact'. If 'nmll_method' is approximate,
+                'manual_settings' controls the approximation parameters.
+                If it is None, xGPR will automatically choose settings to give a good
                 approximation. This process usually works well but you may
                 occasionally be able to achieve a better approximation and / or
                 better speed by choosing settings yourself. If manual_settings is
                 a dict, it can contain the following settings (see user manual for details):
                     max_rank (int): The preconditioner rank for approximate NMLL estimation.
-                        A larger value may improve estimation accuracy, but at the
-                        expense of speed. 512 - 1024 is fine for noisy data, 2048 is
-                        better if data is close to noise free.
                     nsamples (int): The number of probes for approximate NMLL estimation.
                     niter (int): The maximum number of iterations for approximate NMLL.
                     tol (float): The convergence tolerance for approximate NMLL.
@@ -779,6 +796,11 @@ class xGPRegression(ModelBaseclass):
             options={"maxfev":max_iter, "xtol":1e-1, "ftol":tol}
         elif tuning_method == "Nelder-Mead":
             options={"maxfev":max_iter, "fatol":tol}
+        elif tuning_method == "L-BFGS-B":
+            if nmll_method == "approximate":
+                raise ValueError("Approximate NMLL is not supported for "
+                        "L-BFGS-B at this time.")
+            options={"maxiter":max_iter, "ftol":tol}
         else:
             raise ValueError("Invalid tuning method supplied.")
 
@@ -789,7 +811,10 @@ class xGPRegression(ModelBaseclass):
             cost_fun = self.approximate_nmll
         elif nmll_method == "exact":
             args = (dataset,)
-            cost_fun = self.exact_nmll
+            if tuning_method == "L-BFGS-B":
+                cost_fun = self.exact_nmll_gradient
+            else:
+                cost_fun = self.exact_nmll
         else:
             raise ValueError("Invalid nmll method supplied.")
 
@@ -798,21 +823,33 @@ class xGPRegression(ModelBaseclass):
         rng = np.random.default_rng(self.random_seed)
 
         if starting_hyperparams is None:
-            x0 = optim_bounds.mean(axis=1)
-            n_repeats = n_restarts
+            x0 = self.kernel.get_hyperparams()
+            if (x0 - optim_bounds[:,0]).min() < 0 or \
+                    (optim_bounds[:,1] - x0).min() < 0:
+                x0 = optim_bounds.mean(axis=1)
+                warnings.warn("The kernel hyperparameters were outside the "
+                    "optimization boundaries. The mean of the optimization "
+                    "boundaries will be used as a starting point.", UserWarning)
+
         elif isinstance(starting_hyperparams, np.ndarray) and \
             starting_hyperparams.shape[0] == self.kernel.get_hyperparams().shape[0]:
             x0 = starting_hyperparams
-            n_repeats = 1
         else:
             raise ValueError("Invalid starting hyperparams were supplied.")
 
         best_score, n_feval = np.inf, 0
 
-        for _ in range(n_repeats):
-            res = minimize(cost_fun, x0 = x0,
-                    options=options, method=tuning_method,
-                    args = args, bounds = bounds_tuples)
+        for _ in range(n_restarts):
+            if tuning_method != "L-BFGS-B":
+                res = minimize(cost_fun, x0 = x0,
+                        options=options, method=tuning_method,
+                        args = args, bounds = bounds_tuples)
+            else:
+                res = minimize(cost_fun, x0 = x0,
+                        options=options, method=tuning_method,
+                        args = args, bounds = bounds_tuples,
+                        jac = True)
+
             n_feval += res.nfev
 
             if res.fun < best_score:
@@ -823,73 +860,3 @@ class xGPRegression(ModelBaseclass):
 
         self._run_post_nmll_cleanup(dataset, hyperparams)
         return hyperparams, n_feval, best_score
-
-
-
-    def tune_hyperparams_lbfgs(self, dataset,
-            max_iter = 50, n_restarts = 1,
-            starting_hyperparams = None, bounds = None):
-        """Tunes the hyperparameters using the L-BFGS algorithm, with
-        NMLL as the objective.
-        It uses either a supplied set of starting hyperparameters OR
-        randomly chosen locations. If the latter, it is run
-        n_restarts times. Because it uses exact NMLL rather than
-        approximate, this method is only suitable to small numbers
-        of random features; for larger numbers of random features
-        (e.g. >> 5000) it has poor scaling.
-
-        Args:
-            dataset: Object of class OnlineDataset or OfflineDataset.
-            max_iter (int): The maximum number of iterations for
-                which l-bfgs should be run per restart.
-            n_restarts (int): The maximum number of restarts to run l-bfgs.
-            starting_hyperparams (np.ndarray): A starting point for l-bfgs
-                based optimization. Defaults to None. If None, randomly
-                selected locations are used.
-            bounds (np.ndarray): The bounds for optimization. Defaults to
-                None, in which case the kernel uses its default bounds.
-                If supplied, must be a 2d numpy array of shape (num_hyperparams, 2).
-
-        Returns:
-            hyperparams (np.ndarray): The best hyperparams found during optimization.
-            n_feval (int): The number of function evaluations during optimization.
-            best_score (float): The best negative marginal log-likelihood achieved.
-
-        Raises:
-            ValueError: The input dataset is checked for validity before tuning is
-                initiated. If problems are found, a ValueError will provide an
-                explanation of the error.
-        """
-        optim_bounds = self._run_pre_nmll_prep(dataset, bounds)
-
-        init_hyperparams = starting_hyperparams
-        if init_hyperparams is None:
-            init_hyperparams = self.kernel.get_hyperparams(logspace=True)
-
-        best_x, best_score, net_iterations = None, np.inf, 0
-        bounds_tuples = list(map(tuple, optim_bounds))
-
-        rng = np.random.default_rng(self.random_seed)
-        args, cost_fun = (dataset,), self.exact_nmll_gradient
-
-        for iteration in range(n_restarts):
-            res = minimize(cost_fun, options={"maxiter":max_iter},
-                        x0 = init_hyperparams, args = args,
-                        jac = True, bounds = bounds_tuples)
-
-            net_iterations += res.nfev
-            if res.fun < best_score:
-                best_x = res.x
-                best_score = res.fun
-            if self.verbose:
-                print(f"Restart {iteration} completed. Best score is {best_score}.")
-            init_hyperparams = [rng.uniform(low = optim_bounds[j,0], high = optim_bounds[j,1])
-                    for j in range(optim_bounds.shape[0])]
-            init_hyperparams = np.asarray(init_hyperparams)
-
-
-        if best_x is None:
-            raise ValueError("All restarts failed to find acceptable hyperparameters.")
-
-        self._run_post_nmll_cleanup(dataset, best_x)
-        return best_x, net_iterations, best_score

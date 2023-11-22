@@ -30,13 +30,13 @@ class CheckApproximateNMLL(unittest.TestCase):
         cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs = NUM_RFFS)
 
         outcome = run_exact_approx_comparison(cpu_mod, EASY_HPARAMS, online_data,
-                                512, "cpu")
+                                "cpu")
         print("Preconditioned test with 'easy' hyperparameters for CPU: "
                 f"result within {ERROR_MARGIN} percent? {outcome}")
         self.assertTrue(outcome)
 
         outcome = run_exact_approx_comparison(cpu_mod, HARD_HPARAMS, online_data,
-                                512, "cpu")
+                                "cpu")
         print("Preconditioned test with 'hard' hyperparameters for CPU: "
                 f"result within {ERROR_MARGIN} percent? {outcome}")
         self.assertTrue(outcome)
@@ -44,13 +44,13 @@ class CheckApproximateNMLL(unittest.TestCase):
 
         if gpu_mod is not None:
             outcome = run_exact_approx_comparison(gpu_mod, EASY_HPARAMS, online_data,
-                                512, "gpu")
+                                "gpu")
             print("Preconditioned test with 'easy' hyperparameters for GPU: "
                 f"result within {ERROR_MARGIN} percent? {outcome}")
             self.assertTrue(outcome)
 
             outcome = run_exact_approx_comparison(gpu_mod, HARD_HPARAMS, online_data,
-                                512, "gpu")
+                                "gpu")
             print("Preconditioned test with 'hard' hyperparameters for GPU: "
                 f"result within {ERROR_MARGIN} percent? {outcome}")
             self.assertTrue(outcome)
@@ -62,29 +62,14 @@ class CheckApproximateNMLL(unittest.TestCase):
         cpu_mod, gpu_mod = get_models("RBF", online_data,
                         num_rffs = NUM_RFFS)
 
-        outcome = run_exact_approx_comparison(cpu_mod, EASY_HPARAMS, online_data,
-                                0, "cpu")
-        print("NO PRECONDITION: Test with 'easy' hyperparameters for CPU: "
-                f"result within {ERROR_MARGIN} percent? {outcome}")
-        self.assertTrue(outcome)
 
 
-        if gpu_mod is not None:
-            outcome = run_exact_approx_comparison(gpu_mod, EASY_HPARAMS, online_data,
-                                0, "gpu")
-            print("NO PRECONDITION: Test with 'easy' hyperparameters for GPU: "
-                f"result within {ERROR_MARGIN} percent? {outcome}")
-            self.assertTrue(outcome)
-
-
-def run_exact_approx_comparison(model, hyperparams, dataset, max_rank, device):
+def run_exact_approx_comparison(model, hyperparams, dataset, device):
     """A 'helper' function for generating and comparing exact and
     approximate NMLL."""
     dataset.device = device
     exact_nmll = model.exact_nmll(hyperparams, dataset)
-    approx_nmll = model.approximate_nmll(hyperparams, dataset,
-                    max_rank = max_rank, nsamples = 25,
-                    niter = 200, tol = 1e-5)
+    approx_nmll = model.approximate_nmll(hyperparams, dataset)
     outcome = 100 * abs(approx_nmll - exact_nmll) / exact_nmll < ERROR_MARGIN
     print(f"Exact: {exact_nmll}, Approx: {approx_nmll}")
     return outcome

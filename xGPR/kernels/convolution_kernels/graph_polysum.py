@@ -140,7 +140,7 @@ class GraphPolySum(KernelBaseclass):
         """
         if len(input_x.shape) != 3:
             raise ValueError("Input to GraphPoly must be a 3d array.")
-        if input_x.shape[2] != self.xdim[2]:
+        if input_x.shape[2] != self._xdim[2]:
             raise ValueError("Unexpected number of features supplied to GraphPoly.")
         retyped_input = self.zero_arr((input_x.shape[0], input_x.shape[1],
                     self.padded_dims), self.dtype)

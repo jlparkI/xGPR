@@ -29,11 +29,12 @@ class AuxiliaryBaseclass():
             hyperparameter tuning and fitting.
     """
 
-    def __init__(self, num_rffs, hyperparams, dataset, kernel_choice="RBF", device = "cpu",
-                    kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
-                    random_seed = 123, verbose = True,
-                    num_threads = 2,
-                    double_precision_fht = False):
+    def __init__(self, num_rffs:int, hyperparams, dataset,
+                    kernel_choice:str = "RBF", device:str = "cpu",
+                    kernel_specific_params:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
+                    random_seed:int = 123, verbose:bool = True,
+                    num_threads:int = 2,
+                    double_precision_fht:bool = False):
         """Constructor.
 
         Args:
@@ -112,7 +113,7 @@ class AuxiliaryBaseclass():
         return x_array
 
 
-    def transform_data(self, input_x, chunk_size = 2000):
+    def transform_data(self, input_x, chunk_size:int = 2000):
         """Generate the random features for each chunk
         of an input array. This function is a generator
         so it will yield the random features as blocks

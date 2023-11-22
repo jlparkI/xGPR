@@ -166,7 +166,7 @@ class FHTConv1d(KernelBaseclass):
                     "kernel width.")
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
-        if input_x.shape[2] != self.xdim[2]:
+        if input_x.shape[2] != self._xdim[2]:
             raise ValueError("Unexpected input shape supplied.")
 
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
@@ -214,7 +214,7 @@ class FHTConv1d(KernelBaseclass):
                     "kernel width.")
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
-        if input_x.shape[2] != self.xdim[2]:
+        if input_x.shape[2] != self._xdim[2]:
             raise ValueError("Unexpected input shape supplied.")
 
         output_x = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
