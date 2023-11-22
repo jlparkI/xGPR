@@ -96,7 +96,7 @@ def bayes_grid_tuning(kernel, dataset, bounds, random_seed,
         lb_vals.append(lb_val)
         scores.append(min(score, smallest_non_inf_val))
 
-        if iternum > 15 and min_dist < tol:
+        if min_dist < tol:
             break
         if verbose:
             print(f"Additional acquisition {iternum}.")

@@ -11,3 +11,10 @@ DEFAULT_KERNEL_SPEC_PARMS = {"matern_nu":5/2, "conv_width":9,
 #The following is used if an error is encountered during
 #matrix decomposition.
 DEFAULT_SCORE_IF_PROBLEM = 1e40
+
+#Default settings for NMLL approximation.
+default_nmll_params = {"max_rank":1024, "preconditioner_mode":"srht_2",
+        "nsamples":25, "nmll_iter":500, "nmll_tol":1e-6}
+
+#Default max rank for NMLL approximation.
+LARGEST_NMLL_MAX_RANK = 3000

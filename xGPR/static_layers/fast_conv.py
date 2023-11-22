@@ -147,6 +147,9 @@ class FastConv1d:
                             xdim, input_dataset.get_ymean(),
                             input_dataset.get_ystd())
 
+        if self.device == "gpu":
+            mempool = cp.get_default_memory_pool()
+            mempool.free_all_blocks()
         os.chdir(start_dir)
         return updated_dataset
 
@@ -192,7 +195,12 @@ class FastConv1d:
 
             if self.device == "gpu":
                 xtrans = cp.asnumpy(xtrans).astype(np.float64)
+
             x_features.append(xtrans)
+
+        if self.device == "gpu":
+            mempool = cp.get_default_memory_pool()
+            mempool.free_all_blocks()
 
         x_features = np.vstack(x_features)
         return x_features

@@ -187,7 +187,7 @@ class ModelBaseclass():
         if hyperparams is None and dataset is None:
             raise ValueError("Should supply hyperparams and/or a dataset.")
         if self.kernel is None:
-            self._initialize_kernel(dataset, hyperparams)
+            self._initialize_kernel(dataset, hyperparams = hyperparams)
         else:
             self.kernel.check_hyperparams(hyperparams)
             self.kernel.set_hyperparams(hyperparams, logspace = True)
@@ -204,15 +204,18 @@ class ModelBaseclass():
 
 
 
-    def _initialize_kernel(self, dataset, hyperparams = None, bounds = None):
+    def _initialize_kernel(self, dataset = None, xdim = None,
+            hyperparams = None, bounds = None):
         """Selects and initializes an appropriate kernel object based on the
         kernel_choice string supplied by caller. The kernel is then moved to
         the appropriate device based on the 'device' supplied by caller
         and is returned.
 
         Args:
-            kernel_choice (str): The kernel selection. Must be one of
-                constants.ACCEPTABLE_KERNELS.
+            dataset: Either None or a valid dataset object. If None, xdim must not be
+                None.
+            xdim: Either None or the numpy array returned by dataset.get_xdim(). If None,
+                dataset must not be None.
             hyperparams (ndarray): Either None or a numpy array. If not None,
                 must be a numpy array such that shape[0] == the number of hyperparameters
                 for the selected kernel. The kernel hyperparameters are then initialized
@@ -232,7 +235,15 @@ class ModelBaseclass():
         """
         if self.kernel_choice not in KERNEL_NAME_TO_CLASS:
             raise ValueError("An unrecognized kernel choice was supplied.")
-        self.kernel = KERNEL_NAME_TO_CLASS[self.kernel_choice](dataset.get_xdim(),
+
+        if dataset is None and xdim is not None:
+            input_xdim = xdim
+        elif dataset is not None:
+            input_xdim = dataset.get_xdim()
+        else:
+            raise ValueError("Either a dataset or xdim must be supplied.")
+
+        self.kernel = KERNEL_NAME_TO_CLASS[self.kernel_choice](input_xdim,
                             self.num_rffs, self.random_seed, self.device,
                             self.num_threads, self.double_precision_fht,
                             kernel_spec_parms = self.kernel_spec_parms)
@@ -259,18 +270,19 @@ class ModelBaseclass():
         return self.kernel.get_bounds()
 
 
-    def _run_singlepoint_nmll_prep(self, dataset, exact_method = False,
-            nmll_rank = None):
+    def _run_singlepoint_nmll_prep(self, dataset, exact_method = False):
         """Runs key steps / checks needed if about to calculate
         NMLL at a single point, in which case bounds are not needed.
         """
         dataset.device = self.device
         if self.kernel is None:
             self._initialize_kernel(dataset)
+
         self.weights, self.var = None, None
-        if nmll_rank is not None:
-            if nmll_rank >= self.kernel.get_num_rffs():
-                raise ValueError("NMLL rank must be < the number of rffs.")
+
+        if self.num_rffs <= 2:
+            raise ValueError("num_rffs should be > 2 to use any tuning method.")
+
         if exact_method:
             if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
                 raise ValueError(f"At most {constants.MAX_CLOSED_FORM_RFFS} can be used "
@@ -368,7 +380,10 @@ class ModelBaseclass():
         user is changing this, the kernel needs to
         be re-initialized."""
         self._num_rffs = value
-        self.kernel = None
+        if self.kernel is not None:
+            self._initialize_kernel(xdim = self.kernel.get_xdim(),
+                   hyperparams = self.kernel.get_hyperparams(),
+                   bounds = self.kernel.get_bounds())
         self.weights = None
         self.var = None
 
@@ -392,7 +407,10 @@ class ModelBaseclass():
             raise ValueError("variance_rffs must be <= num_rffs.")
         self._variance_rffs = value
         if self.var is not None:
-            self.kernel = None
+            if self.kernel is not None:
+                self._initialize_kernel(xdim = self.kernel.get_xdim(),
+                    hyperparams = self.kernel.get_hyperparams(),
+                    bounds = self.kernel.get_bounds())
             self.weights = None
             self.var = None
 
@@ -438,7 +456,10 @@ class ModelBaseclass():
         self._random_seed = value
         if self.kernel is not None:
             self.kernel.double_precision = value
-        self.kernel = None
+        if self.kernel is not None:
+            self._initialize_kernel(xdim = self.kernel.get_xdim(),
+                   hyperparams = self.kernel.get_hyperparams(),
+                   bounds = self.kernel.get_bounds())
         self.weights = None
         self.var = None
 

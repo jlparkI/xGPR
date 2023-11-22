@@ -28,7 +28,7 @@ from .scoring_toolkit.approximate_nmll_calcs import estimate_logdet
 from .scoring_toolkit.nmll_gradient_tools import exact_nmll_reg_grad, calc_gradient_terms
 from .scoring_toolkit.probe_generators import generate_normal_probes_gpu
 from .scoring_toolkit.probe_generators import generate_normal_probes_cpu
-from .scoring_toolkit.exact_nmll_calcs import calc_zty, calc_design_mat, direct_weight_calc
+from .scoring_toolkit.exact_nmll_calcs import calc_design_mat, direct_weight_calc
 from .scoring_toolkit.bayes_grid import bayes_grid_tuning
 from .scoring_toolkit.lb_optimizer import shared_hparam_search
 from .scoring_toolkit.alpha_beta_optimizer import optimize_alpha_beta
@@ -179,7 +179,6 @@ class xGPRegression(ModelBaseclass):
             self.num_rffs = 8192
             self.set_hyperparams(hparams, dataset)
 
-        self._run_pre_fitting_prep(dataset, max_rank)
         s_mat = srht_ratio_check(dataset, max_rank, self.kernel, self.random_seed,
                 self.verbose, sample_frac)
         ratio = float(s_mat.min() / self.kernel.get_lambda()**2) / sample_frac
@@ -189,13 +188,13 @@ class xGPRegression(ModelBaseclass):
             self.num_rffs = num_rffs
             self.set_hyperparams(hparams, dataset)
 
-        self._run_post_fitting_cleanup(dataset)
         return ratio
 
 
 
     def _autoselect_preconditioner(self, dataset, max_rank = 3000,
-            increment_size = 1024, tuning = False):
+            increment_size = 512, always_use_srht2 = False,
+            ratio_target = 30, tuning = False):
         """Uses an automated algorithm to choose a preconditioner that
         is up to max_rank in size. For internal use only.
 
@@ -205,25 +204,30 @@ class xGPRegression(ModelBaseclass):
                 building the preconditioner.
             increment_size (int): The amount by which to increase the
                 preconditioner size when increasing the max rank.
-            tuning (bool): If True, the preconditioner is intended for
-                tuning. In this case, we will default to using 'srht_2'
+            always_use_srht2 (bool): If True, srht2 should always be used
+                regardless of the ratio obtained. This will reduce the
+                number of iterations about 30% but increase time cost
+                of preconditioner construction about 150%.
+            ratio_target (int): The target value for the ratio.
+            tuning (bool): If True, preconditioner is intended for tuning,
+                so it also needs to be used for SLQ.
 
         Returns:
             preconditioner: A preconditioner object.
         """
+
         sample_frac, method, ratio, rank = 0.2, "srht", np.inf, 512
         if rank >= self.num_rffs:
             rank = self.num_rffs - 1
-        if rank < 2:
-            return None
+            ratio = 1
 
         if dataset.get_ndatapoints() < 5000:
             sample_frac = 1
 
-        while ratio > 100 and rank < max_rank:
+        while ratio > ratio_target and rank < max_rank:
             ratio = self.check_rank_ratio(dataset, sample_frac = sample_frac,
                     max_rank = rank)
-            if ratio > 100:
+            if ratio > ratio_target:
                 if (rank + increment_size) < max_rank and \
                         (rank + increment_size) < self.num_rffs:
                     rank += increment_size
@@ -234,17 +238,23 @@ class xGPRegression(ModelBaseclass):
                     method = "srht_2"
                     break
 
+        if self.verbose:
+            print(f"Using rank: {rank}")
+
+        if always_use_srht2:
+            method = "srht_2"
+
         if tuning:
             preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, rank,
-                        False, self.random_seed, "srht_2")
+                        False, self.random_seed, method)
         else:
             if self.device == "gpu":
-                preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, max_rank,
+                preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, rank,
                         self.verbose, self.random_seed, method)
                 mempool = cp.get_default_memory_pool()
                 mempool.free_all_blocks()
             else:
-                preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, max_rank,
+                preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, rank,
                         self.verbose, self.random_seed, method)
 
         return preconditioner
@@ -405,9 +415,7 @@ class xGPRegression(ModelBaseclass):
 
 
 
-    def approximate_nmll(self, hyperparams, dataset, max_rank=1024,
-            nsamples=25, niter=500, tol=1e-6,
-            preconditioner_mode="srht_2"):
+    def approximate_nmll(self, hyperparams, dataset, manual_settings = None):
         """Calculates the approximate negative marginal log likelihood (the model
         'score') using stochastic Lanczos quadrature with preconditioning.
         Slower than exact for very small numbers of random features, but
@@ -420,43 +428,52 @@ class xGPRegression(ModelBaseclass):
                 set of hyperparameters that should be assigned to the kernel.
             dataset: An OnlineDataset or OfflineDataset containing the raw
                 data we will use for this evaluation.
-            max_rank (int): The preconditioner rank for approximate NMLL estimation.
-                A larger value may reduce the number of iterations for nmll approximation
-                to converge and improve estimation accuracy, but will also increase
-                cost for preconditioner construction. This needs to be increased
-                (e.g. to 2048) if the data is close to noise-free.
-            nsamples (int): The number of probes for approximate NMLL estimation.
-                A larger value may improve accuracy of estimation but with increased
-                computational cost. This rarely needs to be adjusted -- the default
-                is usually fine.
-            niter (int): The maximum number of iterations for approximate NMLL.
-                This rarely needs to be adjusted -- the default is usually fine.
-            tol (float): The convergence tolerance for approximate NMLL.
-                A smaller value may improve accuracy of estimation but with
-                increased computational cost. This rarely needs to be adjusted --
-                the default is usually fine.
-            preconditioner_mode (str): One of "srht", "srht_2". Determines the mode of
-                preconditioner construction. "srht_2" is recommended.
+            manual_settings: Either None (default) or a dict. If None, the function will
+                try to automatically choose settings that will give a good
+                approximation. This process usually works well but you may
+                occasionally be able to achieve a better approximation and / or
+                better speed by choosing settings yourself. If manual_settings is
+                a dict, it can contain the following settings (see user manual for details):
+                    max_rank (int): The preconditioner rank for approximate NMLL estimation.
+                        A larger value may improve estimation accuracy, but at the
+                        expense of speed. 512 - 1024 is fine for noisy data, 2048 is
+                        better if data is close to noise free.
+                    nsamples (int): The number of probes for approximate NMLL estimation.
+                    niter (int): The maximum number of iterations for approximate NMLL.
+                    tol (float): The convergence tolerance for approximate NMLL.
+                    preconditioner_mode (str): One of "srht", "srht_2". Determines the mode of
+                        preconditioner construction.
 
         Returns:
             nmll (float): The negative marginal log likelihood for the
                 input hyperparameters.
-            inv_trace (float): The approximate inverse of the trace. Only
-                returned if retrieve_trace is True.
         """
-        self._run_singlepoint_nmll_prep(dataset, exact_method = False,
-            nmll_rank = max_rank)
-        if self.kernel is None:
-            raise ValueError("Must call self.initialize before calculating NMLL.")
-        self.weights, self.var = None, None
+        self._run_singlepoint_nmll_prep(dataset, exact_method = False)
 
         self.kernel.set_hyperparams(hyperparams, logspace = True)
-        preconditioner = None
         if self.verbose:
             print("Now building preconditioner...")
 
-        preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, max_rank,
-                        False, self.random_seed, preconditioner_mode)
+        #If the user supplied manual settings, they want to control preconditioner
+        #construction. Build a preconditioner using the default settings modified
+        #with any settings they selected.
+        settings = constants.default_nmll_params
+        if manual_settings is not None:
+            for key in settings:
+                if key in manual_settings:
+                    settings[key] = manual_settings[key]
+
+            if settings["max_rank"] >= self.num_rffs:
+                settings["max_rank"] = self.num_rffs - 1
+
+            preconditioner = RandNysTuningPreconditioner(self.kernel, dataset,
+                        settings["max_rank"], False, self.random_seed,
+                        settings["preconditioner_mode"])
+        else:
+            preconditioner = self._autoselect_preconditioner(dataset,
+                    constants.LARGEST_NMLL_MAX_RANK,
+                    always_use_srht2 = True,
+                    tuning = True)
 
         if self.verbose:
             print("Now fitting...")
@@ -465,28 +482,26 @@ class xGPRegression(ModelBaseclass):
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
             cg_operator = GPU_ConjugateGrad()
-            resid = cp.zeros((self.kernel.get_num_rffs(), 2, nsamples + 1),
+            resid = cp.zeros((self.kernel.get_num_rffs(), 2, settings["nsamples"] + 1),
                             dtype = cp.float64)
-            probes = generate_normal_probes_gpu(nsamples, self.kernel.get_num_rffs(),
-                        self.random_seed, preconditioner)
+            probes = generate_normal_probes_gpu(settings["nsamples"],
+                    self.kernel.get_num_rffs(), self.random_seed, preconditioner)
         else:
             cg_operator = CPU_ConjugateGrad()
-            resid = np.zeros((self.kernel.get_num_rffs(), 2, nsamples + 1),
-                            dtype = np.float64)
-            probes = generate_normal_probes_cpu(nsamples, self.kernel.get_num_rffs(),
-                        self.random_seed, preconditioner)
+            resid = np.zeros((self.kernel.get_num_rffs(), 2,
+                            settings["nsamples"] + 1), dtype = np.float64)
+            probes = generate_normal_probes_cpu(settings["nsamples"],
+                self.kernel.get_num_rffs(), self.random_seed, preconditioner)
 
-        if preconditioner is None:
-            z_trans_y, y_trans_y = calc_zty(dataset, self.kernel)
-        else:
-            z_trans_y = preconditioner.get_zty()
-            y_trans_y = preconditioner.get_yty()
+        z_trans_y = preconditioner.get_zty()
+        y_trans_y = preconditioner.get_yty()
 
         resid[:,0,0] = z_trans_y / dataset.get_ndatapoints()
         resid[:,0,1:] = probes
 
         x_k, alphas, betas = cg_operator.fit(dataset, self.kernel,
-                    preconditioner, resid, niter, tol, verbose = False,
+                    preconditioner, resid, settings["nmll_iter"],
+                    settings["nmll_tol"], verbose = False,
                     nmll_settings = True)
 
         x_k[:,0] *= dataset.get_ndatapoints()
@@ -510,44 +525,50 @@ class xGPRegression(ModelBaseclass):
     def fit(self, dataset, preconditioner = None,
             tol = 1e-6, max_iter = 500, mode = "cg",
             suppress_var = False, max_rank = 3000,
+            autoselect_target_ratio = 30.,
+            always_use_srht2 = False,
             run_diagnostics = False):
         """Fits the model after checking that the input data
         is consistent with the kernel choice and other user selections.
 
         Args:
             dataset: Object of class OnlineDataset or OfflineDataset.
-            preconditioner: Either None or a valid Preconditioner 
+            preconditioner: Either None (default) or a valid Preconditioner 
                 (generated by a call to build_preconditioner).
                 If None and mode is 'cg', a preconditioner is
                 automatically constructed at a max_rank chosen using several
                 passes over the dataset. If mode is 'exact', this argument is
-                ignored. For 'cg', pass in a preconditioner if you want to have
-                closer control over the fitting process, otherwise, you can
-                let the auto-precondition algorithm build it for you.
+                ignored.
             tol (float): The threshold below which iterative strategies (L-BFGS, CG)
-                are deemed to have converged. Defaults to 1e-5. Note that how
-                reaching the threshold is assessed may depend on the algorithm.
+                are deemed to have converged.
             max_iter (int): The maximum number of epochs for iterative strategies.
             mode (str): Must be one of "cg", "lbfgs", "exact".
                 Determines the approach used. If 'exact', self.kernel.get_num_rffs
                 must be <= constants.constants.MAX_CLOSED_FORM_RFFS.
-            suppress_var (bool): If True, do not calculate variance. This is generally only
-                useful when optimizing hyperparameters, since otherwise we want to calculate
-                the variance. It is best to leave this as default False unless performing
-                hyperparameter optimization.
+            suppress_var (bool): If True, do not calculate variance. Use this when you
+                are just testing performance on a validation set and so do not need to
+                calculate variance.
             max_rank (int): The largest size to which the preconditioner can be set.
                 Ignored if not autoselecting a preconditioner (i.e. if
                 mode is 'cg' and preconditioner = None). The default is
                 significantly more than should be needed the vast majority of
                 the time.
-            run_diagnostics (bool): If True, the number of conjugate
-                gradients and the preconditioner diagnostics ratio are returned.
+            autoselect_target_ratio (float): The target ratio if choosing the
+                preconditioner size via autoselect. Lower values reduce the number
+                of iterations needed to fit but increase preconditioner expense.
+                Default is usually fine if 40 - 50 iterations are considered
+                acceptable.
+            always_use_srht2 (bool): If True, always use srht2 for preconditioner
+                construction. This will reduce the number of iterations for
+                fitting by 30% on average but will increase the time cost
+                of preconditioner construction about 150%.
+            run_diagnostics (bool): If True, some performance metrics are returned.
 
         Returns:
             Does not return anything unless run_diagnostics is True.
             n_iter (int): The number of iterations if applicable.
-            losses (list): The loss on each iteration. Only for SGD and CG, otherwise,
-                empty list.
+            losses (list): The loss on each iteration (only for mode='cg'; empty list
+                otherwise).
 
         Raises:
             ValueError: The input dataset is checked for validity before tuning is
@@ -567,7 +588,9 @@ class xGPRegression(ModelBaseclass):
 
         elif mode == "cg":
             if preconditioner is None:
-                preconditioner = self._autoselect_preconditioner(dataset, max_rank)
+                preconditioner = self._autoselect_preconditioner(dataset, max_rank,
+                        ratio_target = autoselect_target_ratio,
+                        always_use_srht2 = always_use_srht2)
             if run_diagnostics:
                 self.weights, n_iter, losses = cg_fit_lib_internal(self.kernel, dataset, tol,
                     max_iter, preconditioner, self.verbose)
@@ -584,13 +607,14 @@ class xGPRegression(ModelBaseclass):
         else:
             raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
                         "'lbfgs', 'cg', 'exact'.")
+
         if not suppress_var:
             if self.verbose:
                 print("Now performing variance calculations...")
-            #TODO: This is a little bit of a hack; we use exact variance calc
-            #UNLESS we are dealing with a linear kernel with a very large number
-            #of input features. Find a better / more satisfactory way to resolve this.
-            if self.kernel_choice in ["Linear", "ExactQuadratic"]:
+            #We use exact variance calc UNLESS we are dealing with a linear kernel with
+            #a very large number of input features. Find a better / more satisfactory
+            #way to resolve this...
+            if self.kernel_choice in ["Linear"]:
                 if self.kernel.get_num_rffs() > constants.MAX_VARIANCE_RFFS:
                     self.var = InterDevicePreconditioner(self.kernel, dataset,
                         self.variance_rffs, False, self.random_seed, "srht")
@@ -698,8 +722,7 @@ class xGPRegression(ModelBaseclass):
     def tune_hyperparams_direct(self, dataset, bounds = None,
                 max_iter = 50, tol = 1, tuning_method = "Powell",
                 starting_hyperparams = None, n_restarts = 1,
-                nmll_method = "exact", nmll_rank=1024, nmll_probs=25,
-                nmll_iter=500, nmll_tol=1e-6, preconditioner_mode="srht_2"):
+                nmll_method = "exact", manual_settings = None):
         """Tunes the hyperparameters WITHOUT using gradient information.
         The methods included here can be extremely efficient for one-
         and two-hyperparameter kernels but are not recommended for kernels
@@ -728,23 +751,21 @@ class xGPRegression(ModelBaseclass):
                 and accurate if num_rffs is small but scales poorly to large
                 num_rffs. 'approximate' has better scaling but is only accurate
                 so long as the `approx_nmll_settings` are reasonable.
-            nmll_rank (int): The preconditioner rank for approximate NMLL estimation.
-                A larger value may reduce the number of iterations for nmll approximation
-                to converge and improve estimation accuracy, but will also increase
-                cost for preconditioner construction. This needs to be increased
-                (e.g. to 2048) if the data is close to noise-free.
-            nmll_probes (int): The number of probes for approximate NMLL estimation.
-                A larger value may improve accuracy of estimation but with increased
-                computational cost. This rarely needs to be adjusted -- the default
-                is usually fine.
-            nmll_iter (int): The maximum number of iterations for approximate NMLL.
-                This rarely needs to be adjusted -- the default is usually fine.
-            nmll_tol (float): The convergence tolerance for approximate NMLL.
-                A smaller value may improve accuracy of estimation but with
-                increased computational cost. This rarely needs to be adjusted --
-                the default is usually fine.
-            preconditioner_mode (str): One of "srht", "srht_2". Determines the mode of
-                preconditioner construction. "srht_2" is recommended.
+            manual_settings: Either None (default) or a dict. If None, the function will
+                try to automatically choose settings that will give a good
+                approximation. This process usually works well but you may
+                occasionally be able to achieve a better approximation and / or
+                better speed by choosing settings yourself. If manual_settings is
+                a dict, it can contain the following settings (see user manual for details):
+                    max_rank (int): The preconditioner rank for approximate NMLL estimation.
+                        A larger value may improve estimation accuracy, but at the
+                        expense of speed. 512 - 1024 is fine for noisy data, 2048 is
+                        better if data is close to noise free.
+                    nsamples (int): The number of probes for approximate NMLL estimation.
+                    niter (int): The maximum number of iterations for approximate NMLL.
+                    tol (float): The convergence tolerance for approximate NMLL.
+                    preconditioner_mode (str): One of "srht", "srht_2". Determines the mode of
+                        preconditioner construction.
 
         Returns:
             hyperparams (np.ndarray): The best hyperparams found during optimization.
@@ -761,13 +782,12 @@ class xGPRegression(ModelBaseclass):
         else:
             raise ValueError("Invalid tuning method supplied.")
 
+        optim_bounds = self._run_pre_nmll_prep(dataset, bounds)
+
         if nmll_method == "approximate":
-            optim_bounds = self._run_pre_nmll_prep(dataset, bounds, nmll_rank)
-            args = (dataset, nmll_rank, nmll_probs, nmll_iter,
-                    nmll_tol, preconditioner_mode)
+            args = (dataset, manual_settings)
             cost_fun = self.approximate_nmll
         elif nmll_method == "exact":
-            optim_bounds = self._run_pre_nmll_prep(dataset, bounds)
             args = (dataset,)
             cost_fun = self.exact_nmll
         else:
@@ -778,10 +798,10 @@ class xGPRegression(ModelBaseclass):
         rng = np.random.default_rng(self.random_seed)
 
         if starting_hyperparams is None:
-            x0 = self.kernel.get_hyperparams()
+            x0 = optim_bounds.mean(axis=1)
             n_repeats = n_restarts
         elif isinstance(starting_hyperparams, np.ndarray) and \
-            starting_hyperparams.shape[0] == self.kernel.get_hyperparams.shape[0]:
+            starting_hyperparams.shape[0] == self.kernel.get_hyperparams().shape[0]:
             x0 = starting_hyperparams
             n_repeats = 1
         else:
@@ -801,6 +821,7 @@ class xGPRegression(ModelBaseclass):
                     high = optim_bounds[j,1]) for j in range(optim_bounds.shape[0])]
             x0 = np.asarray(x0)
 
+        self._run_post_nmll_cleanup(dataset, hyperparams)
         return hyperparams, n_feval, best_score
 
 
@@ -815,10 +836,7 @@ class xGPRegression(ModelBaseclass):
         n_restarts times. Because it uses exact NMLL rather than
         approximate, this method is only suitable to small numbers
         of random features; for larger numbers of random features
-        (e.g. > 5000) it is slow. Nonetheless, this can be
-        very effective, especially for kernels with > 2
-        hyperparameters, where the direct methods tend to
-        be less efficient.
+        (e.g. >> 5000) it has poor scaling.
 
         Args:
             dataset: Object of class OnlineDataset or OfflineDataset.

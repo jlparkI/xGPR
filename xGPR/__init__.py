@@ -8,7 +8,6 @@ from .xGP_Classification import xGPClassifier
 from .data_handling.dataset_builder import build_regression_dataset
 from .data_handling.dataset_builder import build_classification_dataset
 
-from .kernel_xpca import KernelxPCA
 from .kernel_fgen import KernelFGen
 
 from .static_layers import FastConv1d
