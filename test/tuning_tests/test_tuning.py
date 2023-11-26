@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from xGPR.xGP_Regression import xGPRegression as xGPReg
+from xGPR import xGPRegression as xGPReg
 #TODO: Get rid of this path alteration
 sys.path.append("..")
 from utils.build_test_dataset import build_test_dataset

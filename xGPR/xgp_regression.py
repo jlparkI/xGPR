@@ -5,7 +5,6 @@ model and make predictions for new datapoints. It inherits from
 ModelBaseclass.
 """
 import warnings
-import typing
 try:
     import cupy as cp
     from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
@@ -16,10 +15,9 @@ from scipy.optimize import minimize
 
 from .constants import constants
 from .model_baseclass import ModelBaseclass
-from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
 from .preconditioners.inter_device_preconditioners import InterDevicePreconditioner
-from .preconditioners.rand_nys_constructors import srht_ratio_check
+from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 
 from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext, cg_fit_lib_internal
@@ -144,135 +142,9 @@ class xGPRegression(ModelBaseclass):
         return preds * self.trainy_std + self.trainy_mean, var * self.trainy_std**2
 
 
-
-    def check_rank_ratio(self, dataset, sample_frac:float = 0.1, max_rank:int = 512):
-        """Determines what ratio a particular max_rank would achieve by using a random
-        sample of the data. This can be used to determine if a particular max_rank is
-        'good enough' to achieve a fast fit, and if so, that max_rank can be used
-        for fitting. If the number of rffs is > 8192, this function will use
-        8192 by default for better speed (we can get away with this thanks to
-        eigenvalue interlacing on random matrices). Note that this procedure
-        is not advisable for a small number of datapoints (e.g. < 5,000);
-        for those cases, just building the full preconditioner is easier.
-
-        Args:
-            dataset: A Dataset object.
-            max_rank (int): The maximum rank for the preconditioner, which
-                uses a low-rank approximation to the matrix inverse. Larger
-                numbers mean a more accurate approximation and thus reduce
-                the number of iterations, but make the preconditioner more
-                expensive to construct.
-            sample_frac (float): The fraction of the data to sample. Must be in
-                [0.01, 1].
-
-        Returns:
-            achieved_ratio (float): The min eigval of the preconditioner over
-                lambda, the noise hyperparameter shared between all kernels.
-                This value has decent predictive value for assessing how
-                well a preconditioner built with this max_rank is likely to perform.
-        """
-        original_dataset_device = dataset.device
-        dataset.device = self.device
-
-        if sample_frac < 0.01 or sample_frac > 1:
-            raise ValueError("sample_frac must be in the range [0.01, 1]")
-
-        reset_num_rffs = False
-        if self.num_rffs > 8192:
-            hparams = self.kernel.get_hyperparams()
-            reset_num_rffs, num_rffs = True, self.num_rffs
-            self.num_rffs = 8192
-            self.set_hyperparams(hparams, dataset)
-
-        s_mat = srht_ratio_check(dataset, max_rank, self.kernel, self.random_seed,
-                self.verbose, sample_frac)
-        ratio = float(s_mat.min() / self.kernel.get_lambda()**2) / sample_frac
-
-        if reset_num_rffs:
-            hparams = self.kernel.get_hyperparams()
-            self.num_rffs = num_rffs
-            self.set_hyperparams(hparams, dataset)
-
-        dataset.device = original_dataset_device
-        return ratio
-
-
-
-    def _autoselect_preconditioner(self, dataset, max_rank:int = 3000,
-            increment_size:int = 512, always_use_srht2:bool = False,
-            ratio_target:float = 30., tuning:bool = False):
-        """Uses an automated algorithm to choose a preconditioner that
-        is up to max_rank in size. For internal use only.
-
-        Args:
-            dataset: A Dataset object.
-            max_rank (int): The largest rank that should be used for
-                building the preconditioner.
-            increment_size (int): The amount by which to increase the
-                preconditioner size when increasing the max rank.
-            always_use_srht2 (bool): If True, srht2 should always be used
-                regardless of the ratio obtained. This will reduce the
-                number of iterations about 30% but increase time cost
-                of preconditioner construction about 150%.
-            ratio_target (int): The target value for the ratio.
-            tuning (bool): If True, preconditioner is intended for tuning,
-                so it also needs to be used for SLQ.
-
-        Returns:
-            preconditioner: A preconditioner object.
-        """
-        sample_frac, method, ratio, rank = 0.2, "srht", np.inf, 512
-        actual_num_rffs = self.kernel.get_num_rffs()
-
-        if rank >= actual_num_rffs:
-            rank = actual_num_rffs - 1
-            ratio = 0.5 * ratio_target
-
-        if dataset.get_ndatapoints() < 5000:
-            sample_frac = 1
-
-        while ratio > ratio_target and rank < max_rank:
-            ratio = self.check_rank_ratio(dataset, sample_frac = sample_frac,
-                    max_rank = rank)
-            if ratio > ratio_target:
-                if (rank + increment_size) < max_rank and \
-                        (rank + increment_size) < actual_num_rffs:
-                    rank += increment_size
-                else:
-                    rank = max_rank
-                    if rank > actual_num_rffs:
-                        rank = actual_num_rffs - 1
-                    method = "srht_2"
-                    break
-
-        if self.verbose:
-            print(f"Using rank: {rank}")
-
-        if always_use_srht2:
-            method = "srht_2"
-
-
-        if tuning:
-            preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, rank,
-                        False, self.random_seed, method)
-        else:
-            if self.device == "gpu":
-                preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, rank,
-                        self.verbose, self.random_seed, method)
-                mempool = cp.get_default_memory_pool()
-                mempool.free_all_blocks()
-            else:
-                preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, rank,
-                        self.verbose, self.random_seed, method)
-
-        return preconditioner
-
-
-
-
     def build_preconditioner(self, dataset, max_rank:int = 512, method:str = "srht"):
         """Builds a preconditioner. The resulting preconditioner object
-        can be supplied to fit and used for CG, L-BFGS, SGD etc.
+        can be supplied to fit and used for CG.
 
         Args:
             dataset: A Dataset object.
@@ -281,12 +153,11 @@ class xGPRegression(ModelBaseclass):
                 numbers mean a more accurate approximation and thus reduce
                 the number of iterations, but make the preconditioner more
                 expensive to construct.
-            method (str): one of "srht", "srht_2" or "gauss". Only use "gauss"
-                for testing. "srht_2" runs two passes over the dataset. For
-                the same max_rank, the preconditioner built by "srht_2"
-                will generally reduce the number of CG iterations by 25-30%
-                compared with a preconditioner built by "srht", but it does
-                of course incur the expense of a second pass over the dataset.
+            method (str): one of "srht", "srht_2". "srht_2" runs two passes
+                over the dataset. For the same max_rank, the preconditioner
+                built by "srht_2" will reduce the number of CG iterations by
+                25-30% compared with "srht", but it does incur the expense
+                of a second pass over the dataset.
 
         Returns:
             preconditioner: A preconditioner object.
@@ -306,6 +177,7 @@ class xGPRegression(ModelBaseclass):
                         self.verbose, self.random_seed, method)
         self._run_post_fitting_cleanup(dataset)
         return preconditioner, preconditioner.achieved_ratio
+
 
 
 
@@ -411,7 +283,7 @@ class xGPRegression(ModelBaseclass):
             negloglik, grad, _ = exact_nmll_reg_grad(z_trans_z, z_trans_y,
                         y_trans_y, hparams, nsamples, dz_dsigma_ty,
                         inner_deriv, self.device)
-        except Exception as err:
+        except Exception as _:
             return constants.DEFAULT_SCORE_IF_PROBLEM, hyperparams - init_hparams
 
         #Same problem as above, only occasionally the LAPACK routines return
@@ -610,8 +482,7 @@ class xGPRegression(ModelBaseclass):
         elif mode == "lbfgs":
             model_fitter = lBFGSModelFit(dataset, self.kernel,
                     self.device, self.verbose)
-            self.weights, n_iter, losses = model_fitter.fit_model_lbfgs(max_iter, tol,
-                    preconditioner)
+            self.weights, n_iter, losses = model_fitter.fit_model_lbfgs(max_iter, tol)
 
         else:
             raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
@@ -624,14 +495,9 @@ class xGPRegression(ModelBaseclass):
             #a very large number of input features. Find a better / more satisfactory
             #way to resolve this...
             if self.kernel_choice in ["Linear"]:
-                if self.kernel.get_num_rffs() > constants.MAX_VARIANCE_RFFS:
-                    self.var = InterDevicePreconditioner(self.kernel, dataset,
+                self.var = InterDevicePreconditioner(self.kernel, dataset,
                         self.variance_rffs, False, self.random_seed, "srht")
-                    self.exact_var_calculation = False
-                else:
-                    self.variance_rffs = self.kernel.get_num_rffs()
-                    self.var = calc_variance_exact(self.kernel, dataset, self.kernel_choice,
-                                self.variance_rffs)
+                self.exact_var_calculation = False
             else:
                 self.var = calc_variance_exact(self.kernel, dataset, self.kernel_choice,
                                 self.variance_rffs)

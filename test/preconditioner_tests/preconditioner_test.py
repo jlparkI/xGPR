@@ -64,24 +64,6 @@ class CheckPreconditioners(unittest.TestCase):
             self.assertTrue(gpu_ratio < 0.4)
 
 
-    def test_gauss_preconditioner(self):
-        """Constructs a non-SRHT preconditioner and ensures it
-        can achieve a beta / lambda_**2 similar to expected."""
-        print("*********Testing Non-SRHT**************")
-        online_data, _ = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs=4100)
-        cpu_mod.set_hyperparams(HPARAM, online_data)
-        _, ratio = cpu_mod.build_preconditioner(online_data,
-            max_rank = 256, method = "gauss")
-        self.assertTrue(ratio < 0.3)
-
-        #If CUDA is available...
-        if gpu_mod is not None:
-            gpu_mod.set_hyperparams(HPARAM, online_data)
-            _, ratio = gpu_mod.build_preconditioner(online_data,
-                max_rank = 256, method = "gauss")
-            self.assertTrue(ratio < 0.3)
-
 
     def test_sampled_preconditioner(self):
         """Constructs a sampled preconditioner and determines whether
@@ -93,7 +75,7 @@ class CheckPreconditioners(unittest.TestCase):
 
         _, cpu_ratio = cpu_mod.build_preconditioner(online_data,
             max_rank = 64, method = "srht")
-        sampled_ratio = cpu_mod.check_rank_ratio(online_data, 0.5,
+        sampled_ratio = cpu_mod._check_rank_ratio(online_data, 0.5,
                 max_rank = 64)
         self.assertTrue((sampled_ratio / cpu_ratio) < 1.5)
         print(f"CPU exact {cpu_ratio}, sampled {sampled_ratio}")
@@ -103,7 +85,7 @@ class CheckPreconditioners(unittest.TestCase):
             gpu_mod.set_hyperparams(HPARAM, online_data)
             _, gpu_ratio = gpu_mod.build_preconditioner(online_data,
                 max_rank = 64, method = "srht")
-            sampled_ratio = gpu_mod.check_rank_ratio(online_data, 0.5,
+            sampled_ratio = gpu_mod._check_rank_ratio(online_data, 0.5,
                     max_rank = 64)
             print(f"GPU exact {gpu_ratio}, sampled {sampled_ratio}")
             self.assertTrue((sampled_ratio / gpu_ratio) < 1.5)

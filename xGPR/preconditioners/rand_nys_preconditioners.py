@@ -1,7 +1,7 @@
 """Implements a randomized nystrom preconditioner for CPU."""
 from scipy.sparse.linalg import LinearOperator
 import numpy as np
-from .rand_nys_constructors import initialize_gauss, initialize_srht, initialize_srht_multipass
+from .rand_nys_constructors import initialize_srht, initialize_srht_multipass
 
 
 class CPU_RandNysPreconditioner(LinearOperator):
@@ -25,7 +25,8 @@ class CPU_RandNysPreconditioner(LinearOperator):
     """
 
     def __init__(self, kernel, dataset, max_rank, verbose,
-                random_state = 123, method = "srht"):
+                random_state = 123, method = "srht",
+                x_mean = None):
         """Class constructor.
 
         Args:
@@ -38,24 +39,26 @@ class CPU_RandNysPreconditioner(LinearOperator):
                 generator.
             method (str): One of "srht", "gauss", "srht_2". Determines the method of
                 preconditioner construction.
+            x_mean (ndarray): Either None or an array of shape (num_rffs). Should
+                always be None for regression (regression does not mean center the
+                data) and should never be None for classification (classification does).
         """
         super().__init__(shape=(kernel.get_num_rffs(),
                             kernel.get_num_rffs()),
                             dtype=np.float64)
-        if method not in ["srht_2", "srht_3", "srht", "gauss"]:
+        if method not in ["srht_2", "srht_3", "srht"]:
             raise ValueError("Unknown method supplied for preconditioner "
                     "construction.")
 
         if method.startswith("srht_"):
             n_passes = int(method.split("_")[1])
             self.u_mat, s_mat, _, _ = initialize_srht_multipass(dataset, max_rank,
-                                kernel, random_state, verbose, n_passes)
+                                kernel, random_state, verbose, n_passes,
+                                x_mean = x_mean)
         elif method == "srht":
             self.u_mat, s_mat, _, _ = initialize_srht(dataset, max_rank,
-                                kernel, random_state, verbose)
-        else:
-            self.u_mat, s_mat, _, _ = initialize_gauss(dataset, max_rank,
-                                kernel, random_state, verbose)
+                                kernel, random_state, verbose,
+                                x_mean = x_mean)
 
         lambda_ = kernel.get_lambda()
 

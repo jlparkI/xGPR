@@ -3,13 +3,13 @@ import os
 import platform
 import subprocess
 from setuptools import setup, find_packages
+from setuptools.extension import Extension
 import numpy
 from Cython.Distutils import build_ext
 #Do NOT put this package import before the others.
 #setup tools monkey patches distutils, so reversing
 #the import order will (unbelievably enough) lead to an error.
 #If your linter tells you to put this first, IGNORE YOUR LINTER.
-from distutils.extension import Extension
 
 
 def get_version(setup_fpath):

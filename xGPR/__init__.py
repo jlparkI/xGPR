@@ -3,8 +3,8 @@
 __version__ = "0.1.3.2"
 
 #Key imports.
-from .xGP_Regression import xGPRegression
-from .xGP_Classification import xGPClassifier
+from .xgp_regression import xGPRegression
+from .xgp_classification import xGPClassification
 from .data_handling.dataset_builder import build_regression_dataset
 from .data_handling.dataset_builder import build_classification_dataset
 

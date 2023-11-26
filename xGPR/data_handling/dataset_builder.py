@@ -243,9 +243,10 @@ def build_offline_np_dataset(xlist:list, ylist:list, chunk_size:int = 2000,
             xdim[0] += x_data.shape[0]
             if xdim[1] == -1:
                 xdim[1] = x_data.shape[1]
-            elif x_data.shape[1] != xdim[1]:
-                raise ValueError("All x arrays must have the same dimensionality.")
-            if expected_arrlen == 3:
+            if expected_arrlen == 2:
+                if x_data.shape[1] != xdim[1]:
+                    raise ValueError("All x arrays must have the same dimensionality.")
+            elif expected_arrlen == 3:
                 if xdim[2] == -1:
                     xdim[2] = x_data.shape[2]
                 elif x_data.shape[2] != xdim[2]:

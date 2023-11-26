@@ -63,7 +63,6 @@ class xGPClassifier(ModelBaseclass):
                         kernel_specific_params = kernel_specific_params,
                         verbose = verbose, num_threads = num_threads,
                         random_seed = random_seed)
-        self.n_classes = 1
 
 
 
@@ -118,7 +117,6 @@ class xGPClassifier(ModelBaseclass):
 
     def fit(self, dataset, tol = 1e-6,
                 preset_hyperparams=None, max_iter = 500,
-                run_diagnostics = False,
                 mode = "lbfgs"):
         """Fits the model after checking that the input data
         is consistent with the kernel choice and other user selections.
@@ -135,8 +133,6 @@ class xGPClassifier(ModelBaseclass):
                 N is the number of hyperparams for the kernel in question.
             max_iter (int): The maximum number of epochs for iterative strategies.
             random_seed (int): The random seed for the random number generator.
-            run_diagnostics (bool): If True, the number of conjugate
-                gradients and the preconditioner diagnostics ratio are returned.
             mode (str): Must be one of "cg", "lbfgs", "exact".
                 Determines the approach used. If 'exact', self.kernel.get_num_rffs
                 must be <= constants.constants.MAX_CLOSED_FORM_RFFS.
@@ -176,6 +172,3 @@ class xGPClassifier(ModelBaseclass):
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
         self._run_post_fitting_cleanup(dataset)
-
-        if run_diagnostics:
-            return n_iter, losses

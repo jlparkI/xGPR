@@ -93,7 +93,7 @@ def build_traintest_split(conv_kernel = False, xsuffix = "trainxvalues.npy",
     xvalues, yvalues = xvalues[idx,:], yvalues[idx]
     cutoff = int(0.75 * idx.shape[0])
 
-    train_data = build_online_dataset(xvalues[:cutoff,...], yvalues[:cutoff], chunk_size = 2000)
-    test_data = build_online_dataset(xvalues[cutoff:,...], yvalues[cutoff:], chunk_size = 2000)
+    train_data = build_regression_dataset(xvalues[:cutoff,...], yvalues[:cutoff], chunk_size = 2000)
+    test_data = build_regression_dataset(xvalues[cutoff:,...], yvalues[cutoff:], chunk_size = 2000)
 
     return train_data, test_data

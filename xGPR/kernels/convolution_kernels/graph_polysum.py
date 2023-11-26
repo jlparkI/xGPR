@@ -93,7 +93,6 @@ class GraphPolySum(KernelBaseclass):
         self.radem_diag = rng.choice(radem_array, size=(3 * self.polydegree,
                                 1, self.init_calc_freqsize),
                                 replace=True)
-
         self.chi_arr = chi.rvs(df=self.padded_dims,
                         size=(self.polydegree, self.init_calc_freqsize),
                             random_state = random_seed)

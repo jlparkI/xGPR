@@ -10,7 +10,6 @@ import numpy as np
 from ..scoring_toolkit.exact_nmll_calcs import calc_var_design_mat
 from ..scoring_toolkit.exact_nmll_calcs import direct_weight_calc, calc_design_mat
 
-
 def calc_weights_exact(dataset, kernel):
     """Calculates the weights when fitting the model using
     matrix decomposition. Exact and fast for small numbers
@@ -64,3 +63,22 @@ def calc_variance_exact(kernel, dataset, kernel_choice, variance_rffs):
     else:
         var = cp.linalg.pinv(z_trans_z)
     return var
+
+
+def calc_classification_weights_exact(dataset, kernel, x_mean):
+    """Calculates the weights when fitting the model using
+    matrix decomposition. Exact and fast for small numbers
+    of random features but poor scaling.
+
+    Args:
+        dataset: Either OnlineDataset or OfflineDataset,
+            containing the information on the dataset we
+            are fitting.
+        kernel: A valid kernel object that can generate random
+            features.
+
+    Returns:
+        weights: A cupy or numpy array of shape (M) for M
+            random features.
+    """
+    return

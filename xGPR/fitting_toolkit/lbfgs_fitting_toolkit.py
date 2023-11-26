@@ -15,8 +15,7 @@ class lBFGSModelFit:
     """This class contains all the tools needed to fit a model
     whose hyperparameters have already been tuned using the L-BFGS
     algorithm. This is usually slower than preconditioned-CG
-    but for small datasets may be a good option since no
-    preconditioner is required.
+    but for small datasets may be a good option.
 
     Attributes:
         dataset: An OnlineDataset or OfflineDatset containing all the
@@ -32,9 +31,7 @@ class lBFGSModelFit:
         dtype: A convenience reference to either cp.float64 or np.float64,
             depending on device.
         niter (int): The number of function evaluations performed.
-        task_type (str): One of "regression", "classification".
-        cost_fun: A reference to the appropriate cost function, depending on
-            the type of task.
+        task_type (str): One of "regression", "classification", "discriminant".
         n_classes (int): The number of classes if performing classification;
             ignored otherwise.
     """
@@ -44,17 +41,16 @@ class lBFGSModelFit:
         """Class constructor.
 
         Args:
-        dataset: An OnlineDataset or OfflineDatset containing all the
-            training data.
-        kernel: A kernel object that can generate random features for
-            the Dataset.
-        device (str): One of 'cpu', 'gpu'. Indicates where calculations
-            will be performed.
-        verbose (bool): If True, print regular updates.
-        task_type (str): One of "regression", "classification". Determines the
-            type of task which is performed.
-        n_classes (int): The number of categories if performing classification;
-            ignored otherwise.
+            dataset: An OnlineDataset or OfflineDatset containing all the
+                training data.
+            kernel: A kernel object that can generate random features for
+                the Dataset.
+            device (str): One of 'cpu', 'gpu'. Indicates where calculations
+                will be performed.
+            verbose (bool): If True, print regular updates.
+            task_type (str): One of "regression", "classification", "discriminant".
+            n_classes (int): The number of categories if performing classification;
+                ignored otherwise.
         """
         self.dataset = dataset
         self.kernel = kernel
@@ -74,17 +70,11 @@ class lBFGSModelFit:
         self.task_type = task_type
         self.n_classes = n_classes
 
-        if task_type == "regression":
-            self.cost_fun = self.regression_cost_fun
-        elif n_classes == 2:
-            self.cost_fun = self.binary_classification_cost_fun
-        elif n_classes > 2:
-            self.cost_fun = self.multiclass_classification_cost_fun
-        else:
-            raise ValueError("For classification, there should always be >= 2 classes.")
 
 
-    def fit_model_lbfgs(self, max_iter = 500, tol = 3e-09, preconditioner = None):
+
+    def fit_model_lbfgs(self, max_iter = 500, tol = 3e-09,
+            x_mean = None, targets = None):
         """Finds an optimal set of weights using the information already
         provided to the class constructor.
 
@@ -94,7 +84,10 @@ class lBFGSModelFit:
                 allowed to specify since setting a larger / smaller tol
                 can result in very poor results with L-BFGS (either very
                 large number of iterations or poor performance).
-            preconditioner: Either None or a valid preconditioner object.
+            x_mean: Either None or an ndarray of shape (num_rffs) storing the mean
+                of the data. Used for discriminant-type classifiers only.
+            targets: Either None or an ndarray of shape (num_rffs, n_classes).
+                Used for discriminant type classifiers only.
 
         Returns:
             wvec: A cupy or numpy array depending on device that contains the
@@ -103,16 +96,33 @@ class lBFGSModelFit:
         if self.task_type == "regression":
             z_trans_y, _ = calc_zty(self.dataset, self.kernel)
             init_weights = np.zeros((self.kernel.get_num_rffs()))
-            res = minimize(self.cost_fun, options={"maxiter":max_iter, "ftol":tol},
+            res = minimize(self.regression_cost_fun,
+                    options={"maxiter":max_iter, "ftol":tol},
                     method = "L-BFGS-B",
-                    x0 = init_weights, args = (z_trans_y, preconditioner),
+                    x0 = init_weights, args = (z_trans_y),
                     jac = True, bounds = None)
+
+        elif self.task_type == "discriminant":
+            if x_mean is None or targets is None:
+                raise ValueError("x_mean and targets must be supplied for "
+                        "fitting a discriminant.")
+
+            init_weights = np.zeros((self.kernel.get_num_rffs() * self.n_classes))
+            res = minimize(self.discriminant_cost_fun,
+                    options={"maxiter":max_iter, "ftol":tol},
+                    method = "L-BFGS-B", args = (x_mean, targets),
+                    x0 = init_weights, jac = True, bounds = None)
+
 
         elif self.task_type == "classification" and self.n_classes == 2:
             init_weights = np.zeros((self.kernel.get_num_rffs()))
-            res = minimize(self.cost_fun, options={"maxiter":max_iter, "ftol":tol},
+            res = minimize(self.binary_classification_cost_fun,
+                    options={"maxiter":max_iter, "ftol":tol},
                     method = "L-BFGS-B",
                     x0 = init_weights, jac = True, bounds = None)
+        else:
+            raise ValueError("Multiclass kernel logistic regression has not "
+                    "been implemented yet.")
 
 
         wvec = res.x
@@ -121,7 +131,7 @@ class lBFGSModelFit:
         return wvec, self.n_iter, []
 
 
-    def regression_cost_fun(self, weights, z_trans_y, preconditioner):
+    def regression_cost_fun(self, weights, z_trans_y):
         """The cost function for regression.
 
         Args:
@@ -145,9 +155,6 @@ class lBFGSModelFit:
 
         grad = xprod - z_trans_y
         loss = 0.5 * (wvec.T @ xprod) - z_trans_y.T @ wvec
-        if preconditioner is not None:
-            grad = preconditioner.batch_matvec(grad[:,None])[:,0]
-
 
         if self.device == "gpu":
             grad = cp.asnumpy(grad).astype(np.float64)
@@ -156,6 +163,43 @@ class lBFGSModelFit:
                 print(f"Nfev {self.n_iter} complete")
         self.n_iter += 1
         return float(loss), grad
+
+
+    def discriminant_cost_fun(self, weights, x_mean, targets):
+        """The cost function for regression.
+
+        Args:
+            weights (np.ndarray): The current set of weights.
+            z_trans_y: A cupy or numpy array (depending on device)
+                containing Z.T @ y, where Z is the random features
+                generated for all of the training datapoints.
+
+        Returns:
+            loss (float): The current loss.
+            grad (np.ndarray): The gradient for the current set of weights.
+        """
+        wvec = weights.reshape((self.kernel.get_num_rffs(), self.n_classes))
+        if self.device == "gpu":
+            wvec = cp.asarray(wvec).astype(self.dtype)
+
+        for xdata in self.dataset.get_chunked_x_data():
+            xtrans = self.kernel.transform_x(xdata) - x_mean[None,:]
+            xprod += (xtrans.T @ (xtrans @ wvec))
+
+        xprod /= self.dataset.get_ndatapoints()
+        xprod += self.lambda_**2 * wvec
+
+        grad = xprod - targets
+        loss = 0.5 * (wvec * xprod).sum() - (targets * wvec).sum()
+
+        if self.device == "gpu":
+            grad = cp.asnumpy(grad).astype(np.float64)
+        if self.verbose:
+            if self.n_iter % 5 == 0:
+                print(f"Nfev {self.n_iter} complete")
+        self.n_iter += 1
+        return float(loss), grad.reshape((self.kernel.get_num_rffs() * self.n_classes))
+
 
 
     def binary_classification_cost_fun(self, weights):
