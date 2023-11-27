@@ -167,7 +167,6 @@ def cg_fit_lib_discriminant(kernel, dataset, x_mean, targets, cg_tol = 1e-5,
     weights, converged, n_iter, losses = cg_operator.fit(dataset, kernel,
                 preconditioner, resid, max_iter, cg_tol, verbose,
                 nmll_settings = False)
-    weights *= dataset.get_ndatapoints()
     if not converged:
         warnings.warn("Conjugate gradients failed to converge! Try refitting "
                         "the model with updated settings.")

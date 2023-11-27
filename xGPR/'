@@ -106,7 +106,8 @@ def calc_discriminant_weights_exact(dataset, kernel, x_mean,
                 mempool.free_all_blocks()
 
     z_trans_z /= float(dataset.get_ndatapoints())
-    z_trans_z.flat[::z_trans_z.shape[0]+1] += kernel.get_lambda()**2
+    lambda_p = kernel.get_hyperparams(logspace=False)[0]
+    z_trans_z.flat[::z_trans_z.shape[0]+1] += lambda_p**2
 
     if kernel.device == "cpu":
         chol_z_trans_z = np.linalg.cholesky(z_trans_z)

@@ -43,6 +43,7 @@ def single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose,
             acc_results += xdata.T @ (xdata @ q_mat)
             if j % 10 == 0 and verbose:
                 print(f"Chunk {j} complete.")
+        acc_results /= float(dataset.get_ndatapoints())
 
 
 def single_pass_srht(dataset, kernel, compressor, acc_results, verbose,
@@ -73,6 +74,7 @@ def single_pass_srht(dataset, kernel, compressor, acc_results, verbose,
             acc_results += compressor.transform_x(xdata).T @ xdata
             if j % 10 == 0 and verbose:
                 print(f"Chunk {j} complete.")
+        acc_results /= float(dataset.get_ndatapoints())
 
 
 
@@ -118,6 +120,8 @@ def subsampled_srht(dataset, kernel, compressor, acc_results, verbose,
             acc_results += compressor.transform_x(xdata).T @ xdata
             if j % 10 == 0 and verbose:
                 print(f"Chunk {j} complete.")
+        acc_results /= float(dataset.get_ndatapoints())
+
 
 
 def single_pass_srht_zty(dataset, kernel, compressor, acc_results, z_trans_y,
