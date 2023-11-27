@@ -15,6 +15,7 @@ from .model_baseclass import ModelBaseclass
 
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_discriminant
 from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
+from .fitting_toolkit.exact_fitting_toolkit import calc_discriminant_weights_exact
 from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 
 
@@ -281,7 +282,12 @@ class xGPClassification(ModelBaseclass):
 
         x_mean, targets = self._get_targets(dataset)
 
-        if mode == "cg":
+        if mode == "exact":
+            if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
+                raise ValueError("You specified 'exact' fitting, but the number of rffs is "
+                        f"> {constants.MAX_CLOSED_FORM_RFFS}.")
+            self.weights = calc_discriminant_weights_exact(dataset, self.kernel, x_mean, targets)
+        elif mode == "cg":
             if preconditioner is None:
                 preconditioner = self._autoselect_preconditioner(dataset, max_rank,
                         ratio_target = autoselect_target_ratio,
@@ -301,7 +307,7 @@ class xGPClassification(ModelBaseclass):
 
         else:
             raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
-                        "'lbfgs', 'cg'.")
+                        "'lbfgs', 'cg', 'exact'.")
 
         self._gamma = np.log(1 / self.n_classes) - 0.5 * (targets * self.weights).sum(axis=0)
 

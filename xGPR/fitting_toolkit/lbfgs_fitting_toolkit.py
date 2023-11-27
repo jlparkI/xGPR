@@ -128,6 +128,8 @@ class lBFGSModelFit:
         wvec = res.x
         if self.device == "gpu":
             wvec = cp.asarray(wvec)
+        if self.task_type == "discriminant":
+            wvec = wvec.reshape((self.kernel.get_num_rffs(), self.n_classes))
         return wvec, self.n_iter, []
 
 
@@ -181,6 +183,9 @@ class lBFGSModelFit:
         wvec = weights.reshape((self.kernel.get_num_rffs(), self.n_classes))
         if self.device == "gpu":
             wvec = cp.asarray(wvec).astype(self.dtype)
+            xprod = cp.zeros((self.kernel.get_num_rffs(), self.n_classes))
+        else:
+            xprod = np.zeros((self.kernel.get_num_rffs(), self.n_classes))
 
         for xdata in self.dataset.get_chunked_x_data():
             xtrans = self.kernel.transform_x(xdata) - x_mean[None,:]
