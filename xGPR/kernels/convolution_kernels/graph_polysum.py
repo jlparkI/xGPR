@@ -84,7 +84,7 @@ class GraphPolySum(KernelBaseclass):
         self.hyperparams = np.ones((1))
         self.bounds = np.asarray([[1e-3,1e2]])
 
-        self.padded_dims = 2**ceil(np.log2(max(xdim[2], 2)))
+        self.padded_dims = 2**ceil(np.log2(max(xdim[2] + 1, 2)))
         num_repeats = ceil(self.num_freqs / self.padded_dims)
         self.init_calc_freqsize = num_repeats * self.padded_dims
 
