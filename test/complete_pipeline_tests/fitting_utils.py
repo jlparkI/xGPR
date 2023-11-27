@@ -2,8 +2,6 @@
 >= what has been seen in the past for a similar # of RFFs and
 kernel. Tests either CG or exact fitting."""
 import sys
-import optuna
-import numpy as np
 
 #TODO: Get rid of this path alteration
 sys.path.append("..")
@@ -15,7 +13,7 @@ from utils.evaluate_model import evaluate_model
 RANDOM_STATE = 123
 
 
-def test_fit(kernel, conv_kernel, random_seed, conv_width = 3,
+def test_fit(kernel, conv_kernel, conv_width = 3,
             get_var = True, conv_ard_kernel = False,
             training_rffs = 512, cg_fitting_rffs = 8192,
             exact_fitting_rffs = 2048, device = "gpu"):
@@ -47,13 +45,13 @@ def test_fit(kernel, conv_kernel, random_seed, conv_width = 3,
     cg_score = evaluate_model(model, train_dataset, test_dataset,
             get_var)
 
-    print(f"CG score, cpu, {kernel}: {cg_score}")
+    print(f"CG score, {device}, {kernel}: {cg_score}")
 
     model.num_rffs = exact_fitting_rffs
 
     model.fit(train_dataset, mode = "exact")
     exact_score = evaluate_model(model, train_dataset, test_dataset,
             get_var)
-    print(f"Exact score, cpu, {kernel}: {exact_score}")
+    print(f"Exact score, {device}, {kernel}: {exact_score}")
 
     return cg_score, exact_score

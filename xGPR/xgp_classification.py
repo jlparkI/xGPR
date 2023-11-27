@@ -1,6 +1,6 @@
-"""Describes the xGPClassification class.
+"""Describes the xGPDiscriminant class.
 
-The xGPClassification class provides the tools needed to fit a classification
+The xGPDiscriminant class provides the tools needed to fit a classification
 model and make predictions for new datapoints. It inherits from
 ModelBaseclass.
 """
@@ -21,7 +21,7 @@ from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 
 
 
-class xGPClassification(ModelBaseclass):
+class xGPDiscriminant(ModelBaseclass):
     """A subclass of GPModelBaseclass that houses methods
     unique to classification problems. Only attributes unique
     to this child are described here.
@@ -105,8 +105,8 @@ class xGPClassification(ModelBaseclass):
             preds.append(pred)
 
         if self.device == "gpu":
-            return cp.asnumpy(cp.concatenate(preds))
-        return preds
+            return cp.asnumpy(cp.vstack(preds))
+        return np.vstack(preds)
 
 
     def _get_x_mean(self, dataset):
@@ -230,7 +230,8 @@ class xGPClassification(ModelBaseclass):
             max_rank:int = 3000,
             mode:str = "cg",
             autoselect_target_ratio:float = 30.,
-            always_use_srht2:bool = False):
+            always_use_srht2:bool = False,
+            run_diagnostics:bool = False):
         """Fits the model after checking that the input data
         is consistent with the kernel choice and other user selections.
 
@@ -263,6 +264,7 @@ class xGPClassification(ModelBaseclass):
                 construction. This will reduce the number of iterations for
                 fitting by 30% on average but will increase the time cost
                 of preconditioner construction about 150%.
+            run_diagnostics (bool): If True, some performance metrics are returned.
 
         Returns:
             Does not return anything unless run_diagnostics is True.
@@ -283,6 +285,7 @@ class xGPClassification(ModelBaseclass):
         x_mean, targets = self._get_targets(dataset)
 
         if mode == "exact":
+            n_iter = 1
             if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
                 raise ValueError("You specified 'exact' fitting, but the number of rffs is "
                         f"> {constants.MAX_CLOSED_FORM_RFFS}.")
@@ -317,3 +320,6 @@ class xGPClassification(ModelBaseclass):
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
         self._run_post_fitting_cleanup(dataset)
+
+        if run_diagnostics:
+            return n_iter
