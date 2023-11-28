@@ -58,3 +58,9 @@ and pip will then use this cuda location when compiling the package.
 These are the only currently known installation issues -- if you run
 into an unexpected problem, please report it as an issue on github
 and we'll fix it ASAP.
+
+Once this has run, installation is complete. Run:::
+
+  pip show xGPR
+
+to see the version number and other details.
