@@ -4,4 +4,5 @@ numpy>=1.10.0
 scipy>=1.7.0
 sphinx
 nbsphinx
+sphinx-rtd-theme
 scikit-learn
