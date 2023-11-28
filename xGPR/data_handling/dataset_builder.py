@@ -11,8 +11,101 @@ from .online_data_handling import OnlineDataset
 from .offline_data_handling import OfflineDataset
 
 
-def build_online_dataset(xdata, ydata, chunk_size = 2000,
-        normalize_y = True):
+def build_regression_dataset(xdata, ydata, chunk_size:int = 2000, normalize_y:bool = True):
+    """A wrapper for the dataset builder functions for online
+    and offline data. Builds a dataset intended for use for regression.
+
+    Args:
+        xdata (np.ndarray): Either a numpy array containing the x-values
+            or a list of valid filepaths to .npy numpy arrays containing
+            the x-data. If the latter, these must all be either
+            2d arrays where shape[1] is the number of features or
+            3d arrays where shape[1] is the number of timepoints
+            or sequence elements and shape[2] is the number of
+            features for each timepoint / sequence element. They
+            should be one or the other, not both.
+        ydata (np.ndarray): Either a numpy array containing the y-values
+            or a list of valid filepaths to .npy numpy
+            arrays containing the y-data. These must all be 1d
+            arrays. The number of datapoints in each should
+            match the corresponding element of xlist.
+        chunk_size (int): The maximum size of data chunks that
+            will be returned to callers. Limits memory consumption.
+            Defaults to 2000. If working with files on disk, the
+            files will be checked to ensure that none of them is
+            > than this size.
+        normalize_y (bool): If True, y values are normalized. Generally a
+            good idea, unless you have already selected hyperparameters based
+            on prior knowledge.
+
+    Returns:
+        dataset: An object of class OnlineDataset or OfflineDataset
+            that can be passed to the hyperparameter tuning
+            and fitting routines of the model classes.
+
+    Raises:
+        ValueError: A ValueError is raised if inappropriate argument
+            types are supplied.
+    """
+    if isinstance(xdata, list) and isinstance(ydata, list):
+        return build_offline_np_dataset(xdata, ydata,
+                chunk_size, normalize_y, task_type = "regression")
+    if isinstance(xdata, np.ndarray) and isinstance(ydata, np.ndarray):
+        return build_online_dataset(xdata, ydata,
+                chunk_size, normalize_y, task_type = "regression")
+    raise ValueError("Unexpected argument types to build_regression_dataset.")
+
+
+
+def build_classification_dataset(xdata, ydata, chunk_size:int = 2000):
+    """A wrapper for the dataset builder functions for online
+    and offline data. Builds a dataset intended for use for classification.
+
+    Args:
+        xdata (np.ndarray): Either a numpy array containing the x-values
+            or a list of valid filepaths to .npy numpy arrays containing
+            the x-data. If the latter, these must all be either
+            2d arrays where shape[1] is the number of features or
+            3d arrays where shape[1] is the number of timepoints
+            or sequence elements and shape[2] is the number of
+            features for each timepoint / sequence element. They
+            should be one or the other, not both.
+        ydata (np.ndarray): Either a numpy array containing the y-values
+            or a list of valid filepaths to .npy numpy
+            arrays containing the y-data. These must all be 1d
+            arrays. The number of datapoints in each should
+            match the corresponding element of xlist. The category
+            for each datapoint should be specified as an integer in
+            [0, max category]. E.g. if there are three categories
+            they will be numbereed 0, 1, 2.
+        chunk_size (int): The maximum size of data chunks that
+            will be returned to callers. Limits memory consumption.
+            Defaults to 2000. If working with files on disk, the
+            files will be checked to ensure that none of them is
+            > than this size.
+
+    Returns:
+        dataset: An object of class OnlineDataset or OfflineDataset
+            that can be passed to the hyperparameter tuning
+            and fitting routines of the model classes.
+
+    Raises:
+        ValueError: A ValueError is raised if inappropriate argument
+            types are supplied.
+    """
+    if isinstance(xdata, list) and isinstance(ydata, list):
+        return build_offline_np_dataset(xdata, ydata,
+                chunk_size, normalize_y = False, task_type = "classification")
+    if isinstance(xdata, np.ndarray) and isinstance(ydata, np.ndarray):
+        return build_online_dataset(xdata, ydata,
+                chunk_size, normalize_y = False, task_type = "classification")
+    raise ValueError("Unexpected argument types to build_regression_dataset.")
+
+
+
+
+def build_online_dataset(xdata, ydata, chunk_size:int = 2000,
+        normalize_y:bool = True, task_type:str = "regression"):
     """build_online_dataset constructs an OnlineDataset
     object for data stored in memory, after first checking
     that some validity requirements are satisfied.
@@ -26,6 +119,8 @@ def build_online_dataset(xdata, ydata, chunk_size = 2000,
         normalize_y (bool): If True, y values are normalized. Generally a
             good idea, unless you have already selected hyperparameters based
             on prior knowledge.
+        task_type (str): One of "regression", "classification". Indicates
+            what purpose the dataset will be used for.
 
     Returns:
         dataset (OnlineDataset): An object of class OnlineDataset
@@ -40,8 +135,13 @@ def build_online_dataset(xdata, ydata, chunk_size = 2000,
         raise ValueError("X and y must be numpy arrays!")
     if len(ydata.shape) != 1:
         raise ValueError("Y must be a 1d numpy array.")
-    if xdata.dtype != "float64" or ydata.dtype != "float64":
-        raise ValueError("Both x and y must be arrays of datatype np.float64.")
+    if xdata.dtype not in ("float64", "float32"):
+        raise ValueError("x must be an array of type float32 or type float64.")
+    if ydata.dtype != "float64" and task_type == "regression":
+        raise ValueError("For regression, ydata must be an array of type float64.")
+    if task_type == "classification" and not issubclass(ydata.dtype.type, np.integer):
+        raise ValueError("For classification, ydata must be an array of integers.")
+
     if ydata.shape[0] != xdata.shape[0]:
         raise ValueError("Different number of datapoints in x and y.")
     if np.isnan(xdata).any():
@@ -50,23 +150,36 @@ def build_online_dataset(xdata, ydata, chunk_size = 2000,
         raise ValueError("Values > 1e15 or < -1e15 encountered. "
                     "Please rescale your data and check for np.inf.")
 
-    dataset = OnlineDataset(xdata, ydata, chunk_size = chunk_size,
-            normalize_y = normalize_y)
+    if task_type == "regression":
+        if normalize_y:
+            dataset = OnlineDataset(xdata, ydata, chunk_size = chunk_size,
+                trainy_mean = ydata.mean(), trainy_std = ydata.std())
+        else:
+            dataset = OnlineDataset(xdata, ydata, chunk_size = chunk_size)
+
+    else:
+        dataset = OnlineDataset(xdata, ydata, chunk_size = chunk_size,
+            max_class = ydata.max())
+        if ydata.min() != 0:
+            raise ValueError("For classification, there must be a zero category.")
+
     return dataset
 
 
-def build_offline_fixed_vector_dataset(xlist, ylist, chunk_size = 2000,
-        normalize_y = True, skip_safety_checks = False):
-    """Constructs an OfflineDataset
-    object for data stored on disk, after first checking
-    that some validity requirements are satisfied. This is
-    intended for data that comes in fixed-vector form
-    (e.g. tabular data or a sequence alignment).
+def build_offline_np_dataset(xlist:list, ylist:list, chunk_size:int = 2000,
+        normalize_y:bool = True, skip_safety_checks:bool = False,
+        task_type:str = "regression"):
+    """Constructs an OfflineDataset for data stored on disk
+    as a list of npy files, after checking validity requirements.
 
     Args:
         xlist (list): A list of valid filepaths to .npy numpy
-            arrays containing the x-data. These must all be 2d
-            arrays where shape[1] is the number of features.
+            arrays containing the x-data. These must all be either
+            2d arrays where shape[1] is the number of features or
+            3d arrays where shape[1] is the number of timepoints
+            or sequence elements and shape[2] is the number of
+            features for each timepoint / sequence element. They
+            should be one or the other, not both.
         ylist (list): A list of valid filepaths to .npy numpy
             arrays containing the y-data. These must all be 1d
             arrays. The number of datapoints in each should
@@ -86,6 +199,8 @@ def build_offline_fixed_vector_dataset(xlist, ylist, chunk_size = 2000,
             this is a slow step and for a large dataset can take some
             time. Only skip_safety_checks if you have already checked your
             data and are confident that all is in order.
+        task_type (str): One of "regression", "classification". Indicates
+            what purpose the dataset will be used for.
 
     Returns:
         dataset (OfflineDataset): An object of class OfflineDataset
@@ -98,7 +213,18 @@ def build_offline_fixed_vector_dataset(xlist, ylist, chunk_size = 2000,
     """
     if len(xlist) == 0:
         raise ValueError("At least one datafile must be supplied.")
-    xdim = [0,-1]
+    if not isinstance(xlist, list) or not isinstance(ylist, list):
+        raise ValueError("Both xlist and ylist should be lists.")
+
+    xshape = _get_array_file_shape(xlist[0])
+    expected_arrlen = len(xshape)
+    if expected_arrlen == 2:
+        xdim = [0,-1]
+    elif expected_arrlen == 3:
+        xdim = [0,-1,-1]
+    else:
+        raise ValueError("Arrays should be either 2d or 3d.")
+
     if not skip_safety_checks:
         for xfile, yfile in zip(xlist, ylist):
             x_data = np.load(xfile)
@@ -110,19 +236,26 @@ def build_offline_fixed_vector_dataset(xlist, ylist, chunk_size = 2000,
                 raise ValueError(f"One or more values in {xfile} is "
                         "> 1e15 or < -1e15. Please check for inf values "
                         "and / or rescale your data.")
+            if len(x_data.shape) != expected_arrlen:
+                raise ValueError(f"File {xfile} is not a {expected_arrlen}d "
+                    "array, unlike some other arrays in xlist.")
+
             xdim[0] += x_data.shape[0]
             if xdim[1] == -1:
                 xdim[1] = x_data.shape[1]
-            elif x_data.shape[1] != xdim[1]:
-                raise ValueError("All x arrays must have the same dimensionality.")
+            if expected_arrlen == 2:
+                if x_data.shape[1] != xdim[1]:
+                    raise ValueError("All x arrays must have the same dimensionality.")
+            elif expected_arrlen == 3:
+                if xdim[2] == -1:
+                    xdim[2] = x_data.shape[2]
+                elif x_data.shape[2] != xdim[2]:
+                    raise ValueError("All x arrays must have the same dimensionality.")
 
             yshape = _get_array_file_shape(yfile)
             if x_data.shape[0] != yshape[0]:
                 raise ValueError(f"File {xfile} has a different number of datapoints "
                     f"than file {yfile}.")
-            if len(x_data.shape) > 2:
-                raise ValueError(f"File {xfile} is a > 2d array, but you have called "
-                    "build_offline_2d_dataset.")
             if x_data.shape[0] > chunk_size:
                 raise ValueError(f"Xfile {xfile} has more datapoints than allowed "
                     "based on specified chunk_size. Either increase chunk_size "
@@ -134,119 +267,62 @@ def build_offline_fixed_vector_dataset(xlist, ylist, chunk_size = 2000,
     #If we ARE skipping safety checks, retrieve the dimensionality info we will
     #need by checking files without loading them.
     else:
-        xdim = [0,-1]
-        for xfile in xlist:
-            xshape = _get_array_file_shape(xfile)
-            xdim[1] = xshape[1]
-            xdim[0] += xshape[0]
+        xshape = _get_array_file_shape(xlist[0])
+        xdim[1] = xshape[1]
+        xdim[0] += xshape[0]
+        if expected_arrlen == 3:
+            xdim[2] = xshape[2]
 
-    if normalize_y:
+    if normalize_y and task_type == "regression":
+        max_class = 1
         trainy_mean, trainy_std = _get_offline_scaling_factors(ylist)
     else:
         trainy_mean, trainy_std = 0.0, 1.0
+    if task_type == "classification":
+        max_class, class_data_err = _get_offline_ymax(ylist)
+        if class_data_err:
+            raise ValueError("For classification, there must be a zero category, "
+                "and all yfiles must be integers.")
+
     dataset = OfflineDataset(xlist, ylist, tuple(xdim),
-                trainy_mean, trainy_std, chunk_size = chunk_size)
+                trainy_mean = trainy_mean, trainy_std = trainy_std,
+                max_class = max_class, chunk_size = chunk_size)
     return dataset
 
 
-def build_offline_sequence_dataset(xlist, ylist, chunk_size = 2000,
-        normalize_y = True, skip_safety_checks = False):
-    """Constructs an OfflineDataset
-    object for data stored on disk, after first checking
-    that some validity requirements are satisfied. This is
-    intended for data like time series or sequences.
+def _get_offline_ymax(yfiles:list):
+    """Gets the max category for 'offline' data stored on disk.
 
     Args:
-        xlist (list): A list of valid filepaths to .npy numpy
-            arrays containing the x-data. These must all be 3d
-            arrays where shape[1] is the number of timepoints
-            or sequence elements and shape[2] is the number of
-            features for each timepoint / sequence element.
-        ylist (list): A list of valid filepaths to .npy numpy
-            arrays containing the y-data. These must all be 1d
-            arrays. The number of datapoints in each should
-            match the corresponding element of xlist.
-        chunk_size (int): The maximum size of data chunks that
-            will be returned to callers. Limits memory consumption.
-            Defaults to 2000.
-        normalize_y (bool): If True, y values are normalized. Generally a
-            good idea, unless you have already selected hyperparameters based
-            on prior knowledge.
-        skip_safety_checks (bool): If False, the builder will check
-            each input array to make sure it does not contain
-            infinite values or nan and that all the input arrays are 3d
-            This is important -- if there are unexpected 2d arrays, np.nan,
-            etc., this can lead to weird and unexpected results during
-            fitting. On the other hand,
-            this is a slow step and for a large dataset can take some
-            time. Only skip_safety_checks if you have already checked your
-            data and are confident that all is in order.
+        yfiles (list): A list of valid filepaths for
+            .npy files (numpy arrays) containing the
+            y-values for all datapoints.
 
     Returns:
-        dataset (OfflineDataset): An object of class OfflineDataset
-            that can be passed to the hyperparameter tuning
-            and fitting routines of the model classes.
-
-    Raises:
-        ValueError: If the data passed is not valid, the function
-            will raise a detailed ValueError explaining the issue.
+        max_class (int): The maximum category found in the data.
+        class_data_err (bool): If True, one or more of the files
+            has an incorrect format (noninteger data) or there
+            is no zero category.
     """
-    if len(xlist) == 0:
-        raise ValueError("At least one datafile must be supplied.")
-    xdim = [0,-1,-1]
-    if not skip_safety_checks:
-        for xfile, yfile in zip(xlist, ylist):
-            x_data = np.load(xfile)
-            if x_data.shape[0] == 0:
-                raise ValueError(f"File {xfile} has no datapoints.")
-            if np.isnan(x_data).any():
-                raise ValueError(f"One or more elements in file {xfile} is nan.")
-            if np.max(x_data) > 1e15 or np.min(x_data) < -1e15:
-                raise ValueError(f"One or more values in {xfile} is "
-                    "> 1e15 or < -1e15. Please check for inf values "
-                    "and / or rescale your data.")
-            xdim[0] += x_data.shape[0]
-            yshape = _get_array_file_shape(yfile)
-            if x_data.shape[0] != yshape[0]:
-                raise ValueError(f"File {xfile} has a different number of datapoints "
-                    f"than file {yfile}.")
-            if len(x_data.shape) != 3:
-                raise ValueError(f"File {xfile} is not a 3d array, but you have called "
-                "build_offline_3d_dataset.")
+    max_class, min_class, class_data_err = 0, 1, False
+    for yfile in yfiles:
+        y_data = np.load(yfile)
+        if not issubclass(y_data.dtype.type, np.integer):
+            class_data_err = True
+            break
+        if y_data.max() > max_class:
+            max_class = y_data.max()
+        if y_data.min() < min_class:
+            min_class = y_data.min()
 
-            if xdim[1] == -1:
-                xdim[1] = x_data.shape[1]
-                xdim[2] = x_data.shape[2]
-            elif x_data.shape[2] != xdim[2]:
-                raise ValueError("All x arrays must have the same dimensionality.")
-            if x_data.shape[0] > chunk_size:
-                raise ValueError(f"Xfile {xfile} has more datapoints than allowed "
-                    "based on specified chunk_size. Either increase chunk_size "
-                    "or divide your data into np.ndarrays saved on disk that each "
-                    "contain < chunk_size datapoints.")
-            if len(yshape) > 1:
-                raise ValueError(f"The y file {yfile} is not a 1d array.")
-
-    #If we ARE skipping safety checks, retrieve the dimensionality info we will
-    #need by checking files without loading them.
-    else:
-        xdim = [0,-1,-1]
-        for xfile in xlist:
-            xshape = _get_array_file_shape(xfile)
-            xdim[1] = xshape[1]
-            xdim[2] = xshape[2]
-            xdim[0] += xshape[0]
-
-    if normalize_y:
-        trainy_mean, trainy_std = _get_offline_scaling_factors(ylist)
-    else:
-        trainy_mean, trainy_std = 0.0, 1.0
-    dataset = OfflineDataset(xlist, ylist, xdim,
-                trainy_mean, trainy_std, chunk_size = chunk_size)
-    return dataset
+    if max_class == 0 or min_class != 0:
+        class_data_err = True
+    return max_class, class_data_err
 
 
-def _get_offline_scaling_factors(yfiles):
+
+
+def _get_offline_scaling_factors(yfiles:list):
     """Gets scaling factors (mean and standard deviation)
     for 'offline' data stored on disk.
 
@@ -278,7 +354,7 @@ def _get_offline_scaling_factors(yfiles):
     return trainy_mean, trainy_std
 
 
-def _get_array_file_shape(npy_file):
+def _get_array_file_shape(npy_file:str):
     """Gets the shape of a .npy file array without loading it
     to memory."""
     with open(npy_file, 'rb') as f_handle:

@@ -21,8 +21,8 @@ class FHTConv1d(KernelBaseclass):
     Only attributes unique to this child are described in this docstring.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has three
-            hyperparameters: lambda_ (noise), beta_ (amplitude)
+        hyperparams (np.ndarray): This kernel has two
+            hyperparameters: lambda_ (noise)
             and sigma (inverse mismatch tolerance).
         conv_width (int): The width of the convolution kernel.
             This hyperparameter can be set based on experimentation
@@ -93,7 +93,7 @@ class FHTConv1d(KernelBaseclass):
             if kernel_spec_parms["averaging"]:
                 self.sequence_average = True
 
-        self.hyperparams = np.ones((3))
+        self.hyperparams = np.ones((2))
         rng = np.random.default_rng(random_seed)
         self.conv_width = kernel_spec_parms["conv_width"]
         if self.conv_width >= xdim[1]:
@@ -105,7 +105,7 @@ class FHTConv1d(KernelBaseclass):
         self.init_calc_freqsize = ceil(self.num_freqs / self.padded_dims) * \
                         self.padded_dims
         self.init_calc_featsize = 2 * self.init_calc_freqsize
-        self.bounds = np.asarray([[1e-3,1e1], [0.2, 5], [1e-2, 1e2]])
+        self.bounds = np.asarray([[1e-3,1e2], [1e-2, 1e2]])
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
         self.radem_diag = rng.choice(radem_array, size=(3, 1, self.init_calc_freqsize),
@@ -166,7 +166,7 @@ class FHTConv1d(KernelBaseclass):
                     "kernel width.")
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
-        if input_x.shape[2] != self.xdim[2]:
+        if input_x.shape[2] != self._xdim[2]:
             raise ValueError("Unexpected input shape supplied.")
 
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
@@ -178,11 +178,9 @@ class FHTConv1d(KernelBaseclass):
                             num_slides, self.dim2_no_padding),
                             strides=(input_x.strides[0], input_x.shape[2] * input_x.strides[2],
                                 input_x.strides[2]))
-        reshaped_x[:,:,:self.dim2_no_padding] = x_strided * self.hyperparams[2]
+        reshaped_x[:,:,:self.dim2_no_padding] = x_strided * self.hyperparams[1]
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr, self.num_threads,
-                self.hyperparams[1], self.fit_intercept)
-        if self.sequence_average:
-            xtrans /= input_x.shape[1]
+                self.fit_intercept, self.sequence_average)
         return xtrans
 
 
@@ -214,7 +212,7 @@ class FHTConv1d(KernelBaseclass):
                     "kernel width.")
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
-        if input_x.shape[2] != self.xdim[2]:
+        if input_x.shape[2] != self._xdim[2]:
             raise ValueError("Unexpected input shape supplied.")
 
         output_x = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
@@ -227,10 +225,6 @@ class FHTConv1d(KernelBaseclass):
                                 input_x.strides[2], input_x.strides[2]))
         reshaped_x[:,:,:self.dim2_no_padding] = x_strided
         dz_dsigma = self.grad_func(reshaped_x, self.radem_diag,
-                output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
-                self.hyperparams[1], self.fit_intercept)
-
-        if self.sequence_average:
-            output_x /= input_x.shape[1]
-            dz_dsigma /= input_x.shape[1]
+                output_x, self.chi_arr, self.num_threads, self.hyperparams[1],
+                self.fit_intercept, self.sequence_average)
         return output_x, dz_dsigma

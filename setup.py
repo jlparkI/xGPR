@@ -3,13 +3,13 @@ import os
 import platform
 import subprocess
 from setuptools import setup, find_packages
+from setuptools.extension import Extension
 import numpy
 from Cython.Distutils import build_ext
 #Do NOT put this package import before the others.
 #setup tools monkey patches distutils, so reversing
 #the import order will (unbelievably enough) lead to an error.
 #If your linter tells you to put this first, IGNORE YOUR LINTER.
-from distutils.extension import Extension
 
 
 def get_version(setup_fpath):
@@ -73,7 +73,7 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
     os.chdir(cpu_fast_transform_path)
     sources = []
     for target_dir in ["basic_ops", "shared_fht_functions",
-            "convolution_ops", "rbf_ops"]:
+            "convolution_ops", "rbf_ops", "poly_ops"]:
         os.chdir(target_dir)
         for fname in os.listdir():
             if not fname.endswith(".cpp"):

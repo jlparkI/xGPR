@@ -94,8 +94,7 @@ def cudaSRHT(Z, radem,
                 np.ndarray[np.int64_t, ndim=1] sampler,
                 int compression_size,
                 int numThreads):
-    """Wraps SRHTDoubleBlockTransform from transform_functions.c and uses
-    it to perform the SRHT operation on a 2d array of doubles.
+    """Wraps the Cuda code for performing an SRHT operation.
     This wrapper performs all of the bounds checks,
     type checks etc and should not be bypassed.
 

@@ -143,3 +143,20 @@ FHT-conv1d kernels. Sped up the nan checking for dataset building.
 Added sequence / graph averaging to all convolution kernels as
 an option. Added kernel PCA and clustering tools that do not require
 a fitted model as input.
+
+### Version 0.1.3.2
+
+Version for internal use; contains exact polynomial regression for
+low-degree polynomials (a quadratic). Also experimenting with
+alternative implementions of the polynomial kernel.
+
+### Version 0.2
+
+Greatly simplified the API and the hyperparameter tuning process.
+Added automated preconditioner construction / rank selection.
+Added classification using kernel discriminants. Improved
+polynomial kernel. Updated graph averaging prefactor calculation.
+Converted all kernels with two hyperparameters to one hyperparameter
+and all kernels with three hyperparameters to two, by using the
+automated beta selection routine. Removed kernelxPCA, which is
+only intermittently useful.

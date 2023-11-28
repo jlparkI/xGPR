@@ -27,8 +27,7 @@ class SRHTCompressor():
             Rademacher distribution of shape (padded_dims).
         col_sampler (np.ndarray): A numpy array of shape (compression_size)
             that permutes the columns of the compressed data.
-        compressor_func: A reference to floatCpuSRHT, doubleCpuSRHT,
-            floatCudaSRHT or doubleCudaSRHT as appropriate.
+        compressor_func: A reference to an appropriate wrapped C++ function.
         device: Either "cpu" or "gpu".
         double_precision (bool): If True, input is assumed to be
                 doubles, else floats.

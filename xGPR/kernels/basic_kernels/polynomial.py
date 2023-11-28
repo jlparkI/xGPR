@@ -20,8 +20,8 @@ class Polynomial(KernelBaseclass):
     docstring, see also parent class.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has two
-            hyperparameters: lambda_ (noise), beta_ (amplitude).
+        hyperparams (np.ndarray): This kernel has one
+            hyperparameter: lambda_ (noise).
         polydegree (int): The degree of the polynomial to be applied.
         chi_arr (array): Array of shape (polydegree, init_calc_freqsize)
             for ensuring correct marginals on random feature generation.
@@ -71,9 +71,14 @@ class Polynomial(KernelBaseclass):
         if self.polydegree < 2 or self.polydegree > 4:
             raise ValueError("Polydegree should be in the range from 2 to 4.")
 
-        self.hyperparams = np.ones((2))
-        self.bounds = np.asarray([[1e-3,1e1], [0.1, 10]])
-        self.padded_dims = 2**ceil(np.log2(max(self.xdim[-1] + 1, 2)))
+        self.fit_intercept = True
+        if "intercept" in kernel_spec_parms:
+            if kernel_spec_parms["intercept"] is False:
+                self.fit_intercept = False
+
+        self.hyperparams = np.ones((1))
+        self.bounds = np.asarray([[1e-3,1e2]])
+        self.padded_dims = 2**ceil(np.log2(max(self._xdim[-1] + 1, 2)))
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
         rng = np.random.default_rng(random_seed)
@@ -118,8 +123,7 @@ class Polynomial(KernelBaseclass):
 
         Returns:
             output_x: A cupy or numpy array depending on self.device
-                containing the results of random feature generation. Note
-                that num_freqs rffs are generated, not num_rffs.
+                containing the results of random feature generation.
         """
         if len(input_x.shape) != 2:
             raise ValueError("Input to ClassicPoly must be a 2d array.")
@@ -127,15 +131,15 @@ class Polynomial(KernelBaseclass):
                     self.padded_dims), self.dtype)
         retyped_input[:,:,1:input_x.shape[1] + 1] = input_x[:,None,:]
         retyped_input[:,:,0] = 1
-        output_x = self.zero_arr((input_x.shape[0], self.nblocks,
-                        self.padded_dims), dtype = self.dtype)
+        output_x = self.zero_arr((input_x.shape[0], self.num_freqs),
+                dtype = self.out_type)
 
         self.poly_func(retyped_input, self.radem_diag,
-                self.chi_arr, output_x, self.polydegree, self.num_threads)
-        output_x = output_x.reshape((output_x.shape[0], output_x.shape[1] *
-                        output_x.shape[2]))[:,:self.num_rffs].astype(self.out_type)
-        scaling_constant = self.hyperparams[1] * np.sqrt(1 / self.num_freqs)
-        output_x *= scaling_constant
+                self.chi_arr, output_x, self.polydegree,
+                self.num_threads, self.num_freqs)
+        output_x *= np.sqrt(1 / self.num_freqs)
+        if self.fit_intercept:
+            output_x[:,0] = 1.
         return output_x
 
 

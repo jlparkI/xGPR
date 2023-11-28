@@ -23,10 +23,13 @@ cdef extern from "convolution_ops/convolution.h" nogil:
                 int startPosition, int numFreqs)
 
 
-cdef extern from "basic_ops/basic_array_operations.h" nogil:
-    const char *cudaSORF3d[T](T npArray[], np.int8_t *radem, 
-                    int dim0, int dim1, int dim2)
-
+cdef extern from "poly_ops/polynomial_operations.h" nogil:
+    const char *cudaExactQuadratic_[T](T inArray[], double *outArray, 
+                    int inDim0, int inDim1)
+    const char *approxPolynomial_[T](int8_t *radem, T reshapedX[],
+        T copyBuffer[], T chiArr[], double *outArray,
+        int polydegree, int reshapedDim0, int reshapedDim1,
+        int reshapedDim2, int numFreqs)
 
 
 @cython.boundscheck(False)
@@ -162,7 +165,7 @@ def gpuGraphPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def gpuPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
-                int numThreads):
+                int numThreads, int numFreqs):
     """Polynomial kernel for fixed vector data to float32 arrays.
 
     Args:
@@ -171,7 +174,7 @@ def gpuPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
             rather the features that are generated are stored in outputArray. Shape is (N x D x C)
             for N datapoints. C must be a power of 2.
         radem (cp.ndarray): A stack of diagonal matrices with elements drawn from the
-            Rademacher distribution. Shape must be (polydegree x D x C).
+            Rademacher distribution. Shape must be (3 * polydegree x D x C).
         chiArr (cp.ndarray): A stack of diagonal matrices stored as an
             array of shape (polydegree, D, C) drawn from a chi distribution.
         outputArray (cp.ndarray): An array in which the generated features will be
@@ -179,25 +182,25 @@ def gpuPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
         polydegree (int): The degree of the polynomial kernel that we approximate. Should
             be <= 4 (for very high-degree polynomial kernels we are probably better off
             switching to an RBF or convolution kernel).
-        num_threads (int): Number of threads to use for FHT. Not used for gpu,
+        numThreads (int): Number of threads to use for FHT. Not used for gpu,
             merely kept here for consistency with CPU version.
+        numFreqs (int): Number of RFFs requested.
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
     """
     cdef const char *errCode
     reshapedXCopy = reshapedX.copy()
-    cdef int j, k
 
     if len(chiArr.shape) != 3 or len(radem.shape) != 3 or len(reshapedX.shape) != 3:
         raise ValueError("chiArr, radem and reshapedX should be 3d arrays.")
-    if len(outputArray.shape) != 3:
+    if len(outputArray.shape) != 2:
         raise ValueError("outputArray should be a 3d array.")
 
     if reshapedX.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if reshapedX.shape[0] != outputArray.shape[0] or reshapedX.shape[1] != outputArray.shape[1] or\
-            reshapedX.shape[2] != outputArray.shape[2]:
+    if reshapedX.shape[0] != outputArray.shape[0] or numFreqs != outputArray.shape[1] or \
+            numFreqs > (reshapedX.shape[1] * reshapedX.shape[2]):
         raise ValueError("The number of datapoints in the outputs and the inputs do "
                 "not agree.")
     if radem.shape[0] != 3 * polydegree or chiArr.shape[0] != polydegree:
@@ -218,49 +221,86 @@ def gpuPolyFHT(reshapedX, radem, chiArr, outputArray, int polydegree,
     if not radem.dtype == "int8":
         raise ValueError("radem must be int8.")
 
+    cdef uintptr_t addr_input = reshapedX.data.ptr
     cdef uintptr_t addr_reshapedCopy = reshapedXCopy.data.ptr
     cdef uintptr_t addr_output = outputArray.data.ptr
+    cdef uintptr_t addr_chi = chiArr.data.ptr
  
     cdef uintptr_t addr_radem = radem.data.ptr
     cdef int8_t *radem_ptr = <int8_t*>addr_radem
 
 
-    outputArray[:] = reshapedX
-    if outputArray.dtype == "float32" and reshapedX.dtype == "float32" and \
-            chiArr.dtype == "float32":
-        errCode = cudaSORF3d[float](<float*>addr_output, radem_ptr,
-                outputArray.shape[0], outputArray.shape[1], outputArray.shape[2])
+    if reshapedX.dtype == "float32" and chiArr.dtype == "float32":
+        errCode = approxPolynomial_[float](radem_ptr, <float*>addr_input,
+                <float*>addr_reshapedCopy, <float*>addr_chi, <double*>addr_output,
+                polydegree, reshapedX.shape[0], reshapedX.shape[1],
+                reshapedX.shape[2], numFreqs)
         if errCode.decode("UTF-8") != "no_error":
-            raise Exception("Fatal error encountered while performing graph convolution.")
-        outputArray *= chiArr[0:1, :, :]
+            raise Exception("Fatal error encountered while generating random features.")
 
-        for j in range(1, polydegree):
-            reshapedXCopy[:] = reshapedX
-            radem_ptr += 3 * radem.shape[2] * radem.shape[1]
-            errCode = cudaSORF3d[float](<float*>addr_reshapedCopy,
-                radem_ptr, outputArray.shape[0], outputArray.shape[1],
-                outputArray.shape[2])
-            if errCode.decode("UTF-8") != "no_error":
-                raise Exception("Fatal error encountered while performing graph convolution.")
-            reshapedXCopy *= chiArr[j:j+1, :, :]
-            outputArray *= reshapedXCopy
-    elif outputArray.dtype == "float64" and reshapedX.dtype == "float64" and \
-            chiArr.dtype == "float64":
-        errCode = cudaSORF3d[double](<double*>addr_output, radem_ptr,
-                outputArray.shape[0], outputArray.shape[1], outputArray.shape[2])
+    elif reshapedX.dtype == "float64" and chiArr.dtype == "float64":
+        errCode = approxPolynomial_[double](radem_ptr, <double*>addr_input,
+                <double*>addr_reshapedCopy, <double*>addr_chi, <double*>addr_output,
+                polydegree, reshapedX.shape[0], reshapedX.shape[1],
+                reshapedX.shape[2], numFreqs)
         if errCode.decode("UTF-8") != "no_error":
-            raise Exception("Fatal error encountered while performing graph convolution.")
-        outputArray *= chiArr[0:1, :, :]
+            raise Exception("Fatal error encountered while generating random features.")
 
-        for j in range(1, polydegree):
-            reshapedXCopy[:] = reshapedX
-            radem_ptr += 3 * radem.shape[2] * radem.shape[1]
-            errCode = cudaSORF3d[double](<double*>addr_reshapedCopy,
-                radem_ptr, outputArray.shape[0], outputArray.shape[1],
-                outputArray.shape[2])
-            if errCode.decode("UTF-8") != "no_error":
-                raise Exception("Fatal error encountered while performing graph convolution.")
-            reshapedXCopy *= chiArr[j:j+1, :, :]
-            outputArray *= reshapedXCopy
     else:
         raise ValueError("Inconsistent array types passed to wrapped C++ function.")
+
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def cudaExactQuadratic(inputArray, outputArray,
+                int numThreads):
+    """Wraps C++ operations for generating features for an exact
+    quadratic.
+
+    Args:
+        inputArray (ndarray): The input data. This is not modified.
+        outputArray (ndarray): The output array. Must have the appropriate
+            shape such that all of the quadratic polynomial features can
+            be written to it. The last column is assumed to be saved for 1
+            for a y-intercept term.
+        num_threads (int): Number of threads to use for FHT. Not used for gpu,
+            merely kept here for consistency with CPU version.
+
+    Raises:
+        ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
+    """
+    cdef const char *errCode
+    cdef uintptr_t addr_output = outputArray.data.ptr
+    cdef uintptr_t addr_input = inputArray.data.ptr
+    cdef int numExpectedFeats = int( inputArray.shape[1] * (inputArray.shape[1] - 1) / 2)
+    numExpectedFeats += 2 * inputArray.shape[1] + 1
+
+    if len(inputArray.shape) != 2 or len(outputArray.shape) != 2:
+        raise ValueError("Both inputArray and outputArray for the exact quadratic "
+                "must be 2d arrays.")
+
+    if inputArray.shape[0] == 0:
+        raise ValueError("There must be at least one datapoint.")
+    if inputArray.shape[0] != outputArray.shape[0]:
+        raise ValueError("The number of datapoints in the outputs and the inputs do "
+                "not agree.")
+    if outputArray.shape[1] != numExpectedFeats:
+        raise ValueError("The shape of the output array is incorrect for a quadratic.")
+
+    if not outputArray.flags["C_CONTIGUOUS"] or not inputArray.flags["C_CONTIGUOUS"]:
+        raise ValueError("One or more arguments is not C contiguous.")
+
+    if inputArray.dtype == "float32":
+        errCode = cudaExactQuadratic_[float](<float*>addr_input, <double*>addr_output,
+                        inputArray.shape[0], inputArray.shape[1])
+
+    elif inputArray.dtype == "float64":
+        errCode = cudaExactQuadratic_[double](<double*>addr_input, <double*>addr_output,
+                        inputArray.shape[0], inputArray.shape[1])
+
+    else:
+        raise ValueError("Unexpected types passed to wrapped C++ function.")
+
+    if errCode.decode("UTF-8") != "no_error":
+        raise Exception("Fatal error encountered while performing graph convolution.")

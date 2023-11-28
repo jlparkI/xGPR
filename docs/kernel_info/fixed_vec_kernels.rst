@@ -14,7 +14,7 @@ for details.
 
    * - Kernel Name
      - Description
-     - kernel_specific_params
+     - kernel_settings
    * - RBF
      - | Models smooth, infinitely differentiable
        | functions.
@@ -61,13 +61,18 @@ The ``MiniARD`` is an RBF kernel that assigns a different lengthscale
 to different kinds of features. You might have data, for example,
 where some features are one-hot encoded and others are real. If
 so, you could use MiniARD and "learn" a different lengthscale for
-each type of feature. For this kernel, supply a list under
-``kernel_specific_params`` when creating a model, e.g.:::
+each type of feature. Hyperparameter tuning for ``MiniARD`` is more
+challenging than for most kernels because it has > 2 hyperparameters.
+If you're interested in using this kernel, see the Advanced or In-Depth
+tutorials for more on how to tune it.
+
+For ``MiniARD``, supply a list under
+``kernel_settings`` when creating a model, e.g.:::
 
   my_model = xGPRegression(training_rffs = 2048, fitting_rffs = 8192,
                         variance_rffs = 512, kernel_choice = "MiniARD",
-                        device = "gpu", kernel_specific_params =
-                        {"kernel_specific_params":[21,36])
+                        device = "gpu", kernel_settings =
+                        {"kernel_settings":[21,36])
 
 The features in between two split points all share a lengthscale. In this
 case, for example, features from 0:21 in the input would share one
@@ -85,4 +90,4 @@ kernel were implemented originally in xGPR but have been removed
 since we have not found many cases where they provide a clear
 benefit.)
 
-.. image:: images/toy_data.png
+.. image:: ../images/toy_data.png

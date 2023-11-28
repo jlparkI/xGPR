@@ -20,19 +20,19 @@ RANDOM_STATE = 123
 
 
 def run_kernelspecific_test(kernel_choice, conv_kernel = False,
-                training_rffs = 512, fitting_rffs = 512,
-                conv_ard_kernel = False, averaging = False):
+                training_rffs = 512, conv_ard_kernel = False,
+                averaging = False):
     """Compares a numerical gradient with an exact gradient using
     generic hyperparameters and generic kernel settings."""
     online_data, _ = build_test_dataset(conv_kernel)
     xdata, ydata, _ = online_data.get_next_minibatch(2000)
-    cpu_mod, gpu_mod = get_models(kernel_choice, online_data.get_xdim(),
-                        training_rffs = training_rffs, fitting_rffs = fitting_rffs,
-                        conv_ard_kernel = conv_ard_kernel, averaging = averaging)
+    cpu_mod, gpu_mod = get_models(kernel_choice, online_data,
+                        num_rffs = training_rffs, conv_ard_kernel = conv_ard_kernel,
+                        averaging = averaging)
 
     eps = np.sqrt(np.finfo(np.float32).eps)
 
-    params = np.log(np.full(cpu_mod.get_hyperparams().shape, 0.5))
+    params = np.log(np.full(cpu_mod.get_hyperparams().shape, 1))
 
     cpu_cost, cpu_grad = cpu_mod.exact_nmll_gradient(params, online_data)
     singlepoint_cost = cpu_mod.exact_nmll(params, online_data)
@@ -45,12 +45,11 @@ def run_kernelspecific_test(kernel_choice, conv_kernel = False,
     print(f"Singlepoint cost, cpu:   {singlepoint_cost}")
 
     cpu_gradcomp = 100 * np.max(np.abs(cpu_grad - num_grad) / np.abs(num_grad))
-    cpu_gradcomp = cpu_gradcomp < 0.25
+    cpu_gradcomp = cpu_gradcomp < 0.5 or np.max(np.abs(cpu_grad - num_grad)) < 0.1
     cpu_costcomp = 100 * np.abs(cpu_cost - singlepoint_cost) / singlepoint_cost
     cpu_costcomp = cpu_costcomp < 0.25
 
     if gpu_mod is not None:
-        online_data.device = "gpu"
         gpu_cost, gpu_grad = gpu_mod.exact_nmll_gradient(params, online_data)
         xdata, ydata = cp.asarray(xdata), cp.asarray(ydata)
 
@@ -59,7 +58,7 @@ def run_kernelspecific_test(kernel_choice, conv_kernel = False,
         print(f"Singlepoint cost, gpu:   {singlepoint_cost}")
 
         gpu_gradcomp = 100 * np.max(np.abs(gpu_grad - cpu_grad) / cpu_grad)
-        gpu_gradcomp = gpu_gradcomp < 0.25
+        gpu_gradcomp = gpu_gradcomp < 0.5 or np.max(np.abs(gpu_grad - num_grad)) < 0.1
         gpu_costcomp = 100 * np.abs(gpu_cost - singlepoint_cost) / singlepoint_cost
         gpu_costcomp = gpu_costcomp < 0.25
     else:

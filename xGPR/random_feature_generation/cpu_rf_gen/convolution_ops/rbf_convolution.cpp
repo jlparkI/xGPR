@@ -37,7 +37,8 @@
 #include <vector>
 #include <math.h>
 #include "rbf_convolution.h"
-#include "../shared_fht_functions/basic_array_operations.h"
+#include "../shared_fht_functions/hadamard_transforms.h"
+#include "../shared_fht_functions/diagonal_matmul_ops.h"
 
 
 

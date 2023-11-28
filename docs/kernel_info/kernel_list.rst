@@ -10,5 +10,5 @@ Available Kernels
 
    Kernels for graphs <graph_kernels.rst>
 
-   Static layers for sequences and graphs <static_layers.rst>
+   Feature extractors for sequences and graphs <static_layers.rst>
 

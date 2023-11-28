@@ -2,13 +2,12 @@
 be switched back and forth between Cuda and CPU. This is not
 possible for the other variants since they have to inherit from
 either Scipy or Cupy.scipy.sparse."""
-from scipy.sparse.linalg import LinearOperator
 import numpy as np
 try:
     import cupy as cp
 except:
     pass
-from .rand_nys_constructors import initialize_gauss, initialize_srht, initialize_srht_multipass
+from .rand_nys_constructors import initialize_srht, initialize_srht_multipass
 
 
 
@@ -48,7 +47,7 @@ class InterDevicePreconditioner():
             method (str): One of "srht", "gauss", "srht_2". Determines the method of
                 preconditioner construction.
         """
-        if method not in ["srht_2", "srht_3", "srht", "gauss"]:
+        if method not in ["srht_2", "srht_3", "srht"]:
             raise ValueError("Unknown method supplied for preconditioner "
                     "construction.")
 
@@ -58,9 +57,6 @@ class InterDevicePreconditioner():
                                 kernel, random_state, verbose, n_passes)
         elif method == "srht":
             self.u_mat, s_mat, _, _ = initialize_srht(dataset, max_rank,
-                                kernel, random_state, verbose)
-        else:
-            self.u_mat, s_mat, _, _ = initialize_gauss(dataset, max_rank,
                                 kernel, random_state, verbose)
 
         lambda_ = kernel.get_lambda()

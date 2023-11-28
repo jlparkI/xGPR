@@ -21,8 +21,8 @@ class GraphRBF(KernelBaseclass):
     Only attributes unique to this child are described in this docstring.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has three
-            hyperparameters: lambda_ (noise), beta_ (amplitude)
+        hyperparams (np.ndarray): This kernel has two
+            hyperparameters: lambda_ (noise)
             and sigma (inverse mismatch tolerance).
         padded_dims (int): The size of the expected input data
             after zero-padding to be a power of 2.
@@ -76,8 +76,8 @@ class GraphRBF(KernelBaseclass):
             if kernel_spec_parms["averaging"]:
                 self.graph_average = True
 
-        self.hyperparams = np.ones((3))
-        self.bounds = np.asarray([[1e-3,1e1], [0.2, 5], [1e-2, 1e2]])
+        self.hyperparams = np.ones((2))
+        self.bounds = np.asarray([[1e-3,1e2], [1e-2, 1e2]])
         rng = np.random.default_rng(random_seed)
 
         self.padded_dims = 2**ceil(np.log2(max(xdim[2], 2)))
@@ -144,11 +144,9 @@ class GraphRBF(KernelBaseclass):
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         reshaped_x = self.zero_arr((input_x.shape[0], input_x.shape[1],
                                 self.padded_dims), self.dtype)
-        reshaped_x[:,:,:input_x.shape[2]] = input_x * self.hyperparams[2]
+        reshaped_x[:,:,:input_x.shape[2]] = input_x * self.hyperparams[1]
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
-                self.num_threads, self.hyperparams[1], self.fit_intercept)
-        if self.graph_average:
-            xtrans /= input_x.shape[1]
+                self.num_threads, self.fit_intercept, self.graph_average)
         return xtrans
 
 
@@ -176,9 +174,6 @@ class GraphRBF(KernelBaseclass):
                                 self.padded_dims), self.dtype)
         reshaped_x[:,:,:input_x.shape[2]] = input_x
         dz_dsigma = self.grad_func(reshaped_x, self.radem_diag,
-                output_x, self.chi_arr, self.num_threads, self.hyperparams[2],
-                self.hyperparams[1], self.fit_intercept)
-        if self.graph_average:
-            output_x /= input_x.shape[1]
-            dz_dsigma /= input_x.shape[1]
+                output_x, self.chi_arr, self.num_threads, self.hyperparams[1],
+                self.fit_intercept, self.graph_average)
         return output_x, dz_dsigma

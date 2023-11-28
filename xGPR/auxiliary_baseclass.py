@@ -25,37 +25,25 @@ class AuxiliaryBaseclass():
         device (str): One of "gpu", "cpu". The user can update this as desired.
             All predict / tune / fit operations are carried out using the
             current device.
-        num_rffs (int): The number of random Fourier features generated
-            by the auxiliary tool.
-        kernel_specific_params (dict): Contains kernel-specific parameters --
-            e.g. 'matern_nu' for the nu for the Matern kernel, or 'conv_width'
-            for the conv1d kernel.
-        random_seed (int): The random seed to use for all future ops.
         verbose (bool): If True, regular updates are printed during
             hyperparameter tuning and fitting.
-        num_threads (int): The number of threads to use for random feature generation
-            if running on CPU. If running on GPU, this argument is ignored.
-        double_precision_fht (bool): If True, use double precision during FHT for
-            generating random features. For most problems, it is not beneficial
-            to set this to True -- it merely increases computational expense
-            with negligible benefit -- but this option is useful for testing.
-            Defaults to False.
     """
 
-    def __init__(self, num_rffs, hyperparams, dataset, kernel_choice="RBF", device = "cpu",
-                    kernel_specific_params = constants.DEFAULT_KERNEL_SPEC_PARMS,
-                    random_seed = 123, verbose = True,
-                    num_threads = 2,
-                    double_precision_fht = False):
+    def __init__(self, num_rffs:int, hyperparams, dataset,
+                    kernel_choice:str = "RBF", device:str = "cpu",
+                    kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
+                    random_seed:int = 123, verbose:bool = True,
+                    num_threads:int = 2,
+                    double_precision_fht:bool = False):
         """Constructor.
 
         Args:
             num_rffs (int): The number of random Fourier features
                 to use for the auxiliary device.
             hyperparams (np.ndarray): A numpy array containing the kernel-specific
-                hyperparameter. If you have fitted an xGPR model, the first two
-                hyperparameters are general not kernel specific, so
-                my_model.get_hyperparams()[2:] will retrieve the hyperparameters you
+                hyperparameter. If you have fitted an xGPR model, the first
+                hyperparameter is in general not kernel specific, so
+                my_model.get_hyperparams()[1:] will retrieve the hyperparameters you
                 need. For most kernels there is only one kernel-specific hyperparameter.
                 For kernels with no kernel-specific hyperparameter (e.g. arc-cosine
                 and polynomial kernels), this argument is ignored.
@@ -67,7 +55,7 @@ class AuxiliaryBaseclass():
                 'cpu' or 'gpu'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).
                 Defaults to 'cpu'.
-            kernel_specific_params (dict): Contains kernel-specific parameters --
+            kernel_settings (dict): Contains kernel-specific parameters --
                 e.g. 'matern_nu' for the nu for the Matern kernel, or 'conv_width'
                 for the conv1d kernel.
             random_seed (int): A seed for the random number generator.
@@ -81,27 +69,21 @@ class AuxiliaryBaseclass():
                 with negligible benefit -- but this option is useful for testing.
                 Defaults to False.
         """
-        self.random_seed = random_seed
-        self.num_rffs = num_rffs
-        self.kernel_spec_parms = kernel_specific_params
         #We should never use a y-intercept for kPCA or clustering.
-        self.kernel_spec_parms["intercept"] = False
-        self.num_threads = num_threads
+        kernel_settings["intercept"] = False
 
         self.verbose = verbose
 
-        self.double_precision_fht = double_precision_fht
         if kernel_choice not in KERNEL_NAME_TO_CLASS:
             raise ValueError("An unrecognized kernel choice was supplied.")
         self.kernel = KERNEL_NAME_TO_CLASS[kernel_choice](dataset.get_xdim(),
                             num_rffs, random_seed, device,
-                            self.num_threads, self.double_precision_fht,
-                            kernel_spec_parms = self.kernel_spec_parms)
+                            num_threads, double_precision_fht,
+                            kernel_spec_parms = kernel_settings)
         self.device = device
         full_hparams = self.kernel.get_hyperparams()
-        if full_hparams.shape[0] > 2:
-            full_hparams[2:] = hyperparams
-        full_hparams[1] = 0
+        if full_hparams.shape[0] > 1:
+            full_hparams[1:] = hyperparams
         self.kernel.set_hyperparams(full_hparams)
 
 
@@ -131,7 +113,7 @@ class AuxiliaryBaseclass():
         return x_array
 
 
-    def transform_data(self, input_x, chunk_size = 2000):
+    def transform_data(self, input_x, chunk_size:int = 2000):
         """Generate the random features for each chunk
         of an input array. This function is a generator
         so it will yield the random features as blocks
@@ -162,57 +144,6 @@ class AuxiliaryBaseclass():
 
 
     ####The remaining functions are all getters / setters.
-
-
-    @property
-    def kernel_spec_parms(self):
-        """Property definition for the kernel_spec_parms."""
-        return self._kernel_spec_parms
-
-    @kernel_spec_parms.setter
-    def kernel_spec_parms(self, value):
-        """Setter for kernel_spec_parms."""
-        if not isinstance(value, dict):
-            raise ValueError("Tried to set kernel_spec_parms to something that "
-                    "was not a dict!")
-        self._kernel_spec_parms = value
-
-
-
-    @property
-    def num_rffs(self):
-        """Property definition for the num_rffs attribute."""
-        return self._num_rffs
-
-    @num_rffs.setter
-    def num_rffs(self, value):
-        """Setter for the num_rffs attribute."""
-        self._num_rffs = value
-
-    @property
-    def num_threads(self):
-        """Property definition for the num_threads attribute."""
-        return self._num_threads
-
-    @num_threads.setter
-    def num_threads(self, value):
-        """Setter for the num_threads attribute."""
-        if value > 24 or value < 1:
-            self._num_threads = 2
-            raise ValueError("Num threads if supplied must be an integer from 1 to 24.")
-        self._num_threads = value
-
-
-    @property
-    def double_precision_fht(self):
-        """Property definition for the double_precision_fht attribute."""
-        return self._double_precision_fht
-
-
-    @double_precision_fht.setter
-    def double_precision_fht(self, value):
-        """Setter for the double_precision_fht attribute."""
-        self._double_precision_fht = value
 
 
     @property
