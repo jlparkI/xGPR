@@ -1,0 +1,7 @@
+Cython>=0.10
+fastrlock>=0.4
+numpy>=1.10.0
+scipy>=1.7.0
+sphinx
+nbsphinx
+scikit-learn
