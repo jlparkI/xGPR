@@ -24,7 +24,7 @@ class CheckTuning(unittest.TestCase):
 
         for mod in models:
             mod.verbose = False
-            for tuning_method, nmll_method, max_iter in [("Nelder-Mead", "approximate", 100),
+            for tuning_method, nmll_method, max_iter in [("Nelder-Mead", "exact", 100),
                         ("Powell", "exact", 100),
                         ("L-BFGS-B", "exact", 100)]:
                 _, niter, best_score = mod.tune_hyperparams(online_data,
