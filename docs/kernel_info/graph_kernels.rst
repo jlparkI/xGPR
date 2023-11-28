@@ -9,13 +9,13 @@ See :doc:`Getting started</initialization_tutorial>`
 for details.
 
 
-.. list-table:: Sequence Kernels
+.. list-table:: Graph Kernels
    :align: center
    :header-rows: 1
 
    * - Kernel Name
      - Description
-     - kernel_specific_params
+     - kernel_settings
    * - GraphRBF
      - | Compares graphs by averaging over
        | an RBF kernel applied pairwise to
@@ -33,8 +33,8 @@ for details.
    * - GraphPoly
      - | Same as "GraphRBF", but applies
        | a polynomial kernel pairwise instead
-       | of an RBF. Only two hyperparameters
-       | that need to be tuned instead of 3
+       | of an RBF. Only one hyperparameter
+       | that need to be tuned instead of 2
        | as for GraphRBF or FHTConv1d.
      - | "polydegree":int
        | "intercept": bool If True,
@@ -49,8 +49,8 @@ for details.
    * - GraphArcCosine
      - | Same as "GraphRBF", but applies
        | an arc-cosine kernel pairwise instead
-       | of an RBF. Only two hyperparameters
-       | that need to be tuned instead of 3
+       | of an RBF. Only one hyperparameters
+       | that need to be tuned instead of 2
        | as for GraphRBF or FHTConv1d.
      - | "order":int, either 1 or 2. Determines
        | the order of the arc-cosine kernel.
@@ -74,14 +74,15 @@ in the size of the graph; in xGPR, remarkably, we are able to
 implement these kernels with a "trick" that results in *linear
 scaling* with graph size and number of datapoints for both kernels.
 
-Be aware that these convolution kernels are a little slower than
+These convolution kernels can be slower than
 fixed-vector input kernels, *especially* for large graphs,
-because to avoid using excessive
-memory, the convolutions are performed in batches (rather
-than all at once). As a compensating factor, they frequently
-need fewer random features to achieve good performance.
+because to limit memory use, the convolutions are performed
+in batches (rather than all at once). As a compensating factor,
+they frequently need fewer random features to achieve good
+performance.
 
 Tuning hyperparameters for GraphArcCosine and GraphPoly is
-usually quite straightforward since there are only two.
-On the other hand, they are a little slower than GraphRBF
-for both fitting and inference.
+usually quite straightforward since there is only one
+hyperparameter (although you may want to experiment with
+different values for the polydegree for GraphPoly and
+the order for GraphArcCosine as well).

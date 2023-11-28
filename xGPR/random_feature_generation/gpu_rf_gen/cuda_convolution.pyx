@@ -159,7 +159,8 @@ def gpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
-                int numThreads, float beta_, bool fitIntercept = False):
+                int numThreads, bool fitIntercept = False,
+                bool averageFeatures = False):
     """Uses wrapped C functions to generate random features for FHTConv1d, GraphConv1d,
     and related kernels. This function cannot be used to calculate the gradient
     so is only used for forward pass only (during fitting, inference, non-gradient-based
@@ -178,9 +179,11 @@ def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
             stored. Is modified in-place.
         chiArr (cp.ndarray): A stack of diagonal matrices drawn from a chi distribution.
         num_threads (int): Number of threads to use for FHT.
-        beta (float): The amplitude.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
             the first random feature generated should be set to 1).
+        averageFeatures (bool): Whether to average the features generated along the
+            first axis (makes kernel result less dependent on sequence length / graph
+            size).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -239,7 +242,9 @@ def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
         scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
     else:
         scalingTerm = np.sqrt(2 / <double>chiArr.shape[0])
-    scalingTerm *= beta_
+
+    if averageFeatures:
+        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
 
     if outputArray.dtype == "float64" and reshapedX.dtype == "float32" and \
             chiArr.dtype == "float32":
@@ -259,15 +264,16 @@ def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
         raise Exception("Fatal error encountered while performing FHT RF generation.")
 
     if fitIntercept:
-        outputArray[:,0] = beta_
+        outputArray[:,0] = 1.
 
 
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
-                int numThreads, float sigma, float beta_,
-                bool fitIntercept = False):
+                int numThreads, float sigma,
+                bool fitIntercept = False,
+                bool averageFeatures = False):
     """Performs feature generation for the GraphRBF kernel while also performing
     gradient calculations.
 
@@ -284,9 +290,11 @@ def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
         chiArr (cp.ndarray): A stack of diagonal matrices drawn from a chi distribution.
         num_threads (int): Number of threads to use for FHT.
         sigma (float): The lengthscale.
-        beta (float): The amplitude.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
             the first random feature generated should be set to 1).
+        averageFeatures (bool): Whether to average the features generated along the
+            first axis (makes kernel result less dependent on sequence length / graph
+            size).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -354,7 +362,9 @@ def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
         scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
     else:
         scalingTerm = np.sqrt(2 / <double>chiArr.shape[0])
-    scalingTerm *= beta_
+
+    if averageFeatures:
+        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
 
     if outputArray.dtype == "float64" and reshapedX.dtype == "float32" and \
             chiArr.dtype == "float32":
@@ -377,7 +387,7 @@ def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
         raise Exception("Fatal error encountered while performing FHT RF generation.")
 
     if fitIntercept:
-        outputArray[:,0] = beta_
+        outputArray[:,0] = 1.
         gradient[:,0] = 0
     return gradient
 
@@ -386,8 +396,9 @@ def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def gpuConv1dArcCosFGen(reshapedX, radem, outputArray, chiArr,
-                int numThreads, float beta_, int kernelOrder,
-                bool fitIntercept = False):
+                int numThreads, int kernelOrder,
+                bool fitIntercept = False,
+                bool averageFeatures = False):
     """Uses wrapped C functions to generate random features for arccosine kernels
     for sequences and graphs.
 
@@ -404,10 +415,12 @@ def gpuConv1dArcCosFGen(reshapedX, radem, outputArray, chiArr,
         chiArr (cp.ndarray): A stack of diagonal matrices drawn from a chi distribution.
         num_threads (int): Number of threads to use for FHT. Supplied for consistency
             with CPU-wrapper functions, since it is not actually used.
-        beta (float): The amplitude.
         kernelOrder (int): The order of the arccosine kernel.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
             the first random feature generated should be set to 1).
+        averageFeatures (bool): Whether to average the features generated along the
+            first axis (makes kernel result less dependent on sequence length / graph
+            size).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -469,7 +482,9 @@ def gpuConv1dArcCosFGen(reshapedX, radem, outputArray, chiArr,
         scalingTerm = np.sqrt(1 / <double>(chiArr.shape[0] - 1))
     else:
         scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
-    scalingTerm *= beta_
+
+    if averageFeatures:
+        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
 
     if outputArray.dtype == "float64" and reshapedX.dtype == "float32" and \
             chiArr.dtype == "float32":
@@ -489,4 +504,4 @@ def gpuConv1dArcCosFGen(reshapedX, radem, outputArray, chiArr,
         raise Exception("Fatal error encountered while performing FHT RF generation.")
 
     if fitIntercept:
-        outputArray[:,0] = beta_
+        outputArray[:,0] = 1.

@@ -26,9 +26,8 @@ class GraphArcCosine(KernelBaseclass):
     Only attributes unique to this child are described in this docstring.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has three
-            hyperparameters: lambda_ (noise), beta_ (amplitude)
-            and sigma (inverse mismatch tolerance).
+        hyperparams (np.ndarray): This kernel has one
+            hyperparameter: lambda_ (noise).
         padded_dims (int): The size of the expected input data
             after zero-padding to be a power of 2.
         init_calc_freqsize (int): The number of times the transform
@@ -94,8 +93,8 @@ class GraphArcCosine(KernelBaseclass):
         self.effective_dim = xdim[2] + 1
         self.order = kernel_spec_parms["order"]
 
-        self.hyperparams = np.ones((2))
-        self.bounds = np.asarray([[1e-3,1e1], [0.2, 5]])
+        self.hyperparams = np.ones((1))
+        self.bounds = np.asarray([[1e-3,1e2]])
         rng = np.random.default_rng(random_seed)
 
         self.padded_dims = 2**ceil(np.log2(max(self.effective_dim, 2)))
@@ -162,10 +161,8 @@ class GraphArcCosine(KernelBaseclass):
         reshaped_x[:,:,:input_x.shape[2]] = input_x
         reshaped_x[:,:,input_x.shape[2]] = 1.0
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
-                self.num_threads, self.hyperparams[1], self.order,
-                self.fit_intercept)
-        if self.graph_average:
-            xtrans /= input_x.shape[1]
+                self.num_threads, self.order, self.fit_intercept,
+                self.graph_average)
         return xtrans
 
 

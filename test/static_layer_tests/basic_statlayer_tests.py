@@ -33,7 +33,10 @@ class CheckStatLayerConstruction(unittest.TestCase):
         x_trans = conv_statlayer.conv1d_x_feat_extract(xchunks[0])
         self.assertTrue(x_trans.shape[1] == 512)
         self.assertTrue(xchunks[0].shape[0] == x_trans.shape[0])
-        conv_dset.delete_dataset_files()
+        for xfile in conv_dset.get_xfiles():
+            os.remove(xfile)
+        for yfile in conv_dset.get_yfiles():
+            os.remove(yfile)
 
 
 if __name__ == "__main__":

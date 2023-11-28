@@ -3,9 +3,7 @@ import os
 
 import numpy as np
 
-from xGPR.data_handling.dataset_builder import build_offline_fixed_vector_dataset
-from xGPR.data_handling.dataset_builder import build_online_dataset
-from xGPR.data_handling.dataset_builder import build_offline_sequence_dataset
+from xGPR.data_handling.dataset_builder import build_regression_dataset
 
 RANDOM_STATE = 123
 
@@ -39,11 +37,7 @@ def build_test_dataset(conv_kernel = False, xsuffix = "trainxvalues.npy",
     xtrain_files.sort()
     ytrain_files.sort()
 
-    if not conv_kernel:
-        offline_data = build_offline_fixed_vector_dataset(xtrain_files,
-                ytrain_files, chunk_size = 2000)
-    else:
-        offline_data = build_offline_sequence_dataset(xtrain_files,
+    offline_data = build_regression_dataset(xtrain_files,
                 ytrain_files, chunk_size = 2000)
     xvalues, yvalues = [], []
     for xfile, yfile in zip(xtrain_files, ytrain_files):
@@ -52,7 +46,7 @@ def build_test_dataset(conv_kernel = False, xsuffix = "trainxvalues.npy",
 
     xvalues = np.vstack(xvalues)
     yvalues = np.concatenate(yvalues)
-    online_data = build_online_dataset(xvalues, yvalues, chunk_size = 2000)
+    online_data = build_regression_dataset(xvalues, yvalues, chunk_size = 2000)
 
     return online_data, offline_data
 
@@ -99,7 +93,7 @@ def build_traintest_split(conv_kernel = False, xsuffix = "trainxvalues.npy",
     xvalues, yvalues = xvalues[idx,:], yvalues[idx]
     cutoff = int(0.75 * idx.shape[0])
 
-    train_data = build_online_dataset(xvalues[:cutoff,...], yvalues[:cutoff], chunk_size = 2000)
-    test_data = build_online_dataset(xvalues[cutoff:,...], yvalues[cutoff:], chunk_size = 2000)
+    train_data = build_regression_dataset(xvalues[:cutoff,...], yvalues[:cutoff], chunk_size = 2000)
+    test_data = build_regression_dataset(xvalues[cutoff:,...], yvalues[cutoff:], chunk_size = 2000)
 
     return train_data, test_data

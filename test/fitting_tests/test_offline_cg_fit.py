@@ -13,10 +13,9 @@ from utils.evaluate_model import evaluate_model
 
 #A set of hyperparameters known to work well for our testing dataset
 #that we can use as a default.
-HPARAM = np.array([-0.67131348,  0.72078634, -1.00860899])
+HPARAM = np.array([np.log(np.sqrt(0.0767)),  np.log(0.358)])
 
 NUM_RFFS = 4100
-RANDOM_SEED = 123
 
 
 class CheckCGFit(unittest.TestCase):
@@ -26,51 +25,51 @@ class CheckCGFit(unittest.TestCase):
         """Test using preconditioned cg, which should easily fit
         in under 10 epochs."""
         _, offline_data = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", offline_data.get_xdim())
-        cpu_mod.fitting_rffs = NUM_RFFS
+        cpu_mod, gpu_mod = get_models("RBF", offline_data, num_rffs = NUM_RFFS)
 
+        cpu_mod.set_hyperparams(HPARAM, offline_data)
         preconditioner, _ = cpu_mod.build_preconditioner(offline_data,
-            max_rank = 256, method = "srht", preset_hyperparams = HPARAM)
+            max_rank = 256, method = "srht")
 
         niter, _ = cpu_mod.fit(offline_data,  preconditioner = preconditioner,
-                max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
+                max_iter = 500, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg")
         print(f"niter: {niter}")
         self.assertTrue(niter < 10)
 
         if gpu_mod is not None:
-            gpu_mod.fitting_rffs = NUM_RFFS
-
+            gpu_mod.set_hyperparams(HPARAM, offline_data)
             preconditioner, _ = gpu_mod.build_preconditioner(offline_data,
-                max_rank = 256, method = "srht",
-                preset_hyperparams = HPARAM)
+                max_rank = 256, method = "srht")
 
             niter, _ = gpu_mod.fit(offline_data,  preconditioner = preconditioner,
-                max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
+                max_iter = 500, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg")
             print(f"niter: {niter}")
             self.assertTrue(niter < 10)
 
 
-    def test_nonpreconditioned_cg(self):
-        """Test using non-preconditioned cg."""
+    def test_autoselect_cg(self):
+        """Test using preconditioner autoselect."""
         _, offline_data = build_test_dataset(conv_kernel = False)
-        cpu_mod, gpu_mod = get_models("RBF", offline_data.get_xdim())
+        cpu_mod, gpu_mod = get_models("RBF", offline_data)
         cpu_mod.fitting_rffs = NUM_RFFS
         cpu_mod.verbose = False
 
+        cpu_mod.set_hyperparams(HPARAM, offline_data)
         niter, _ = cpu_mod.fit(offline_data,
-                max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
-                tol = 1e-6,  mode = "cg", preset_hyperparams = HPARAM)
+                max_iter = 500, run_diagnostics = True,
+                tol = 1e-6,  mode = "cg")
         print(f"No preconditioning, niter: {niter}")
         self.assertTrue(niter < 80)
 
         if gpu_mod is not None:
             gpu_mod.fitting_rffs = NUM_RFFS
             gpu_mod.verbose = False
+            gpu_mod.set_hyperparams(HPARAM, offline_data)
             niter, _ = gpu_mod.fit(offline_data,
-                max_iter = 500, random_seed = RANDOM_SEED, run_diagnostics = True,
-                tol = 1e-6,  mode = "cg", preset_hyperparams = HPARAM)
+                max_iter = 500, run_diagnostics = True,
+                tol = 1e-6,  mode = "cg")
             print(f"No preconditioning, niter: {niter}")
             self.assertTrue(niter < 80)
 

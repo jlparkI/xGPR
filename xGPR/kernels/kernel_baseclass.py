@@ -27,7 +27,7 @@ class KernelBaseclass(ABC):
             features. In this case the user-requested num_rffs must
             be an even number and num_rffs will be set equal to this
             value, while num_freqs will be 0.5 * num_features.
-        xdim (tuple): The dimensionality of the input. Only elements
+        _xdim (tuple): The dimensionality of the input. Only elements
             1 and onwards are used -- element 0 is the number of datapoints
             and is not used by the kernel, so any value for element 0
             is acceptable.
@@ -106,12 +106,11 @@ class KernelBaseclass(ABC):
             if kernel_spec_parms["intercept"] is False:
                 self.fit_intercept = False
 
-        self.xdim = xdim
+        self._xdim = xdim
         self.hyperparams = None
         self.bounds = None
 
         self.num_threads = num_threads
-
 
 
     @abc.abstractmethod
@@ -211,14 +210,14 @@ class KernelBaseclass(ABC):
                 False otherwise.
         """
         valid_data = True
-        if len(input_x.shape) != len(self.xdim):
+        if len(input_x.shape) != len(self._xdim):
             valid_data = False
-        elif len(self.xdim) == 3:
-            if input_x.shape[2] != self.xdim[2]:
+        elif len(self._xdim) == 3:
+            if input_x.shape[2] != self._xdim[2]:
                 valid_data = False
             if input_x.shape[1] < 1:
                 valid_data = False
-        elif input_x.shape[1] != self.xdim[1]:
+        elif input_x.shape[1] != self._xdim[1]:
             valid_data = False
         return valid_data
 
@@ -274,12 +273,6 @@ class KernelBaseclass(ABC):
         return self.hyperparams[0]
 
 
-    def get_beta(self):
-        """For convenience, we enable caller to retrieve only the
-        second hyperparameter, which is needed for a variety of
-        operations during fitting and tuning."""
-        return self.hyperparams[1]
-
 
     def check_hyperparams(self, hyperparams):
         """Checks a suggested set of hyperparameters passed
@@ -311,24 +304,10 @@ class KernelBaseclass(ABC):
         should not be able to set."""
         return self.num_rffs
 
-
-    def set_out_type(self, out_type = "f"):
-        """Temporarily changes the out data type, which will be
-        reset whenever the device is changed. This is convenient
-        for certain operations (e.g. pretransforming data)
-        which do not require double precision."""
-        if out_type == "f":
-            if self.device == "gpu":
-                self.out_type = cp.float32
-            else:
-                self.out_type = np.float32
-        elif out_type == "d":
-            if self.device == "gpu":
-                self.out_type = cp.float64
-            else:
-                self.out_type = np.float64
-        else:
-            raise ValueError("Unrecognized data type supplied to kernel.")
+    def get_xdim(self):
+        """Returns the _xdim value. No setter since this should
+        not be set externally."""
+        return self._xdim
 
 
     @property

@@ -1,10 +1,6 @@
 """A linear kernel, which corresponds to Bayesian linear
 regression."""
 import numpy as np
-try:
-    import cupy as cp
-except:
-    pass
 from ..kernel_baseclass import KernelBaseclass
 
 
@@ -46,8 +42,8 @@ class Linear(KernelBaseclass):
         if len(xdim) > 2:
             raise ValueError("The Linear kernel is only applicable for "
                     "fixed vector input.")
-        self.hyperparams = np.ones((2))
-        self.bounds = np.asarray([[1e-3,1e1], [0.125, 8]])
+        self.hyperparams = np.ones((1))
+        self.bounds = np.asarray([[1e-3,1e1]])
 
         self.device = device
 
@@ -77,7 +73,7 @@ class Linear(KernelBaseclass):
             xtrans[:,0] = 1
         else:
             xtrans = input_x.astype(self.out_type)
-        return xtrans * self.hyperparams[1]
+        return xtrans
 
 
     def kernel_specific_gradient(self, input_x):

@@ -12,7 +12,11 @@ DEFAULT_KERNEL_SPEC_PARMS = {"matern_nu":5/2, "conv_width":9,
 #matrix decomposition.
 DEFAULT_SCORE_IF_PROBLEM = 1e40
 
-#The following are hyperpriors that work well for MAP
-#gradient estimation.
-LAMBDA_HPRIOR = 2
-SIGMA_HPRIOR = 10
+#Default settings for NMLL approximation.
+default_nmll_params = {"max_rank":1024, "preconditioner_mode":"srht_2",
+        "nsamples":25, "nmll_iter":500, "nmll_tol":1e-6}
+
+#Default max rank for NMLL approximation.
+LARGEST_NMLL_MAX_RANK = 3000
+#Default min rank for NMLL approximation.
+SMALLEST_NMLL_MAX_RANK = 512
