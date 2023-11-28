@@ -8,6 +8,7 @@ import warnings
 try:
     import cupy as cp
     from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
+    from cg_tools import GPU_ConjugateGrad
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
 import numpy as np
@@ -32,7 +33,7 @@ from .scoring_toolkit.bayes_grid import bayes_grid_tuning
 from .scoring_toolkit.lb_optimizer import shared_hparam_search
 from .scoring_toolkit.alpha_beta_optimizer import optimize_alpha_beta
 
-from cg_tools import CPU_ConjugateGrad, GPU_ConjugateGrad
+from cg_tools import CPU_ConjugateGrad
 
 
 
