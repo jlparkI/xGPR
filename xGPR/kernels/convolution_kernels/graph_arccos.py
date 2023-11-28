@@ -161,9 +161,8 @@ class GraphArcCosine(KernelBaseclass):
         reshaped_x[:,:,:input_x.shape[2]] = input_x
         reshaped_x[:,:,input_x.shape[2]] = 1.0
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
-                self.num_threads, self.order, self.fit_intercept)
-        if self.graph_average:
-            xtrans /= input_x.shape[1]
+                self.num_threads, self.order, self.fit_intercept,
+                self.graph_average)
         return xtrans
 
 

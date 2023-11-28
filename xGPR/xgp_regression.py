@@ -37,16 +37,14 @@ from cg_tools import CPU_ConjugateGrad, GPU_ConjugateGrad
 
 
 class xGPRegression(ModelBaseclass):
-    """A subclass of GPRegressionBaseclass that houses methods
-    unique to regression problems. Only attributes not shared by
-    the parent class are described here.
+    """An approximate Gaussian process for regression.
     """
 
     def __init__(self, num_rffs:int = 256,
                     variance_rffs:int = 16,
                     kernel_choice:str = "RBF",
                     device:str = "cpu",
-                    kernel_specific_params:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
+                    kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     verbose:bool = True,
                     num_threads:int = 2,
                     random_seed:int = 123) -> None:
@@ -64,7 +62,7 @@ class xGPRegression(ModelBaseclass):
                 'cpu' or 'gpu'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).
                 Defaults to 'cpu'.
-            kernel_specific_params (dict): Contains kernel-specific parameters --
+            kernel_settings (dict): Contains kernel-specific parameters --
                 e.g. 'matern_nu' for the nu for the Matern kernel, or 'conv_width'
                 for the conv1d kernel.
             verbose (bool): If True, regular updates are printed
@@ -75,7 +73,7 @@ class xGPRegression(ModelBaseclass):
         """
         super().__init__(num_rffs, variance_rffs,
                         kernel_choice, device = device,
-                        kernel_specific_params = kernel_specific_params,
+                        kernel_settings = kernel_settings,
                         verbose = verbose, num_threads = num_threads,
                         random_seed = random_seed)
 
@@ -313,16 +311,26 @@ class xGPRegression(ModelBaseclass):
                 approximation. This process usually works well but you may
                 occasionally be able to achieve a better approximation and / or
                 better speed by choosing settings yourself. If manual_settings is
-                a dict, it can contain the following settings (see user manual for details):
-                    max_rank (int): The preconditioner rank for approximate NMLL estimation.
-                        A larger value may improve estimation accuracy, but at the
-                        expense of speed. 512 - 1024 is fine for noisy data, 2048 is
-                        better if data is close to noise free.
-                    nsamples (int): The number of probes for approximate NMLL estimation.
-                    niter (int): The maximum number of iterations for approximate NMLL.
-                    tol (float): The convergence tolerance for approximate NMLL.
-                    preconditioner_mode (str): One of "srht", "srht_2". Determines the mode of
-                        preconditioner construction.
+                a dict, it can contain the following settings:
+                
+                * ``"max_rank"``: The preconditioner rank for approximate NMLL estimation.
+                  A larger value may improve estimation accuracy, but at the
+                  expense of speed. 512 - 1024 is fine for noisy data, 2048 is
+                  better if data is close to noise free.
+
+                * ``"nsamples"``: The number of probes for approximate NMLL estimation. 25 (default) is usually fine.
+
+                * ``"niter"``: The maximum number of iterations for approximate NMLL. Should
+                  only really become an issue if CG is failing to fit in under 500 iter (the
+                  default) -- unusual, hyperparameters that give rise to this issue are likely
+                  poor in most cases anyway.
+
+                * ``"tol"``: The convergence tolerance for approximate NMLL. 1e-6 (default)
+                  is usually fine. A tighter tol (e.g. 1e-7) can improve accuracy slightly
+                  at the expense of increased cost.
+
+                * ``"preconditioner_mode"``: One of "srht", "srht_2". Determines the mode of
+                  preconditioner construction.
 
         Returns:
             nmll (float): The negative marginal log likelihood for the
@@ -351,7 +359,8 @@ class xGPRegression(ModelBaseclass):
                         settings["preconditioner_mode"])
         else:
             preconditioner = self._autoselect_preconditioner(dataset,
-                    constants.LARGEST_NMLL_MAX_RANK,
+                    min_rank = constants.SMALLEST_NMLL_MAX_RANK,
+                    max_rank = constants.LARGEST_NMLL_MAX_RANK,
                     always_use_srht2 = True,
                     tuning = True)
 
@@ -406,6 +415,7 @@ class xGPRegression(ModelBaseclass):
             tol:float = 1e-6, max_iter:int = 500,
             mode:str = "cg", suppress_var:bool = False,
             max_rank:int = 3000,
+            min_rank:int = 512,
             autoselect_target_ratio:float = 30.,
             always_use_srht2:bool = False,
             run_diagnostics:bool = False):
@@ -434,6 +444,11 @@ class xGPRegression(ModelBaseclass):
                 mode is 'cg' and preconditioner = None). The default is
                 significantly more than should be needed the vast majority of
                 the time.
+            min_rank (int): The smallest rank to which the preconditioner can be
+                set. Ignored if not autoselecting a preconditioner (e.g. if mode is
+                not 'cg' or preconditioner is not None). The default is usually fine.
+                Consider setting to a smaller number if you always want to use the
+                smallest preconditioner possible.
             autoselect_target_ratio (float): The target ratio if choosing the
                 preconditioner size via autoselect. Lower values reduce the number
                 of iterations needed to fit but increase preconditioner expense.
@@ -469,7 +484,8 @@ class xGPRegression(ModelBaseclass):
 
         elif mode == "cg":
             if preconditioner is None:
-                preconditioner = self._autoselect_preconditioner(dataset, max_rank,
+                preconditioner = self._autoselect_preconditioner(dataset,
+                        min_rank = min_rank, max_rank = max_rank,
                         ratio_target = autoselect_target_ratio,
                         always_use_srht2 = always_use_srht2)
             if run_diagnostics:
@@ -527,15 +543,17 @@ class xGPRegression(ModelBaseclass):
                     max_bayes_iter:int = 30,
                     subsample:float = 1):
         """Tunes the hyperparameters using Bayesian optimization, but with
-        a 'trick' that simplifies the problem greatly for 2-4 hyperparameter
+        a 'trick' that simplifies the problem greatly for 1-3 hyperparameter
         kernels. Hyperparameters are scored using an exact NMLL calculation.
         The NMLL calculation uses a matrix decomposition with cubic
-        scaling in the number of random features, so it is extremely slow
+        scaling in the number of random features, so it is slow
         for anything more than 3-4,000 random features, but has
         low risk of overfitting and is easy to use. It is therefore
         intended as a "quick-and-dirty" method. We recommend using
         this with a small number of random features (e.g. 500 - 3000)
-        and call self.tune_hyperparams to fine-tune further if needed.
+        and call self.tune_hyperparams to fine-tune further if needed,
+        or fine-tune using an outside library (Optuna) or even simple
+        grid search.
 
         Args:
             dataset: Object of class OnlineDataset or OfflineDataset.
@@ -557,21 +575,13 @@ class xGPRegression(ModelBaseclass):
             hyperparams (np.ndarray): The best hyperparams found during optimization.
             n_feval (int): The number of function evaluations during optimization.
             best_score (float): The best negative marginal log-likelihood achieved.
-            scores (tuple): A tuple where the first element is the sigma values
-                evaluated and the second is the resulting scores. Can be useful
-                for diagnostic purposes.
 
         Raises:
             ValueError: The input dataset is checked for validity before tuning is
                 initiated. If problems are found, a raise exception will provide an
                 explanation of the error. This method will also raise an exception
                 if you try to use it on a kernel with > 4 hyperparameters (since
-                this strategy no longer provides any benefit under those conditions)
-                or < 3.
-            n_init_pts (int): The number of initial grid points to evaluate before
-                Bayesian optimization. 10 (the default) is usually fine. If you are
-                searcing a smaller space, however, you can save time by using
-                a smaller # (e.g. 5).
+                this strategy no longer provides any benefit under those conditions).
         """
         if subsample < 0.01 or subsample > 1:
             raise ValueError("subsample must be in the range [0.01, 1].")
@@ -635,20 +645,31 @@ class xGPRegression(ModelBaseclass):
                 it can work well up to 8,000 RFFs or so.
                 'approximate' is slow but has better scaling (i.e. the
                 time taken increases linearly with the number of RFFs).
-            manual_settings: Either None (default) or a dict. Ignored if 
-                'nmll_method' is 'exact'. If 'nmll_method' is approximate,
-                'manual_settings' controls the approximation parameters.
-                If it is None, xGPR will automatically choose settings to give a good
+            manual_settings: Either None (default) or a dict. If None, the function will
+                try to automatically choose settings that will give a good
                 approximation. This process usually works well but you may
                 occasionally be able to achieve a better approximation and / or
                 better speed by choosing settings yourself. If manual_settings is
-                a dict, it can contain the following settings (see user manual for details):
-                    max_rank (int): The preconditioner rank for approximate NMLL estimation.
-                    nsamples (int): The number of probes for approximate NMLL estimation.
-                    niter (int): The maximum number of iterations for approximate NMLL.
-                    tol (float): The convergence tolerance for approximate NMLL.
-                    preconditioner_mode (str): One of "srht", "srht_2". Determines the mode of
-                        preconditioner construction.
+                a dict, it can contain the following settings:
+                
+                * ``"max_rank"``: The preconditioner rank for approximate NMLL estimation.
+                  A larger value may improve estimation accuracy, but at the
+                  expense of speed. 512 - 1024 is fine for noisy data, 2048 is
+                  better if data is close to noise free.
+
+                * ``"nsamples"``: The number of probes for approximate NMLL estimation. 25 (default) is usually fine.
+
+                * ``"niter"``: The maximum number of iterations for approximate NMLL. Should
+                  only really become an issue if CG is failing to fit in under 500 iter (the
+                  default) -- unusual, hyperparameters that give rise to this issue are likely
+                  poor in most cases anyway.
+
+                * ``"tol"``: The convergence tolerance for approximate NMLL. 1e-6 (default)
+                  is usually fine. A tighter tol (e.g. 1e-7) can improve accuracy slightly
+                  at the expense of increased cost.
+
+                * ``"preconditioner_mode"``: One of "srht", "srht_2". Determines the mode of
+                  preconditioner construction.
 
         Returns:
             hyperparams (np.ndarray): The best hyperparams found during optimization.

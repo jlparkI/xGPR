@@ -180,9 +180,7 @@ class FHTConv1d(KernelBaseclass):
                                 input_x.strides[2]))
         reshaped_x[:,:,:self.dim2_no_padding] = x_strided * self.hyperparams[1]
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr, self.num_threads,
-                self.fit_intercept)
-        if self.sequence_average:
-            xtrans /= input_x.shape[1]
+                self.fit_intercept, self.sequence_average)
         return xtrans
 
 
@@ -228,9 +226,5 @@ class FHTConv1d(KernelBaseclass):
         reshaped_x[:,:,:self.dim2_no_padding] = x_strided
         dz_dsigma = self.grad_func(reshaped_x, self.radem_diag,
                 output_x, self.chi_arr, self.num_threads, self.hyperparams[1],
-                self.fit_intercept)
-
-        if self.sequence_average:
-            output_x /= input_x.shape[1]
-            dz_dsigma /= input_x.shape[1]
+                self.fit_intercept, self.sequence_average)
         return output_x, dz_dsigma

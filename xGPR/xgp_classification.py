@@ -22,15 +22,13 @@ from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 
 
 class xGPDiscriminant(ModelBaseclass):
-    """A subclass of GPModelBaseclass that houses methods
-    unique to classification problems. Only attributes unique
-    to this child are described here.
+    """An approximate kernelized discriminant for classification.
     """
 
     def __init__(self, num_rffs:int = 256,
             kernel_choice:str = "RBF",
             device:str = "cpu",
-            kernel_specific_params:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
+            kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
             verbose:bool = True,
             num_threads:int = 2,
             random_seed:int = 123):
@@ -45,7 +43,7 @@ class xGPDiscriminant(ModelBaseclass):
                 'cpu' or 'gpu'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).
                 Defaults to 'cpu'.
-            kernel_specific_params (dict): Contains kernel-specific parameters --
+            kernel_settings (dict): Contains kernel-specific parameters --
                 e.g. 'matern_nu' for the nu for the Matern kernel, or 'conv_width'
                 for the conv1d kernel.
             verbose (bool): If True, regular updates are printed
@@ -59,7 +57,7 @@ class xGPDiscriminant(ModelBaseclass):
         # since the classifier does not currently compute variance.
         super().__init__(num_rffs, 0,
                         kernel_choice, device = device,
-                        kernel_specific_params = kernel_specific_params,
+                        kernel_settings = kernel_settings,
                         verbose = verbose, num_threads = num_threads,
                         random_seed = random_seed)
 
@@ -228,6 +226,7 @@ class xGPDiscriminant(ModelBaseclass):
             tol:float = 1e-6,
             max_iter:int = 500,
             max_rank:int = 3000,
+            min_rank:int = 512,
             mode:str = "cg",
             autoselect_target_ratio:float = 30.,
             always_use_srht2:bool = False,
@@ -252,6 +251,11 @@ class xGPDiscriminant(ModelBaseclass):
                 mode is 'cg' and preconditioner = None). The default is
                 significantly more than should be needed the vast majority of
                 the time.
+            min_rank (int): The smallest rank to which the preconditioner can be
+                set. Ignored if not autoselecting a preconditioner (e.g. if mode is
+                not 'cg' or preconditioner is not None). The default is usually fine.
+                Consider setting to a smaller number if you always want to use the
+                smallest preconditioner possible.
             mode (str): Must be one of "cg", "lbfgs", "exact".
                 Determines the approach used. If 'exact', self.kernel.get_num_rffs
                 must be <= constants.constants.MAX_CLOSED_FORM_RFFS.
@@ -292,7 +296,8 @@ class xGPDiscriminant(ModelBaseclass):
             self.weights = calc_discriminant_weights_exact(dataset, self.kernel, x_mean, targets)
         elif mode == "cg":
             if preconditioner is None:
-                preconditioner = self._autoselect_preconditioner(dataset, max_rank,
+                preconditioner = self._autoselect_preconditioner(dataset,
+                        min_rank = min_rank, max_rank = max_rank,
                         ratio_target = autoselect_target_ratio,
                         always_use_srht2 = always_use_srht2,
                         x_mean = x_mean)

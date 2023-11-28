@@ -153,9 +153,9 @@ class GraphPolySum(KernelBaseclass):
         output_x = output_x[:,:self.num_rffs].astype(self.out_type) * scaling_constant
 
         if self.graph_average:
-            output_x /= input_x.shape[1]
+            output_x /= float(input_x.shape[1])
         if self.fit_intercept:
-            output_x[:,-1] = 1.
+            output_x[:,0] = 1.
         return output_x
 
 

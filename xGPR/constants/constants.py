@@ -18,3 +18,5 @@ default_nmll_params = {"max_rank":1024, "preconditioner_mode":"srht_2",
 
 #Default max rank for NMLL approximation.
 LARGEST_NMLL_MAX_RANK = 3000
+#Default min rank for NMLL approximation.
+SMALLEST_NMLL_MAX_RANK = 512

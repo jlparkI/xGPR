@@ -14,5 +14,3 @@ and clustering with xGPR.
   molecule_example
 
   sequence_example
-
-  kPCA_and_clustering.ipynb

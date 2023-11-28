@@ -31,7 +31,7 @@ class AuxiliaryBaseclass():
 
     def __init__(self, num_rffs:int, hyperparams, dataset,
                     kernel_choice:str = "RBF", device:str = "cpu",
-                    kernel_specific_params:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
+                    kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     random_seed:int = 123, verbose:bool = True,
                     num_threads:int = 2,
                     double_precision_fht:bool = False):
@@ -55,7 +55,7 @@ class AuxiliaryBaseclass():
                 'cpu' or 'gpu'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).
                 Defaults to 'cpu'.
-            kernel_specific_params (dict): Contains kernel-specific parameters --
+            kernel_settings (dict): Contains kernel-specific parameters --
                 e.g. 'matern_nu' for the nu for the Matern kernel, or 'conv_width'
                 for the conv1d kernel.
             random_seed (int): A seed for the random number generator.
@@ -70,7 +70,7 @@ class AuxiliaryBaseclass():
                 Defaults to False.
         """
         #We should never use a y-intercept for kPCA or clustering.
-        kernel_specific_params["intercept"] = False
+        kernel_settings["intercept"] = False
 
         self.verbose = verbose
 
@@ -79,7 +79,7 @@ class AuxiliaryBaseclass():
         self.kernel = KERNEL_NAME_TO_CLASS[kernel_choice](dataset.get_xdim(),
                             num_rffs, random_seed, device,
                             num_threads, double_precision_fht,
-                            kernel_spec_parms = kernel_specific_params)
+                            kernel_spec_parms = kernel_settings)
         self.device = device
         full_hparams = self.kernel.get_hyperparams()
         if full_hparams.shape[0] > 1:

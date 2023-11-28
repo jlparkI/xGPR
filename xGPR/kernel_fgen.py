@@ -18,9 +18,8 @@ class KernelFGen(AuxiliaryBaseclass):
 
     def __init__(self, num_rffs:int, hyperparams, dataset,
             kernel_choice:str = "RBF", device:str = "cpu",
-            kernel_specific_params:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
-            random_seed:int = 123, verbose:bool = True, num_threads:int = 2,
-            double_precision_fht:bool = False):
+            kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
+            random_seed:int = 123, verbose:bool = True, num_threads:int = 2):
         """The constructor.
 
         Args:
@@ -40,7 +39,7 @@ class KernelFGen(AuxiliaryBaseclass):
                 'cpu' or 'gpu'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).
                 Defaults to 'cpu'.
-            kernel_specific_params (dict): Contains kernel-specific parameters --
+            kernel_settings (dict): Contains kernel-specific parameters --
                 e.g. 'matern_nu' for the nu for the Matern kernel, or 'conv_width'
                 for the conv1d kernel.
             random_seed (int): A seed for the random number generator.
@@ -48,16 +47,10 @@ class KernelFGen(AuxiliaryBaseclass):
                 during fitting and tuning. Defaults to True.
             num_threads (int): The number of threads to use for random feature generation
                 if running on CPU. If running on GPU, this argument is ignored.
-            double_precision_fht (bool): If True, use double precision during FHT for
-                generating random features. For most problems, it is not beneficial
-                to set this to True -- it merely increases computational expense
-                with negligible benefit -- but this option is useful for testing.
-                Defaults to False.
         """
         super().__init__(num_rffs, hyperparams, dataset,
-                        kernel_choice, device, kernel_specific_params,
-                        random_seed, verbose, num_threads,
-                        double_precision_fht)
+                        kernel_choice, device, kernel_settings,
+                        random_seed, verbose, num_threads)
 
 
     def predict(self, input_x, chunk_size:int = 2000):

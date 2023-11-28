@@ -20,7 +20,7 @@ def get_models(kernel_choice, dataset, conv_width = 3, num_rffs = 512,
 
     cpu_mod = xGPReg(num_rffs = num_rffs, kernel_choice = kernel_choice,
             variance_rffs = 12, random_seed = RANDOM_STATE, device = "cpu",
-            kernel_specific_params = {"matern_nu":5/2,
+            kernel_settings = {"matern_nu":5/2,
                             "conv_width":conv_width, "polydegree":2,
                             "split_points":split_pts, "order":2,
                             "intercept":True, "averaging":averaging})
@@ -43,7 +43,7 @@ def get_discriminant_models(kernel_choice, dataset, num_rffs = 512):
     are tested more extensively for regression purposes)."""
     cpu_mod = xGPDiscriminant(num_rffs = num_rffs, kernel_choice = kernel_choice,
             random_seed = RANDOM_STATE, device = "cpu",
-            kernel_specific_params = {"intercept":True})
+            kernel_settings = {"intercept":True})
     if "cupy" not in sys.modules:
         print("Cupy not installed -- skipping the CUDA test.")
         gpu_mod = None

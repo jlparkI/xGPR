@@ -20,15 +20,16 @@ Windows will be added in a future release).
 To run on GPU, you need Cupy. Running on GPU accelerates xGPR
 significantly and is HIGHLY recommended for training.
 
-xGPR is compiled from source. The preferred approach is to run:::
+xGPR is compiled from source. This makes installation a little
+trickier unfortunately. The preferred approach is to run:::
 
   pip install xGPR
 
 and pip will try to compile the source code in the distribution
 using *gcc*, *nvcc* and *g++*. xGPR will try to find CUDA
 in the usual locations and if it cannot find it, will print a warning
-if you are using *verbose*. It will in this case prompt
-you to set CUDA_PATH as an environment variable to indicate
+if you are using *verbose*. If you run into this problem,
+you can set CUDA_PATH as an environment variable to indicate
 where CUDA is installed. You can do so by using the following
 command:::
 

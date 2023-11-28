@@ -159,7 +159,8 @@ def gpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
-                int numThreads, bool fitIntercept = False):
+                int numThreads, bool fitIntercept = False,
+                bool averageFeatures = False):
     """Uses wrapped C functions to generate random features for FHTConv1d, GraphConv1d,
     and related kernels. This function cannot be used to calculate the gradient
     so is only used for forward pass only (during fitting, inference, non-gradient-based
@@ -180,6 +181,9 @@ def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
         num_threads (int): Number of threads to use for FHT.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
             the first random feature generated should be set to 1).
+        averageFeatures (bool): Whether to average the features generated along the
+            first axis (makes kernel result less dependent on sequence length / graph
+            size).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -239,6 +243,9 @@ def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
     else:
         scalingTerm = np.sqrt(2 / <double>chiArr.shape[0])
 
+    if averageFeatures:
+        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
+
     if outputArray.dtype == "float64" and reshapedX.dtype == "float32" and \
             chiArr.dtype == "float32":
         errCode = convRBFFeatureGen[float](<int8_t*>addr_radem, <float*>addr_reshapedX,
@@ -265,7 +272,8 @@ def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
 @cython.wraparound(False)
 def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
                 int numThreads, float sigma,
-                bool fitIntercept = False):
+                bool fitIntercept = False,
+                bool averageFeatures = False):
     """Performs feature generation for the GraphRBF kernel while also performing
     gradient calculations.
 
@@ -284,6 +292,9 @@ def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
         sigma (float): The lengthscale.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
             the first random feature generated should be set to 1).
+        averageFeatures (bool): Whether to average the features generated along the
+            first axis (makes kernel result less dependent on sequence length / graph
+            size).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -352,6 +363,9 @@ def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
     else:
         scalingTerm = np.sqrt(2 / <double>chiArr.shape[0])
 
+    if averageFeatures:
+        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
+
     if outputArray.dtype == "float64" and reshapedX.dtype == "float32" and \
             chiArr.dtype == "float32":
         errCode = convRBFFeatureGrad[float](<int8_t*>addr_radem, <float*>addr_reshapedX,
@@ -383,7 +397,8 @@ def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
 @cython.wraparound(False)
 def gpuConv1dArcCosFGen(reshapedX, radem, outputArray, chiArr,
                 int numThreads, int kernelOrder,
-                bool fitIntercept = False):
+                bool fitIntercept = False,
+                bool averageFeatures = False):
     """Uses wrapped C functions to generate random features for arccosine kernels
     for sequences and graphs.
 
@@ -403,6 +418,9 @@ def gpuConv1dArcCosFGen(reshapedX, radem, outputArray, chiArr,
         kernelOrder (int): The order of the arccosine kernel.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
             the first random feature generated should be set to 1).
+        averageFeatures (bool): Whether to average the features generated along the
+            first axis (makes kernel result less dependent on sequence length / graph
+            size).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -464,6 +482,9 @@ def gpuConv1dArcCosFGen(reshapedX, radem, outputArray, chiArr,
         scalingTerm = np.sqrt(1 / <double>(chiArr.shape[0] - 1))
     else:
         scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
+
+    if averageFeatures:
+        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
 
     if outputArray.dtype == "float64" and reshapedX.dtype == "float32" and \
             chiArr.dtype == "float32":

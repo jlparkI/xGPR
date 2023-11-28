@@ -198,7 +198,7 @@ def cudaRBFGrad(inputArray, outputArray, radem,
     if fitIntercept:
         rbfNormConstant = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
     else:
-        rbfNormConstant = np.sqrt(2 / <double>chiArr.shape[0])
+        rbfNormConstant = np.sqrt(2.0 / <double>chiArr.shape[0])
 
     if inputArray.dtype == "float32" and outputArray.dtype == "float64" and \
             chiArr.dtype == "float32":

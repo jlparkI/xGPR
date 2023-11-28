@@ -46,7 +46,7 @@ class ModelBaseclass():
         num_rffs (int): The number of random Fourier features used.
         variance_rffs (int): The number of random Fourier features used for
             calculating posterior predictive variance.
-        kernel_specific_params (dict): Contains kernel-specific parameters --
+        kernel_settings (dict): Contains kernel-specific parameters --
             e.g. 'matern_nu' for the nu for the Matern kernel, or 'conv_width'
             for the conv1d kernel.
         verbose (bool): If True, regular updates are printed during
@@ -74,7 +74,7 @@ class ModelBaseclass():
 
     def __init__(self, num_rffs:int = 256, variance_rffs:int = 16,
             kernel_choice:str = "RBF", device:str = "cpu",
-            kernel_specific_params:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
+            kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
             verbose:bool = True,
             num_threads:int = 2,
             random_seed:int = 123) -> None:
@@ -94,7 +94,7 @@ class ModelBaseclass():
                 'cpu' or 'gpu'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).
                 Defaults to 'cpu'.
-            kernel_specific_params (dict): Contains kernel-specific parameters --
+            kernel_settings (dict): Contains kernel-specific parameters --
                 e.g. 'matern_nu' for the nu for the Matern kernel, or 'conv_width'
                 for the conv1d kernel.
             verbose (bool): If True, regular updates are printed
@@ -117,7 +117,7 @@ class ModelBaseclass():
         #Variance_rffs must be <= num_rffs. Always set second
         self.variance_rffs = variance_rffs
 
-        self.kernel_spec_parms = kernel_specific_params
+        self.kernel_spec_parms = kernel_settings
         self.num_threads = num_threads
 
         self.verbose = verbose
@@ -398,8 +398,9 @@ class ModelBaseclass():
 
 
 
-    def _autoselect_preconditioner(self, dataset, max_rank:int = 3000,
-            increment_size:int = 512, always_use_srht2:bool = False,
+    def _autoselect_preconditioner(self, dataset, min_rank:int = 512,
+            max_rank:int = 3000, increment_size:int = 512,
+            always_use_srht2:bool = False,
             ratio_target:float = 30., tuning:bool = False,
             x_mean = None):
         """Uses an automated algorithm to choose a preconditioner that
@@ -425,7 +426,7 @@ class ModelBaseclass():
         Returns:
             preconditioner: A preconditioner object.
         """
-        sample_frac, method, ratio, rank = 0.2, "srht", np.inf, 512
+        sample_frac, method, ratio, rank = 0.2, "srht", np.inf, min_rank
         actual_num_rffs = self.kernel.get_num_rffs()
 
         if rank >= actual_num_rffs:

@@ -10,9 +10,9 @@ model, set ``kernel_choice = 'kernel name'``, e.g.
 for details.
 
 *IMPORTANT NOTE*: In addition to these choices, you can use the
-FastConv1d kernel for sequences, which is described under Static
-Layers since it is implemented as a Static Layer rather than
-as a kernel. FastConv1d compares sequences in a different way that
+FastConv1d kernel for sequences, which is described under Feature
+Extractors since it is actually a feature extractor rather than
+a typical kernel. FastConv1d compares sequences in a different way that
 may in some cases be beneficial. See the graph below for some
 comparisons.
 
@@ -22,7 +22,7 @@ comparisons.
 
    * - Kernel Name
      - Description
-     - kernel_specific_params
+     - kernel_settings
    * - FHTConv1d
      - | Compares sequences by averaging over
        | an RBF kernel applied pairwise to
@@ -65,4 +65,4 @@ memory, the convolutions are performed in batches (rather
 than all at once). As a compensating factor, they frequently
 need fewer random features to achieve good performance.
 
-.. image:: images/conv_kernel_no_timing.png
+.. image:: ../images/conv_kernel_no_timing.png

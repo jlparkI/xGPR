@@ -1,48 +1,35 @@
 xGPR
 ================================
-Efficient Bayesian machine learning for
-sequences, graphs and tabular data.
+Efficient Bayesian machine learning and discriminant
+analysis for sequences, graphs and tabular data.
 
 .. toctree::
   :maxdepth: 1
-   
-  Installation <installation>
   
   What is xGPR? <purpose>
+
+
+
+Quick start
+=====================
+
+.. toctree::
+  :maxdepth: 1
   
-  Overview <overview>
+  Installation <installation>
+
+  How xGPR approximates kernels <approximation_background>
+
+  Quickstart tutorial <basic_tutorial>
   
 
-Examples / Tutorials
+Examples
 =====================
 
 .. toctree::
   :maxdepth: 1
 
   Examples <notebooks/examples>
-
-
-Fitting Gaussian process models
-================================
-
-.. toctree::
-  :maxdepth: 2
-
-   Getting started <initialization_tutorial>
-   
-   Tuning hyperparameters <tuning_tutorial>
-
-   Fitting the model <fitting_tutorial>
-   
-   Making predictions, saving models <prediction_tutorial>
-
-
-Kernel PCA and clustering
-==========================
-.. toctree::
-  :maxdepth: 2
-
-   Clustering and visualizing data <auxiliary_tutorial>
 
 
 Available kernels
@@ -54,6 +41,22 @@ Available kernels
    Available kernels <kernel_info/kernel_list>
 
 
+
+Advanced / in-depth tutorials
+================================
+
+.. toctree::
+  :maxdepth: 2
+
+   Datasets & model constructor: in-depth <advanced/initialization_tutorial>
+
+   Tuning hyperparameters: in-depth <advanced/tuning_tutorial>
+
+   Model fitting: in-depth <advanced/fitting_tutorial>
+
+   Clustering and visualizing data <advanced/auxiliary_tutorial>
+
+
   
 
 Miscellaneous
@@ -62,22 +65,9 @@ Miscellaneous
 .. toctree::
   :maxdepth: 1
 
-  How-to: Experimental and custom hyperparameter tuning methods <other_hyperparam_tuning.rst>
-
   Frequently asked questions <FAQ>
 
   About / Contact <contact>
-
-
-
-Package Reference
-=====================
-
-.. toctree::
-  :maxdepth: 1
-
-  API <api_docs/packrefs>
-
 
 
 Citations

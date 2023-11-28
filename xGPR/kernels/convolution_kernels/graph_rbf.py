@@ -146,9 +146,7 @@ class GraphRBF(KernelBaseclass):
                                 self.padded_dims), self.dtype)
         reshaped_x[:,:,:input_x.shape[2]] = input_x * self.hyperparams[1]
         self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr,
-                self.num_threads, self.fit_intercept)
-        if self.graph_average:
-            xtrans /= input_x.shape[1]
+                self.num_threads, self.fit_intercept, self.graph_average)
         return xtrans
 
 
@@ -177,8 +175,5 @@ class GraphRBF(KernelBaseclass):
         reshaped_x[:,:,:input_x.shape[2]] = input_x
         dz_dsigma = self.grad_func(reshaped_x, self.radem_diag,
                 output_x, self.chi_arr, self.num_threads, self.hyperparams[1],
-                self.fit_intercept)
-        if self.graph_average:
-            output_x /= input_x.shape[1]
-            dz_dsigma /= input_x.shape[1]
+                self.fit_intercept, self.graph_average)
         return output_x, dz_dsigma

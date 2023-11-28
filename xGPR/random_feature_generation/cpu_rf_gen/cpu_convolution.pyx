@@ -151,7 +151,8 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] reshapedX,
                 np.ndarray[np.int8_t, ndim=3] radem,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
-                int numThreads, bool fitIntercept = False):
+                int numThreads, bool fitIntercept = False,
+                bool averageFeatures = False):
     """Uses wrapped C functions to generate random features for FHTConv1d, GraphConv1d,
     and related kernels. This function cannot be used to calculate the gradient
     so is only used for forward pass only (during fitting, inference, non-gradient-based
@@ -173,6 +174,9 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] reshapedX,
         num_threads (int): Number of threads to use for FHT.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
             the first random feature generated should be set to 1).
+        averageFeatures (bool): Whether to average the features generated along the
+            first axis (makes kernel result less dependent on sequence length / graph
+            size).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -209,6 +213,13 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] reshapedX,
         or not chiArr.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
 
+    if fitIntercept:
+        scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
+    else:
+        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0]))
+
+    if averageFeatures:
+        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
 
     if chiArr.dtype == "float32" and reshapedX.dtype == "float32":
         errCode = convRBFFeatureGen_[float](&radem[0,0,0], <float*>addr_input,
@@ -229,11 +240,9 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] reshapedX,
         raise Exception("Fatal error encountered while performing convolution.")
 
     if fitIntercept:
-        scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
         outputArray *= scalingTerm
         outputArray[:,0] = 1.
     else:
-        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0]))
         outputArray *= scalingTerm
 
 
@@ -244,7 +253,8 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] reshapedX,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
                 int numThreads, float sigma,
-                bool fitIntercept = False):
+                bool fitIntercept = False,
+                bool averageFeatures = False):
     """Performs feature generation for RBF-based convolution kernels while
     also performing gradient calculations.
 
@@ -264,6 +274,9 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] reshapedX,
         sigma (float): The lengthscale.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
             the first random feature generated should be set to 1).
+        averageFeatures (bool): Whether to average the features generated along the
+            first axis (makes kernel result less dependent on sequence length / graph
+            size).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -306,6 +319,14 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] reshapedX,
         raise ValueError("One or more arguments to cpuGraphConv1dTransform is not "
                 "C contiguous.")
 
+    if fitIntercept:
+        scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
+    else:
+        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0]))
+    if averageFeatures:
+        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
+
+
     if chiArr.dtype == "float32" and reshapedX.dtype == "float32":
         errCode = convRBFGrad_[float](&radem[0,0,0], <float*>addr_input,
                     <float*>addr_copy_buffer, <float*>addr_chi, &outputArray[0,0],
@@ -327,13 +348,11 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] reshapedX,
         raise Exception("Fatal error encountered while performing graph convolution.")
 
     if fitIntercept:
-        scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
         outputArray *= scalingTerm
         gradient *= scalingTerm
         outputArray[:,0] = 1.
         gradient[:,0] = 0
     else:
-        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0]))
         outputArray *= scalingTerm
         gradient *= scalingTerm
     return gradient
@@ -348,7 +367,8 @@ def cpuConv1dArcCosFGen(np.ndarray[floating, ndim=3] reshapedX,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
                 int numThreads, int kernelOrder,
-                bool fitIntercept = False):
+                bool fitIntercept = False,
+                bool averageFeatures = False):
     """Uses wrapped C functions to generate random features for ArcCosine kernels
     on sequences and graphs.
 
@@ -407,7 +427,12 @@ def cpuConv1dArcCosFGen(np.ndarray[floating, ndim=3] reshapedX,
         or not chiArr.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
 
-    scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
+    if fitIntercept:
+        scalingTerm = np.sqrt(1 / <double>(chiArr.shape[0] - 1))
+    else:
+        scalingTerm = np.sqrt(1 / <double>(chiArr.shape[0]))
+    if averageFeatures:
+        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
 
     if chiArr.dtype == "float32" and reshapedX.dtype == "float32":
         errCode = convArcCosFeatureGen_[float](&radem[0,0,0], <float*>addr_input,
@@ -428,9 +453,7 @@ def cpuConv1dArcCosFGen(np.ndarray[floating, ndim=3] reshapedX,
         raise Exception("Fatal error encountered while performing convolution.")
 
     if fitIntercept:
-        scalingTerm = np.sqrt(1 / <double>(chiArr.shape[0] - 1))
         outputArray *= scalingTerm
         outputArray[:,0] = 1.
     else:
-        scalingTerm = np.sqrt(1 / <double>(chiArr.shape[0]))
         outputArray *= scalingTerm
