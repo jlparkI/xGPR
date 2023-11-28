@@ -27,7 +27,10 @@ and M features. If they are 3d, they should have shape (N, D, M) for N
 datapoints, D sequence elements / timepoints / nodes and M features.
 If ``x`` is a list of ``.npy`` files saved on disk, D doesn't have
 to be the same for all of them -- you don't have to zero-pad sequences
-to be the same length.
+to be the same length. Also they don't have to be float64 -- you can
+save the data as float32 or even uint8, and xGPR will convert it to
+float32 when loading (this can often save considerable disk space
+and also make model fitting faster).
 
 When you create the dataset, xGPR will do some checks to make sure that
 what you fed it makes sense. If the dataset is very large, these may take a

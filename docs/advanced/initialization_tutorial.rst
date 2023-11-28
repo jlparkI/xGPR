@@ -21,6 +21,12 @@ descent for hyperparameter tuning or fitting, in which case datapoints should
 be "shuffled". Likewise, the size of the .npy files (i.e. number of datapoints)
 is not important, so long as they are all less than some maximum size.
 
+When loading data, xGPR converts it to float32. You can therefore save it on
+disk as float32, float64, or even uint8 or any other convenient format. Saving
+it as float32 or (if applicable) uint8 can save considerable memory and make
+model fitting faster (since there is much less to load on each pass over the
+dataset).
+
 For regression datasets, use:
 
 .. autofunction:: xGPR.build_regression_dataset
