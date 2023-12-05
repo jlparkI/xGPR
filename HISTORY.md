@@ -160,3 +160,8 @@ Converted all kernels with two hyperparameters to one hyperparameter
 and all kernels with three hyperparameters to two, by using the
 automated beta selection routine. Removed kernelxPCA, which is
 only intermittently useful.
+
+### Version 0.2.0.1
+
+Fixed a bug in automatic preconditioner rank selection for
+classification.

@@ -345,6 +345,13 @@ class ModelBaseclass():
         dataset.device = "cpu"
 
 
+    def _get_x_mean(self, dataset):
+        """This default get_x_mean function returns None. Child classes
+        can override this to return the data mean instead if they need /
+        use this."""
+        return None
+
+
     def _check_rank_ratio(self, dataset, sample_frac:float = 0.1,
             max_rank:int = 512, x_mean = None):
         """Determines what ratio a particular max_rank would achieve by using a random
@@ -382,12 +389,14 @@ class ModelBaseclass():
             raise ValueError("sample_frac must be in the range [0.01, 1]")
 
         reset_num_rffs = False
+        x_mean_corr = x_mean
         if self.num_rffs > 8192:
             reset_num_rffs, num_rffs = True, self.num_rffs
             self.num_rffs = 8192
+            x_mean_corr = self._get_x_mean(dataset)
 
         s_mat = srht_ratio_check(dataset, max_rank, self.kernel, self.random_seed,
-                self.verbose, sample_frac, x_mean)
+                self.verbose, sample_frac, x_mean_corr)
         ratio = float(s_mat.min() / self.kernel.get_lambda()**2) / sample_frac
 
         if reset_num_rffs:

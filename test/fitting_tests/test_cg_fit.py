@@ -17,7 +17,7 @@ HPARAM = np.array([np.log(np.sqrt(0.0767)),  np.log(0.358)])
 DISCRIM_HPARAM = np.array([0., -0.75])
 
 
-NUM_RFFS = 4100
+NUM_RFFS = 8500
 
 
 class CheckCGFit(unittest.TestCase):
@@ -114,7 +114,8 @@ class CheckCGFit(unittest.TestCase):
         niter = cpu_mod.fit(online_data,
                 max_iter = 500, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg")
-        print(f"Autoselected preconditioning, niter: {niter}")
+        print("Discriminant classifier, autoselected preconditioning, "
+                f"niter: {niter}")
         self.assertTrue(niter < 10)
 
         if gpu_mod is not None:
