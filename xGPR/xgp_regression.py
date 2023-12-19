@@ -742,6 +742,8 @@ class xGPRegression(ModelBaseclass):
 
             if res.fun < best_score:
                 n_feval, hyperparams, best_score = res.nfev, res.x, res.fun
+            if self.verbose:
+                print(f"Best score: {best_score}")
             x0 = [rng.uniform(low = optim_bounds[j,0],
                     high = optim_bounds[j,1]) for j in range(optim_bounds.shape[0])]
             x0 = np.asarray(x0)
