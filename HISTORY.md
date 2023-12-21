@@ -165,3 +165,7 @@ only intermittently useful.
 
 Fixed a bug in automatic preconditioner rank selection for
 classification.
+
+### Version 0.2.0.2
+
+Altered the definition of averaging for conv kernels.

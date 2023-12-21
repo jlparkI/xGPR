@@ -219,7 +219,7 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] reshapedX,
         scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0]))
 
     if averageFeatures:
-        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
+        scalingTerm /= <double>reshapedX.shape[1]
 
     if chiArr.dtype == "float32" and reshapedX.dtype == "float32":
         errCode = convRBFFeatureGen_[float](&radem[0,0,0], <float*>addr_input,
@@ -324,7 +324,7 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] reshapedX,
     else:
         scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0]))
     if averageFeatures:
-        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
+        scalingTerm /= <double>reshapedX.shape[1]
 
 
     if chiArr.dtype == "float32" and reshapedX.dtype == "float32":
@@ -432,7 +432,7 @@ def cpuConv1dArcCosFGen(np.ndarray[floating, ndim=3] reshapedX,
     else:
         scalingTerm = np.sqrt(1 / <double>(chiArr.shape[0]))
     if averageFeatures:
-        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
+        scalingTerm /= <double>reshapedX.shape[1]
 
     if chiArr.dtype == "float32" and reshapedX.dtype == "float32":
         errCode = convArcCosFeatureGen_[float](&radem[0,0,0], <float*>addr_input,
