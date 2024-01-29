@@ -169,3 +169,8 @@ classification.
 ### Version 0.2.0.2
 
 Altered the definition of averaging for conv kernels.
+
+### Version 0.2.0.5
+
+Fixed a bug in rf feature generation for RBF-based kernels for
+situations where the number of input features is very large.

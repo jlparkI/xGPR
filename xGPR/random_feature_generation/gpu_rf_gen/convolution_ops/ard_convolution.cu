@@ -43,14 +43,15 @@ __global__ void ardConvGradSetup(double *gradientArray,
     int precompWRow = (tid % numFreqs);
     int gradRow = tid / numFreqs;
 
-    T *precompWElement = precomputedWeights + precompWRow * dim2;
-    T *inputXElement = inputX + gradRow * dim1 * dim2;
-    double *gradientElement = gradientArray + 2 * (gradRow * numFreqs + precompWRow) * numLengthscales;
-    double *randomFeature = randomFeatures + 2 * gradRow * numFreqs + 2 * precompWRow;
-    double *bufferElement = copyBuffer + (gradRow * numFreqs + precompWRow) * numLengthscales;
     double rfVal = 0, outVal, sinVal, cosVal;
 
     if (tid < numSetupElements){
+        T *precompWElement = precomputedWeights + precompWRow * dim2;
+        T *inputXElement = inputX + gradRow * dim1 * dim2;
+        double *gradientElement = gradientArray + 2 * (gradRow * numFreqs + precompWRow) * numLengthscales;
+        double *randomFeature = randomFeatures + 2 * gradRow * numFreqs + 2 * precompWRow;
+        double *bufferElement = copyBuffer + (gradRow * numFreqs + precompWRow) * numLengthscales;
+
         for (i=0; i < dim1; i++){
             rfVal = 0;
             for (j=0; j < dim2; j++){

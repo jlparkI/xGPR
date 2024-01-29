@@ -109,9 +109,10 @@ __global__ void levelNTransform(T cArray[], int arrsize,
     //Equivalent to pos mod spacing IF spacing is a power of 2.
     int lo = (pos & (spacing - 1));
     int id = lo + ((pos - lo) << 1);
-    T y, *cPtr = cArray + id;
     
     if (id < arrsize){
+        T y, *cPtr = cArray + id;
+
         y = cPtr[spacing];
         cPtr[spacing] = *cPtr - y;
         *cPtr += y;
@@ -132,9 +133,11 @@ __global__ void multiplyByDiagonalRademacherMat(T cArray[], int8_t *rademArray,
     int rVal, position;
     
     position = tid % numElementsPerRow;
-    rVal = rademArray[position];
-    if (tid < numElements)
+
+    if (tid < numElements){
+        rVal = rademArray[position];
         cArray[tid] = cArray[tid] * rVal * normConstant;
+    }
 }
 
 //We perform the transform over the last dimension

@@ -28,10 +28,11 @@ __global__ void conv1dMultiplyByRadem(T cArray[], int8_t *rademArray,
 			int dim2, int startPosition, int numElements, float normConstant)
 {
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    int8_t *rVal = rademArray + startPosition + (tid & (dim2 - 1));
     
-    if (tid < numElements)
+    if (tid < numElements){
+        int8_t *rVal = rademArray + startPosition + (tid & (dim2 - 1));
         cArray[tid] = cArray[tid] * *rVal * normConstant;
+    }
 }
 
 
