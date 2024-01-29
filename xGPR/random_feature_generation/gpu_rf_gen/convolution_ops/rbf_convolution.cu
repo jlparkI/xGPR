@@ -64,10 +64,11 @@ __global__ void convRBFPostProcessKernel(T featureArray[], T chiArr[],
     int row = tid / endPosition;
     int inputLoc = row * dim1 * dim2 + column;
     int outputLoc = row * 2 * numFreqs + 2 * column + 2 * startPosition;
-    T chiVal = chiArr[startPosition + column];
     double chiProd, sinSum = 0, cosSum = 0;
 
     if (tid < numElements){
+        T chiVal = chiArr[startPosition + column];
+
         for (i=0; i < dim1; i++){
             chiProd = chiVal * featureArray[inputLoc];
             cosSum += cos(chiProd);
@@ -97,11 +98,12 @@ __global__ void convRBFGradProcessKernel(T featureArray[], T chiArr[],
     int row = tid / endPosition;
     int inputLoc = row * dim1 * dim2 + column;
     int outputLoc = row * 2 * numFreqs + 2 * column + 2 * startPosition;
-    T chiVal = chiArr[startPosition + column];
     double chiProd, sinSum = 0, cosSum = 0, sinVal, cosVal;
     double gradSinVal = 0, gradCosVal = 0;
 
     if (tid < numElements){
+        T chiVal = chiArr[startPosition + column];
+
         for (i=0; i < dim1; i++){
             chiProd = chiVal * featureArray[inputLoc];
             cosVal = cos(chiProd * sigma);

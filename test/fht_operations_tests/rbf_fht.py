@@ -11,12 +11,9 @@ from cpu_rf_gen_module import cpuRBFGrad as cRBFGrad
 
 from cpu_rf_gen_module import cpuSORFTransform as cSORF
 
-try:
-    from cuda_rf_gen_module import cudaRBFFeatureGen as cudaRBF
-    from cuda_rf_gen_module import cudaRBFGrad as cudaRBFGrad
-    import cupy as cp
-except:
-    pass
+from cuda_rf_gen_module import cudaRBFFeatureGen as cudaRBF
+from cuda_rf_gen_module import cudaRBFGrad as cudaRBFGrad
+import cupy as cp
 
 
 class TestRBFFeatureGen(unittest.TestCase):

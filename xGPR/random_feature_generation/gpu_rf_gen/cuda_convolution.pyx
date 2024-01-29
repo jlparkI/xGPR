@@ -244,7 +244,7 @@ def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
         scalingTerm = np.sqrt(2 / <double>chiArr.shape[0])
 
     if averageFeatures:
-        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
+        scalingTerm /= <double>reshapedX.shape[1]
 
     if outputArray.dtype == "float64" and reshapedX.dtype == "float32" and \
             chiArr.dtype == "float32":
@@ -364,7 +364,7 @@ def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
         scalingTerm = np.sqrt(2 / <double>chiArr.shape[0])
 
     if averageFeatures:
-        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
+        scalingTerm /= <double>reshapedX.shape[1]
 
     if outputArray.dtype == "float64" and reshapedX.dtype == "float32" and \
             chiArr.dtype == "float32":
@@ -484,7 +484,7 @@ def gpuConv1dArcCosFGen(reshapedX, radem, outputArray, chiArr,
         scalingTerm = np.sqrt(1 / <double>chiArr.shape[0])
 
     if averageFeatures:
-        scalingTerm /= np.sqrt(<double>reshapedX.shape[1])
+        scalingTerm /= <double>reshapedX.shape[1]
 
     if outputArray.dtype == "float64" and reshapedX.dtype == "float32" and \
             chiArr.dtype == "float32":

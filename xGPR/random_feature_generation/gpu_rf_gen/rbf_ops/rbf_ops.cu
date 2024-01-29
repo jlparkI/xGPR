@@ -29,9 +29,11 @@ __global__ void specMultByDiagRademMat(T cArray[], int8_t *rademArray,
     int rVal, position;
     
     position = tid % numElementsPerRow;
-    rVal = rademArray[position];
-    if (tid < numElements)
+
+    if (tid < numElements){
+        rVal = rademArray[position];
         cArray[tid] = cArray[tid] * rVal * normConstant;
+    }
 }
 
 
@@ -45,7 +47,7 @@ __global__ void rbfFeatureGenLastStep(T cArray[], double *outputArray,
 {
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
     int chiArrPosition, inputPosition, outputRow, outputPosition;
-    T outputVal;
+    T outputVal, chiVal, inputVal;
 
     chiArrPosition = tid % numFreqs;
     outputRow = (tid / numFreqs);
@@ -54,9 +56,9 @@ __global__ void rbfFeatureGenLastStep(T cArray[], double *outputArray,
     //of the feature in the output array.
     outputPosition = 2 * (outputRow * numFreqs + chiArrPosition);
 
-    outputVal = chiArr[chiArrPosition] * cArray[inputPosition];
     if (tid < numElements)
     {
+        outputVal = chiArr[chiArrPosition] * cArray[inputPosition];
         outputArray[outputPosition] = normConstant * cos(outputVal);
         outputArray[outputPosition + 1] = normConstant * sin(outputVal);
     }
@@ -82,9 +84,10 @@ __global__ void rbfGradLastStep(T cArray[], double *outputArray,
     //of the feature in the output array.
     outputPosition = 2 * (outputRow * numFreqs + chiArrPosition);
 
-    outputVal = chiArr[chiArrPosition] * cArray[inputPosition];
     if (tid < numElements)
     {
+        outputVal = chiArr[chiArrPosition] * cArray[inputPosition];
+
         cosVal = normConstant * cos(outputVal * sigma);
         sinVal = normConstant * sin(outputVal * sigma);
         outputArray[outputPosition] = cosVal;
@@ -111,14 +114,15 @@ __global__ void ardGradSetup(double *gradientArray,
     int precompWRow = (tid % numFreqs);
     int gradRow = tid / numFreqs;
 
-    T *precompWElement = precomputedWeights + precompWRow * dim1;
-    T *inputXElement = inputX + gradRow * dim1;
-    double *gradientElement = gradientArray + 2 * (gradRow * numFreqs + precompWRow) * numLengthscales;
-    double *randomFeature = randomFeatures + 2 * (gradRow * numFreqs + precompWRow);
-    double rfVal = 0;
     T outVal;
 
     if (tid < numSetupElements){
+        T *precompWElement = precomputedWeights + precompWRow * dim1;
+        T *inputXElement = inputX + gradRow * dim1;
+        double *gradientElement = gradientArray + 2 * (gradRow * numFreqs + precompWRow) * numLengthscales;
+        double *randomFeature = randomFeatures + 2 * (gradRow * numFreqs + precompWRow);
+        double rfVal = 0;
+
         for (i=0; i < dim1; i++){
             sigmaLoc = sigmaMap[i];
             outVal = precompWElement[i] * inputXElement[i];

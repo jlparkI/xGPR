@@ -72,7 +72,6 @@ def cudaRBFFeatureGen(inputArray, outputArray, radem,
     
     cdef uintptr_t addr_radem = radem.data.ptr
 
-
     if not radem.dtype == "int8":
         raise ValueError("radem must be of type int8.")
     if not inputArray.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] or not \

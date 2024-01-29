@@ -67,10 +67,11 @@ __global__ void convArcCosPostProcessKernelOrder1(const T featureArray[],
     int row = tid / endPosition;
     int inputLoc = row * dim1 * dim2 + column;
     int outputLoc = row * numFreqs + column + startPosition;
-    T *chiVal = chiArr + startPosition + column;
     T chiProd, rollingSum = 0;
 
     if (tid < numElements){
+        T *chiVal = chiArr + startPosition + column;
+
         for (i=0; i < dim1; i++){
             chiProd = *chiVal * featureArray[inputLoc];
             rollingSum += max(chiProd, 0.0);
@@ -96,10 +97,11 @@ __global__ void convArcCosPostProcessKernelOrder2(const T featureArray[],
     int row = tid / endPosition;
     int inputLoc = row * dim1 * dim2 + column;
     int outputLoc = row * numFreqs + column + startPosition;
-    T *chiVal = chiArr + startPosition + column;
     T chiProd, rollingSum = 0;
 
     if (tid < numElements){
+        T *chiVal = chiArr + startPosition + column;
+
         for (i=0; i < dim1; i++){
             chiProd = *chiVal * featureArray[inputLoc];
             chiProd = max(chiProd, 0.0);
