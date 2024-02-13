@@ -6,17 +6,13 @@ from setuptools import setup, find_packages
 from setuptools.extension import Extension
 import numpy
 from Cython.Distutils import build_ext
-#Do NOT put this package import before the others.
-#setup tools monkey patches distutils, so reversing
-#the import order will (unbelievably enough) lead to an error.
-#If your linter tells you to put this first, IGNORE YOUR LINTER.
 
 
 def get_version(setup_fpath):
     """Retrieves the version number."""
 
     os.chdir(os.path.join(setup_fpath, "xGPR"))
-    with open("__init__.py", "r") as fhandle:
+    with open("__init__.py", "r", encoding="utf-8") as fhandle:
         version_line = [l for l in fhandle.readlines() if
                     l.startswith("__version__")]
         version = version_line[0].split("=")[1].strip().replace('"', "")
@@ -35,7 +31,7 @@ def initial_checks():
     setup_fpath = os.path.dirname(os.path.abspath(__file__))
     #No Cuda will be set to True if any steps in the cudaHadamardTransform
     #pipeline fail.
-    NO_CUDA = False
+    NO_CUDA, CUDA_PATH = False, ""
     if "CUDA_PATH" in os.environ:
         CUDA_PATH = os.environ["CUDA_PATH"]
     else:
@@ -43,9 +39,19 @@ def initial_checks():
     print(f"Using cuda located at: {CUDA_PATH}")
 
     if not os.path.isdir(CUDA_PATH):
+        try:
+            which_nvcc = subprocess.run(["which", "nvcc"], capture_output=True)
+            nvcc_loc = which_nvcc.stdout.decode().strip()
+            CUDA_PATH = os.path.dirname(nvcc_loc)
+            print(f"Found nvcc location, using cuda located at: {CUDA_PATH}")
+        except:
+            pass
+
+    if not os.path.isdir(CUDA_PATH):
         print("CUDA is not at the expected locations. Please set the CUDA_PATH environment "
-        "variable to indicate the location of your CUDA.")
+                "variable to indicate the location of your CUDA.")
         NO_CUDA = True
+
     return setup_fpath, NO_CUDA, CUDA_PATH
 
 
@@ -88,6 +94,8 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
     sources += [cpu_basic_op_wrapper]
     cpu_basic_op_ext = Extension("cpu_rf_gen_module",
                     sources = sources, language="c++",
+                    extra_compile_args=['-fopenmp'],
+                    extra_link_args=['-lgomp'],
                     include_dirs=[numpy.get_include(),
                             cpu_fast_transform_path])
     return [cpu_basic_op_ext], [cpu_basic_op_wrapper]
@@ -95,7 +103,8 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
 
 
 
-def setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA = False):
+def setup_cuda_fast_hadamard_extensions(setup_fpath,
+        CUDA_PATH, NO_CUDA = False):
     """Finds the paths for the fast hadamard transform extensions for Cuda and
     sets them up. The CUDA extension is a little more involved
     since it has to be compiled by NVCC and we have not yet
@@ -116,12 +125,12 @@ def setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA = False)
     if "libarray_operations.a" not in os.listdir():
         os.chdir(setup_fpath)
         return [], []
-    else:
-        os.chdir(setup_fpath)
 
-        cuda_basic_path = os.path.join(cuda_hadamard_path,
+    os.chdir(setup_fpath)
+
+    cuda_basic_path = os.path.join(cuda_hadamard_path,
                             "cuda_rf_gen_module.pyx")
-        cuda_basic_ext = Extension("cuda_rf_gen_module",
+    cuda_basic_ext = Extension("cuda_rf_gen_module",
                 sources=[cuda_basic_path],
                 language="c++",
                 libraries=["array_operations", "cudart_static"],
@@ -131,7 +140,7 @@ def setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA = False)
                                     "include")],
                 extra_link_args = ["-lrt"],
                 )
-        return [cuda_basic_ext], [cuda_basic_path]
+    return [cuda_basic_ext], [cuda_basic_path]
 
 
 
@@ -157,7 +166,7 @@ def main():
         ext.cython_directives = {'language_level': "3"}
 
     read_me = os.path.join(setup_fpath, "README.md")
-    with open(read_me, "r") as fhandle:
+    with open(read_me, "r", encoding="utf-8") as fhandle:
         long_description = "".join(fhandle.readlines())
 
     setup(
