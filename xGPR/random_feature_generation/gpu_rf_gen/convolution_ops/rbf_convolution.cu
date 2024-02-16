@@ -15,40 +15,6 @@
 
 
 
-//Performs an elementwise multiplication of a row of a [3,1,P x S] array against the
-//float [N,M,S] input array. Note that the dimensions must be checked before calling
-//-- done by the wrapper -- and that only S elements of the appropriate row of
-//the [3, 1, P x S] array are used.
-template <typename T>
-__global__ void conv1dRBFRademMultiply(T cArray[],
-            const int8_t *rademArray,
-			int dim2, int startPosition, int numElements,
-            T normConstant)
-{
-    int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    int position = startPosition + (tid & (dim2 - 1));
-    
-    if (tid < numElements)
-        cArray[tid] = cArray[tid] * rademArray[position] * normConstant;
-}
-
-//Performs an elementwise multiplication by a diagonal matrix populated with
-//elements from a Rademacher distribution, while also multiplying by the
-//Hadamard norm constant and copying into the featureArray array.
-template <typename T>
-__global__ void conv1dRBFRademAndCopy(T inputArray[], T featureArray[],
-            const int8_t *rademArray, int dim2, int startPosition,
-            int numElements, T normConstant)
-{
-    int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    int position = startPosition + (tid & (dim2 - 1));
-    
-    if (tid < numElements)
-        featureArray[tid] = inputArray[tid] * rademArray[position] * normConstant;
-}
-
-
-
 
 //Performs the final steps in feature generation for RBF-based convolution
 //kernels -- multiplying by chiArr, taking sine or cosine and adding
@@ -138,12 +104,10 @@ const char *convRBFFeatureGen(int8_t *radem, T reshapedX[],
     //This is the Hadamard normalization constant.
     T normConstant = log2(reshapedDim2) / 2;
     normConstant = 1 / pow(2, normConstant);
-    int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / 
-                DEFAULT_THREADS_PER_BLOCK;
-
     int endPosition, numOutElements, outBlocks;
     int numRepeats = (numFreqs + reshapedDim2 - 1) / reshapedDim2;
     int i, startPosition;
+    const char *errCode;
 
     for (i=0; i < numRepeats; i++){
         startPosition = i * reshapedDim2;
@@ -152,27 +116,11 @@ const char *convRBFFeatureGen(int8_t *radem, T reshapedX[],
         numOutElements = reshapedDim0 * endPosition;
         outBlocks = (numOutElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
 
-        //Copy input into featureArray while multiplying by first row of radem.
-        conv1dRBFRademAndCopy<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX, 
-                        featureArray, radem, reshapedDim2, startPosition, numElements,
-                        normConstant);
-        //First H-transform.
-        cudaHTransform3d<T>(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
-
-        //Multiply by second row of radem.
-        conv1dRBFRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
-                        radem + rademShape2, reshapedDim2, startPosition, numElements,
-                        normConstant);
-        //Second H-transform.
-        cudaHTransform3d<T>(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
-        
-        //Multiply by third row of radem.
-        conv1dRBFRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
-                        radem + 2 * rademShape2, reshapedDim2, startPosition, numElements,
-                        normConstant);
-        //Last H-transform.
-        cudaHTransform3d<T>(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
-
+        cudaMemcpy(featureArray, reshapedX, sizeof(T) * numElements,
+                cudaMemcpyDeviceToDevice);
+        errCode = cudaConvSORF3d<T>(featureArray, radem,
+                reshapedDim0, reshapedDim1, reshapedDim2,
+                startPosition, numElements, rademShape2, normConstant);
 
         //Multiply by chiArr; take the sine and cosine of elements of
         //featureArray, multiply by scalingTerm, and transfer to outputArray.
@@ -182,7 +130,7 @@ const char *convRBFFeatureGen(int8_t *radem, T reshapedX[],
                 scalingTerm);
     }
 
-    return "no_error";
+    return errCode;
 }
 //Explicitly instantiate so wrapper can use.
 template const char *convRBFFeatureGen<float>(int8_t *radem, float reshapedX[],
@@ -214,12 +162,12 @@ const char *convRBFFeatureGrad(int8_t *radem, T reshapedX[],
     //This is the Hadamard normalization constant.
     T normConstant = log2(reshapedDim2) / 2;
     normConstant = 1 / pow(2, normConstant);
-    int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / 
-                DEFAULT_THREADS_PER_BLOCK;
     int numOutElements, outBlocks;
 
     int numRepeats = (numFreqs + reshapedDim2 - 1) / reshapedDim2;
     int i, startPosition, endPosition;
+    const char *errCode;
+
 
     for (i=0; i < numRepeats; i++){
         startPosition = i * reshapedDim2;
@@ -228,26 +176,11 @@ const char *convRBFFeatureGrad(int8_t *radem, T reshapedX[],
         numOutElements = reshapedDim0 * endPosition;
         outBlocks = (numOutElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
 
-        //Copy input into featureArray while multiplying by first row of radem.
-        conv1dRBFRademAndCopy<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX, 
-                        featureArray, radem, reshapedDim2, startPosition, numElements,
-                        normConstant);
-        //First H-transform.
-        cudaHTransform3d<T>(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
-
-        //Multiply by second row of radem.
-        conv1dRBFRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
-                        radem + rademShape2, reshapedDim2, startPosition, numElements,
-                        normConstant);
-        //Second H-transform.
-        cudaHTransform3d<T>(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
-        
-        //Multiply by third row of radem.
-        conv1dRBFRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, 
-                        radem + 2 * rademShape2, reshapedDim2, startPosition, numElements,
-                        normConstant);
-        //Last H-transform.
-        cudaHTransform3d<T>(featureArray, reshapedDim0, reshapedDim1, reshapedDim2);
+        cudaMemcpy(featureArray, reshapedX, sizeof(T) * numElements,
+                cudaMemcpyDeviceToDevice);
+        errCode = cudaConvSORF3d<T>(featureArray, radem,
+                reshapedDim0, reshapedDim1, reshapedDim2,
+                startPosition, numElements, rademShape2, normConstant);
 
         //Multiply by chiArr; take the sine and cosine of elements of
         //featureArray, multiply by scalingTerm, transfer to output
@@ -259,7 +192,7 @@ const char *convRBFFeatureGrad(int8_t *radem, T reshapedX[],
                 scalingTerm, sigma, gradientArray);
     }
 
-    return "no_error";
+    return errCode;
 }
 //Explicitly instantiate so wrapper can use.
 template const char *convRBFFeatureGrad<float>(int8_t *radem, float reshapedX[],

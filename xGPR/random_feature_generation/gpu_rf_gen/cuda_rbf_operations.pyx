@@ -99,9 +99,9 @@ def cudaRBFFeatureGen(inputArray, outputArray, radem,
                             "must be a power of 2 >= 2.")
 
     if fitIntercept:
-        rbfNormConstant = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
+        rbfNormConstant = np.sqrt(1.0 / (<double>chiArr.shape[0] - 0.5))
     else:
-        rbfNormConstant = np.sqrt(2 / <double>chiArr.shape[0])
+        rbfNormConstant = np.sqrt(1.0 / <double>chiArr.shape[0])
 
     if inputArray.dtype == "float32" and outputArray.dtype == "float64" and \
             chiArr.dtype == "float32":
@@ -195,9 +195,9 @@ def cudaRBFGrad(inputArray, outputArray, radem,
 
 
     if fitIntercept:
-        rbfNormConstant = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
+        rbfNormConstant = np.sqrt(1.0 / (<double>chiArr.shape[0] - 0.5))
     else:
-        rbfNormConstant = np.sqrt(2.0 / <double>chiArr.shape[0])
+        rbfNormConstant = np.sqrt(1.0 / <double>chiArr.shape[0])
 
     if inputArray.dtype == "float32" and outputArray.dtype == "float64" and \
             chiArr.dtype == "float32":
@@ -296,9 +296,9 @@ def cudaMiniARDGrad(inputX, outputArray, precompWeights,
     cdef uintptr_t addr_precomp_weights = precompWeights.data.ptr
 
     if fitIntercept:
-        rbfNormConstant = np.sqrt(2.0 / (<double>precompWeights.shape[0] - 0.5))
+        rbfNormConstant = np.sqrt(1.0 / (<double>precompWeights.shape[0] - 0.5))
     else:
-        rbfNormConstant = np.sqrt(2 / <double>precompWeights.shape[0])
+        rbfNormConstant = np.sqrt(1.0 / <double>precompWeights.shape[0])
 
     if inputX.dtype == "float32" and precompWeights.dtype == "float32" and \
             outputArray.dtype == "float64" and sigmaMap.dtype == "int32" and \

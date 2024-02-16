@@ -6,10 +6,8 @@ import unittest
 import numpy as np
 
 from cpu_rf_gen_module import cpuConv1dFGen, cpuConvGrad, cpuConv1dMaxpool
-from cpu_rf_gen_module import cpuConv1dArcCosFGen
 try:
     from cuda_rf_gen_module import gpuConv1dFGen, gpuConvGrad, gpuConv1dMaxpool
-    from cuda_rf_gen_module import gpuConv1dArcCosFGen
     import cupy as cp
 except:
     pass

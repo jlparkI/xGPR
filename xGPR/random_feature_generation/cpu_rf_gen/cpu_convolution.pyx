@@ -206,9 +206,9 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] reshapedX,
         raise ValueError("One or more arguments is not C contiguous.")
 
     if fitIntercept:
-        scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
+        scalingTerm = np.sqrt(1.0 / (<double>chiArr.shape[0] - 0.5))
     else:
-        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0]))
+        scalingTerm = np.sqrt(1.0 / <double>(chiArr.shape[0]))
 
     if averageFeatures:
         scalingTerm /= <double>reshapedX.shape[1]
@@ -312,9 +312,9 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] reshapedX,
                 "C contiguous.")
 
     if fitIntercept:
-        scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
+        scalingTerm = np.sqrt(1.0 / (<double>chiArr.shape[0] - 0.5))
     else:
-        scalingTerm = np.sqrt(2 / <double>(chiArr.shape[0]))
+        scalingTerm = np.sqrt(1.0 / <double>(chiArr.shape[0]))
     if averageFeatures:
         scalingTerm /= <double>reshapedX.shape[1]
 

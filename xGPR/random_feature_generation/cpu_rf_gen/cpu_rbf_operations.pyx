@@ -102,9 +102,9 @@ def cpuRBFFeatureGen(np.ndarray[floating, ndim=3] inputArray,
                             "must be a power of 2 >= 2.")
 
     if fitIntercept:
-        rbfNormConstant = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
+        rbfNormConstant = np.sqrt(1.0 / (<double>chiArr.shape[0] - 0.5))
     else:
-        rbfNormConstant = np.sqrt(2 / <double>chiArr.shape[0])
+        rbfNormConstant = np.sqrt(1.0 / <double>chiArr.shape[0])
 
     if inputArray.dtype == "float32" and outputArray.dtype == "float64" \
             and chiArr.dtype == "float32":
@@ -202,9 +202,9 @@ def cpuRBFGrad(np.ndarray[floating, ndim=3] inputArray,
                             "must be a power of 2 >= 2.")
 
     if fitIntercept:
-        rbfNormConstant = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
+        rbfNormConstant = np.sqrt(1.0 / (<double>chiArr.shape[0] - 0.5))
     else:
-        rbfNormConstant = np.sqrt(2 / <double>chiArr.shape[0])
+        rbfNormConstant = np.sqrt(1.0 / <double>chiArr.shape[0])
 
     if inputArray.dtype == "float32" and outputArray.dtype == "float64" and \
             chiArr.dtype == "float32":
@@ -290,9 +290,9 @@ def cpuMiniARDGrad(np.ndarray[floating, ndim=2] inputX,
                 "C contiguous.")
 
     if fitIntercept:
-        rbfNormConstant = np.sqrt(2.0 / (<double>precompWeights.shape[0] - 0.5))
+        rbfNormConstant = np.sqrt(1.0 / (<double>precompWeights.shape[0] - 0.5))
     else:
-        rbfNormConstant = np.sqrt(2 / <double>precompWeights.shape[0])
+        rbfNormConstant = np.sqrt(1.0 / <double>precompWeights.shape[0])
 
     cdef uintptr_t addr_input = inputX.ctypes.data
     cdef uintptr_t addr_precomp_weights = precompWeights.ctypes.data

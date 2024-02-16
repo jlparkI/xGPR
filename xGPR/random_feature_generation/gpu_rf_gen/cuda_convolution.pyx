@@ -126,6 +126,7 @@ def gpuConv1dMaxpool(reshapedX, radem, outputArray, chiArr,
 
             cutoff += reshapedX.shape[2]
             startPosition += reshapedX.shape[2]
+
     elif outputArray.dtype == "float64" and reshapedX.dtype == "float64" and \
             chiArr.dtype == "float64":
         for i in range(num_repeats):
@@ -223,6 +224,7 @@ def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
         featureArray = cp.zeros((reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2]),
                             dtype = cp.float64)
 
+
     cdef uintptr_t addr_reshapedX = reshapedX.data.ptr
     cdef uintptr_t addr_featureArray = featureArray.data.ptr
     cdef uintptr_t addr_radem = radem.data.ptr
@@ -231,9 +233,9 @@ def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
 
 
     if fitIntercept:
-        scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
+        scalingTerm = np.sqrt(1.0 / (<double>chiArr.shape[0] - 0.5))
     else:
-        scalingTerm = np.sqrt(2 / <double>chiArr.shape[0])
+        scalingTerm = np.sqrt(1.0 / <double>chiArr.shape[0])
 
     if averageFeatures:
         scalingTerm /= <double>reshapedX.shape[1]
@@ -244,6 +246,7 @@ def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
                     <float*>addr_featureArray, <float*>addr_chi,
                     <double*>addr_output, reshapedX.shape[0], reshapedX.shape[1],
                     reshapedX.shape[2], chiArr.shape[0], radem.shape[2], scalingTerm)
+
     elif outputArray.dtype == "float64" and reshapedX.dtype == "float64" and \
             chiArr.dtype == "float64":
         errCode = convRBFFeatureGen[double](<int8_t*>addr_radem, <double*>addr_reshapedX,
@@ -252,6 +255,7 @@ def gpuConv1dFGen(reshapedX, radem, outputArray, chiArr,
                     reshapedX.shape[2], chiArr.shape[0], radem.shape[2], scalingTerm)
     else:
         raise ValueError("Incorrect data types supplied.")
+
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing FHT RF generation.")
 
@@ -351,9 +355,9 @@ def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
 
 
     if fitIntercept:
-        scalingTerm = np.sqrt(2.0 / (<double>chiArr.shape[0] - 0.5))
+        scalingTerm = np.sqrt(1.0 / (<double>chiArr.shape[0] - 0.5))
     else:
-        scalingTerm = np.sqrt(2 / <double>chiArr.shape[0])
+        scalingTerm = np.sqrt(1.0 / <double>chiArr.shape[0])
 
     if averageFeatures:
         scalingTerm /= <double>reshapedX.shape[1]
@@ -365,6 +369,7 @@ def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
             <double*>addr_output, <double*>addr_gradient, sigma,
             reshapedX.shape[0], reshapedX.shape[1], reshapedX.shape[2],
             chiArr.shape[0], radem.shape[2], scalingTerm)
+
     elif outputArray.dtype == "float64" and reshapedX.dtype == "float64" and \
             chiArr.dtype == "float64":
         errCode = convRBFFeatureGrad[double](<int8_t*>addr_radem,
@@ -375,6 +380,7 @@ def gpuConvGrad(reshapedX, radem, outputArray, chiArr,
             chiArr.shape[0], radem.shape[2], scalingTerm)
     else:
         raise ValueError("Incorrect data types supplied.")
+
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing FHT RF generation.")
 

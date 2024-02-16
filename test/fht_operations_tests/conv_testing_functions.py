@@ -32,6 +32,7 @@ def get_initial_matrices_fht(ndatapoints, kernel_width, aa_dim, num_aas,
     else:
         features = np.zeros((ndatapoints, 2 * num_freqs))
         s_mat = rng.uniform(size=(num_freqs))
+
     radem = rng.choice(radem_array, size=(3, 1, radem_size), replace=True)
 
     reshaped_x = np.zeros((xdata.shape[0], num_blocks, dim2))
@@ -39,6 +40,7 @@ def get_initial_matrices_fht(ndatapoints, kernel_width, aa_dim, num_aas,
                     shape=(xdata.shape[0], num_blocks, dim2_no_pad),
                     strides=(xdata.strides[0], xdata.shape[2] * 8, 8))
     reshaped_x[:,:,:dim2_no_pad] = np.ascontiguousarray(x_strided)
+
     if precision == "float":
         return dim2, num_blocks, xdata.astype(np.float32), reshaped_x.astype(np.float32),\
                 features, s_mat.astype(np.float32), radem
@@ -64,6 +66,7 @@ def get_reshaped_x(xdata, kernel_width, dim2, radem, num_blocks,
     window_size = xdata.shape[2] * kernel_width
     start = repeat_num * reshaped_x.shape[2]
     end = start + reshaped_x.shape[2]
+
     for i in range(xdata.shape[1] - kernel_width + 1):
         window = xdata[:,i:i+kernel_width,:]
         reshaped_x[:,i,:window_size] = window.reshape((window.shape[0],
@@ -91,6 +94,7 @@ def get_features(xdata, kernel_width, dim2,
     for i in range(num_repeats):
         reshaped_x = get_reshaped_x(xdata, kernel_width, dim2, radem,
                                 num_blocks, i, precision)
+
         end_position = min((i + 1) * dim2, num_freqs)
         end_position -= i * dim2
         counter = i * dim2
@@ -101,10 +105,10 @@ def get_features(xdata, kernel_width, dim2,
             counter += 1
 
     if fit_intercept:
-        features = features * np.sqrt(2 / (float(num_freqs)-0.5))
+        features = features * np.sqrt(1 / (float(num_freqs)-0.5))
         features[:,0] = 1
     else:
-        features = features * np.sqrt(2 / float(num_freqs))
+        features = features * np.sqrt(1 / float(num_freqs))
     return features
 
 
@@ -138,13 +142,13 @@ def get_features_with_gradient(xdata, kernel_width, dim2,
             counter += 1
 
     if fit_intercept:
-        features *= np.sqrt(2 / (num_freqs-0.5))
+        features *= np.sqrt(1 / (num_freqs-0.5))
         features[:,0] = 1
         gradient[:,0] = 0
-        gradient *= np.sqrt(2 / (num_freqs-0.5))
+        gradient *= np.sqrt(1 / (num_freqs-0.5))
     else:
-        gradient *= np.sqrt(2 / num_freqs)
-        features *= np.sqrt(2 / num_freqs)
+        gradient *= np.sqrt(1 / num_freqs)
+        features *= np.sqrt(1 / num_freqs)
     return features, gradient
 
 
