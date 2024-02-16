@@ -10,7 +10,6 @@ from .basic_kernels.rbf_linear import RBFLinear
 from .convolution_kernels.fht_conv1d import FHTConv1d
 from .convolution_kernels.graph_rbf import GraphRBF
 from .convolution_kernels.graph_polysum import GraphPolySum
-from .convolution_kernels.graph_arccos import GraphArcCosine
 
 from .ARD_kernels.mini_ard import MiniARD
 
@@ -23,5 +22,4 @@ KERNEL_NAME_TO_CLASS = {"RBF":RBF,
         "Poly":Polynomial,
         "GraphPoly":GraphPolySum,
         "MiniARD":MiniARD,
-        "RBFLinear":RBFLinear,
-        "GraphArcCosine":GraphArcCosine}
+        "RBFLinear":RBFLinear}

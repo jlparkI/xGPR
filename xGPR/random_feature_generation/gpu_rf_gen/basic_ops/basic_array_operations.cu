@@ -45,7 +45,8 @@ __global__ void baseLevelTransform(T cArray[], int N, int log2N){
 
 
     for (spacing = 2; spacing < N; spacing <<= 1){
-        //Equivalent to pos mod spacing IF spacing is a power of 2.
+        //Equivalent to pos mod spacing if spacing is a power of 2,
+        //which here is always true.
         lo = pos & (spacing - 1);
         id1 = ((pos - lo) << 1) + lo;
         id2 = id1 + spacing;
@@ -106,7 +107,8 @@ __global__ void levelNTransform(T cArray[], int arrsize,
                                 int spacing)
 {
     int pos = blockDim.x * blockIdx.x + threadIdx.x;
-    //Equivalent to pos mod spacing IF spacing is a power of 2.
+    //Equivalent to pos mod spacing if spacing is a power of 2,
+    //which here is always true.
     int lo = (pos & (spacing - 1));
     int id = lo + ((pos - lo) << 1);
     
@@ -152,36 +154,10 @@ void cudaHTransform3d(T cArray[],
     int arrsize = dim0 * dim1 * dim2;
     int blocksPerGrid;
 
-    //For less than 64, use specialized routines. dim2 is always
-    //a power of two, and for best performance on CUDA threads per block
-    //should be a multiple of 32, so the baseLevelTransform does
-    //not work as well for dim2 < 64. There is a great deal of room
-    //for additional optimization here that we have not done (yet) 
-    //because input dim < 32 but > 2 is a somewhat niche application.
-    if (dim2 < 32){
-        blocksPerGrid = getNumBlocksTransform(arrsize, 2);
-        if (dim2 == 2){
-            levelNTransform<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, 
-                                arrsize, 1);
-        }
-        else{
-            shape4Transform<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, 
-                                arrsize);
-            spacing = 4;
-            while (spacing < dim2){
-                levelNTransform<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, 
-                                arrsize, spacing);
-                spacing <<= 1;
-            }
-        }
-        return;
-    }
 
-    //Otherwise, we use the baseLevelTransform, which uses shared
-    //memory and is relatively efficient. baseLevelTransform only
-    //covers strides up to MAX_BASE_LEVEL_TRANSFORM. If dim2 is less than that,
-    //we're set. Otherwise, run baseLevelTransform first then use
-    //a somewhat slower global memory procedure for larger strides.
+    //baseLevelTransform only covers strides up to MAX_BASE_LEVEL_TRANSFORM.
+    //If dim2 is less than that, we're set. Otherwise, run baseLevelTransform
+    //first then use a somewhat slower global memory procedure for larger strides.
     N = (MAX_BASE_LEVEL_TRANSFORM < dim2) ? MAX_BASE_LEVEL_TRANSFORM : dim2;
     log2N = log2(N);
     blocksPerGrid = arrsize / N;
@@ -215,36 +191,10 @@ void cudaHTransform2d(T cArray[], int dim0, int dim1){
     int arrsize = dim0 * dim1;
     int blocksPerGrid;
 
-    //For less than 64, use specialized routines. dim2 is always
-    //a power of two, and for best performance on CUDA threads per block
-    //should be a multiple of 32, so the baseLevelTransform does
-    //not work as well for dim2 < 64. There is a great deal of room
-    //for additional optimization here that we have not done (yet) 
-    //because input dim < 32 but > 2 is a somewhat niche application.
-    if (dim1 < 32){
-        blocksPerGrid = getNumBlocksTransform(arrsize, 2);
-        if (dim1 == 2){
-            levelNTransform<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, 
-                                arrsize, 1);
-        }
-        else{
-            shape4Transform<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, 
-                                arrsize);
-            spacing = 4;
-            while (spacing < dim1){
-                levelNTransform<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, 
-                                arrsize, spacing);
-                spacing <<= 1;
-            }
-        }
-        return;
-    }
 
-    //Otherwise, we use the baseLevelTransform, which uses shared
-    //memory and is relatively efficient. baseLevelTransform only
-    //covers strides up to MAX_BASE_LEVEL_TRANSFORM. If dim2 is less than that,
-    //we're set. Otherwise, run baseLevelTransform first then use
-    //a somewhat slower global memory procedure for larger strides.
+    //baseLevelTransform only covers strides up to MAX_BASE_LEVEL_TRANSFORM.
+    //If dim2 is less than that, we're set. Otherwise, run baseLevelTransform
+    //first then use a somewhat slower global memory procedure for larger strides.
     N = (MAX_BASE_LEVEL_TRANSFORM < dim1) ? MAX_BASE_LEVEL_TRANSFORM : dim1;
     log2N = log2(N);
     blocksPerGrid = arrsize / N;
