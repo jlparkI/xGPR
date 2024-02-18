@@ -90,6 +90,13 @@ class TestFastHadamardTransform(unittest.TestCase):
         for outcome in outcomes:
             self.assertTrue(outcome)
 
+        outcomes = run_sorf_test(3, 1024)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        outcomes = run_sorf_test(1, 2)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
 
 
     def test_srht(self):
@@ -230,9 +237,6 @@ def run_sorf_test(nblocks, dim2, random_seed = 123):
             f"an {nblocks}, {dim2} 3d array of doubles? {outcome_cuda_d}\n*******")
         print("**********\nDid the Cuda extension provide the correct result for SORF of "
             f"an {nblocks}, {dim2} 3d array of floats? {outcome_cuda_f}\n*******")
-        if not outcome_cuda_f or not outcome_cuda_d:
-            import pdb
-            pdb.set_trace()
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f
     return outcome_d, outcome_f
 

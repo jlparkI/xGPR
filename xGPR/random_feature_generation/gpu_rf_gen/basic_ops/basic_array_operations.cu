@@ -17,6 +17,7 @@
 
 #define DEFAULT_THREADS_PER_BLOCK 256
 #define MAX_BASE_LEVEL_TRANSFORM 512
+#define MAX_SINGLE_STAGE_TRANSFORM 1024
 
 
 
@@ -78,10 +79,11 @@ __global__ void singleStepSORF(T cArray[], int N, int log2N,
     int8_t *rademPtr = radem + (startPosition % numElementsPerRow);
 
     //Copy data into shared memory while doing the first diagonal matmul.
-    for (i = threadIdx.x; i < N; i += blockDim.x){
-        y = src_ptr[i] * rademPtr[i];
-        s_data[i] = (y * normConstant);
-    }
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        s_data[i] = src_ptr[i];
+
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        s_data[i] = s_data[i] * rademPtr[i] * normConstant;
 
     id1 = (pos << 1);
     id2 = id1 + 1;
@@ -108,16 +110,15 @@ __global__ void singleStepSORF(T cArray[], int N, int log2N,
     //***********************************************
     //Second hadamard transform and diagonal matmul.
     //***********************************************
+    __syncthreads();
+    rademPtr += numElementsPerRow;
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        s_data[i] = s_data[i] * rademPtr[i] * normConstant;
+
     id1 = (pos << 1);
     id2 = id1 + 1;
     __syncthreads();
 
-    rademPtr += numElementsPerRow;
-
-    y = s_data[id1] * rademPtr[id1];
-    s_data[id1] = (y * normConstant);
-    y = s_data[id2] * rademPtr[id2];
-    s_data[id2] = (y * normConstant);
 
     y = s_data[id2];
     s_data[id2] = s_data[id1] - y;
@@ -136,16 +137,14 @@ __global__ void singleStepSORF(T cArray[], int N, int log2N,
     //**************************
     //Third hadamard transform and diagonal matmul.
     //**************************
+    __syncthreads();
+    rademPtr += numElementsPerRow;
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        s_data[i] = s_data[i] * rademPtr[i] * normConstant;
+
     id1 = (pos << 1);
     id2 = id1 + 1;
     __syncthreads();
-
-    rademPtr += numElementsPerRow;
-
-    y = s_data[id1] * rademPtr[id1];
-    s_data[id1] = (y * normConstant);
-    y = s_data[id2] * rademPtr[id2];
-    s_data[id2] = (y * normConstant);
 
     y = s_data[id2];
     s_data[id2] = s_data[id1] - y;
@@ -167,6 +166,120 @@ __global__ void singleStepSORF(T cArray[], int N, int log2N,
     for (i = threadIdx.x; i < N; i += blockDim.x)
         src_ptr[i] = s_data[i];
 }
+
+
+
+
+//Uses shared memory to perform all three FHT operations and diagonal
+//matmuls when dim2 of the input is <= MAX_BASE_LEVEL_TRANSFORM.
+//For convolution version of SORF only. Also multiplies by the normalization
+//constant.
+template <typename T>
+__global__ void singleStepConvSORF(T cArray[], int N, int log2N,
+        int8_t *radem, T normConstant, int repeatStart,
+        int rademShape2){
+
+    int startPosition = (blockIdx.x << log2N);
+
+    SharedMemory<T> shared;
+    T *s_data = shared.getPointer();
+    int i, spacing, pos = threadIdx.x;
+    int lo, id1, id2;
+    T *src_ptr = cArray + startPosition;
+    T y;
+    int8_t *rademPtr = radem + repeatStart;
+
+    //Copy data into shared memory while doing the first diagonal matmul.
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        s_data[i] = src_ptr[i];
+
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        s_data[i] = s_data[i] * rademPtr[i] * normConstant;
+
+    id1 = (pos << 1);
+    id2 = id1 + 1;
+    __syncthreads();
+
+    //**************************
+    //First hadamard transform.
+    //**************************
+    y = s_data[id2];
+    s_data[id2] = s_data[id1] - y;
+    s_data[id1] += y;
+
+    for (spacing = 2; spacing < N; spacing <<= 1){
+        lo = pos & (spacing - 1);
+        id1 = ((pos - lo) << 1) + lo;
+        id2 = id1 + spacing;
+        __syncthreads();
+        y = s_data[id2];
+        s_data[id2] = s_data[id1] - y;
+        s_data[id1] += y;
+    }
+
+
+    //***********************************************
+    //Second hadamard transform and diagonal matmul.
+    //***********************************************
+    __syncthreads();
+    rademPtr += rademShape2;
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        s_data[i] = s_data[i] * rademPtr[i] * normConstant;
+
+    id1 = (pos << 1);
+    id2 = id1 + 1;
+    __syncthreads();
+
+
+    y = s_data[id2];
+    s_data[id2] = s_data[id1] - y;
+    s_data[id1] += y;
+
+    for (spacing = 2; spacing < N; spacing <<= 1){
+        lo = pos & (spacing - 1);
+        id1 = ((pos - lo) << 1) + lo;
+        id2 = id1 + spacing;
+        __syncthreads();
+        y = s_data[id2];
+        s_data[id2] = s_data[id1] - y;
+        s_data[id1] += y;
+    }
+
+    //**************************
+    //Third hadamard transform and diagonal matmul.
+    //**************************
+    __syncthreads();
+    rademPtr += rademShape2;
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        s_data[i] = s_data[i] * rademPtr[i] * normConstant;
+
+    id1 = (pos << 1);
+    id2 = id1 + 1;
+    __syncthreads();
+
+    y = s_data[id2];
+    s_data[id2] = s_data[id1] - y;
+    s_data[id1] += y;
+
+    for (spacing = 2; spacing < N; spacing <<= 1){
+        lo = pos & (spacing - 1);
+        id1 = ((pos - lo) << 1) + lo;
+        id2 = id1 + spacing;
+        __syncthreads();
+        y = s_data[id2];
+        s_data[id2] = s_data[id1] - y;
+        s_data[id1] += y;
+    }
+    __syncthreads();
+
+
+
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        src_ptr[i] = s_data[i];
+}
+
+
+
 
 
 
@@ -292,7 +405,7 @@ const char *cudaSORF3d(T cArray[], int8_t *radem,
     int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     //cudaProfilerStart();
 
-    if (dim2 <= MAX_BASE_LEVEL_TRANSFORM){
+    if (dim2 <= MAX_SINGLE_STAGE_TRANSFORM){
         int log2N = log2(dim2);
         blocksPerGrid = numElements / dim2;
         singleStepSORF<T><<<blocksPerGrid, dim2 / 2, dim2 * sizeof(T)>>>(cArray, dim2, log2N,
@@ -349,29 +462,36 @@ const char *cudaConvSORF3d(T cArray[], int8_t *radem,
                 int rademShape2, T normConstant){
     int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     //cudaProfilerStart();
-        
-    //Multiply by first row of radem.
-    conv1dDiagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, 
+
+    if (dim2 <= MAX_SINGLE_STAGE_TRANSFORM){
+        int log2N = log2(dim2);
+        blocksPerGrid = numElements / dim2;
+        singleStepConvSORF<T><<<blocksPerGrid, dim2 / 2, dim2 * sizeof(T)>>>(cArray, dim2, log2N,
+                radem, normConstant, startPosition, rademShape2);
+    }
+    else{
+        //Multiply by first row of radem.
+        conv1dDiagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, 
                         radem, dim2, startPosition, numElements,
                         normConstant);
 
-    //First H-transform.
-    cudaHTransform<T>(cArray, dim0, dim1, dim2);
+        //First H-transform.
+        cudaHTransform<T>(cArray, dim0, dim1, dim2);
 
-    //Multiply by second row of radem.
-    conv1dDiagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, 
+        //Multiply by second row of radem.
+        conv1dDiagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, 
                         radem + rademShape2, dim2, startPosition, numElements,
                         normConstant);
-    //Second H-transform.
-    cudaHTransform<T>(cArray, dim0, dim1, dim2);
+        //Second H-transform.
+        cudaHTransform<T>(cArray, dim0, dim1, dim2);
         
-    //Multiply by third row of radem.
-    conv1dDiagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray,
+        //Multiply by third row of radem.
+        conv1dDiagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray,
                         radem + 2 * rademShape2, dim2, startPosition, numElements,
                         normConstant);
-    //Last H-transform.
-    cudaHTransform<T>(cArray, dim0, dim1, dim2);
-
+        //Last H-transform.
+        cudaHTransform<T>(cArray, dim0, dim1, dim2);
+    }
     //cudaProfilerStop();
     return "no_error";
 }

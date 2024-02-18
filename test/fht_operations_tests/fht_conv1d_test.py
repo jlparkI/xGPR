@@ -71,6 +71,19 @@ class TestConv1d(unittest.TestCase):
         for outcome in outcomes:
             self.assertTrue(outcome)
 
+        kernel_width, num_aas, aa_dim, num_freqs = 10, 11, 200, 784
+        sigma, ndatapoints = 1, 38
+
+        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma, precision = "float")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
 
 
     def test_conv1d_gradients(self):

@@ -5,8 +5,8 @@ import numpy as np
 import cupy as cp
 import cupyx
 from scipy.stats import chi
-from cpu_rf_gen_module import floatCpuConv1dFGen, floatCpuGraphPolyFHT
-from cuda_rf_gen_module import floatGpuConv1dFGen, floatGpuGraphPolyFHT
+from cpu_rf_gen_module import cpuConv1dFGen
+from cuda_rf_gen_module import gpuConv1dFGen
 
 
 #Running the CPU numpy test with too many columns is extremely
@@ -31,7 +31,7 @@ nthreads = {nthreads}
 import math
 import numpy as np
 from scipy.stats import chi
-from cpu_convolution_float_hadamard_operations import floatCpuConv1dFGen
+from cpu_rf_gen_module import cpuConv1dFGen
 random_seed = 123
 rng = np.random.default_rng(random_seed)
 marr = rng.uniform(low=-10.0, high=10.0, size=({nrows},{nnodes},{ncols}))
@@ -42,10 +42,10 @@ D1 = D1.astype(np.int8)
 chi_arr = chi.rvs(df={ncols}, size={ncols}, random_state=random_seed)
 chi_arr = chi_arr.astype(np.float32)
 from __main__ import graphconv_cpu_test"""
-    #print(f"Time(us) for GRAPH cpu with {nthreads} threads:")
-    #time_taken = timeit.timeit("graphconv_cpu_test(marr, D1, chi_arr, nthreads)",
-    #        setup=cpu_graph_setup, number=ntests)
-    #print(1e6 * time_taken / ntests)
+    print(f"Time(us) for GRAPH cpu with {nthreads} threads:")
+    time_taken = timeit.timeit("graphconv_cpu_test(marr, D1, chi_arr, nthreads)",
+            setup=cpu_graph_setup, number=ntests)
+    print(1e6 * time_taken / ntests)
     
     
     random_seed = 123
@@ -96,9 +96,9 @@ from __main__ import poly_cpu_test"""
     chi_arr = chi.rvs(df=ncols, size=(2,ncols), random_state=random_seed)
     chi_arr = chi_arr.astype(np.float32)
     marr, D1, chi_arr = cp.asarray(marr), cp.asarray(D1), cp.asarray(chi_arr)
-    print(f"Time(us) for POLY gpu with {nthreads} threads:")
-    time_taken = cupyx.time.repeat(poly_gpu_test, (marr, D1, chi_arr), n_repeat = ntests)
-    print(time_taken)
+    #print(f"Time(us) for POLY gpu with {nthreads} threads:")
+    #time_taken = cupyx.time.repeat(poly_gpu_test, (marr, D1, chi_arr), n_repeat = ntests)
+    #print(time_taken)
 
 
 
@@ -106,7 +106,7 @@ def graphconv_cpu_test(marr, diag, chi_arr, nthreads):
     """Run the CPU graph convolution feature generation routine."""
     output_arr = np.zeros((marr.shape[0], diag.shape[2] * 2))
     beta = 1.0
-    floatCpuConv1dFGen(marr, diag, output_arr, chi_arr, nthreads,
+    cpuConv1dFGen(marr, diag, output_arr, chi_arr, nthreads,
                         beta)
 
 
@@ -114,16 +114,16 @@ def graphconv_gpu_test(marr, diag, chi_arr):
     """Run the CPU graph convolution feature generation routine."""
     output_arr = cp.zeros((marr.shape[0], diag.shape[2] * 2))
     beta = 1.0
-    floatGpuConv1dFGen(marr, diag, output_arr, chi_arr, 2, beta)
+    gpuConv1dFGen(marr, diag, output_arr, chi_arr, 2, beta)
 
 def poly_cpu_test(marr, diag, chi_arr, nthreads):
     output_arr = np.zeros((marr.shape[0], diag.shape[2]), dtype=np.float32)
-    floatCpuGraphPolyFHT(marr, diag, chi_arr, output_arr, 2, nthreads)
+    cpuGraphPolyFHT(marr, diag, chi_arr, output_arr, 2, nthreads)
 
 
 def poly_gpu_test(marr, diag, chi_arr):
     output_arr = cp.zeros((marr.shape[0], diag.shape[2]), dtype=np.float32)
-    floatGpuGraphPolyFHT(marr, diag, chi_arr, output_arr, 2, 2)
+    gpuGraphPolyFHT(marr, diag, chi_arr, output_arr, 2, 2)
 
 
 if __name__ == "__main__":
