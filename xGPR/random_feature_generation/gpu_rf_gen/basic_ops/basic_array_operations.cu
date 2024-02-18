@@ -24,13 +24,11 @@
 //transform covering strides up to MAX_BASE_LEVEL_TRANSFORM.
 template <typename T>
 __global__ void baseLevelTransform(T cArray[], int N, int log2N){
-    int startPos = blockIdx.x << log2N;
-
     SharedMemory<T> shared;
     T *s_data = shared.getPointer();
     int i, spacing, pos = threadIdx.x;
     int lo, id1, id2;
-    T *src_ptr = cArray + startPos;
+    T *src_ptr = cArray + (blockIdx.x << log2N);
     T y;
 
     for (i = threadIdx.x; i < N; i += blockDim.x)
@@ -55,9 +53,119 @@ __global__ void baseLevelTransform(T cArray[], int N, int log2N){
         s_data[id2] = s_data[id1] - y;
         s_data[id1] += y;
     }
-    for (i = threadIdx.x; i < N; i += blockDim.x){
+    for (i = threadIdx.x; i < N; i += blockDim.x)
         src_ptr[i] = s_data[i];
+}
+
+
+
+//Uses shared memory to perform all three FHT operations and diagonal
+//matmuls when dim2 of the input is <= MAX_BASE_LEVEL_TRANSFORM.
+//For SORF, not convolution. Also multiplies by the normalization
+//constant.
+template <typename T>
+__global__ void singleStepSORF(T cArray[], int N, int log2N,
+        int8_t *radem, T normConstant, int numElementsPerRow){
+
+    int startPosition = (blockIdx.x << log2N);
+
+    SharedMemory<T> shared;
+    T *s_data = shared.getPointer();
+    int i, spacing, pos = threadIdx.x;
+    int lo, id1, id2;
+    T *src_ptr = cArray + startPosition;
+    T y;
+    int8_t *rademPtr = radem + (startPosition % numElementsPerRow);
+
+    //Copy data into shared memory while doing the first diagonal matmul.
+    for (i = threadIdx.x; i < N; i += blockDim.x){
+        y = src_ptr[i] * rademPtr[i];
+        s_data[i] = (y * normConstant);
     }
+
+    id1 = (pos << 1);
+    id2 = id1 + 1;
+    __syncthreads();
+
+    //**************************
+    //First hadamard transform.
+    //**************************
+    y = s_data[id2];
+    s_data[id2] = s_data[id1] - y;
+    s_data[id1] += y;
+
+    for (spacing = 2; spacing < N; spacing <<= 1){
+        lo = pos & (spacing - 1);
+        id1 = ((pos - lo) << 1) + lo;
+        id2 = id1 + spacing;
+        __syncthreads();
+        y = s_data[id2];
+        s_data[id2] = s_data[id1] - y;
+        s_data[id1] += y;
+    }
+
+
+    //***********************************************
+    //Second hadamard transform and diagonal matmul.
+    //***********************************************
+    id1 = (pos << 1);
+    id2 = id1 + 1;
+    __syncthreads();
+
+    rademPtr += numElementsPerRow;
+
+    y = s_data[id1] * rademPtr[id1];
+    s_data[id1] = (y * normConstant);
+    y = s_data[id2] * rademPtr[id2];
+    s_data[id2] = (y * normConstant);
+
+    y = s_data[id2];
+    s_data[id2] = s_data[id1] - y;
+    s_data[id1] += y;
+
+    for (spacing = 2; spacing < N; spacing <<= 1){
+        lo = pos & (spacing - 1);
+        id1 = ((pos - lo) << 1) + lo;
+        id2 = id1 + spacing;
+        __syncthreads();
+        y = s_data[id2];
+        s_data[id2] = s_data[id1] - y;
+        s_data[id1] += y;
+    }
+
+    //**************************
+    //Third hadamard transform and diagonal matmul.
+    //**************************
+    id1 = (pos << 1);
+    id2 = id1 + 1;
+    __syncthreads();
+
+    rademPtr += numElementsPerRow;
+
+    y = s_data[id1] * rademPtr[id1];
+    s_data[id1] = (y * normConstant);
+    y = s_data[id2] * rademPtr[id2];
+    s_data[id2] = (y * normConstant);
+
+    y = s_data[id2];
+    s_data[id2] = s_data[id1] - y;
+    s_data[id1] += y;
+
+    for (spacing = 2; spacing < N; spacing <<= 1){
+        lo = pos & (spacing - 1);
+        id1 = ((pos - lo) << 1) + lo;
+        id2 = id1 + spacing;
+        __syncthreads();
+        y = s_data[id2];
+        s_data[id2] = s_data[id1] - y;
+        s_data[id1] += y;
+    }
+    __syncthreads();
+
+
+
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        src_ptr[i] = s_data[i];
 }
 
 
@@ -95,14 +203,10 @@ __global__ void diagonalRademMultiply(T cArray[], const int8_t *rademArray,
 			int numElementsPerRow, int numElements, T normConstant)
 {
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    int rVal, position;
-    
-    position = tid % numElementsPerRow;
+    int position = tid % numElementsPerRow;
 
-    if (tid < numElements){
-        rVal = rademArray[position];
-        cArray[tid] = cArray[tid] * rVal * normConstant;
-    }
+    if (tid < numElements)
+        cArray[tid] = cArray[tid] * rademArray[position] * normConstant;
 }
 
 
@@ -188,26 +292,34 @@ const char *cudaSORF3d(T cArray[], int8_t *radem,
     int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     //cudaProfilerStart();
 
-    //Multiply by D1.
-    diagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem, 
+    if (dim2 <= MAX_BASE_LEVEL_TRANSFORM){
+        int log2N = log2(dim2);
+        blocksPerGrid = numElements / dim2;
+        singleStepSORF<T><<<blocksPerGrid, dim2 / 2, dim2 * sizeof(T)>>>(cArray, dim2, log2N,
+                radem, normConstant, numElementsPerRow);
+    }
+    else{
+        //Multiply by D1.
+        diagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem, 
                                  numElementsPerRow, numElements, normConstant);
     
-    //First H-transform.
-    cudaHTransform<T>(cArray, dim0, dim1, dim2);
+        //First H-transform.
+        cudaHTransform<T>(cArray, dim0, dim1, dim2);
     
-    //Multiply by D2.
-    diagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + numElementsPerRow,
+        //Multiply by D2.
+        diagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + numElementsPerRow,
                                  numElementsPerRow, numElements, normConstant);
 
-    //Second H-transform.
-    cudaHTransform<T>(cArray, dim0, dim1, dim2);
+        //Second H-transform.
+        cudaHTransform<T>(cArray, dim0, dim1, dim2);
     
-    //Multiply by D3.
-    diagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + 2 * numElementsPerRow,
+        //Multiply by D3.
+        diagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + 2 * numElementsPerRow,
                                  numElementsPerRow, numElements, normConstant);
     
-    //Last H-transform. Transform is in place so do not need to return anything except no error message.
-    cudaHTransform<T>(cArray, dim0, dim1, dim2); 
+        //Last H-transform. Transform is in place so do not need to return anything except no error message.
+        cudaHTransform<T>(cArray, dim0, dim1, dim2);
+    }
 
     //cudaProfilerStop();
     return "no_error";
