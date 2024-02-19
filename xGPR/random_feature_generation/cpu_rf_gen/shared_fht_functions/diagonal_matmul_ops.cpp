@@ -59,7 +59,7 @@
  * Operations are in place so nothing is returned.
  */
 template <typename T>
-void multiplyByDiagonalRademacherMat2D(T xArray[],
+void multiplyByDiagonalRademacherMat2D(T __restrict xArray[],
                     const int8_t *rademArray,
                     int dim1,
                     int startRow, int endRow){
@@ -68,7 +68,7 @@ void multiplyByDiagonalRademacherMat2D(T xArray[],
     T normConstant = log2(dim1) / 2;
     normConstant = 1 / pow(2, normConstant);
     int rowStride = dim1;
-    T *xElement;
+    T *__restrict xElement;
     
     for(i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
@@ -79,11 +79,11 @@ void multiplyByDiagonalRademacherMat2D(T xArray[],
     }
 }
 //Explicitly instantiate for external use.
-template void multiplyByDiagonalRademacherMat2D<float>(float xArray[],
+template void multiplyByDiagonalRademacherMat2D<float>(float *__restrict xArray,
                     const int8_t *rademArray,
                     int dim1,
                     int startRow, int endRow);
-template void multiplyByDiagonalRademacherMat2D<double>(double xArray[],
+template void multiplyByDiagonalRademacherMat2D<double>(double *__restrict xArray,
                     const int8_t *rademArray,
                     int dim1,
                     int startRow, int endRow);
@@ -122,7 +122,7 @@ template void multiplyByDiagonalRademacherMat2D<double>(double xArray[],
  * Operations are in place so nothing is returned.
  */
 template <typename T>
-void multiplyByDiagonalRademacherMat(T xArray[],
+void multiplyByDiagonalRademacherMat(T __restrict xArray[],
                     const int8_t *rademArray,
                     int dim1, int dim2,
                     int startRow, int endRow){
@@ -131,7 +131,7 @@ void multiplyByDiagonalRademacherMat(T xArray[],
     T normConstant = log2(dim2) / 2;
     normConstant = 1 / pow(2, normConstant);
     int rowStride = dim1 * dim2;
-    T *xElement;
+    T *__restrict xElement;
     
     for(i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
@@ -142,11 +142,11 @@ void multiplyByDiagonalRademacherMat(T xArray[],
     }
 }
 //Explicitly instantiate for external use.
-template void multiplyByDiagonalRademacherMat<double>(double xArray[],
+template void multiplyByDiagonalRademacherMat<double>(double *__restrict xArray,
                     const int8_t *rademArray,
                     int dim1, int dim2,
                     int startRow, int endRow);
-template void multiplyByDiagonalRademacherMat<float>(float xArray[],
+template void multiplyByDiagonalRademacherMat<float>(float *__restrict xArray,
                     const int8_t *rademArray,
                     int dim1, int dim2,
                     int startRow, int endRow);
@@ -187,7 +187,7 @@ template void multiplyByDiagonalRademacherMat<float>(float xArray[],
  * Operations are in place so nothing is returned.
  */
 template <typename T>
-void multiplyByDiagonalRademAndCopy(T xArray[],
+void multiplyByDiagonalRademAndCopy(const T xArray[],
                     T copyBuffer[],
                     const int8_t *rademArray,
                     int dim1, int dim2,
@@ -197,7 +197,8 @@ void multiplyByDiagonalRademAndCopy(T xArray[],
     T normConstant = log2(dim2) / 2;
     normConstant = 1 / pow(2, normConstant);
     int rowStride = dim1 * dim2;
-    T *xElement, *outElement;
+    const T *xElement;
+    T *__restrict outElement;
     
     for(i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
@@ -210,13 +211,13 @@ void multiplyByDiagonalRademAndCopy(T xArray[],
     }
 }
 //Explicitly instantiate for external use.
-template void multiplyByDiagonalRademAndCopy<double>(double xArray[],
-                    double copyBuffer[],
+template void multiplyByDiagonalRademAndCopy<double>(const double *xArray,
+                    double *copyBuffer,
                     const int8_t *rademArray,
                     int dim1, int dim2,
                     int startRow, int endRow);
-template void multiplyByDiagonalRademAndCopy<float>(float xArray[],
-                    float copyBuffer[],
+template void multiplyByDiagonalRademAndCopy<float>(const float *xArray,
+                    float *copyBuffer,
                     const int8_t *rademArray,
                     int dim1, int dim2,
                     int startRow, int endRow);
@@ -256,7 +257,7 @@ template void multiplyByDiagonalRademAndCopy<float>(float xArray[],
  * Operations are in place so nothing is returned.
  */
 template <typename T>
-void conv1dMultiplyByRadem(T xArray[],
+void conv1dMultiplyByRadem(T __restrict xArray[],
                         const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition){
@@ -264,7 +265,7 @@ void conv1dMultiplyByRadem(T xArray[],
     T normConstant = log2(reshapedDim2) / 2;
     normConstant = 1 / pow(2, normConstant);
     int rowStride = reshapedDim1 * reshapedDim2;
-    T *xElement;
+    T *__restrict xElement;
 
     for (int i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
@@ -277,11 +278,11 @@ void conv1dMultiplyByRadem(T xArray[],
     }
 }
 //Explicitly instantiate for external use.
-template void conv1dMultiplyByRadem<double>(double xArray[],
+template void conv1dMultiplyByRadem<double>(double *__restrict xArray,
                         const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition);
-template void conv1dMultiplyByRadem<float>(float xArray[],
+template void conv1dMultiplyByRadem<float>(float *__restrict xArray,
                         const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition);
@@ -327,8 +328,8 @@ template void conv1dMultiplyByRadem<float>(float xArray[],
  * Operations are in place so nothing is returned.
  */
 template <typename T>
-void conv1dRademAndCopy(T xArray[],
-                        T copyBuffer[],
+void conv1dRademAndCopy(const T __restrict xArray[],
+                        T __restrict copyBuffer[],
                         const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition){
@@ -336,7 +337,8 @@ void conv1dRademAndCopy(T xArray[],
     T normConstant = log2(reshapedDim2) / 2;
     normConstant = 1 / pow(2, normConstant);
     int rowStride = reshapedDim1 * reshapedDim2;
-    T *xElement, *bufferElement;
+    const T *__restrict xElement;
+    T *__restrict bufferElement;
 
     for (int i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
@@ -351,13 +353,13 @@ void conv1dRademAndCopy(T xArray[],
     }
 }
 //Explicitly instantiate for external use.
-template void conv1dRademAndCopy<double>(double xArray[],
-                        double copyBuffer[],
+template void conv1dRademAndCopy<double>(const double *__restrict xArray,
+                        double *__restrict copyBuffer,
                         const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition);
-template void conv1dRademAndCopy<float>(float xArray[],
-                        float copyBuffer[],
+template void conv1dRademAndCopy<float>(const float *__restrict xArray,
+                        float *__restrict copyBuffer,
                         const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition);

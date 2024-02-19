@@ -18,7 +18,7 @@ def timetest():
     """Run a series of timeit tests and print the results."""
     #Change these lines depending on what dims you want to test.
     nthreads = 2
-    nrows, ncols, nnodes = 256, 512, 62
+    nrows, ncols, nnodes = 256, 1024, 62
 
     ntests = 100
     print("**************************************")

@@ -1,6 +1,8 @@
 #ifndef RBF_CONVOLUTION_H
 #define RBF_CONVOLUTION_H
 
+#include <stdint.h>
+
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
 
@@ -33,15 +35,16 @@ void *threadConvRBFGrad(T reshapedXArray[], T copyBuffer[],
         int startRow, int endRow, T sigma);
 
 template <typename T>
-void RBFPostProcess(T reshapedX[], T chiArr[],
-        double *outputArray, int reshapedDim1,
-        int reshapedDim2, int numFreqs,
+void RBFPostProcess(const T __restrict reshapedX[],
+        const T chiArr[], double *__restrict outputArray,
+        int reshapedDim1, int reshapedDim2, int numFreqs,
         int startRow, int endRow, int repeatNum);
 
 
 template <typename T>
-void RBFPostGrad(T reshapedX[], T chiArr[],
-        double *outputArray, double *gradientArray,
+void RBFPostGrad(const T __restrict reshapedX[],
+        const T chiArr[], double *__restrict outputArray,
+        double *__restrict gradientArray,
         int reshapedDim1, int reshapedDim2,
         int numFreqs, int startRow, int endRow,
         int repeatNum, T sigma);

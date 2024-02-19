@@ -324,14 +324,15 @@ void *threadConvRBFGrad(T reshapedXArray[], T copyBuffer[],
  * + `repeatNum` The repeat number
  */
 template <typename T>
-void RBFPostProcess(T reshapedX[], T chiArr[],
-        double *outputArray, int reshapedDim1,
-        int reshapedDim2, int numFreqs,
+void RBFPostProcess(const T __restrict reshapedX[],
+        const T chiArr[], double *__restrict outputArray,
+        int reshapedDim1, int reshapedDim2, int numFreqs,
         int startRow, int endRow, int repeatNum){
     int i, j, k, lenOutputRow, outputStart;
     T prodVal;
-    double *xOut;
-    T *xIn, *chiIn;
+    double *__restrict xOut;
+    const T *__restrict xIn;
+    const T *chiIn;
     int endPosition, lenInputRow = reshapedDim1 * reshapedDim2;
 
     outputStart = repeatNum * reshapedDim2;
@@ -388,15 +389,17 @@ void RBFPostProcess(T reshapedX[], T chiArr[],
  * + `sigma` The lengthscale hyperparameter
  */
 template <typename T>
-void RBFPostGrad(T reshapedX[], T chiArr[],
-        double *outputArray, double *gradientArray,
+void RBFPostGrad(const T __restrict reshapedX[],
+        const T chiArr[], double *__restrict outputArray,
+        double *__restrict gradientArray,
         int reshapedDim1, int reshapedDim2,
         int numFreqs, int startRow, int endRow,
         int repeatNum, T sigma){
     int i, j, k, lenOutputRow, outputStart;
     T prodVal, gradVal, cosVal, sinVal;
-    double *xOut, *gradOut;
-    T *xIn, *chiIn;
+    double *__restrict xOut, *__restrict gradOut;
+    const T *__restrict xIn;
+    const T *chiIn;
     int endPosition, lenInputRow = reshapedDim1 * reshapedDim2;
 
     outputStart = repeatNum * reshapedDim2;

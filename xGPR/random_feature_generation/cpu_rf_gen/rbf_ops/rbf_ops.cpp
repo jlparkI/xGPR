@@ -361,14 +361,14 @@ void *ThreadARDGrad(T inputX[], double *randomFeats,
  * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
  */
 template <typename T>
-void rbfFeatureGenLastStep_(T xArray[], T chiArray[],
-        double *outputArray, double normConstant,
-        int startRow, int endRow, int dim1,
+void rbfFeatureGenLastStep_(const T __restrict xArray[],
+        const T chiArray[], double *__restrict outputArray,
+        double normConstant, int startRow, int endRow, int dim1,
         int dim2, int numFreqs){
     int i, j;
     int elementsPerRow = dim1 * dim2;
-    T *xElement;
-    double *outputElement;
+    const T *__restrict xElement;
+    double *__restrict outputElement;
     T outputVal;
 
     for (i=startRow; i < endRow; i++){
@@ -406,16 +406,18 @@ void rbfFeatureGenLastStep_(T xArray[], T chiArray[],
  * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
  */
 template <typename T>
-void rbfGradLastStep_(T xArray[], T chiArray[],
-        double *outputArray, double *gradientArray,
+void rbfGradLastStep_(const T __restrict xArray[],
+        const T chiArray[], double *__restrict outputArray,
+        double *__restrict gradientArray,
         double normConstant, T sigma,
         int startRow, int endRow, int dim1,
         int dim2, int numFreqs){
     int i, j;
     int elementsPerRow = dim1 * dim2;
-    T *xElement;
+    const T *__restrict xElement;
     T outputVal;
-    double *outputElement, *gradientElement;
+    double *__restrict outputElement;
+    double *__restrict gradientElement;
     double cosVal, sinVal;
 
     for (i=startRow; i < endRow; i++){

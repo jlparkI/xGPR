@@ -1,6 +1,8 @@
 #ifndef SPEC_CPU_RBF_OPS_H
 #define SPEC_CPU_RBF_OPS_H
 
+#include <stdint.h>
+
 
 template <typename T>
 const char *rbfFeatureGen_(T cArray[], int8_t *radem,
@@ -47,9 +49,9 @@ void *ThreadARDGrad(T inputX[], double *randomFeats,
 
 
 template <typename T>
-void rbfFeatureGenLastStep_(T xArray[], T chiArray[],
-        double *outputArray, double normConstant,
-        int startRow, int endRow, int dim1,
+void rbfFeatureGenLastStep_(const T __restrict xArray[],
+        const T chiArray[], double *__restrict outputArray,
+        double normConstant, int startRow, int endRow, int dim1,
         int dim2, int numFreqs);
 
 template <typename T>

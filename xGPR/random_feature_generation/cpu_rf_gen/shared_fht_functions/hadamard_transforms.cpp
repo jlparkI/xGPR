@@ -40,13 +40,13 @@
  * N x D x C)
  */
 template <typename T>
-void transformRows3D(T xArray[], int startRow, int endRow,
+void transformRows3D(T __restrict xArray[], int startRow, int endRow,
                     int dim1, int dim2){
     int idx1 = startRow;
     int i = 0, j, h = 1;
     T y;
     int rowStride = dim1 * dim2;
-    T *xElement, *yElement;
+    T *__restrict xElement, *__restrict yElement;
 
     //Unrolling the first few loops
     //of the transform increased speed substantially
@@ -130,9 +130,9 @@ void transformRows3D(T xArray[], int startRow, int endRow,
     }
 }
 //Explicitly instantiate for external use.
-template void transformRows3D<double>(double xArray[], int startRow, int endRow,
+template void transformRows3D<double>(double *__restrict xArray, int startRow, int endRow,
                     int dim1, int dim2);
-template void transformRows3D<float>(float xArray[], int startRow, int endRow,
+template void transformRows3D<float>(float *__restrict xArray, int startRow, int endRow,
                     int dim1, int dim2);
 
 
@@ -160,13 +160,13 @@ template void transformRows3D<float>(float xArray[], int startRow, int endRow,
  * N x C)
  */
 template <typename T>
-void transformRows2D(T xArray[], int startRow, int endRow,
+void transformRows2D(T __restrict xArray[], int startRow, int endRow,
                     int dim1){
     int idx1 = startRow;
     int i = 0, j, h = 1;
     T y;
     int rowStride = dim1;
-    T *xElement, *yElement;
+    T *__restrict xElement, *__restrict yElement;
 
     //Unrolling the first few loops
     //of the transform increased speed substantially
@@ -250,7 +250,7 @@ void transformRows2D(T xArray[], int startRow, int endRow,
     }
 }
 //Explicitly instantiate for external use.
-template void transformRows2D<double>(double xArray[], int startRow, int endRow,
+template void transformRows2D<double>(double *__restrict xArray, int startRow, int endRow,
                     int dim1);
-template void transformRows2D<float>(float xArray[], int startRow, int endRow,
+template void transformRows2D<float>(float *__restrict xArray, int startRow, int endRow,
                     int dim1);
