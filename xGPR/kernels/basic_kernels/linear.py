@@ -62,10 +62,12 @@ class Linear(KernelBaseclass):
         return
 
 
-    def transform_x(self, input_x):
+    def transform_x(self, input_x, sequence_length = None):
         """Most kernels generate random features. For the LinearKernel,
         we merely return the input, adding an additional column for
         an intercept if specified.
+        The sequence length argument is accepted for consistency with
+        baseclass but is not used by this kernel.
         """
         if self.fit_intercept:
             xtrans = self.empty((input_x.shape[0], input_x.shape[1] + 1), self.out_type)
@@ -76,9 +78,9 @@ class Linear(KernelBaseclass):
         return xtrans
 
 
-    def kernel_specific_gradient(self, input_x):
-        """Since all kernels share the beta and lambda hyperparameters,
-        the gradient for these can be calculated by the parent class.
+    def kernel_specific_gradient(self, input_x, sequence_length = None):
+        """The gradient for kernel-specific hyperparameters is calculated
+        using an array (dz_dsigma) specific to each kernel.
         This kernel has no kernel-specific hyperparameters and hence
         can return a shape[1] == 0 array for gradient.
         """

@@ -122,12 +122,15 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
 
 
 
-    def transform_x(self, input_x):
+    def transform_x(self, input_x, sequence_length = None):
         """Combines the two steps involved in random feature generation
         to generate random features.
 
         Args:
             input_x: Either a cupy or numpy array containing the input.
+            sequence_length: Accepted for consistency with baseclass and
+                kernels that use this argument but is not used by this
+                class of kernels and is therefore ignored.
 
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
@@ -148,18 +151,15 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         return
 
 
-    def kernel_specific_gradient(self, input_x):
-        """Since all kernels share the beta and lambda hyperparameters,
-        the gradient for these can be calculated by the parent class.
-        The gradient kernel-specific hyperparameters however is calculated
-        using an array (dz_dsigma) specific to each
-        kernel. The kernel-specific arrays are calculated here.
+    def kernel_specific_gradient(self, input_x, sequence_length = None):
+        """The gradient for kernel-specific hyperparameters is calculated
+        using an array (dz_dsigma) specific to each kernel.
 
         Args:
             input_x: A cupy or numpy array containing the raw input data.
-            multiply_by_beta (bool): If False, skip multiplying by the amplitude
-                hyperparameter. Useful for certain hyperparameter tuning
-                routines.
+            sequence_length: Accepted for consistency with baseclass and
+                kernels that use this argument but is not used by this
+                class of kernels and is therefore ignored.
 
         Returns:
             output_x: A cupy or numpy array containing the random feature

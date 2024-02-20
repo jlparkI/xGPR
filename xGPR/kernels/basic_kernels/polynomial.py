@@ -114,12 +114,14 @@ class Polynomial(KernelBaseclass):
 
 
 
-    def transform_x(self, input_x):
+    def transform_x(self, input_x, sequence_length = None):
         """Generates random features.
 
         Args:
             input_x: A cupy or numpy array depending on self.device
                 containing the input data.
+            sequence_length: Accepted for consistency with baseclass
+                but not used by this kernel and thus ignored.
 
         Returns:
             output_x: A cupy or numpy array depending on self.device
@@ -150,7 +152,7 @@ class Polynomial(KernelBaseclass):
         return
 
 
-    def kernel_specific_gradient(self, input_x):
+    def kernel_specific_gradient(self, input_x, sequence_length = None):
         """Since all kernels share the beta and lambda hyperparameters,
         the gradient for these can be calculated by the parent class.
         This kernel has no kernel-specific hyperparameters and hence

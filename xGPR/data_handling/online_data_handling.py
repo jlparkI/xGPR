@@ -22,8 +22,10 @@ class OnlineDataset(DatasetBaseclass):
     Attributes:
         _xdata (array): A cupy or numpy array containing the x data.
         _ydata (array): A cupy or numpy array containing the y data.
+        _sequence_lengths: Either None or a cupy / numpy array containing
+            the sequence lengths (for graph / sequence kernels).
     """
-    def __init__(self, xdata, ydata,
+    def __init__(self, xdata, ydata, sequence_lengths,
                        device = "cpu",
                        chunk_size = 2000,
                        trainy_mean = 0.,
@@ -50,33 +52,65 @@ class OnlineDataset(DatasetBaseclass):
                 trainy_std, max_class)
         self._xdata = xdata
         self._ydata = ydata
+        self._sequence_lengths = sequence_lengths
 
 
     def get_chunked_data(self):
         """A generator that returns the stored data in chunks
         of size chunk_size."""
-        for i in range(0, self._xdim[0], self.chunk_size):
-            cutoff = min(i + self.chunk_size, self._xdim[0])
-            xchunk = self._xdata[i:cutoff,...]
-            ychunk = self._ydata[i:cutoff]
-            if self.device == "gpu":
-                xchunk = cp.asarray(xchunk)
-                ychunk = cp.asarray(ychunk)
-            ychunk = ychunk.astype(self.dtype)
-            ychunk -= self._trainy_mean
-            ychunk /= self._trainy_std
-            yield xchunk, ychunk
+        if self._sequence_lengths is None:
+            for i in range(0, self._xdim[0], self.chunk_size):
+                cutoff = min(i + self.chunk_size, self._xdim[0])
+                xchunk = self._xdata[i:cutoff,...]
+                ychunk = self._ydata[i:cutoff]
+                if self.device == "gpu":
+                    xchunk = cp.asarray(xchunk)
+                    ychunk = cp.asarray(ychunk)
+                ychunk = ychunk.astype(self.dtype)
+                ychunk -= self._trainy_mean
+                ychunk /= self._trainy_std
+                yield xchunk, ychunk, None
+
+        else:
+            for i in range(0, self._xdim[0], self.chunk_size):
+                cutoff = min(i + self.chunk_size, self._xdim[0])
+                xchunk = self._xdata[i:cutoff,...]
+                ychunk = self._ydata[i:cutoff]
+                lchunk = self._sequence_lengths[i:cutoff]
+
+                if self.device == "gpu":
+                    xchunk = cp.asarray(xchunk)
+                    ychunk = cp.asarray(ychunk)
+                    lchunk = cp.asarray(lchunk)
+
+                ychunk = ychunk.astype(self.dtype)
+                ychunk -= self._trainy_mean
+                ychunk /= self._trainy_std
+                yield xchunk, ychunk, lchunk
+
 
 
     def get_chunked_x_data(self):
         """A generator that loops over the xdata only in chunks
         of size chunk_size."""
-        for i in range(0, self._xdim[0], self.chunk_size):
-            cutoff = min(i + self.chunk_size, self._xdim[0])
-            xchunk = self._xdata[i:cutoff,...]
-            if self.device == "gpu":
-                xchunk = cp.asarray(xchunk)
-            yield xchunk
+        if self._sequence_lengths is None:
+            for i in range(0, self._xdim[0], self.chunk_size):
+                cutoff = min(i + self.chunk_size, self._xdim[0])
+                xchunk = self._xdata[i:cutoff,...]
+                if self.device == "gpu":
+                    xchunk = cp.asarray(xchunk)
+                yield xchunk, None
+        else:
+            for i in range(0, self._xdim[0], self.chunk_size):
+                cutoff = min(i + self.chunk_size, self._xdim[0])
+                xchunk = self._xdata[i:cutoff,...]
+                lchunk = self._sequence_lengths[i:cutoff]
+                if self.device == "gpu":
+                    xchunk = cp.asarray(xchunk)
+                    lchunk = cp.asarray(lchunk)
+                yield xchunk, lchunk
+
+
 
     def get_chunked_y_data(self):
         """A generator that loops over the ydata only in chunks
@@ -91,40 +125,6 @@ class OnlineDataset(DatasetBaseclass):
             ychunk /= self._trainy_std
             yield ychunk
 
-
-    def get_next_minibatch(self, batch_size):
-        """Gets the next minibatch (for stochastic gradient descent).
-
-        Args:
-            batch_size (int): The size of the desired minibatch.
-
-        Returns:
-            xout (array): A numpy or cupy array of x data.
-            yout (array): A numpy or cupy array of y data.
-            end_epoch (bool): If True, we are at the end of an epoch.
-        """
-        end_epoch = False
-        if self.mbatch_counter >= self._xdata.shape[0]:
-            end_epoch = True
-            self.mbatch_counter = 0
-        ssize = min(self.mbatch_counter + batch_size, self._xdata.shape[0])
-
-        if len(self._xdim) == 3:
-            xchunk = self._xdata[self.mbatch_counter:ssize,:,:]
-        else:
-            xchunk = self._xdata[self.mbatch_counter:ssize,:]
-
-        ychunk = self._ydata[self.mbatch_counter:ssize]
-        self.mbatch_counter += batch_size
-        if self.device == "gpu":
-            xchunk = cp.asarray(xchunk)
-            ychunk = cp.asarray(ychunk)
-
-        ychunk = ychunk.astype(self.dtype)
-        ychunk -= self._trainy_mean
-        ychunk /= self._trainy_std
-        return xchunk, ychunk, end_epoch
-
     def get_xdata(self):
         """Returns all xdata as a single array."""
         return self._xdata
@@ -132,3 +132,8 @@ class OnlineDataset(DatasetBaseclass):
     def get_ydata(self):
         """Returns all ydata as a single array."""
         return self._ydata
+
+    def get_sequence_lengths(self):
+        """Returns all sequence length data as a single
+        array."""
+        return self._sequence_lengths

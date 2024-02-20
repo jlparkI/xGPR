@@ -31,11 +31,11 @@ class SRHTCompressor():
         device: Either "cpu" or "gpu".
         double_precision (bool): If True, input is assumed to be
                 doubles, else floats.
-        num_threads (int): Number of threads to use for CPU operations.
+        num_threads (int): Max number of threads to use for CPU operations.
     """
 
     def __init__(self, compression_size, input_size, device = "cpu",
-            double_precision = True, random_seed = 123):
+            double_precision = True, random_seed = 123, num_threads = 2):
         """Class constructor.
 
         Args:
@@ -45,6 +45,8 @@ class SRHTCompressor():
             double_precision (bool): If True, input is assumed to be
                 doubles, else floats.
             random_seed (int): A seed for the random number generator.
+            num_threads (int): The max number of threads to use for CPU
+                operations.
 
         Raises:
             ValueError: Raises a ValueError if the inputs are inappropriate.
@@ -65,7 +67,7 @@ class SRHTCompressor():
         self.truncated_sampler = self.col_sampler[:self.compression_size]
         self.compressor_func = None
         self.device = device
-        self.num_threads = 2
+        self.num_threads = num_threads
 
 
     def transform_x(self, features, no_compression = False):

@@ -14,7 +14,7 @@ from ..kernel_baseclass import KernelBaseclass
 from cpu_rf_gen_module import cpuConv1dFGen, cpuConvGrad
 
 
-class FHTConv1d(KernelBaseclass):
+class Conv1dRBF(KernelBaseclass):
     """The Conv1d class is a convolutional kernel that can work
     with non-aligned time series or sequences.
     This class inherits from KernelBaseclass.
@@ -146,7 +146,7 @@ class FHTConv1d(KernelBaseclass):
 
 
 
-    def transform_x(self, input_x):
+    def transform_x(self, input_x, sequence_length):
         """Generates random features.
 
         Args:
@@ -154,11 +154,15 @@ class FHTConv1d(KernelBaseclass):
 
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
+            sequence_length: A numpy or cupy array containing the number of
+                elements in each sequence -- so that zero padding can be masked.
 
         Raises:
             ValueError: A value error is raised if the dimensionality of the
                 input does not meet validity criteria.
         """
+        if sequence_length is None:
+            raise ValueError("sequence_length is required for convolution kernels.")
         #Because we are using stride_tricks, we need to run some additional
         #checks on the input before doing anything else.
         if input_x.shape[1] <= self.conv_width:
@@ -191,15 +195,14 @@ class FHTConv1d(KernelBaseclass):
         return
 
 
-    def kernel_specific_gradient(self, input_x):
-        """Since all kernels share the beta and lambda hyperparameters,
-        the gradient for these can be calculated by the parent class.
-        The gradient kernel-specific hyperparameters however is calculated
-        using an array (dz_dsigma) specific to each
-        kernel. The kernel-specific arrays are calculated here.
+    def kernel_specific_gradient(self, input_x, sequence_length):
+        """The gradient for kernel-specific hyperparameters is calculated
+        using an array (dz_dsigma) specific to each kernel.
 
         Args:
             input_x: A cupy or numpy array containing the raw input data.
+            sequence_length: A numpy or cupy array containing the number of
+                elements in each sequence -- so that zero padding can be masked.
 
         Returns:
             output_x: A cupy or numpy array containing the random feature
@@ -207,6 +210,8 @@ class FHTConv1d(KernelBaseclass):
             dz_dsigma: A cupy or numpy array containing the derivative of
                 output_x with respect to the kernel-specific hyperparameters.
         """
+        if sequence_length is None:
+            raise ValueError("sequence_length is required for convolution kernels.")
         if input_x.shape[1] <= self.conv_width:
             raise ValueError("Input X must have shape[1] >= the convolution "
                     "kernel width.")

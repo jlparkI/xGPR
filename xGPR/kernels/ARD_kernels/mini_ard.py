@@ -179,11 +179,13 @@ class MiniARD(KernelBaseclass):
             self.ard_position_key[self.split_pts[i-1]:self.split_pts[i]] = i - 1
 
 
-    def transform_x(self, input_x):
+    def transform_x(self, input_x, sequence_length = None):
         """Generates random features for an input array.
 
         Args:
             x: Either a cupy or numpy array containing the input.
+            sequence_length: Accepted for consistency with baseclass
+                but not used by this kernel and thus ignored.
 
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
@@ -252,15 +254,14 @@ class MiniARD(KernelBaseclass):
             self.chi_arr = cp.asarray(self.chi_arr)
 
 
-    def kernel_specific_gradient(self, input_x):
-        """Since all kernels share the beta and lambda hyperparameters,
-        the gradient for these can be calculated by the parent class.
-        The gradient kernel-specific hyperparameters however is calculated
-        using an array (dz_dsigma) specific to each
-        kernel. The kernel-specific arrays are calculated here.
+    def kernel_specific_gradient(self, input_x, sequence_length = None):
+        """The gradient for kernel-specific hyperparameters is calculated
+        using an array (dz_dsigma) specific to each kernel.
 
         Args:
             input_x: A cupy or numpy array containing the raw input data.
+            sequence_length: Accepted for consistency with baseclass
+                but not used by this kernel and thus ignored.
 
         Returns:
             output_x: A cupy or numpy array containing the random feature

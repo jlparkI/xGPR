@@ -126,11 +126,13 @@ class GraphRBF(KernelBaseclass):
         return
 
 
-    def transform_x(self, input_x):
+    def transform_x(self, input_x, sequence_length):
         """Generates random features.
 
         Args:
             input_x: A numpy or cupy array containing the raw input data.
+            sequence_length: A numpy or cupy array containing the number of
+                nodes in each graph input -- so that zero padding can be masked.
 
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
@@ -139,6 +141,9 @@ class GraphRBF(KernelBaseclass):
             ValueError: A value error is raised if the dimensionality of the
                 input does not meet validity criteria.
         """
+        if sequence_length is None:
+            raise ValueError("sequence_length (i.e. # of nodes) must be supplied for "
+                    "graph kernels.")
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
@@ -151,15 +156,14 @@ class GraphRBF(KernelBaseclass):
 
 
 
-    def kernel_specific_gradient(self, input_x):
-        """Since all kernels share the beta and lambda hyperparameters,
-        the gradient for these can be calculated by the parent class.
-        The gradient kernel-specific hyperparameters however is calculated
-        using an array (dz_dsigma) specific to each
-        kernel. The kernel-specific arrays are calculated here.
+    def kernel_specific_gradient(self, input_x, sequence_length):
+        """The gradient for kernel-specific hyperparameters is calculated
+        using an array (dz_dsigma) specific to each kernel.
 
         Args:
             input_x: A cupy or numpy array containing the raw input data.
+            sequence_length: A numpy or cupy array containing the number of
+                nodes in each graph input -- so that zero padding can be masked.
 
         Returns:
             output_x: A cupy or numpy array containing the random feature
@@ -167,8 +171,12 @@ class GraphRBF(KernelBaseclass):
             dz_dsigma: A cupy or numpy array containing the derivative of
                 output_x with respect to the kernel-specific hyperparameters.
         """
+        if sequence_length is None:
+            raise ValueError("sequence_length (i.e. # of nodes) must be supplied for "
+                    "graph kernels.")
         if len(input_x.shape) != 3:
             raise ValueError("Input X must be a 3d array.")
+
         output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         reshaped_x = self.zero_arr((input_x.shape[0], input_x.shape[1],
                                 self.padded_dims), self.dtype)

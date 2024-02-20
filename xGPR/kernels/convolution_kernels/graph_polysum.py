@@ -125,22 +125,29 @@ class GraphPolySum(KernelBaseclass):
         return
 
 
-    def transform_x(self, input_x):
+    def transform_x(self, input_x, sequence_length):
         """Generates random features.
 
         Args:
             input_x: A cupy or numpy array depending on self.device
                 containing the input data.
+            sequence_length: A numpy or cupy array containing the number of
+                nodes in each graph input -- so that zero padding can be masked.
 
         Returns:
             output_x: A cupy or numpy array depending on self.device
                 containing the results of random feature generation. Note
                 that num_freqs rffs are generated, not num_rffs.
         """
+        if sequence_length is None:
+            raise ValueError("sequence_length (i.e. # of nodes) must be supplied for "
+                    "graph kernels.")
+
         if len(input_x.shape) != 3:
             raise ValueError("Input to GraphPoly must be a 3d array.")
         if input_x.shape[2] != self._xdim[2]:
             raise ValueError("Unexpected number of features supplied to GraphPoly.")
+
         retyped_input = self.zero_arr((input_x.shape[0], input_x.shape[1],
                     self.padded_dims), self.dtype)
         retyped_input[:,:,1:input_x.shape[2] + 1] = input_x
@@ -160,11 +167,11 @@ class GraphPolySum(KernelBaseclass):
 
 
 
-    def kernel_specific_gradient(self, input_x):
-        """Since all kernels share the beta and lambda hyperparameters,
-        the gradient for these can be calculated by the parent class.
+    def kernel_specific_gradient(self, input_x, sequence_length):
+        """The gradient for kernel-specific hyperparameters is calculated
+        using an array (dz_dsigma) specific to each kernel.
         This kernel has no kernel-specific hyperparameters and hence
         can return a shape[1] == 0 array for gradient.
         """
-        xtrans = self.transform_x(input_x)
+        xtrans = self.transform_x(input_x, sequence_length)
         return xtrans, np.zeros((xtrans.shape[0], 0, 0))

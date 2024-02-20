@@ -110,9 +110,11 @@ class FHTMaxpoolConv1dFeatureExtractor():
             self.stride_tricks = np.lib.stride_tricks.as_strided
 
 
-    def transform_x(self, input_x):
+    def transform_x(self, input_x, sequence_length):
         """Performs the feature generation by calling the appropriate
         Cython function, referenced as self.conv_func."""
+        if sequence_length is None:
+            raise ValueError("sequence_length is required for convolution kernels.")
         if input_x.shape[1] <= self.conv_width:
             raise ValueError("Input input_x must have shape[1] >= the convolution "
                     "kernel width.")

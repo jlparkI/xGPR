@@ -5,7 +5,6 @@ from .basic_kernels.matern import Matern
 from .basic_kernels.rbf import RBF
 from .basic_kernels.linear import Linear
 from .basic_kernels.polynomial import Polynomial
-from .basic_kernels.rbf_linear import RBFLinear
 
 from .convolution_kernels.fht_conv1d import FHTConv1d
 from .convolution_kernels.graph_rbf import GraphRBF
@@ -21,8 +20,9 @@ KERNEL_NAME_TO_CLASS = {"RBF":RBF,
         "Linear":Linear,
         "Poly":Polynomial,
         "GraphPoly":GraphPolySum,
-        "MiniARD":MiniARD,
-        "RBFLinear":RBFLinear}
+        "MiniARD":MiniARD}
 
-# A list of kernels that require 3d arrays as input.
+# A list of kernels that require 3d arrays as input. This
+# is used by kernel_fgen for generating random features
+# outside of a regressor / classifier.
 ARR_3D_KERNELS = ("GraphRBF", "GraphPoly", "FHTConv1d")
