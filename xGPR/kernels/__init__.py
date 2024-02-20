@@ -23,3 +23,6 @@ KERNEL_NAME_TO_CLASS = {"RBF":RBF,
         "GraphPoly":GraphPolySum,
         "MiniARD":MiniARD,
         "RBFLinear":RBFLinear}
+
+# A list of kernels that require 3d arrays as input.
+ARR_3D_KERNELS = ("GraphRBF", "GraphPoly", "FHTConv1d")

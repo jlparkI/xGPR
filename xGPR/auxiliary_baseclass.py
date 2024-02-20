@@ -10,7 +10,7 @@ try:
 except:
     pass
 
-from .kernels import KERNEL_NAME_TO_CLASS
+from .kernels import KERNEL_NAME_TO_CLASS, ARR_3D_KERNELS
 from .constants import constants
 
 
@@ -29,7 +29,7 @@ class AuxiliaryBaseclass():
             hyperparameter tuning and fitting.
     """
 
-    def __init__(self, num_rffs:int, hyperparams, dataset,
+    def __init__(self, num_rffs:int, hyperparams, num_features:int,
                     kernel_choice:str = "RBF", device:str = "cpu",
                     kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     random_seed:int = 123, verbose:bool = True,
@@ -47,6 +47,8 @@ class AuxiliaryBaseclass():
                 need. For most kernels there is only one kernel-specific hyperparameter.
                 For kernels with no kernel-specific hyperparameter (e.g. arc-cosine
                 and polynomial kernels), this argument is ignored.
+            num_features (int): The number of features (i.e. the expected length
+                of the last dimension) of typical input.
             dataset: A valid dataset object.
             kernel_choice (str): The kernel that the model will use.
                 Defaults to 'RBF'. Must be in kernels.kernel_list.
@@ -76,7 +78,16 @@ class AuxiliaryBaseclass():
 
         if kernel_choice not in KERNEL_NAME_TO_CLASS:
             raise ValueError("An unrecognized kernel choice was supplied.")
-        self.kernel = KERNEL_NAME_TO_CLASS[kernel_choice](dataset.get_xdim(),
+
+        if kernel_choice in ARR_3D_KERNELS:
+            if "conv_width" in kernel_settings:
+                xdim = (1, kernel_settings["conv_width"], num_features)
+            else:
+                xdim = (1, 10, num_features)
+        else:
+            xdim = (1, num_features)
+
+        self.kernel = KERNEL_NAME_TO_CLASS[kernel_choice](xdim,
                             num_rffs, random_seed, device,
                             num_threads, double_precision_fht,
                             kernel_spec_parms = kernel_settings)

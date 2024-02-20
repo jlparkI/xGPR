@@ -16,7 +16,7 @@ class KernelFGen(AuxiliaryBaseclass):
     a selected kernel, typically for use in e.g.
     kernel k-means clustering."""
 
-    def __init__(self, num_rffs:int, hyperparams, dataset,
+    def __init__(self, num_rffs:int, hyperparams, num_features:int,
             kernel_choice:str = "RBF", device:str = "cpu",
             kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
             random_seed:int = 123, verbose:bool = True, num_threads:int = 2):
@@ -25,14 +25,15 @@ class KernelFGen(AuxiliaryBaseclass):
         Args:
             num_rffs (int): The number of random Fourier features
                 to use for the auxiliary device.
-            dataset: A valid dataset object.
             hyperparams (np.ndarray): A numpy array containing the kernel-specific
                 hyperparameter. If you have fitted an xGPR model, the first
                 hyperparameter is in general not kernel specific, so
                 my_model.get_hyperparams()[1:] will retrieve the hyperparameters you
                 need. For most kernels there is only one kernel-specific hyperparameter.
-                For kernels with no kernel-specific hyperparameter (e.g. arc-cosine
-                and polynomial kernels), this argument is ignored.
+                For kernels with no kernel-specific hyperparameter (e.g. polynomial
+                kernels), this argument is ignored.
+            num_features (int): The number of features in your input data. This
+                should be the last dimension of a typical input array.
             kernel_choice (str): The kernel that the model will use.
                 Must be in kernels.kernel_list.KERNEL_NAME_TO_CLASS.
             device (str): Determines whether calculations are performed on
@@ -41,14 +42,14 @@ class KernelFGen(AuxiliaryBaseclass):
                 Defaults to 'cpu'.
             kernel_settings (dict): Contains kernel-specific parameters --
                 e.g. 'matern_nu' for the nu for the Matern kernel, or 'conv_width'
-                for the conv1d kernel.
+                for sequence / timeseries kernels.
             random_seed (int): A seed for the random number generator.
             verbose (bool): If True, regular updates are printed
                 during fitting and tuning. Defaults to True.
             num_threads (int): The number of threads to use for random feature generation
                 if running on CPU. If running on GPU, this argument is ignored.
         """
-        super().__init__(num_rffs, hyperparams, dataset,
+        super().__init__(num_rffs, hyperparams, num_features,
                         kernel_choice, device, kernel_settings,
                         random_seed, verbose, num_threads)
 

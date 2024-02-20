@@ -1,7 +1,4 @@
 """Describes the ModelBaseclass from which other model classes inherit.
-
-The ModelBaseclass describes class attributes and methods shared by
-model classes like xGPModel.
 """
 import sys
 try:
@@ -57,7 +54,6 @@ class ModelBaseclass():
             generating random features. For most problems, it is not beneficial
             to set this to True -- it merely increases computational expense
             with negligible benefit -- but this option is useful for testing.
-            Defaults to False.
         exact_var_calculation (bool): If True, variance is calculated exactly (within
             the limits of the random feature approximation). If False, a preconditioner
             is used. The preconditioner approach is only used for linear kernels.

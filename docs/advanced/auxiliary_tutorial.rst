@@ -36,7 +36,7 @@ To generate random features, use the KernelFGen tool below:::
   from xGPR import KernelFGen
 
   fgen = KernelFGen(num_rffs = 512, hyperparams = np.array([1.0]),
-                    dataset = my_dataset, kernel_choice = "RBF",
+                    num_features = 24, kernel_choice = "RBF",
                     kernel_settings = {}, random_seed = 123, verbose = True,
                     num_threads = 2)
 
@@ -45,6 +45,12 @@ To generate random features, use the KernelFGen tool below:::
 
 Now you can cluster ``my_feature_rep`` -- it's just a random features representation
 of your input -- or do PCA.
+
+``num_features`` here is the last dimension of the inputs you will
+supply. If your input is fixed vectors, then this should be dim1 of
+the fixed vector input. If by contrast you are using a sequence /
+graph kernel, this should be the number of features per graph element /
+sequence element.
 
 Note some important things here. First, the ``KernelFGen`` is like an
 xGPRegression model that doesn't do hyperparameter tuning and is fitted
