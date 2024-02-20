@@ -2,11 +2,6 @@
  * # hadamard_transforms.cpp
  *
  * This module performs core Hadamard transform ops.
- * It includes the following functions:
- *
- * + transformRows
- * Performs the unnormalized Hadamard transform on a 3d array.
- * Can be used with 2d arrays by specifying dim1 to be 1.
  */
 
 #include <stdint.h>

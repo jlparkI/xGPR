@@ -3,20 +3,13 @@
  *
  * This module performs operations unique to the convolution
  * kernels in xGPR, essentially orthogonal random features based
- * convolution. It includes the following functions:
- *
- * + conv1dPrep_
- * Performs the core fast hadamard transform based operations needed
- * for convolution with SORF.
- *
- * + FloatThreadConv1d
- * Called once by conv1dPrep_ for each thread.
+ * convolution, in cases where subsequent post-processing is not
+ * required.
  */
 #include <Python.h>
 #include <vector>
 #include <thread>
 #include <math.h>
-#include <cstring>
 #include "conv1d_operations.h"
 #include "../shared_fht_functions/hadamard_transforms.h"
 #include "../shared_fht_functions/shared_rfgen_ops.h"

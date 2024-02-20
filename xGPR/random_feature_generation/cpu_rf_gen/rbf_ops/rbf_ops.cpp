@@ -3,40 +3,7 @@
  *
  * This module performs all major steps involved in feature generation for
  * RBF-type kernels, which includes RBF, Matern, ARD and MiniARD (and by extension
- * the static layer kernels). Functions from array_operations are used to perform
- * the fast Hadamard transform and rademacher matrix multiplication pieces.
- * The "specialized" piece, multiplication by a diagonal matrix while performing
- * sine-cosine operations, is performed here.
- *
- * + rbfFeatureGen_
- * Performs the feature generation steps on an input array of doubles.
- *
- * + rbfGrad_
- * Performs the feature generation steps on an input array of doubles
- * AND generates the gradient info (stored in a separate array). For non-ARD
- * kernels only.
- *
- * + ardGrad_
- * Performs gradient and feature generation calculations for an RBF ARD kernel.
- * Slower than rbfFeatureGen, so use only if gradient is required.
- *
- * + ThreadRBFGen
- * Performs operations for a single thread of the feature generation operation.
- *
- * + ThreadRBFGrad
- * Performs operations for a single thread of the gradient / feature operation.
- * 
- * + ThreadARDGrad
- * Performs operations for a single thread of the ARD gradient-only calculation.
- *
- * + rbfFeatureGenLastStep_
- * Performs the final operations involved in the feature generation for doubles.
- *
- * + rbfGradLastStep_
- * Performs the final operations involved in feature / gradient calc for doubles.
- *
- * + ardGradCalcs
- * Performs the key operations involved in gradient-only calc for ARD.
+ * the static layer kernels).
  */
 #include <Python.h>
 #include <stdint.h>

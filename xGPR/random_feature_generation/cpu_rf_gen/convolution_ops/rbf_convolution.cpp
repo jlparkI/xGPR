@@ -8,7 +8,6 @@
 #include <thread>
 #include <vector>
 #include <math.h>
-#include <cstring>
 #include "rbf_convolution.h"
 #include "../shared_fht_functions/hadamard_transforms.h"
 #include "../shared_fht_functions/shared_rfgen_ops.h"
@@ -175,15 +174,12 @@ void *threadConvRBFGen(T reshapedXArray[], T copyBuffer[],
         int reshapedDim1, int reshapedDim2, int numFreqs,
         int rademShape2, int startRow, int endRow){
 
-    int rowSize = reshapedDim1 * reshapedDim2;
     int i, numRepeats, repeatPosition = 0;
     numRepeats = (numFreqs +
             reshapedDim2 - 1) / reshapedDim2;
 
     for (i=0; i < numRepeats; i++){
-        std::memcpy(copyBuffer + startRow * rowSize, reshapedXArray + startRow * rowSize,
-            (endRow - startRow) * (rowSize) * sizeof(T));
-        convSORF3D(copyBuffer, rademArray, repeatPosition,
+        convSORF3DWithCopyBuffer(reshapedXArray, copyBuffer, rademArray, repeatPosition,
                 startRow, endRow, reshapedDim1, reshapedDim2,
                 rademShape2);
         RBFPostProcess<T>(copyBuffer, chiArr,
@@ -218,15 +214,12 @@ void *threadConvRBFGrad(T reshapedXArray[], T copyBuffer[],
         int reshapedDim2, int numFreqs, int rademShape2,
         int startRow, int endRow, T sigma){
 
-    int rowSize = reshapedDim1 * reshapedDim2;
     int i, numRepeats, repeatPosition = 0;
     numRepeats = (numFreqs +
             reshapedDim2 - 1) / reshapedDim2;
 
     for (i=0; i < numRepeats; i++){
-        std::memcpy(copyBuffer + startRow * rowSize, reshapedXArray + startRow * rowSize,
-            (endRow - startRow) * (rowSize) * sizeof(T));
-        convSORF3D(copyBuffer, rademArray, repeatPosition,
+        convSORF3DWithCopyBuffer(reshapedXArray, copyBuffer, rademArray, repeatPosition,
                 startRow, endRow, reshapedDim1, reshapedDim2,
                 rademShape2);
         RBFPostGrad<T>(copyBuffer, chiArr,
