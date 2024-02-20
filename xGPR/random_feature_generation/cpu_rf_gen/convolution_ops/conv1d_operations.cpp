@@ -16,9 +16,10 @@
 #include <vector>
 #include <thread>
 #include <math.h>
+#include <cstring>
 #include "conv1d_operations.h"
 #include "../shared_fht_functions/hadamard_transforms.h"
-#include "../shared_fht_functions/diagonal_matmul_ops.h"
+#include "../shared_fht_functions/shared_rfgen_ops.h"
 
 
 
@@ -102,32 +103,10 @@ const char *conv1dPrep_(int8_t *radem, T reshapedX[],
 template <typename T>
 void *threadConv1d(T reshapedXArray[], int8_t* rademArray,
         int reshapedDim1, int reshapedDim2, int numFreqs,
-        int startRow, int endRow, int startPosition){
+        int startRow, int endRow, int repeatPosition){
     
-    conv1dMultiplyByRadem<T>(reshapedXArray,
-                    rademArray, startRow,
-                    endRow, reshapedDim1, 
-                    reshapedDim2, startPosition);
-    transformRows3D<T>(reshapedXArray, startRow,
-                    endRow, reshapedDim1, 
-                    reshapedDim2);
-    conv1dMultiplyByRadem<T>(reshapedXArray,
-                    rademArray + numFreqs,
-                    startRow, endRow,
-                    reshapedDim1, reshapedDim2,
-                    startPosition);
-    transformRows3D<T>(reshapedXArray, startRow,
-                    endRow, reshapedDim1, 
-                    reshapedDim2);
-    
-    conv1dMultiplyByRadem<T>(reshapedXArray,
-                    rademArray + 2 * numFreqs,
-                    startRow, endRow,
-                    reshapedDim1, reshapedDim2,
-                    startPosition);
-    transformRows3D<T>(reshapedXArray, startRow,
-                    endRow, reshapedDim1, 
-                    reshapedDim2);
+    convSORF3D(reshapedXArray, rademArray, repeatPosition,
+            startRow, endRow, reshapedDim1, reshapedDim2, numFreqs);
     return NULL;
 }
 

@@ -55,8 +55,9 @@ void rbfFeatureGenLastStep_(const T __restrict xArray[],
         int dim2, int numFreqs);
 
 template <typename T>
-void rbfGradLastStep_(T xArray[], T chiArray[],
-        double *outputArray, double *gradientArray,
+void rbfGradLastStep_(const T __restrict xArray[],
+        const T chiArray[], double *__restrict outputArray,
+        double *__restrict gradientArray,
         double normConstant, T sigma,
         int startRow, int endRow, int dim1,
         int dim2, int numFreqs);

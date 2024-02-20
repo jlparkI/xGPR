@@ -1,34 +1,14 @@
 /*!
- * # diagonal_matmul_ops.cpp
+ * # shared_rfgen_ops.cpp
  *
- * This module performs core diagonal matrix
- * multiplication operations.
- * It includes the following functions:
- *
- * + multiplyByDiagonalRademacherMat2d
- * Multiplies a 2d array by a diagonal matrix whose elements
- * are drawn from a Rademacher distribution
- *
- * + multiplyByDiagonalRademacherMat
- * Multiplies a 3d array by a diagonal matrix whose elements are
- * drawn from a Rademacher distribution
- *
- * + multiplyByDiagonalRademAndCopy
- * Same as multiplyByDiagonalRademacherMat, but copies from one
- * array to a second array while performing the diagonal multiplication.
- *
- * + conv1dMultiplyByRadem
- * Same as multiplyByDiagonalRademacherMat, but designed to work
- * on 3d arrays structured to perform FHT-based convolution.
- *
- * + conv1dRademAndCopy
- * Same as Conv1dMultiplyByRadem, but copies from one array to a second
- * array while performing the diagonal matrix multiplication.
+ * This module performs core random feature generation
+ * operations used by multiple routines.
  */
 
 #include <math.h>
-#include "diagonal_matmul_ops.h"
-
+#include <cstring>
+#include "shared_rfgen_ops.h"
+#include "hadamard_transforms.h"
 
 
 /*!
@@ -363,3 +343,121 @@ template void conv1dRademAndCopy<float>(const float *__restrict xArray,
                         const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition);
+
+
+/*!
+ * # SORF3D
+ *
+ * Performs all the steps involved in the SORF operation on
+ * a 3d array. Can be used with a 2d array by passing dim1=1.
+ *
+ * ## Args:
+ *
+ * + `xArray` Pointer to the first element of the array to be
+ * modified. Must be a 3d array (e.g. N x D x C). C MUST be
+ * a power of 2.
+ * + `startRow` The first row to modify. When multithreading,
+ * the array is split into blocks such that each thread
+ * modifies its own subset of the rows.
+ * + `endRow` The last row to modify.
+ * + `dim1` The length of dim2 of the array (e.g. D in
+ * N x D x C)
+ * + `dim2` The length of dim3 of the array (e.g. C in
+ * N x D x C)
+ */
+template <typename T>
+void SORF3D(T arrayStart[], const int8_t *rademArray,
+        int startPosition, int endPosition, int dim1, int dim2){
+    int rowSize = dim1 * dim2;
+
+    multiplyByDiagonalRademacherMat<T>(arrayStart,
+                    rademArray,
+                    dim1, dim2, 
+                    startPosition, endPosition);
+    transformRows<T>(arrayStart, startPosition, 
+                    endPosition, dim1, dim2);
+
+    multiplyByDiagonalRademacherMat<T>(arrayStart,
+                    rademArray + rowSize,
+                    dim1, dim2, 
+                    startPosition, endPosition);
+    transformRows<T>(arrayStart, startPosition, 
+                    endPosition, dim1, dim2);
+    
+    multiplyByDiagonalRademacherMat<T>(arrayStart,
+                    rademArray + 2 * rowSize,
+                    dim1, dim2, 
+                    startPosition, endPosition);
+    transformRows<T>(arrayStart, startPosition, 
+                    endPosition, dim1, dim2);
+}
+//Explicitly instantiate for external use.
+template void SORF3D<double>(double *arrayStart,
+                        const int8_t *rademArray, int startPosition,
+                        int endPosition, int dim1, int dim2);
+template void SORF3D<float>(float *arrayStart,
+                        const int8_t *rademArray, int startPosition,
+                        int endPosition, int dim1, int dim2);
+
+
+
+/*!
+ * # convSORF3D
+ *
+ * Performs all the steps involved in the SORF convolution
+ * operation on a 3d array. Can be used with a 2d array by
+ * passing dim1=1.
+ *
+ * ## Args:
+ *
+ * + `xArray` Pointer to the first element of the array to be
+ * modified. Must be a 3d array (e.g. N x D x C). C MUST be
+ * a power of 2.
+ * + `startRow` The first row to modify. When multithreading,
+ * the array is split into blocks such that each thread
+ * modifies its own subset of the rows.
+ * + `endRow` The last row to modify.
+ * + `dim1` The length of dim2 of the array (e.g. D in
+ * N x D x C)
+ * + `dim2` The length of dim3 of the array (e.g. C in
+ * N x D x C)
+ */
+template <typename T>
+void convSORF3D(T arrayStart[], const int8_t *rademArray,
+        int repeatPosition, int startRow, int endRow,
+        int dim1, int dim2, int rademShape2){
+    int rowSize = dim1 * dim2;
+
+    conv1dMultiplyByRadem<T>(arrayStart,
+                    rademArray,
+                    startRow, endRow,
+                    dim1, dim2,
+                    repeatPosition);
+    transformRows<T>(arrayStart, startRow,
+                    endRow, dim1, dim2);
+
+    conv1dMultiplyByRadem<T>(arrayStart,
+                    rademArray + rademShape2,
+                    startRow, endRow,
+                    dim1, dim2,
+                    repeatPosition);
+    transformRows<T>(arrayStart, startRow,
+                    endRow, dim1, dim2);
+
+    conv1dMultiplyByRadem<T>(arrayStart,
+                    rademArray + 2 * rademShape2,
+                    startRow, endRow,
+                    dim1, dim2,
+                    repeatPosition);
+    transformRows<T>(arrayStart, startRow,
+                    endRow, dim1, dim2);
+}
+//Explicitly instantiate for external use.
+template void convSORF3D<double>(double *arrayStart,
+                        const int8_t *rademArray, int repeatPosition,
+                        int startRow, int endRow, int dim1, int dim2,
+                        int rademShape2);
+template void convSORF3D<float>(float *arrayStart,
+                        const int8_t *rademArray, int repeatPosition,
+                        int startRow, int endRow, int dim1, int dim2,
+                        int rademShape2);

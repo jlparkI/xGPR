@@ -1,5 +1,5 @@
-#ifndef DIAGONAL_MATMUL_OPERATIONS_H
-#define DIAGONAL_MATMUL_OPERATIONS_H
+#ifndef SHARED_RFGEN_OPERATIONS_H
+#define SHARED_RFGEN_OPERATIONS_H
 #include <stdint.h>
 
 
@@ -35,4 +35,14 @@ void conv1dRademAndCopy(const T __restrict xArray[],
                         const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition);
+
+template <typename T>
+void SORF3D(T arrayStart[], const int8_t *rademArray,
+        int startPosition, int endPosition, int dim1, int dim2);
+
+template <typename T>
+void convSORF3D(T arrayStart[], const int8_t *rademArray,
+        int repeatPosition, int startRow, int endRow,
+        int dim1, int dim2, int rademShape2);
+
 #endif

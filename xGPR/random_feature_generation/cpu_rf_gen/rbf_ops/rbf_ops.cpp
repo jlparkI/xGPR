@@ -45,7 +45,7 @@
 #include <thread>
 #include "rbf_ops.h"
 #include "../shared_fht_functions/hadamard_transforms.h"
-#include "../shared_fht_functions/diagonal_matmul_ops.h"
+#include "../shared_fht_functions/shared_rfgen_ops.h"
 
 
 #define VALID_INPUTS 0
@@ -121,24 +121,8 @@ void *ThreadRBFGen(T arrayStart[], int8_t *rademArray,
         T chiArr[], double *outputArray,
         int dim1, int dim2, int startPosition,
         int endPosition, int numFreqs, double rbfNormConstant){
-    int rowSize = dim1 * dim2;
-
-    multiplyByDiagonalRademacherMat<T>(arrayStart, rademArray,
-                    dim1, dim2, startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
-
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray + rowSize, dim1, dim2, 
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
-    
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray + 2 * rowSize, dim1, dim2,
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
+    SORF3D(arrayStart, rademArray, startPosition, endPosition,
+            dim1, dim2);
     rbfFeatureGenLastStep_<T>(arrayStart, chiArr,
                     outputArray, rbfNormConstant,
                     startPosition, endPosition,
@@ -222,28 +206,8 @@ void *ThreadRBFGrad(T arrayStart[], int8_t* rademArray,
         double *gradientArray, int dim1, int dim2,
         int startPosition, int endPosition, int numFreqs,
         double rbfNormConstant, T sigma){
-    int rowSize = dim1 * dim2;
-
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray,
-                    dim1, dim2, 
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
-
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray + rowSize,
-                    dim1, dim2, 
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
-    
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray + 2 * rowSize,
-                    dim1, dim2, 
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
+    SORF3D(arrayStart, rademArray, startPosition, endPosition,
+            dim1, dim2);
     rbfGradLastStep_<T>(arrayStart, chiArr,
                     outputArray, gradientArray,
                     rbfNormConstant, sigma,

@@ -2,43 +2,16 @@
  * # rbf_convolution.c
  *
  * This module performs operations unique to the RBF-based convolution
- * kernels in xGPR, which includes FHTConv1d and GraphConv1d. It
- * contains the following functions:
- *
- * + convRBFFeatureGen_
- * Performs all steps required to generate random features for RBF-based
- * convolution kernels (FHTConv1d, GraphConv1d, ARD variants of GraphConv1d).
- *
- * + convRBFGrad_
- * Performs all steps required to generate random features for RBF-based
- * convolution kernels (FHTConv1d, GraphConv1d, ARD variants of GraphConv1d)
- * and additionally calculate the gradient w/r/t lengthscale.
- * 
- * + FloatThreadConvRBFGen
- * Called once for each thread when generating RBF-based convolution
- * features.
- *
- * + FloatThreadConvRBFGrad
- * Called once for each thread when generating RBF-based convolution
- * features with additional gradient calculation.
- *
- * + RBFGenPostProcess
- * Performs the last step in RBF-based convolution feature generation.
- *
- * + RBFGenGrad
- * Performs the last step in RBF-based convolution feature generation
- * and gradient calculation.
- * 
- * Functions from float_ and double_ array_operations.c are called to
- * perform the Hadamard transform and diagonal matrix multiplications.
+ * kernels in xGPR.
  */
 #include <Python.h>
 #include <thread>
 #include <vector>
 #include <math.h>
+#include <cstring>
 #include "rbf_convolution.h"
 #include "../shared_fht_functions/hadamard_transforms.h"
-#include "../shared_fht_functions/diagonal_matmul_ops.h"
+#include "../shared_fht_functions/shared_rfgen_ops.h"
 
 
 
@@ -201,42 +174,24 @@ void *threadConvRBFGen(T reshapedXArray[], T copyBuffer[],
         int8_t *rademArray, T chiArr[], double *outputArray,
         int reshapedDim1, int reshapedDim2, int numFreqs,
         int rademShape2, int startRow, int endRow){
-    int i, numRepeats, startPosition = 0;
+
+    int rowSize = reshapedDim1 * reshapedDim2;
+    int i, numRepeats, repeatPosition = 0;
     numRepeats = (numFreqs +
             reshapedDim2 - 1) / reshapedDim2;
 
     for (i=0; i < numRepeats; i++){
-        conv1dRademAndCopy<T>(reshapedXArray,
-                    copyBuffer,
-                    rademArray, startRow,
-                    endRow, reshapedDim1, 
-                    reshapedDim2, startPosition);
-        transformRows3D<T>(copyBuffer, startRow,
-                    endRow, reshapedDim1, 
-                    reshapedDim2);
-        conv1dMultiplyByRadem<T>(copyBuffer,
-                    rademArray + rademShape2,
-                    startRow, endRow,
-                    reshapedDim1, reshapedDim2,
-                    startPosition);
-        transformRows3D<T>(copyBuffer, startRow,
-                    endRow, reshapedDim1, 
-                    reshapedDim2);
-    
-        conv1dMultiplyByRadem<T>(copyBuffer,
-                    rademArray + 2 * rademShape2,
-                    startRow, endRow,
-                    reshapedDim1, reshapedDim2,
-                    startPosition);
-        transformRows3D<T>(copyBuffer, startRow,
-                    endRow, reshapedDim1, 
-                    reshapedDim2);
+        std::memcpy(copyBuffer + startRow * rowSize, reshapedXArray + startRow * rowSize,
+            (endRow - startRow) * (rowSize) * sizeof(T));
+        convSORF3D(copyBuffer, rademArray, repeatPosition,
+                startRow, endRow, reshapedDim1, reshapedDim2,
+                rademShape2);
         RBFPostProcess<T>(copyBuffer, chiArr,
             outputArray, reshapedDim1,
             reshapedDim2, numFreqs, startRow,
             endRow, i);
         
-        startPosition += reshapedDim2;
+        repeatPosition += reshapedDim2;
     }
     return NULL;
 }
@@ -262,42 +217,24 @@ void *threadConvRBFGrad(T reshapedXArray[], T copyBuffer[],
         double *gradientArray, int reshapedDim1,
         int reshapedDim2, int numFreqs, int rademShape2,
         int startRow, int endRow, T sigma){
-    int i, numRepeats, startPosition = 0;
+
+    int rowSize = reshapedDim1 * reshapedDim2;
+    int i, numRepeats, repeatPosition = 0;
     numRepeats = (numFreqs +
             reshapedDim2 - 1) / reshapedDim2;
 
     for (i=0; i < numRepeats; i++){
-        conv1dRademAndCopy<T>(reshapedXArray,
-                    copyBuffer,
-                    rademArray, startRow,
-                    endRow, reshapedDim1, 
-                    reshapedDim2, startPosition);
-        transformRows3D<T>(copyBuffer, startRow,
-                    endRow, reshapedDim1, 
-                    reshapedDim2);
-        conv1dMultiplyByRadem<T>(copyBuffer,
-                    rademArray + rademShape2,
-                    startRow, endRow,
-                    reshapedDim1, reshapedDim2,
-                    startPosition);
-        transformRows3D<T>(copyBuffer, startRow,
-                    endRow, reshapedDim1, 
-                    reshapedDim2);
-    
-        conv1dMultiplyByRadem<T>(copyBuffer,
-                    rademArray + 2 * rademShape2,
-                    startRow, endRow,
-                    reshapedDim1, reshapedDim2,
-                    startPosition);
-        transformRows3D<T>(copyBuffer, startRow,
-                    endRow, reshapedDim1, 
-                    reshapedDim2);
+        std::memcpy(copyBuffer + startRow * rowSize, reshapedXArray + startRow * rowSize,
+            (endRow - startRow) * (rowSize) * sizeof(T));
+        convSORF3D(copyBuffer, rademArray, repeatPosition,
+                startRow, endRow, reshapedDim1, reshapedDim2,
+                rademShape2);
         RBFPostGrad<T>(copyBuffer, chiArr,
             outputArray, gradientArray, reshapedDim1,
             reshapedDim2, numFreqs, startRow,
             endRow, i, sigma);
         
-        startPosition += reshapedDim2;
+        repeatPosition += reshapedDim2;
     }
     return NULL;
 }

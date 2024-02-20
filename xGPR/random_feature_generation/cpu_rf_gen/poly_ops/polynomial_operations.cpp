@@ -8,7 +8,7 @@
 #include <thread>
 #include "polynomial_operations.h"
 #include "../shared_fht_functions/hadamard_transforms.h"
-#include "../shared_fht_functions/diagonal_matmul_ops.h"
+#include "../shared_fht_functions/shared_rfgen_ops.h"
 
 
 #define VALID_INPUTS 0
@@ -107,13 +107,13 @@ void *threadApproxPolynomial(T inArray[], T copyBuffer[], int8_t *radem,
     multiplyByDiagonalRademAndCopy(inArray, copyBuffer,
                     radem, dim1, dim2,
                     startRow, endRow);
-    transformRows3D<T>(copyBuffer, startRow, 
+    transformRows<T>(copyBuffer, startRow, 
                     endRow, dim1, dim2);
     for (int k=1; k < 3; k++){
         multiplyByDiagonalRademacherMat<T>(copyBuffer,
                     radem + k * rowSize, dim1, dim2, 
                     startRow, endRow);
-        transformRows3D<T>(copyBuffer, startRow, 
+        transformRows<T>(copyBuffer, startRow, 
                     endRow, dim1, dim2);
     }
     // Now transfer it to the output array.
@@ -127,13 +127,13 @@ void *threadApproxPolynomial(T inArray[], T copyBuffer[], int8_t *radem,
         multiplyByDiagonalRademAndCopy(inArray, copyBuffer,
                     radem + (3 * i) * rowSize, dim1, dim2,
                     startRow, endRow);
-        transformRows3D<T>(copyBuffer, startRow, 
+        transformRows<T>(copyBuffer, startRow, 
                     endRow, dim1, dim2);
         for (int k=1; k < 3; k++){
             multiplyByDiagonalRademacherMat<T>(copyBuffer,
                     radem + (3 * i + k) * rowSize, dim1, dim2, 
                     startRow, endRow);
-            transformRows3D<T>(copyBuffer, startRow, 
+            transformRows<T>(copyBuffer, startRow, 
                     endRow, dim1, dim2);
         }
         outArrayMatTransfer(copyBuffer, outputArray, chiArr, dim1,
