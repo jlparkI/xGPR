@@ -54,13 +54,36 @@ class KernelFGen(AuxiliaryBaseclass):
                         random_seed, verbose, num_threads)
 
 
-    def predict(self, input_x, chunk_size:int = 2000):
-        """Generates random features for the input."""
-        xdata = self.pre_prediction_checks(input_x)
+    def predict(self, input_x, sequence_lengths = None, chunk_size:int = 2000):
+        """Generates random features for the input.
+
+        Args:
+            input_x (np.ndarray): A numpy array of xvalues for which RFFs will
+                be generated.
+            sequence_lengths: None if you are using a fixed-vector kernel (e.g.
+                RBF) and a 1d array of the number of elements in each sequence /
+                nodes in each graph if you are using a graph or Conv1d kernel.
+            chunk_size (int): How many datapoints to process at a time. The
+                results for all datapoints are returned simultaneously regardless --
+                this parameter just affects memory consumption (smaller chunk_size
+                = less memory) and speed (larger chunk_size = slightly faster).
+        Returns:
+            preds (np.ndarray): A 2d array of RFFs where the second dimension is
+                the number of rffs.
+
+        Raises:
+            ValueError: A ValueError is raised if inappropriate inputs are
+                supplied.
+        """
+        xdata = self.pre_prediction_checks(input_x, sequence_lengths)
         preds = []
         for i in range(0, xdata.shape[0], chunk_size):
             cutoff = min(i + chunk_size, xdata.shape[0])
-            preds.append(self.kernel.transform_x(xdata[i:cutoff, :]))
+            if sequence_lengths is not None:
+                preds.append(self.kernel.transform_x(xdata[i:cutoff, :],
+                    sequence_lengths[i:cutoff]))
+            else:
+                preds.append(self.kernel.transform_x(xdata[i:cutoff, :]))
 
         if self.device == "gpu":
             preds = cp.asnumpy(cp.vstack(preds))

@@ -130,11 +130,14 @@ class ModelBaseclass():
         self._gamma = None
 
 
-    def pre_prediction_checks(self, input_x, get_var:bool):
+    def pre_prediction_checks(self, input_x, sequence_lengths, get_var:bool):
         """Checks input data to ensure validity.
 
         Args:
             input_x (np.ndarray): A numpy array containing the input data.
+            sequence_lengths: None if you are using a fixed-vector kernel (e.g.
+                RBF) and a 1d array of the number of elements in each sequence /
+                nodes in each graph if you are using a graph or Conv1d kernel.
             get_var (bool): Whether a variance calculation is desired.
 
         Returns:
@@ -150,6 +153,15 @@ class ModelBaseclass():
             raise ValueError("Model has not yet been successfully fitted.")
         if not self.kernel.validate_new_datapoints(input_x):
             raise ValueError("The input has incorrect dimensionality.")
+        if sequence_lengths is None:
+            if len(x_array.shape) != 2:
+                raise ValueError("sequence_lengths is required if using a "
+                        "convolution kernel.")
+        else:
+            if len(x_array.shape) == 2:
+                raise ValueError("sequence_lengths must be None if using a "
+                    "fixed vector kernel.")
+
         #This should never happen, but just in case.
         if self.weights.shape[0] != self.kernel.get_num_rffs():
             raise ValueError("The size of the weight vector does not "

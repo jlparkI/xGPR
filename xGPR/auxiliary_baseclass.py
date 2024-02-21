@@ -98,12 +98,14 @@ class AuxiliaryBaseclass():
         self.kernel.set_hyperparams(full_hparams)
 
 
-    def pre_prediction_checks(self, input_x):
+    def pre_prediction_checks(self, input_x, sequence_lengths):
         """Checks input data to ensure validity.
 
         Args:
             input_x (np.ndarray): A numpy array containing the input data.
-            get_var (bool): Whether a variance calculation is desired.
+            sequence_lengths: None if you are using a fixed-vector kernel (e.g.
+                RBF) and a 1d array of the number of elements in each sequence /
+                nodes in each graph if you are using a graph or Conv1d kernel.
 
         Returns:
             x_array: A cupy array (if self.device is gpu) or a reference
@@ -116,42 +118,21 @@ class AuxiliaryBaseclass():
         x_array = input_x
         if not self.kernel.validate_new_datapoints(input_x):
             raise ValueError("The input has incorrect dimensionality.")
+        if sequence_lengths is None:
+            if len(x_array.shape) != 2:
+                raise ValueError("sequence_lengths is required if using a "
+                        "convolution kernel.")
+        else:
+            if len(x_array.shape) == 2:
+                raise ValueError("sequence_lengths must be None if using a "
+                    "fixed vector kernel.")
+
         if self.device == "gpu":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
             x_array = cp.asarray(input_x)
 
         return x_array
-
-
-    def transform_data(self, input_x, chunk_size:int = 2000):
-        """Generate the random features for each chunk
-        of an input array. This function is a generator
-        so it will yield the random features as blocks
-        of shape (chunk_size, fitting_rffs).
-
-        Args:
-            input_x (np.ndarray): The input data. Should be a 2d numpy
-                array (if non-convolution kernel) or 3d (if convolution
-                kernel).
-            chunk_size (int): The number of datapoints to process at
-                a time. Lower values limit memory consumption. Defaults
-                to 2000.
-
-        Yields:
-            x_trans (array): An array containing the random features
-                generated for a chunk of the input. Shape is
-                (chunk_size, fitting_rffs).
-
-        Raises:
-            ValueError: If the dimensionality or type of the input does
-                not match what is expected, or if the model has
-                not yet been fitted, a ValueError is raised.
-        """
-        xdata = self.pre_prediction_checks(input_x)
-        for i in range(0, xdata.shape[0], chunk_size):
-            cutoff = min(i + chunk_size, xdata.shape[0])
-            yield self.kernel.transform_x(xdata[i:cutoff, :])
 
 
     ####The remaining functions are all getters / setters.

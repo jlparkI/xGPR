@@ -46,7 +46,7 @@ class CheckAuxiliaryFunctions(unittest.TestCase):
                             kernel_choice = "GraphRBF", hyperparams = np.array([1.0]),
                             num_features = online_cdata.get_xdim()[-1],
                             random_seed = 123)
-            xtrans = kpca.predict(online_cdata.get_xdata())
+            xtrans = kpca.predict(online_cdata.get_xdata(), online_cdata.get_sequence_lengths())
         except:
             raised = True
         self.assertFalse(raised, 'Does not work with graph kernel.')

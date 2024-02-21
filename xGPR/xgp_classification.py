@@ -63,7 +63,7 @@ class xGPDiscriminant(ModelBaseclass):
 
 
 
-    def predict(self, input_x, chunk_size:int = 2000):
+    def predict(self, input_x, sequence_lengths = None, chunk_size:int = 2000):
         """Generate a predicted value for each
         input datapoint.
 
@@ -71,6 +71,9 @@ class xGPDiscriminant(ModelBaseclass):
             input_x (np.ndarray): The input data. Should be a 2d numpy
                 array (if non-convolution kernel) or 3d (if convolution
                 kernel).
+            sequence_lengths: None if you are using a fixed-vector kernel (e.g.
+                RBF) and a 1d array of the number of elements in each sequence /
+                nodes in each graph if you are using a graph or Conv1d kernel.
             chunk_size (int): The number of datapoints to process at
                 a time. Lower values limit memory consumption. Defaults
                 to 2000.
@@ -85,14 +88,18 @@ class xGPDiscriminant(ModelBaseclass):
                 not match what is expected, or if the model has
                 not yet been fitted, a ValueError is raised.
         """
-        xdata = self.pre_prediction_checks(input_x, get_var = False)
+        xdata = self.pre_prediction_checks(input_x, sequence_lengths, get_var = False)
         if self._gamma is None:
             raise ValueError("Model has not been fitted yet.")
         preds = []
 
         for i in range(0, xdata.shape[0], chunk_size):
             cutoff = min(i + chunk_size, xdata.shape[0])
-            xfeatures = self.kernel.transform_x(xdata[i:cutoff, :])
+            if sequence_lengths is not None:
+                xfeatures = self.kernel.transform_x(xdata[i:cutoff, :], sequence_lengths[i:cutoff])
+            else:
+                xfeatures = self.kernel.transform_x(xdata[i:cutoff, :])
+
             pred = xfeatures @ self.weights + self._gamma[None,:]
 
             # Numerically stable softmax. 2.71828 is e.
@@ -123,8 +130,8 @@ class xGPDiscriminant(ModelBaseclass):
         else:
             x_mean = np.zeros((self.kernel.get_num_rffs()))
 
-        for xdata in dataset.get_chunked_x_data():
-            xfeatures = self.kernel.transform_x(xdata)
+        for xdata, ldata in dataset.get_chunked_x_data():
+            xfeatures = self.kernel.transform_x(xdata, ldata)
             x_mean += xfeatures.sum(axis=0)
 
         x_mean /= dataset.get_ndatapoints()
@@ -161,9 +168,9 @@ class xGPDiscriminant(ModelBaseclass):
             unique_elements = np.unique
             ytype, locator = np.int32, np.where
 
-        for (xdata, ydata) in dataset.get_chunked_data():
+        for (xdata, ydata, ldata) in dataset.get_chunked_data():
             ydata = ydata.astype(ytype)
-            xfeatures = self.kernel.transform_x(xdata)
+            xfeatures = self.kernel.transform_x(xdata, ldata)
             if ydata.max() > self.n_classes or ydata.min() < 0:
                 raise ValueError("Unexpected y-values encountered.")
 

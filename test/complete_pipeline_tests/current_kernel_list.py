@@ -10,12 +10,11 @@ based on an initial experiment."""
 #is a convolution kernel and 2) the expected
 #minimum performance.
 IMPLEMENTED_KERNELS = {"RBF":(False, 0.58),
-        "RBFLinear":(False, 0.53),
         "Matern":(False, 0.55),
         "Linear":(False, 0.53),
         "MiniARD":(False, 0.64),
         "Poly":(False, 0.38),
-        "FHTConv1d":(True, 0.58),
+        "Conv1dRBF":(True, 0.58),
         "GraphRBF":(True, 0.38),
-        "GraphPoly":(True, 0.38),
-        "GraphArcCosine":(True, 0.36)  }
+        "GraphPoly":(True, 0.38)
+        }

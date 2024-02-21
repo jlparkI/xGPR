@@ -305,7 +305,10 @@ def build_offline_np_dataset(xlist:list, ylist:list, sequence_lengths,
             if len(ydata.shape) > 1:
                 raise ValueError(f"The y file {yfile} is not a 1d array.")
 
-            __check_sequence_length(np.load(length_file), x_data, ydata)
+            if length_file is None:
+                __check_sequence_length(length_file, x_data, ydata)
+            else:
+                __check_sequence_length(np.load(length_file), x_data, ydata)
 
 
     #If we ARE skipping safety checks, retrieve the dimensionality info we will
@@ -355,7 +358,7 @@ def __check_sequence_length(seqlength, xdata, ydata):
         if not isinstance(seqlength, np.ndarray):
             raise ValueError("sequence_length must either be None or "
                     "a numpy array.")
-        if len(seqlength) != 1:
+        if not len(seqlength.shape) == 1:
             raise ValueError("sequence_length, if not None, must be a "
                     "1d numpy array.")
         if seqlength.shape[0] != ydata.shape[0]:

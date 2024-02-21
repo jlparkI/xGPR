@@ -26,7 +26,7 @@ class FastConv1d:
     or sequence locations and shape[2] is features.
 
     Attributes:
-        conv_kernel (list): List of kernel objects of appropriate classes
+        conv_kernel: Kernel object of appropriate class
             (depending on the kernel type selected).
         device (str): One of ['cpu', 'gpu']. Indicates the current device
             for the FastConv1d.
@@ -35,14 +35,12 @@ class FastConv1d:
         num_features (int): The number of random features to generate.
             More = improved performance but slower feature extraction
             and slower model training.
-        f_per_kernel (int): The number of features per convolution kernel
-            width.
         zero_arr: A convenience reference to either np.zeros or cp.zeros,
             depending on device.
     """
 
     def __init__(self, seq_width:int, device:str = "cpu", random_seed:int = 123,
-            conv_width:list = [9], num_features:int = 512):
+            conv_width:int = 9, num_features:int = 512):
         """Constructor for the FastConv1d class.
 
         Args:
@@ -52,37 +50,24 @@ class FastConv1d:
                 device for the feature extractor.
             random_seed (int): The seed to the random number generator.
                 Defaults to 123.
-            conv_width (list): A list of convolution kernel widths,
-                up to three in length. If the length of the list is
-                > 1, the num_features must be an integer multiple of
-                the length of the list. num_features / len(conv_width)
-                features are generated for each convolution kernel
-                width.
+            conv_width (list): A convolution kernel width.
             num_features (int): The number of random features to generate.
                 More = improved performance but slower feature extraction
-                and slower model training. Defaults to 512.
+                and slower model training.
 
         Raises:
             ValueError: If an unrecognized kernel type or other invalid
                 input is supplied.
         """
         self.zero_arr = np.zeros
-        if len(conv_width) > 3:
-            raise ValueError("Currently only up to three conv_widths "
-                    "are generated at one time.")
-        if num_features % len(conv_width) != 0:
-            raise ValueError("The number of features for the FastConv1d "
-                    "must be an integer multiple of the number of "
-                    "desired convolution widths.")
-
-        self.f_per_kernel = int(num_features / len(conv_width))
-        self.conv_kernel = [FHTMaxpoolConv1dFeatureExtractor(seq_width,
-                            self.f_per_kernel, random_seed, device = device,
-                            conv_width = c) for c in conv_width]
-        self.device = device
-
         self.seq_width = seq_width
         self.num_features = num_features
+
+        self.conv_kernel = FHTMaxpoolConv1dFeatureExtractor(seq_width,
+                            self.num_features, random_seed, device = device,
+                            conv_width = conv_width)
+        self.device = device
+
 
 
 
@@ -94,7 +79,7 @@ class FastConv1d:
         prior to training. By use of this feature, the GP is essentially
         turned into a three-layer network with a convolutional layer
         followed by a fully-connected layer. Note that when
-        making predictions, you should use conv1d_x_feat_extract,
+        making predictions, you should use conv1d_feat_extract,
         which takes an x-array as input rather than a dataset.
 
         Args:
@@ -126,26 +111,31 @@ class FastConv1d:
 
         input_dataset.device = self.device
         xfiles, yfiles = [], []
-        fnum = 0
-        for xbatch, ybatch in input_dataset.get_chunked_data():
+        fnum, chunksize, max_class = 0, 0, 0
+
+        for xbatch, ybatch, seqlen in input_dataset.get_chunked_data():
             xfile, yfile = f"CONV1d_FEATURES_{fnum}_X.npy", f"CONV1d_FEATURES_{fnum}_Y.npy"
-            xtrans = self.zero_arr((xbatch.shape[0], self.num_features))
-            for i, kernel in enumerate(self.conv_kernel):
-                start, end = i * self.f_per_kernel, (i+1) * self.f_per_kernel
-                xtrans[:,start:end] = kernel.transform_x(xbatch)
+            xtrans = self.conv_kernel.transform_x(xbatch, seqlen)
             if self.device == "gpu":
                 ybatch = cp.asnumpy(ybatch)
                 xtrans = cp.asnumpy(xtrans)
+
             np.save(xfile, xtrans)
             np.save(yfile, ybatch)
             xfiles.append(xfile)
             yfiles.append(yfile)
+            if ybatch.shape[0] > chunksize:
+                chunksize = ybatch.shape[0]
+            if ybatch.max() > max_class:
+                max_class = int(ybatch.max())
             fnum += 1
 
         xdim = (input_dataset.get_ndatapoints(), self.num_features)
-        updated_dataset = OfflineDataset(xfiles, yfiles,
+        updated_dataset = OfflineDataset(xfiles, yfiles, None,
                             xdim, input_dataset.get_ymean(),
-                            input_dataset.get_ystd())
+                            input_dataset.get_ystd(),
+                            max_class = max_class,
+                            chunk_size = chunksize)
 
         if self.device == "gpu":
             mempool = cp.get_default_memory_pool()
@@ -154,7 +144,7 @@ class FastConv1d:
         return updated_dataset
 
 
-    def conv1d_x_feat_extract(self, x_array, chunk_size:int = 2000):
+    def conv1d_feat_extract(self, x_array, sequence_lengths, chunk_size:int = 2000):
         """Performs feature extraction using a 1d convolution kernel
         and returns an array containing the result. This function should
         be used if it is desired to generate features for sequence /
@@ -165,6 +155,9 @@ class FastConv1d:
         Args:
             x_array: A numpy array. Should be a 3d array with same shape[1]
                 and shape[2] as the training set.
+            sequence_lengths (np.ndarray): A 1d numpy array with shape[0] ==
+                shape[0] of x_array. Indicates the number of sequence elements
+                in each datapoint of x_array (so that x_array can be zero-padded).
             chunk_size (int): The batch size in which the input data array
                 will be processed. This limits memory consumption. Defaults
                 to 2000.
@@ -178,20 +171,24 @@ class FastConv1d:
             ValueError: If the inputs are not valid a detailed ValueError
                 is raised explaining the issue.
         """
+        if sequence_lengths.shape[0] != x_array.shape[0]:
+            raise ValueError("The shape[0] of sequence_lengths must match the shape[0] "
+                    "of x_array.")
 
         x_features = []
         for i in range(0, x_array.shape[0], chunk_size):
             cutoff = min(x_array.shape[0], i + chunk_size)
-            xtrans = self.zero_arr((cutoff - i, self.num_features))
-            if xtrans.shape[0] == 0:
+            if cutoff - i == 0:
                 continue
-            for j, kernel in enumerate(self.conv_kernel):
-                start, end = j * self.f_per_kernel, (j+1) * self.f_per_kernel
-                if self.device == "gpu":
-                    x_in = cp.asarray(x_array[i:cutoff,:,:]).astype(cp.float32)
-                else:
-                    x_in = x_array[i:cutoff,:,:]
-                xtrans[:,start:end] = kernel.transform_x(x_in)
+
+            if self.device == "gpu":
+                x_in = cp.asarray(x_array[i:cutoff,:,:]).astype(cp.float32)
+                seqlen_in = cp.asarray(sequence_lengths[i:cutoff])
+            else:
+                x_in = x_array[i:cutoff,:,:]
+                seqlen_in = sequence_lengths[i:cutoff]
+
+                xtrans = self.conv_kernel.transform_x(x_in, seqlen_in)
 
             if self.device == "gpu":
                 xtrans = cp.asnumpy(xtrans).astype(np.float64)
@@ -227,6 +224,5 @@ class FastConv1d:
             self.zero_arr = np.zeros
         else:
             self.zero_arr = cp.zeros
-        for kernel in self.conv_kernel:
-            kernel.device = value
+        self.conv_kernel.device = value
         self.device_ = value

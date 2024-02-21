@@ -25,7 +25,7 @@ def run_kernelspecific_test(kernel_choice, conv_kernel = False,
     """Compares a numerical gradient with an exact gradient using
     generic hyperparameters and generic kernel settings."""
     online_data, _ = build_test_dataset(conv_kernel)
-    xdata, ydata, _ = online_data.get_next_minibatch(2000)
+    xdata, ydata = online_data.get_xdata()[:2000,...], online_data.get_ydata()[:2000]
     cpu_mod, gpu_mod = get_models(kernel_choice, online_data,
                         num_rffs = training_rffs, conv_ard_kernel = conv_ard_kernel,
                         averaging = averaging)

@@ -80,7 +80,7 @@ class xGPRegression(ModelBaseclass):
 
 
 
-    def predict(self, input_x, get_var:bool = False,
+    def predict(self, input_x, sequence_lengths = None, get_var:bool = False,
             chunk_size:int = 2000):
         """Generate a predicted value for each
         input datapoint -- and if desired the variance.
@@ -89,6 +89,9 @@ class xGPRegression(ModelBaseclass):
             input_x (np.ndarray): The input data. Should be a 2d numpy
                 array (if non-convolution kernel) or 3d (if convolution
                 kernel).
+            sequence_lengths: None if you are using a fixed-vector kernel (e.g.
+                RBF) and a 1d array of the number of elements in each sequence /
+                nodes in each graph if you are using a graph or Conv1d kernel.
             get_var (bool): If True, return (predictions, variance).
                 If False, return predictions.
             chunk_size (int): The number of datapoints to process at
@@ -105,15 +108,20 @@ class xGPRegression(ModelBaseclass):
                 not match what is expected, or if the model has
                 not yet been fitted, a ValueError is raised.
         """
-        xdata = self.pre_prediction_checks(input_x, get_var)
+        xdata = self.pre_prediction_checks(input_x, sequence_lengths, get_var)
         preds, var = [], []
 
         lambda_ = self.kernel.get_lambda()
 
         for i in range(0, xdata.shape[0], chunk_size):
             cutoff = min(i + chunk_size, xdata.shape[0])
-            xfeatures = self.kernel.transform_x(xdata[i:cutoff, :])
+            if sequence_lengths is not None:
+                xfeatures = self.kernel.transform_x(xdata[i:cutoff, :], sequence_lengths[i:cutoff])
+            else:
+                xfeatures = self.kernel.transform_x(xdata[i:cutoff, :])
+
             preds.append((xfeatures * self.weights[None, :]).sum(axis = 1))
+
             if get_var:
                 if self.exact_var_calculation:
                     xfeatures = xfeatures[:,:self.variance_rffs]

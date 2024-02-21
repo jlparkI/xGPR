@@ -55,8 +55,8 @@ class GPU_ConjugateGrad:
                 This array is modified in-place.
         """
         matvec[:] = 0
-        for x in dataset.get_chunked_x_data():
-            Z = kernel.transform_x(x)
+        for x, lengths in dataset.get_chunked_x_data():
+            Z = kernel.transform_x(x, lengths)
             matvec += Z.T @ (Z @ vec)
         matvec += kernel.get_lambda()**2 * vec
 
@@ -77,8 +77,8 @@ class GPU_ConjugateGrad:
                 This array is modified in-place.
         """
         matvec[:] = 0
-        for x in dataset.get_chunked_x_data():
-            Z = kernel.transform_x(x) - self.x_mean
+        for x, lengths in dataset.get_chunked_x_data():
+            Z = kernel.transform_x(x, lengths) - self.x_mean
             matvec += Z.T @ (Z @ vec)
         matvec /= dataset.get_ndatapoints()
         matvec += kernel.get_lambda()**2 * vec
@@ -229,8 +229,8 @@ class CPU_ConjugateGrad:
                 This array is modified in-place.
         """
         matvec[:] = 0
-        for x in dataset.get_chunked_x_data():
-            Z = kernel.transform_x(x)
+        for x, lengths in dataset.get_chunked_x_data():
+            Z = kernel.transform_x(x, lengths)
             matvec += Z.T @ (Z @ vec)
         matvec += kernel.get_lambda()**2 * vec
 
@@ -250,8 +250,8 @@ class CPU_ConjugateGrad:
                 This array is modified in-place.
         """
         matvec[:] = 0
-        for x in dataset.get_chunked_x_data():
-            Z = kernel.transform_x(x) - self.x_mean
+        for x, lengths in dataset.get_chunked_x_data():
+            Z = kernel.transform_x(x, lengths) - self.x_mean
             matvec += Z.T @ (Z @ vec)
         matvec /= dataset.get_ndatapoints()
         matvec += kernel.get_lambda()**2 * vec

@@ -92,7 +92,7 @@ class OfflineDataset(DatasetBaseclass):
                     self._sequence_lengths):
                 xchunk = self.array_loader(xfile)
                 ychunk = self.array_loader(yfile).astype(self.dtype)
-                lchunk = self.array_loader(lfile)
+                lchunk = self.array_loader(lfile).astype(self.ltype)
                 ychunk -= self._trainy_mean
                 ychunk /= self._trainy_std
                 yield xchunk, ychunk, lchunk
@@ -110,7 +110,7 @@ class OfflineDataset(DatasetBaseclass):
         else:
             for xfile, lfile in zip(self._xfiles, self._sequence_lengths):
                 xchunk = self.array_loader(xfile)
-                lchunk = self.array_loader(lfile)
+                lchunk = self.array_loader(lfile).astype(self.ltype)
                 yield xchunk, lchunk
 
 

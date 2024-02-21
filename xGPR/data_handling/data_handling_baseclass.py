@@ -99,9 +99,11 @@ class DatasetBaseclass(ABC):
         if value == "gpu":
             self.array_loader = cp.load
             self.dtype = cp.float64
+            self.ltype = cp.int32
         elif value == "cpu":
             self.array_loader = np.load
             self.dtype = np.float64
+            self.ltype = np.int32
         else:
             raise ValueError("Device supplied to Dataset must be "
                         "in ['cpu', 'gpu'].")

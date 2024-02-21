@@ -6,6 +6,7 @@ a dataset stored in memory. The dataset can return a specific
 chunk of data from the list provided to it, can serve as a generator
 and return all chunks in succession, or can provide a minibatch.
 """
+import numpy as np
 try:
     import cupy as cp
 except:
@@ -52,7 +53,10 @@ class OnlineDataset(DatasetBaseclass):
                 trainy_std, max_class)
         self._xdata = xdata
         self._ydata = ydata
-        self._sequence_lengths = sequence_lengths
+        if sequence_lengths is None:
+            self._sequence_lengths = None
+        else:
+            self._sequence_lengths = sequence_lengths.astype(np.int32)
 
 
     def get_chunked_data(self):
