@@ -29,20 +29,17 @@
  * the transform. Must be of shape (3 x 1 x m * C) where m is
  * an integer that indicates the number of times we must repeat
  * the operation to generate the requested number of sampled frequencies.
- * + `reshapedX` Pointer to the first element of the array that will
+ * + `xdata` Pointer to the first element of the array that will
  * be used for the convolution. A copy of this array is modified
  * rather than the original. Shape is (N x D x C). C must be
  * a power of 2.
- * + `copyBuffer` An array of the same size and shape as reshapedX into
- * which reshapedX can be copied. copyBuffer can then be modified in place
- * to generate the random features.
  * + `chiArr` A diagonal array that will be multiplied against the output
  * of the SORF operation. Of shape numFreqs.
  * + `outputArray` The output array. Of shape (N, 2 * numFreqs).
  * + `numThreads` The number of threads to use
- * + `reshapedDim0` The first dimension of reshapedX
- * + `reshapedDim1` The second dimension of reshapedX
- * + `reshapedDim2` The last dimension of reshapedX
+ * + `dim0` The first dimension of xdata
+ * + `dim1` The second dimension of xdata
+ * + `dim2` The last dimension of xdata
  * + `numFreqs` The number of frequencies to sample. Must be <=
  * radem.shape[2].
  * + `rademShape2` The number of elements in one row of radem.
@@ -51,32 +48,39 @@
  * "error" if an error, "no_error" otherwise.
  */
 template <typename T>
-const char *convRBFFeatureGen_(int8_t *radem, T reshapedX[],
-            T copyBuffer[], T chiArr[], double *outputArray,
-            int numThreads, int reshapedDim0,
-            int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2)
-{
-    if (numThreads > reshapedDim0)
-        numThreads = reshapedDim0;
+const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
+            T chiArr[], double *outputArray,
+            int numThreads, int dim0,
+            int dim1, int dim2,
+            int numFreqs, int rademShape2,
+            int convWidth, int paddedBufferSize){
+    if (numThreads > dim0)
+        numThreads = dim0;
+
+    int bufferRowSize = (dim1 - convWidth + 1) * paddedBufferSize * dim0;
+
+    T *copyBuffer = new T[bufferRowSize];
 
     std::vector<std::thread> threads(numThreads);
     int startRow, endRow;
-    int chunkSize = (reshapedDim0 + numThreads - 1) / numThreads;
+    int chunkSize = (dim0 + numThreads - 1) / numThreads;
     
     for (int i=0; i < numThreads; i++){
         startRow = i * chunkSize;
         endRow = (i + 1) * chunkSize;
-        if (endRow > reshapedDim0)
-            endRow = reshapedDim0;
-        threads[i] = std::thread(&threadConvRBFGen<T>, reshapedX,
+        if (endRow > dim0)
+            endRow = dim0;
+
+        threads[i] = std::thread(&threadConvRBFGen<T>, xdata,
                 copyBuffer, radem, chiArr, outputArray,
-                reshapedDim1, reshapedDim2, numFreqs,
-                rademShape2, startRow, endRow);
+                dim1, dim2, numFreqs, rademShape2, startRow,
+                endRow, convWidth, paddedBufferSize);
     }
 
     for (auto& th : threads)
         th.join();
+
+    delete[] copyBuffer;
     return "no_error";
 }
 
@@ -97,12 +101,12 @@ const char *convRBFFeatureGen_(int8_t *radem, T reshapedX[],
  * the transform. Must be of shape (3 x 1 x m * C) where m is
  * an integer that indicates the number of times we must repeat
  * the operation to generate the requested number of sampled frequencies.
- * + `reshapedX` Pointer to the first element of the array that will
+ * + `xdata` Pointer to the first element of the array that will
  * be used for the convolution. A copy of this array is modified
  * rather than the original. Shape is (N x D x C). C must be
  * a power of 2.
- * + `copyBuffer` An array of the same size and shape as reshapedX into
- * which reshapedX can be copied. copyBuffer can then be modified in place
+ * + `copyBuffer` An array of the same size and shape as xdata into
+ * which xdata can be copied. copyBuffer can then be modified in place
  * to generate the random features.
  * + `chiArr` A diagonal array that will be multiplied against the output
  * of the SORF operation. Must be of shape numFreqs.
@@ -110,9 +114,9 @@ const char *convRBFFeatureGen_(int8_t *radem, T reshapedX[],
  * + `gradientArray` The array in which the gradient will be stored.
  * + `sigma` The lengthscale hyperparameter.
  * + `numThreads` The number of threads to use
- * + `reshapedDim0` The first dimension of reshapedX
- * + `reshapedDim1` The second dimension of reshapedX
- * + `reshapedDim2` The last dimension of reshapedX
+ * + `dim0` The first dimension of xdata
+ * + `dim1` The second dimension of xdata
+ * + `dim2` The last dimension of xdata
  * + `numFreqs` The number of frequencies to sample. Must be <=
  * radem.shape[2].
  * + `rademShape2` The number of elements in one row of radem.
@@ -121,33 +125,39 @@ const char *convRBFFeatureGen_(int8_t *radem, T reshapedX[],
  * "error" if an error, "no_error" otherwise.
  */
 template <typename T>
-const char *convRBFGrad_(int8_t *radem, T reshapedX[],
-            T copyBuffer[], T chiArr[], double *outputArray,
+const char *convRBFGrad_(int8_t *radem, T xdata[],
+            T chiArr[], double *outputArray,
             double *gradientArray, T sigma,
-            int numThreads, int reshapedDim0,
-            int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2)
-{
-    if (numThreads > reshapedDim0)
-        numThreads = reshapedDim0;
+            int numThreads, int dim0,
+            int dim1, int dim2, int numFreqs,
+            int rademShape2, int convWidth,
+            int paddedBufferSize){
+    if (numThreads > dim0)
+        numThreads = dim0;
+
+    int bufferRowSize = (dim1 - convWidth + 1) * paddedBufferSize * dim0;
+
+    T *copyBuffer = new T[bufferRowSize];
 
     std::vector<std::thread> threads(numThreads);
     int startRow, endRow;
-    int chunkSize = (reshapedDim0 + numThreads - 1) / numThreads;
+    int chunkSize = (dim0 + numThreads - 1) / numThreads;
     
     for (int i=0; i < numThreads; i++){
         startRow = i * chunkSize;
         endRow = (i + 1) * chunkSize;
-        if (endRow > reshapedDim0)
-            endRow = reshapedDim0;
-        threads[i] = std::thread(&threadConvRBFGrad<T>, reshapedX, copyBuffer,
-                radem, chiArr, outputArray, gradientArray, reshapedDim1,
-                reshapedDim2, numFreqs, rademShape2, startRow,
-                endRow, sigma);
+        if (endRow > dim0)
+            endRow = dim0;
+        threads[i] = std::thread(&threadConvRBFGrad<T>, xdata, copyBuffer,
+                radem, chiArr, outputArray, gradientArray, dim1,
+                dim2, numFreqs, rademShape2, startRow,
+                endRow, sigma, convWidth, paddedBufferSize);
     }
 
     for (auto& th : threads)
         th.join();
+
+    delete[] copyBuffer;
     return "no_error";
 }
 
@@ -160,7 +170,7 @@ const char *convRBFGrad_(int8_t *radem, T reshapedX[],
  * # threadConvRBFGen
  *
  * Performs the RBF-based convolution kernel feature generation
- * process for the input, for one thread. reshapedX is split up into
+ * process for the input, for one thread. xdata is split up into
  * num_threads chunks each with a start and end row.
  *
  * ## Args:
@@ -169,25 +179,27 @@ const char *convRBFGrad_(int8_t *radem, T reshapedX[],
  * transform, the start and end rows etc.
  */
 template <typename T>
-void *threadConvRBFGen(T reshapedXArray[], T copyBuffer[],
+void *threadConvRBFGen(T xdata[], T copyBuffer[],
         int8_t *rademArray, T chiArr[], double *outputArray,
-        int reshapedDim1, int reshapedDim2, int numFreqs,
-        int rademShape2, int startRow, int endRow){
+        int dim1, int dim2, int numFreqs,
+        int rademShape2, int startRow, int endRow,
+        int convWidth, int paddedBufferSize){
 
     int i, numRepeats, repeatPosition = 0;
+    int numKmers = dim1 - convWidth + 1;
     numRepeats = (numFreqs +
-            reshapedDim2 - 1) / reshapedDim2;
+            paddedBufferSize - 1) / paddedBufferSize;
 
     for (i=0; i < numRepeats; i++){
-        convSORF3DWithCopyBuffer(reshapedXArray, copyBuffer, rademArray, repeatPosition,
-                startRow, endRow, reshapedDim1, reshapedDim2,
-                rademShape2);
+        convSORF3DWithCopyBuffer(xdata, copyBuffer, rademArray, repeatPosition,
+                startRow, endRow, dim1, dim2,
+                rademShape2, convWidth, paddedBufferSize);
         RBFPostProcess<T>(copyBuffer, chiArr,
-            outputArray, reshapedDim1,
-            reshapedDim2, numFreqs, startRow,
+            outputArray, numKmers,
+            paddedBufferSize, numFreqs, startRow,
             endRow, i);
         
-        repeatPosition += reshapedDim2;
+        repeatPosition += dim2;
     }
     return NULL;
 }
@@ -199,7 +211,7 @@ void *threadConvRBFGen(T reshapedXArray[], T copyBuffer[],
  * # threadConvRBFGrad
  *
  * Performs the RBF-based convolution kernel feature generation
- * process for the input, for one thread. reshapedX is split up into
+ * process for the input, for one thread. xdata is split up into
  * num_threads chunks each with a start and end row.
  *
  * ## Args:
@@ -208,29 +220,33 @@ void *threadConvRBFGen(T reshapedXArray[], T copyBuffer[],
  * transform, the start and end rows etc.
  */
 template <typename T>
-void *threadConvRBFGrad(T reshapedXArray[], T copyBuffer[],
+void *threadConvRBFGrad(T xdata[], T copyBuffer[],
         int8_t *rademArray, T chiArr[], double *outputArray,
-        double *gradientArray, int reshapedDim1,
-        int reshapedDim2, int numFreqs, int rademShape2,
-        int startRow, int endRow, T sigma){
+        double *gradientArray, int dim1,
+        int dim2, int numFreqs, int rademShape2,
+        int startRow, int endRow, T sigma,
+        int convWidth, int paddedBufferSize){
 
     int i, numRepeats, repeatPosition = 0;
+    int numKmers = dim1 - convWidth + 1;
     numRepeats = (numFreqs +
-            reshapedDim2 - 1) / reshapedDim2;
+            paddedBufferSize - 1) / paddedBufferSize;
 
     for (i=0; i < numRepeats; i++){
-        convSORF3DWithCopyBuffer(reshapedXArray, copyBuffer, rademArray, repeatPosition,
-                startRow, endRow, reshapedDim1, reshapedDim2,
-                rademShape2);
+        convSORF3DWithCopyBuffer(xdata, copyBuffer, rademArray, repeatPosition,
+                startRow, endRow, dim1, dim2,
+                rademShape2, convWidth, paddedBufferSize);
         RBFPostGrad<T>(copyBuffer, chiArr,
-            outputArray, gradientArray, reshapedDim1,
-            reshapedDim2, numFreqs, startRow,
+            outputArray, gradientArray, numKmers,
+            paddedBufferSize, numFreqs, startRow,
             endRow, i, sigma);
         
-        repeatPosition += reshapedDim2;
+        repeatPosition += dim2;
     }
     return NULL;
 }
+
+
 
 /*!
  * # RBFPostProcess
@@ -239,43 +255,43 @@ void *threadConvRBFGrad(T reshapedXArray[], T copyBuffer[],
  * generation.
  *
  * ## Args:
- * + `reshapedX` Pointer to the first element of the array that has been
+ * + `xdata` Pointer to the first element of the array that has been
  * used for the convolution. Shape is (N x D x C). C must be
  * a power of 2.
  * + `chiArr` Pointer to the first element of chiArr, a diagonal array
- * that will be multipled against reshapedX.
+ * that will be multipled against xdata.
  * + `outputArray` A pointer to the first element of the array in which
  * the output will be stored.
- * + `reshapedDim1` The second dimension of reshapedX
- * + `reshapedDim2` The last dimension of reshapedX
+ * + `dim1` The second dimension of xdata
+ * + `dim2` The last dimension of xdata
  * + `numFreqs` The number of frequencies to sample.
  * + `startRow` The first row of the input to work on
  * + `endRow` The last row of the input to work on
  * + `repeatNum` The repeat number
  */
 template <typename T>
-void RBFPostProcess(const T __restrict reshapedX[],
+void RBFPostProcess(const T __restrict xdata[],
         const T chiArr[], double *__restrict outputArray,
-        int reshapedDim1, int reshapedDim2, int numFreqs,
+        int dim1, int dim2, int numFreqs,
         int startRow, int endRow, int repeatNum){
     int i, j, k, lenOutputRow, outputStart;
     T prodVal;
     double *__restrict xOut;
     const T *__restrict xIn;
     const T *chiIn;
-    int endPosition, lenInputRow = reshapedDim1 * reshapedDim2;
+    int endPosition, lenInputRow = dim1 * dim2;
 
-    outputStart = repeatNum * reshapedDim2;
+    outputStart = repeatNum * dim2;
 
     //NOTE: MIN is defined in the header.
-    endPosition = MIN(numFreqs, (repeatNum + 1) * reshapedDim2);
+    endPosition = MIN(numFreqs, (repeatNum + 1) * dim2);
     endPosition -= outputStart;
     lenOutputRow = 2 * numFreqs;
     chiIn = chiArr + outputStart;
-    xIn = reshapedX + startRow * lenInputRow;
+    xIn = xdata + startRow * lenInputRow;
 
     for (i=startRow; i < endRow; i++){
-        for (k=0; k < reshapedDim1; k++){
+        for (k=0; k < dim1; k++){
             xOut = outputArray + i * lenOutputRow + 2 * outputStart;
             for (j=0; j < endPosition; j++){
                 prodVal = xIn[j] * chiIn[j];
@@ -284,7 +300,7 @@ void RBFPostProcess(const T __restrict reshapedX[],
                 *xOut += sin(prodVal);
                 xOut++;
             }
-            xIn += reshapedDim2;
+            xIn += dim2;
         }
     }
 }
@@ -301,17 +317,17 @@ void RBFPostProcess(const T __restrict reshapedX[],
  * the lengthscale.
  *
  * ## Args:
- * + `reshapedX` Pointer to the first element of the array that has been
+ * + `xdata` Pointer to the first element of the array that has been
  * used for the convolution. Shape is (N x D x C). C must be
  * a power of 2.
  * + `chiArr` Pointer to the first element of chiArr, a diagonal array
- * that will be multipled against reshapedX.
+ * that will be multipled against xdata.
  * + `outputArray` A pointer to the first element of the array in which
  * the output will be stored.
  * + `gradientArray` A pointer to the first element of the array in which
  * the gradient will be stored.
- * + `reshapedDim1` The second dimension of reshapedX
- * + `reshapedDim2` The last dimension of reshapedX
+ * + `dim1` The second dimension of xdata
+ * + `dim2` The last dimension of xdata
  * + `numFreqs` The number of frequencies to sample.
  * + `startRow` The first row of the input to work on
  * + `endRow` The last row of the input to work on
@@ -319,10 +335,10 @@ void RBFPostProcess(const T __restrict reshapedX[],
  * + `sigma` The lengthscale hyperparameter
  */
 template <typename T>
-void RBFPostGrad(const T __restrict reshapedX[],
+void RBFPostGrad(const T __restrict xdata[],
         const T chiArr[], double *__restrict outputArray,
         double *__restrict gradientArray,
-        int reshapedDim1, int reshapedDim2,
+        int dim1, int dim2,
         int numFreqs, int startRow, int endRow,
         int repeatNum, T sigma){
     int i, j, k, lenOutputRow, outputStart;
@@ -330,23 +346,23 @@ void RBFPostGrad(const T __restrict reshapedX[],
     double *__restrict xOut, *__restrict gradOut;
     const T *__restrict xIn;
     const T *chiIn;
-    int endPosition, lenInputRow = reshapedDim1 * reshapedDim2;
+    int endPosition, lenInputRow = dim1 * dim2;
 
-    outputStart = repeatNum * reshapedDim2;
+    outputStart = repeatNum * dim2;
 
     //NOTE: MIN is defined in the header.
-    endPosition = MIN(numFreqs, (repeatNum + 1) * reshapedDim2);
+    endPosition = MIN(numFreqs, (repeatNum + 1) * dim2);
     endPosition -= outputStart;
 
     lenOutputRow = 2 * numFreqs;
     chiIn = chiArr + outputStart;
 
     for (i=startRow; i < endRow; i++){
-        xIn = reshapedX + i * lenInputRow;
+        xIn = xdata + i * lenInputRow;
         xOut = outputArray + i * lenOutputRow + 2 * outputStart;
         gradOut = gradientArray + i * lenOutputRow + 2 * outputStart;
 
-        for (k=0; k < reshapedDim1; k++){
+        for (k=0; k < dim1; k++){
             for (j=0; j < endPosition; j++){
                 gradVal = xIn[j] * chiIn[j];
                 prodVal = gradVal * sigma;
@@ -357,33 +373,31 @@ void RBFPostGrad(const T __restrict reshapedX[],
                 gradOut[2*j] += -sinVal * gradVal;
                 gradOut[2*j+1] += cosVal * gradVal;
             }
-            xIn += reshapedDim2;
+            xIn += dim2;
         }
     }
 }
 
 
 //Instantiate the templates the wrapper will need to access.
-template const char *convRBFFeatureGen_<float>(int8_t *radem, float reshapedX[],
-            float copyBuffer[], float chiArr[], double *outputArray,
-            int numThreads, int reshapedDim0,
-            int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2);
-template const char *convRBFFeatureGen_<double>(int8_t *radem, double reshapedX[],
-            double copyBuffer[], double chiArr[], double *outputArray,
-            int numThreads, int reshapedDim0,
-            int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2);
+template const char *convRBFFeatureGen_<float>(int8_t *radem, float xdata[],
+            float chiArr[], double *outputArray, int numThreads, int dim0,
+            int dim1, int dim2, int numFreqs, int rademShape2,
+            int convWidth, int paddedBufferSize);
+template const char *convRBFFeatureGen_<double>(int8_t *radem, double xdata[],
+            double chiArr[], double *outputArray, int numThreads, int dim0,
+            int dim1, int dim2, int numFreqs, int rademShape2,
+            int convWidth, int paddedBufferSize);
 
-template const char *convRBFGrad_<float>(int8_t *radem, float reshapedX[],
-            float copyBuffer[], float chiArr[], double *outputArray,
+template const char *convRBFGrad_<float>(int8_t *radem, float xdata[],
+            float chiArr[], double *outputArray,
             double *gradientArray, float sigma,
-            int numThreads, int reshapedDim0,
-            int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2);
-template const char *convRBFGrad_<double>(int8_t *radem, double reshapedX[],
-            double copyBuffer[], double chiArr[], double *outputArray,
+            int numThreads, int dim0, int dim1, int dim2,
+            int numFreqs, int rademShape2,
+            int convWidth, int paddedBufferSize);
+template const char *convRBFGrad_<double>(int8_t *radem, double xdata[],
+            double chiArr[], double *outputArray,
             double *gradientArray, double sigma,
-            int numThreads, int reshapedDim0,
-            int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2);
+            int numThreads, int dim0, int dim1, int dim2,
+            int numFreqs, int rademShape2,
+            int convWidth, int paddedBufferSize);

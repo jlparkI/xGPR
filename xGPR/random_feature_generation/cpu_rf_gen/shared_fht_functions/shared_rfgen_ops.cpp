@@ -346,6 +346,64 @@ template void conv1dRademAndCopy<float>(const float *__restrict xArray,
 
 
 /*!
+ * #StridedCopyOp
+ *
+ * Copies from a raw data array into a copy buffer in such a way that
+ * an FHT-based convolution can be performed on the copy buffer. Caller
+ * must check parameters to ensure they are valid.
+ *
+ * ## Args:
+ *
+ * + `xdata` Pointer to the first element of the raw data array.
+ * + `copyBuffer` Pointer to the first element of the copy buffer.
+ * + `dim1` shape[1] of xdata
+ * + `dim2` shape[2] of xdata
+ * + `bufferDim2` shape[2] of copyBuffer.
+ * + `startRow` first row of xdata to copy
+ * + `endRow` last row of xdata to copy
+ * + `convWidth` The number of elements in a convolution.
+ *
+ */
+template <typename T>
+void StridedCopyOp(const T xdata[], T copyBuffer[],
+        int dim1, int dim2, int bufferDim2, int startRow, int endRow,
+        int convWidth){
+    int inputRowSize = dim1 * dim2;
+    int numKmers = dim1 - convWidth + 1;
+    
+    int inputElementSize = dim2 * convWidth;
+    int outputRowSize = bufferDim2 * numKmers;
+
+    const T *__restrict xPtr = xdata + startRow * inputRowSize;
+    T *__restrict copyPtr = copyBuffer + startRow * outputRowSize;
+
+    for (int i=startRow; i < endRow; i++){
+        xPtr = xdata + i * inputRowSize;
+        copyPtr = copyBuffer + i * outputRowSize;
+
+        for (int j=0; j < numKmers; j++){
+            for (int k=0; k < inputElementSize; k++)
+                copyPtr[k] = xPtr[k];
+            for (int k=inputElementSize; k < bufferDim2; k++)
+                copyPtr[k] = 0;
+
+            copyPtr += bufferDim2;
+            xPtr += dim2;
+        }
+    }
+}
+template void StridedCopyOp<double>(const double *xdata,
+                        double *copyBuffer, int dim1, int dim2,
+                        int bufferDim2, int startRow, int endRow,
+                        int convWidth);
+template void StridedCopyOp<float>(const float *xdata,
+                        float *copyBuffer, int dim1, int dim2,
+                        int bufferDim2, int startRow, int endRow,
+                        int convWidth);
+
+
+
+/*!
  * # SORF3D
  *
  * Performs all the steps involved in the SORF operation on
@@ -433,7 +491,6 @@ template <typename T>
 void convSORF3D(T xArray[], const int8_t *rademArray,
         int repeatPosition, int startRow, int endRow,
         int dim1, int dim2, int rademShape2){
-    int rowSize = dim1 * dim2;
 
     conv1dMultiplyByRadem<T>(xArray,
                     rademArray,
@@ -497,46 +554,50 @@ template void convSORF3D<float>(float *xArray,
  * + `dim2` The length of dim3 of the array (e.g. C in
  * N x D x C)
  * + `rademShape2` The size of F in the shape of the rademArray.
+ * + `convWidth` The number of elements in a convolution.
  */
 template <typename T>
 void convSORF3DWithCopyBuffer(T reshapedXArray[], T copyBuffer[],
         const int8_t *rademArray,
         int repeatPosition, int startRow, int endRow,
-        int dim1, int dim2, int rademShape2){
-    int rowSize = dim1 * dim2;
+        int dim1, int dim2, int rademShape2,
+        int convWidth, int bufferDim2){
 
-    conv1dRademAndCopy<T>(reshapedXArray,
-                    copyBuffer,
+    int numKmers = dim1 - convWidth + 1;
+
+    StridedCopyOp(reshapedXArray, copyBuffer,
+            dim1, dim2, bufferDim2, startRow, endRow,
+            convWidth);
+    conv1dMultiplyByRadem<T>(copyBuffer,
                     rademArray,
                     startRow, endRow,
-                    dim1, dim2,
+                    numKmers, bufferDim2,
                     repeatPosition);
     transformRows<T>(copyBuffer, startRow,
-                    endRow, dim1, dim2);
+                    endRow, numKmers, bufferDim2);
 
     conv1dMultiplyByRadem<T>(copyBuffer,
                     rademArray + rademShape2,
                     startRow, endRow,
-                    dim1, dim2,
+                    numKmers, bufferDim2,
                     repeatPosition);
     transformRows<T>(copyBuffer, startRow,
-                    endRow, dim1, dim2);
+                    endRow, numKmers, bufferDim2);
 
     conv1dMultiplyByRadem<T>(copyBuffer,
                     rademArray + 2 * rademShape2,
                     startRow, endRow,
-                    dim1, dim2,
+                    numKmers, bufferDim2,
                     repeatPosition);
     transformRows<T>(copyBuffer, startRow,
-                    endRow, dim1, dim2);
+                    endRow, numKmers, bufferDim2);
 }
 //Explicitly instantiate for external use.
 template void convSORF3DWithCopyBuffer<double>(double *reshapedXArray, double *copyBuffer,
                         const int8_t *rademArray, int repeatPosition,
                         int startRow, int endRow, int dim1, int dim2,
-                        int rademShape2);
+                        int rademShape2, int convWidth, int bufferDim2);
 template void convSORF3DWithCopyBuffer<float>(float *reshapedXArray, float *copyBuffer,
                         const int8_t *rademArray, int repeatPosition,
                         int startRow, int endRow, int dim1, int dim2,
-                        int rademShape2);
-
+                        int rademShape2, int convWidth, int bufferDim2);

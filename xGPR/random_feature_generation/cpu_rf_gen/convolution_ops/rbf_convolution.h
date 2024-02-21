@@ -7,45 +7,49 @@
 
 
 template <typename T>
-const char *convRBFFeatureGen_(int8_t *radem, T reshapedX[],
-            T copyBuffer[], T chiArr[], double *outputArray,
-            int numThreads, int reshapedDim0,
-            int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2);
+const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
+            T chiArr[], double *outputArray,
+            int numThreads, int dim0,
+            int dim1, int dim2,
+            int numFreqs, int rademShape2,
+            int convWidth, int paddedBufferSize);
 
 template <typename T>
-const char *convRBFGrad_(int8_t *radem, T reshapedX[],
-            T copyBuffer[], T chiArr[], double *outputArray,
+const char *convRBFGrad_(int8_t *radem, T xdata[],
+            T chiArr[], double *outputArray,
             double *gradientArray, T sigma,
-            int numThreads, int reshapedDim0,
-            int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2);
+            int numThreads, int dim0,
+            int dim1, int dim2, int numFreqs,
+            int rademShape2, int convWidth,
+            int paddedBufferSize);
 
 template <typename T>
-void *threadConvRBFGen(T reshapedXArray[], T copyBuffer[],
+void *threadConvRBFGen(T xdata[], T copyBuffer[],
         int8_t *rademArray, T chiArr[], double *outputArray,
-        int reshapedDim1, int reshapedDim2, int numFreqs,
-        int rademShape2, int startRow, int endRow);
+        int dim1, int dim2, int numFreqs,
+        int rademShape2, int startRow, int endRow,
+        int convWidth, int paddedBufferSize);
 
 template <typename T>
-void *threadConvRBFGrad(T reshapedXArray[], T copyBuffer[],
+void *threadConvRBFGrad(T xdata[], T copyBuffer[],
         int8_t *rademArray, T chiArr[], double *outputArray,
-        double *gradientArray, int reshapedDim1,
-        int reshapedDim2, int numFreqs, int rademShape2,
-        int startRow, int endRow, T sigma);
+        double *gradientArray, int dim1,
+        int dim2, int numFreqs, int rademShape2,
+        int startRow, int endRow, T sigma,
+        int convWidth, int paddedBufferSize);
 
 template <typename T>
-void RBFPostProcess(const T __restrict reshapedX[],
+void RBFPostProcess(const T __restrict xdata[],
         const T chiArr[], double *__restrict outputArray,
-        int reshapedDim1, int reshapedDim2, int numFreqs,
+        int dim1, int dim2, int numFreqs,
         int startRow, int endRow, int repeatNum);
 
 
 template <typename T>
-void RBFPostGrad(const T __restrict reshapedX[],
+void RBFPostGrad(const T __restrict xdata[],
         const T chiArr[], double *__restrict outputArray,
         double *__restrict gradientArray,
-        int reshapedDim1, int reshapedDim2,
+        int dim1, int dim2,
         int numFreqs, int startRow, int endRow,
         int repeatNum, T sigma);
 

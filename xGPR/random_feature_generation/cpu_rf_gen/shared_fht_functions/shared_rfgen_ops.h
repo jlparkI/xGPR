@@ -30,11 +30,15 @@ void conv1dMultiplyByRadem(T __restrict xArray[],
                         int reshapedDim2, int startPosition);
 
 template <typename T>
-void conv1dRademAndCopy(const T __restrict xArray[],
-                        T __restrict copyBuffer[],
+void conv1dRademAndCopy(const T xArray[],
+                        T copyBuffer[],
                         const int8_t *rademArray, int startRow,
                         int endRow, int reshapedDim1,
                         int reshapedDim2, int startPosition);
+template <typename T>
+void StridedCopyOp(const T xdata[], T copyBuffer[],
+        int dim1, int dim2, int bufferDim2, int startRow,
+        int endRow, int convWidth);
 
 template <typename T>
 void SORF3D(T arrayStart[], const int8_t *rademArray,
@@ -48,6 +52,8 @@ void convSORF3D(T arrayStart[], const int8_t *rademArray,
 template <typename T>
 void convSORF3DWithCopyBuffer(T reshapedXArray[], T copyBuffer[],
         const int8_t *rademArray, int repeatPosition, int startRow,
-        int endRow, int dim1, int dim2, int rademShape2);
+        int endRow, int dim1, int dim2, int rademShape2,
+        int convWidth, int bufferDim2);
+
 
 #endif
