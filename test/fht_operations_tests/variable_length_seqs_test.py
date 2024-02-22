@@ -58,6 +58,7 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
             block1 = cp.asarray(block1)
             block2 = cp.asarray(block2)
             dud_block = cp.asarray(dud_block)
+            sequence_lengths = cp.asarray(sequence_lengths)
         try:
             _ = model.kernel.transform_x(block1, sequence_lengths)
             outcomes.append(True)
@@ -70,11 +71,10 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
         except:
             outcomes.append(False)
         try:
-            sequence_lengths = np.full(dud_block.shape[0], dud_block.shape[1]).astype(np.int32)
-            _ = model.kernel.transform_x(dud_block)
+            _ = model.kernel.transform_x(dud_block, sequence_lengths)
             outcomes.append(False)
         except:
-            outcomes.append(True)
+           outcomes.append(True)
     return outcomes
 
 

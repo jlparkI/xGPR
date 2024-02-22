@@ -66,7 +66,7 @@ __global__ void baseLevelTransform(T cArray[], int N, int log2N){
 //constant.
 template <typename T>
 __global__ void singleStepSORF(T cArray[], int N, int log2N,
-        int8_t *radem, T normConstant, int numElementsPerRow){
+        const int8_t *radem, T normConstant, int numElementsPerRow){
 
     int startPosition = (blockIdx.x << log2N);
 
@@ -76,7 +76,7 @@ __global__ void singleStepSORF(T cArray[], int N, int log2N,
     int lo, id1, id2;
     T *src_ptr = cArray + startPosition;
     T y;
-    int8_t *rademPtr = radem + (startPosition % numElementsPerRow);
+    const int8_t *rademPtr = radem + (startPosition % numElementsPerRow);
 
     //Copy data into shared memory while doing the first diagonal matmul.
     for (i = threadIdx.x; i < N; i += blockDim.x)
@@ -176,7 +176,7 @@ __global__ void singleStepSORF(T cArray[], int N, int log2N,
 //constant.
 template <typename T>
 __global__ void singleStepConvSORF(T cArray[], int N, int log2N,
-        int8_t *radem, T normConstant, int repeatStart,
+        const int8_t *radem, T normConstant, int repeatStart,
         int rademShape2){
 
     int startPosition = (blockIdx.x << log2N);
@@ -187,7 +187,7 @@ __global__ void singleStepConvSORF(T cArray[], int N, int log2N,
     int lo, id1, id2;
     T *src_ptr = cArray + startPosition;
     T y;
-    int8_t *rademPtr = radem + repeatStart;
+    const int8_t *rademPtr = radem + repeatStart;
 
     //Copy data into shared memory while doing the first diagonal matmul.
     for (i = threadIdx.x; i < N; i += blockDim.x)
@@ -395,7 +395,7 @@ void cudaHTransform(T cArray[],
 //Note that all of these arrays are already expected to "live" on GPU.
 //Can be used to perform SORF on a 2d array by passing dim1=1.
 template <typename T>
-const char *cudaSORF3d(T cArray[], int8_t *radem,
+const char *cudaSORF3d(T cArray[], const int8_t *radem,
                 int dim0, int dim1, int dim2){
     int numElementsPerRow = dim1 * dim2;
     int numElements = dim1 * dim2 * dim0;
@@ -438,9 +438,9 @@ const char *cudaSORF3d(T cArray[], int8_t *radem,
     return "no_error";
 }
 //Instantiate templates explicitly so wrapper can use.
-template const char *cudaSORF3d<float>(float cArray[], int8_t *radem,
+template const char *cudaSORF3d<float>(float cArray[], const int8_t *radem,
                 int dim0, int dim1, int dim2);
-template const char *cudaSORF3d<double>(double cArray[], int8_t *radem,
+template const char *cudaSORF3d<double>(double cArray[], const int8_t *radem,
                 int dim0, int dim1, int dim2);
 
 
@@ -456,7 +456,7 @@ template const char *cudaSORF3d<double>(double cArray[], int8_t *radem,
 //
 //Note that all of these arrays are already expected to "live" on GPU.
 template <typename T>
-const char *cudaConvSORF3d(T cArray[], int8_t *radem,
+const char *cudaConvSORF3d(T cArray[], const int8_t *radem,
                 int dim0, int dim1, int dim2,
                 int startPosition, int numElements,
                 int rademShape2, T normConstant){
@@ -496,10 +496,10 @@ const char *cudaConvSORF3d(T cArray[], int8_t *radem,
     return "no_error";
 }
 //Instantiate templates explicitly so wrapper can use.
-template const char *cudaConvSORF3d<float>(float cArray[], int8_t *radem,
+template const char *cudaConvSORF3d<float>(float cArray[], const int8_t *radem,
                 int dim0, int dim1, int dim2, int startPosition,
                 int numElements, int rademShape2, float normConstant);
-template const char *cudaConvSORF3d<double>(double cArray[], int8_t *radem,
+template const char *cudaConvSORF3d<double>(double cArray[], const int8_t *radem,
                 int dim0, int dim1, int dim2, int startPosition,
                 int numElements, int rademShape2, double normConstant);
 
@@ -517,7 +517,7 @@ template const char *cudaConvSORF3d<double>(double cArray[], int8_t *radem,
 //
 //Note that all of these arrays are already expected to "live" on GPU.
 template <typename T>
-const char *cudaSRHT2d(T cArray[], int8_t *radem,
+const char *cudaSRHT2d(T cArray[], const int8_t *radem,
                 int dim0, int dim1){
     int numElementsPerRow = dim1;
     int numElements = dim1 * dim0;
@@ -539,7 +539,7 @@ const char *cudaSRHT2d(T cArray[], int8_t *radem,
     return "no_error";
 }
 //Instantiate templates explicitly so wrapper can use.
-template const char *cudaSRHT2d<float>(float cArray[], int8_t *radem,
+template const char *cudaSRHT2d<float>(float cArray[], const int8_t *radem,
                 int dim0, int dim1);
-template const char *cudaSRHT2d<double>(double cArray[], int8_t *radem,
+template const char *cudaSRHT2d<double>(double cArray[], const int8_t *radem,
                 int dim0, int dim1);

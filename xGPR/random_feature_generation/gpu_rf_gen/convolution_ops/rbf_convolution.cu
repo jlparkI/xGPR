@@ -15,31 +15,46 @@
 
 
 
+//Performs a strided copy from the original xdata into a temporary copy
+//buffer to set it up for FHT-based convolution.
+template <typename T>
+__global__ void cudaConvRBFStridedCopyOp(const T xdata[], T copyBuffer[],
+            int dim1, int dim2, int numKmers, int bufferDim2, int convWidth,
+            int numElements){
+    int zLoc = blockIdx.z * blockDim.x + threadIdx.x;
+
+    int outputElement = blockIdx.x * numKmers * bufferDim2;
+    outputElement += blockIdx.y * bufferDim2 + zLoc;
+    int kmerWidth = convWidth * dim2;
+
+    int inputElement = blockIdx.x * dim1 * dim2;
+    inputElement += blockIdx.y * dim2 + zLoc;
+
+    if (outputElement < numElements && (zLoc < kmerWidth))
+        copyBuffer[outputElement] = xdata[inputElement];
+}
+
 
 //Performs the final steps in feature generation for RBF-based convolution
 //kernels -- multiplying by chiArr, taking sine or cosine and adding
 //to the appropriate elements of outputArray.
 template <typename T>
-__global__ void convRBFPostProcessKernel(T featureArray[], T chiArr[],
+__global__ void convRBFPostProcessKernel(const T featureArray[], const T chiArr[],
             double *outputArray, int dim1, int dim2, int numFreqs,
-            int startPosition, int numElements,
-            int endPosition, double scalingTerm){
-    int i;
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    int column = tid % endPosition;
-    int row = tid / endPosition;
-    int inputLoc = row * dim1 * dim2 + column;
-    int outputLoc = row * 2 * numFreqs + 2 * column + 2 * startPosition;
+            int startPosition, int endPosition, double scalingTerm){
+    int zLoc = blockIdx.y * blockDim.x + threadIdx.x;
+    int inputLoc = blockIdx.x * dim1 * dim2 + zLoc;
+    int outputLoc = blockIdx.x * 2 * numFreqs + 2 * zLoc + 2 * startPosition;
+    const T *featurePtr = featureArray + inputLoc;
     double chiProd, sinSum = 0, cosSum = 0;
 
-    if (tid < numElements){
-        T chiVal = chiArr[startPosition + column];
+    if (zLoc < endPosition){
+        T chiVal = chiArr[startPosition + zLoc];
 
-        for (i=0; i < dim1; i++){
-            chiProd = chiVal * featureArray[inputLoc];
+        for (int i=0; i < (dim1 * dim2); i+=(gridDim.y * blockDim.x)){
+            chiProd = chiVal * featurePtr[i];
             cosSum += cos(chiProd);
             sinSum += sin(chiProd);
-            inputLoc += dim2;
         }
         outputArray[outputLoc] = cosSum * scalingTerm;
         outputArray[outputLoc + 1] = sinSum * scalingTerm;
@@ -47,44 +62,38 @@ __global__ void convRBFPostProcessKernel(T featureArray[], T chiArr[],
 }
 
 
-//Performs the final steps in feature generation WITH simultaneous gradient
-//calculation for RBF-based convolution
+
+//Performs the final steps in feature generation for RBF-based convolution
 //kernels -- multiplying by chiArr, taking sine or cosine and adding
 //to the appropriate elements of outputArray.
 template <typename T>
-__global__ void convRBFGradProcessKernel(T featureArray[], T chiArr[],
+__global__ void convRBFGradProcessKernel(const T featureArray[], const T chiArr[],
             double *outputArray, int dim1, int dim2, int numFreqs,
-            int startPosition, int numElements,
-            int endPosition, double scalingTerm,
-            double sigma, double *gradientArray)
-{
-    int i;
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    int column = tid % endPosition;
-    int row = tid / endPosition;
-    int inputLoc = row * dim1 * dim2 + column;
-    int outputLoc = row * 2 * numFreqs + 2 * column + 2 * startPosition;
-    double chiProd, sinSum = 0, cosSum = 0, sinVal, cosVal;
+            int startPosition, int endPosition, double scalingTerm,
+            double sigma, double *gradientArray){
+    int zLoc = blockIdx.y * blockDim.x + threadIdx.x;
+    int inputLoc = blockIdx.x * dim1 * dim2 + zLoc;
+    int outputLoc = blockIdx.x * 2 * numFreqs + 2 * zLoc + 2 * startPosition;
+    const T *featurePtr = featureArray + inputLoc;
+    double chiProd, cosVal, sinVal, sinSum = 0, cosSum = 0;
     double gradSinVal = 0, gradCosVal = 0;
 
-    if (tid < numElements){
-        T chiVal = chiArr[startPosition + column];
+    if (zLoc < endPosition){
+        T chiVal = chiArr[startPosition + zLoc];
 
-        for (i=0; i < dim1; i++){
-            chiProd = chiVal * featureArray[inputLoc];
+        for (int i=0; i < (dim1 * dim2); i+=(gridDim.y * blockDim.x)){
+            chiProd = chiVal * featurePtr[i];
             cosVal = cos(chiProd * sigma);
             sinVal = sin(chiProd * sigma);
 
             cosSum += cosVal;
             sinSum += sinVal;
-            //These are the derivatives.
             gradCosVal -= sinVal * chiProd;
             gradSinVal += cosVal * chiProd;
-            inputLoc += dim2;
         }
+
         outputArray[outputLoc] = cosSum * scalingTerm;
         outputArray[outputLoc + 1] = sinSum * scalingTerm;
-
         gradientArray[outputLoc] = gradCosVal * scalingTerm;
         gradientArray[outputLoc + 1] = gradSinVal * scalingTerm;
     }
@@ -95,52 +104,76 @@ __global__ void convRBFGradProcessKernel(T featureArray[], T chiArr[],
 //This function generates and sums random features for an
 //input array reshapedX of input type float.
 template <typename T>
-const char *convRBFFeatureGen(int8_t *radem, T reshapedX[],
-            T featureArray[], T chiArr[], double *outputArray,     
-            int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2, double scalingTerm){
+const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
+            const T chiArr[], double *outputArray,
+            int xdim0, int xdim1, int xdim2, int numFreqs,
+            int rademShape2, int convWidth, int paddedBufferSize,
+            double scalingTerm){
 
-    int numElements = reshapedDim0 * reshapedDim1 * reshapedDim2;
+    int numKmers = xdim1 - convWidth + 1;
+    int numElements = xdim0 * numKmers * paddedBufferSize;
+
+    T *featureArray;
+    if (cudaMalloc(&featureArray, sizeof(T) * numElements) != cudaSuccess) {
+            cudaFree(featureArray);
+            return "Fatal malloc error";
+    };
+
     //This is the Hadamard normalization constant.
-    T normConstant = log2(reshapedDim2) / 2;
+    T normConstant = log2(paddedBufferSize) / 2;
     normConstant = 1 / pow(2, normConstant);
-    int endPosition, numOutElements, outBlocks;
-    int numRepeats = (numFreqs + reshapedDim2 - 1) / reshapedDim2;
-    int i, startPosition;
+
+    int startPosition, endPosition;
+    int thPerCopyBlock = DEFAULT_THREADS_PER_BLOCK, thPerSumBlock;
+    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
     const char *errCode;
 
-    for (i=0; i < numRepeats; i++){
-        startPosition = i * reshapedDim2;
-        endPosition = MIN((i + 1) * reshapedDim2, numFreqs);
-        endPosition -= i * reshapedDim2;
-        numOutElements = reshapedDim0 * endPosition;
-        outBlocks = (numOutElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
+    if (xdim2 <= 64)
+        thPerCopyBlock = 64;
+    else if (xdim2 < 256)
+        thPerCopyBlock = 128;
 
-        cudaMemcpy(featureArray, reshapedX, sizeof(T) * numElements,
-                cudaMemcpyDeviceToDevice);
+    //Can do this, because paddedBufferSize is always a power of 2.
+    thPerSumBlock = MIN(256, paddedBufferSize);
+
+    dim3 copyBlocks = dim3(xdim0, numKmers, (xdim2 * convWidth + thPerCopyBlock - 1) / thPerCopyBlock);
+    dim3 sumBlocks = dim3(xdim0, paddedBufferSize / thPerSumBlock, 1);
+
+
+    for (int i=0; i < numRepeats; i++){
+        startPosition = i * paddedBufferSize;
+        endPosition = MIN((i + 1) * paddedBufferSize, numFreqs) - startPosition;
+
+        cudaMemset(featureArray, 0, sizeof(T) * numElements);
+        cudaConvRBFStridedCopyOp<T><<<copyBlocks, thPerCopyBlock>>>(xdata, featureArray,
+            xdim1, xdim2, numKmers, paddedBufferSize, convWidth, numElements);
+
         errCode = cudaConvSORF3d<T>(featureArray, radem,
-                reshapedDim0, reshapedDim1, reshapedDim2,
-                startPosition, numElements, rademShape2, normConstant);
+                xdim0, numKmers, paddedBufferSize, startPosition, numElements,
+                rademShape2, normConstant);
+
 
         //Multiply by chiArr; take the sine and cosine of elements of
         //featureArray, multiply by scalingTerm, and transfer to outputArray.
-        convRBFPostProcessKernel<T><<<outBlocks, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
-                outputArray, reshapedDim1, reshapedDim2, numFreqs,
-                startPosition, numOutElements, endPosition,
-                scalingTerm);
+        convRBFPostProcessKernel<T><<<sumBlocks, thPerSumBlock>>>(featureArray, chiArr,
+                outputArray, numKmers, paddedBufferSize, numFreqs,
+                startPosition, endPosition, scalingTerm);
     }
 
+    cudaFree(featureArray);
     return errCode;
 }
 //Explicitly instantiate so wrapper can use.
-template const char *convRBFFeatureGen<float>(int8_t *radem, float reshapedX[],
-            float featureArray[], float chiArr[], double *outputArray,     
-            int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2, double scalingTerm);
-template const char *convRBFFeatureGen<double>(int8_t *radem, double reshapedX[],
-            double featureArray[], double chiArr[], double *outputArray,     
-            int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2, double scalingTerm);
+template const char *convRBFFeatureGen<float>(const int8_t *radem,
+            const float xdata[], const float chiArr[], double *outputArray,
+            int xdim0, int xdim1, int xdim2, int numFreqs,
+            int rademShape2, int convWidth, int paddedBufferSize,
+            double scalingTerm);
+template const char *convRBFFeatureGen<double>(const int8_t *radem,
+            const double xdata[], const double chiArr[], double *outputArray,
+            int xdim0, int xdim1, int xdim2, int numFreqs,
+            int rademShape2, int convWidth, int paddedBufferSize,
+            double scalingTerm);
 
 
 
@@ -152,56 +185,76 @@ template const char *convRBFFeatureGen<double>(int8_t *radem, double reshapedX[]
 //lengthscale; ARD-type kernels require a more complicated
 //gradient calculation not implemented here.
 template <typename T>
-const char *convRBFFeatureGrad(int8_t *radem, T reshapedX[],
-            T featureArray[], T chiArr[], double *outputArray,     
+const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
+            const T chiArr[], double *outputArray,
             double *gradientArray, double sigma,
-            int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2, double scalingTerm){
+            int xdim0, int xdim1, int xdim2, int numFreqs,
+            int rademShape2, int convWidth, int paddedBufferSize,
+            double scalingTerm){
 
-    int numElements = reshapedDim0 * reshapedDim1 * reshapedDim2;
+    int numKmers = xdim1 - convWidth + 1;
+    int numElements = xdim0 * numKmers * paddedBufferSize;
+
+    T *featureArray;
+    if (cudaMalloc(&featureArray, sizeof(T) * numElements) != cudaSuccess) {
+            cudaFree(featureArray);
+            return "Fatal malloc error";
+    };
+
     //This is the Hadamard normalization constant.
-    T normConstant = log2(reshapedDim2) / 2;
+    T normConstant = log2(paddedBufferSize) / 2;
     normConstant = 1 / pow(2, normConstant);
-    int numOutElements, outBlocks;
-
-    int numRepeats = (numFreqs + reshapedDim2 - 1) / reshapedDim2;
-    int i, startPosition, endPosition;
+    int startPosition, endPosition;
+    int thPerCopyBlock = DEFAULT_THREADS_PER_BLOCK, thPerSumBlock;
+    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
     const char *errCode;
 
+    if (xdim2 <= 64)
+        thPerCopyBlock = 64;
+    else if (xdim2 < 256)
+        thPerCopyBlock = 128;
 
-    for (i=0; i < numRepeats; i++){
-        startPosition = i * reshapedDim2;
-        endPosition = MIN((i + 1) * reshapedDim2, numFreqs);
-        endPosition -= startPosition;
-        numOutElements = reshapedDim0 * endPosition;
-        outBlocks = (numOutElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
+    //Can do this, because paddedBufferSize is always a power of 2.
+    thPerSumBlock = MIN(256, paddedBufferSize);
 
-        cudaMemcpy(featureArray, reshapedX, sizeof(T) * numElements,
-                cudaMemcpyDeviceToDevice);
+    dim3 copyBlocks = dim3(xdim0, numKmers, (xdim2 * convWidth + thPerCopyBlock - 1) / thPerCopyBlock);
+    dim3 sumBlocks = dim3(xdim0, paddedBufferSize / thPerSumBlock, 1);
+
+    for (int i=0; i < numRepeats; i++){
+        startPosition = i * paddedBufferSize;
+        endPosition = MIN((i + 1) * paddedBufferSize, numFreqs) - startPosition;
+
+        cudaMemset(featureArray, 0, sizeof(T) * numElements);
+        cudaConvRBFStridedCopyOp<T><<<copyBlocks, thPerCopyBlock>>>(xdata, featureArray,
+            xdim1, xdim2, numKmers, paddedBufferSize, convWidth, numElements);
+
         errCode = cudaConvSORF3d<T>(featureArray, radem,
-                reshapedDim0, reshapedDim1, reshapedDim2,
+                xdim0, numKmers, paddedBufferSize,
                 startPosition, numElements, rademShape2, normConstant);
 
         //Multiply by chiArr; take the sine and cosine of elements of
         //featureArray, multiply by scalingTerm, transfer to output
         //AND at the same time calculate the gradient terms, using
         //them to populate gradientArray.
-        convRBFGradProcessKernel<T><<<outBlocks, DEFAULT_THREADS_PER_BLOCK>>>(featureArray, chiArr,
-                outputArray, reshapedDim1, reshapedDim2, numFreqs,
-                startPosition, numOutElements, endPosition,
-                scalingTerm, sigma, gradientArray);
+        convRBFGradProcessKernel<T><<<sumBlocks, thPerSumBlock>>>(featureArray, chiArr,
+                outputArray, numKmers, paddedBufferSize, numFreqs,
+                startPosition, endPosition, scalingTerm, sigma,
+                gradientArray);
     }
 
+    cudaFree(featureArray);
     return errCode;
 }
 //Explicitly instantiate so wrapper can use.
-template const char *convRBFFeatureGrad<float>(int8_t *radem, float reshapedX[],
-            float featureArray[], float chiArr[], double *outputArray,     
+template const char *convRBFFeatureGrad<float>(const int8_t *radem,
+            const float xdata[], const float chiArr[], double *outputArray,
             double *gradientArray, double sigma,
-            int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2, double scalingTerm);
-template const char *convRBFFeatureGrad<double>(int8_t *radem, double reshapedX[],
-            double featureArray[], double chiArr[], double *outputArray,     
+            int xdim0, int xdim1, int xdim2, int numFreqs,
+            int rademShape2, int convWidth, int paddedBufferSize,
+            double scalingTerm);
+template const char *convRBFFeatureGrad<double>(const int8_t *radem,
+            const double xdata[], const double chiArr[], double *outputArray,
             double *gradientArray, double sigma,
-            int reshapedDim0, int reshapedDim1, int reshapedDim2,
-            int numFreqs, int rademShape2, double scalingTerm);
+            int xdim0, int xdim1, int xdim2, int numFreqs,
+            int rademShape2, int convWidth, int paddedBufferSize,
+            double scalingTerm);

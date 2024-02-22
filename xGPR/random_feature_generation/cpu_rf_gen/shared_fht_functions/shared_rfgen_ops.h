@@ -30,12 +30,6 @@ void conv1dMultiplyByRadem(T __restrict xArray[],
                         int reshapedDim2, int startPosition);
 
 template <typename T>
-void conv1dRademAndCopy(const T xArray[],
-                        T copyBuffer[],
-                        const int8_t *rademArray, int startRow,
-                        int endRow, int reshapedDim1,
-                        int reshapedDim2, int startPosition);
-template <typename T>
 void StridedCopyOp(const T xdata[], T copyBuffer[],
         int dim1, int dim2, int bufferDim2, int startRow,
         int endRow, int convWidth);

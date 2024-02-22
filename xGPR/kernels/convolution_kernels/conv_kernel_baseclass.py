@@ -17,19 +17,16 @@ from cpu_rf_gen_module import cpuConv1dFGen, cpuConvGrad
 
 
 
-class Conv1dRBF(KernelBaseclass, ABC):
+class ConvKernelBaseclass(KernelBaseclass, ABC):
     """The baseclass for structured orthogonal random features (SORF)
     kernels that do 1d convolution. Since it inherits from
     KernelBaseclass, it includes the attributes of that class. Only
     additional attributes unique to this class are described here.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has two
-            hyperparameters: lambda_ (noise)
-            and sigma (inverse mismatch tolerance).
         conv_width (int): The width of the convolution kernel.
             This hyperparameter can be set based on experimentation
-            or domain knowledge. Defaults to 9.
+            or domain knowledge.
         dim2_no_padding (int): The size of the expected input data
             once reshaped for convolution, before zero padding.
         padded_dims (int): The size of the expected input data
@@ -45,19 +42,16 @@ class Conv1dRBF(KernelBaseclass, ABC):
             appropriate for the current device.
         grad_func: A reference to the random feature generation & gradient
             calculation function appropriate for the current device.
-        stride_tricks: A reference to cp.lib.stride_tricks.as_strided
-            or np.lib.stride_tricks.as_strided, as appropriate based
-            on the current device.
         sequence_average (bool): If True, the features are averaged over the sequence
             when summing. Can be set to True by passing "averaging":True under
             kernel_spec_parms, otherwise defaults to False. This is useful if
             modeling properties of a sequence that are not size-extensive.
     """
 
-    def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
+    def __init__(self, xdim, num_rffs, random_seed = 123,
                     num_threads = 2, double_precision = False,
                     conv_width = 9, kernel_spec_parms = {}):
-        """Constructor for FHT_Conv1d.
+        """Constructor.
 
         Args:
             xdim (tuple): The dimensions of the input. Either (N, D) or (N, M, D)
@@ -92,7 +86,6 @@ class Conv1dRBF(KernelBaseclass, ABC):
             if kernel_spec_parms["averaging"]:
                 self.sequence_average = True
 
-        self.hyperparams = np.ones((2))
         rng = np.random.default_rng(random_seed)
         self.conv_width = conv_width
 
@@ -102,7 +95,6 @@ class Conv1dRBF(KernelBaseclass, ABC):
                         self.padded_dims
 
         self.init_calc_featsize = 2 * init_calc_freqsize
-        self.bounds = np.asarray([[1e-3,1e2], [1e-2, 1e2]])
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
         self.radem_diag = rng.choice(radem_array, size=(3, 1, init_calc_freqsize),
@@ -112,8 +104,6 @@ class Conv1dRBF(KernelBaseclass, ABC):
 
         self.conv_func = None
         self.grad_func = None
-        self.stride_tricks = None
-        self.device = device
 
 
 
@@ -129,7 +119,6 @@ class Conv1dRBF(KernelBaseclass, ABC):
             self.grad_func = gpuConvGrad
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
-            self.stride_tricks = cp.lib.stride_tricks.as_strided
         else:
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
@@ -138,7 +127,6 @@ class Conv1dRBF(KernelBaseclass, ABC):
                 self.chi_arr = self.chi_arr.astype(self.dtype)
             self.conv_func = cpuConv1dFGen
             self.grad_func = cpuConvGrad
-            self.stride_tricks = np.lib.stride_tricks.as_strided
             self.chi_arr = self.chi_arr.astype(self.dtype)
 
 
@@ -174,7 +162,7 @@ class Conv1dRBF(KernelBaseclass, ABC):
         x_in = input_x.astype(self.dtype) * self.hyperparams[1]
         self.conv_func(x_in, sequence_length, self.radem_diag, xtrans,
                 self.chi_arr, self.conv_width, self.num_threads,
-                self.fit_intercept, self.sequence_average)
+                self.sequence_average)
         return xtrans
 
 
@@ -211,17 +199,10 @@ class Conv1dRBF(KernelBaseclass, ABC):
         if input_x.shape[2] != self._xdim[2]:
             raise ValueError("Unexpected input shape supplied.")
 
-        output_x = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
-        num_slides = input_x.shape[1] - self.conv_width + 1
-        reshaped_x = self.zero_arr((input_x.shape[0], num_slides,
-                                self.padded_dims), self.dtype)
-        x_strided = self.stride_tricks(input_x, shape=(input_x.shape[0],
-                            num_slides, self.dim2_no_padding),
-                            strides=(input_x.strides[0], input_x.shape[2] *
-                                input_x.strides[2], input_x.strides[2]))
-        reshaped_x[:,:,:self.dim2_no_padding] = x_strided
+        xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
+
         x_in = input_x.astype(self.dtype)
         dz_dsigma = self.grad_func(x_in, sequence_length, self.radem_diag,
-                output_x, self.chi_arr, self.conv_width, self.num_threads,
-                self.hyperparams[1], self.fit_intercept, self.sequence_average)
-        return output_x, dz_dsigma
+                xtrans, self.chi_arr, self.conv_width, self.num_threads,
+                self.hyperparams[1], self.sequence_average)
+        return xtrans, dz_dsigma

@@ -4,19 +4,18 @@
 #include <stdint.h>
 
 template <typename T>
-const char *cudaSORF3d(T npArray[], 
-                    int8_t *radem, int dim0, int dim1,
-                    int dim2);
+const char *cudaSORF3d(T npArray[],  const int8_t *radem,
+                int dim0, int dim1, int dim2);
 
 template <typename T>
-const char *cudaConvSORF3d(T cArray[], int8_t *radem,
+const char *cudaConvSORF3d(T cArray[], const int8_t *radem,
                 int dim0, int dim1, int dim2,
                 int startPosition, int numElements,
                 int rademShape2, T normConstant);
 
 template <typename T>
 const char *cudaSRHT2d(T npArray[], 
-                    int8_t *radem, int dim0, int dim1);
+                const int8_t *radem, int dim0, int dim1);
 
 
 template <typename T>

@@ -37,7 +37,6 @@ template <typename T>
 void transformRows(T __restrict xArray[], int startRow, int endRow,
                     int dim1, int dim2){
     int idx1 = startRow;
-    int i = 0, j, h = 1;
     T y;
     int rowStride = dim1 * dim2;
     T *__restrict xElement, *__restrict yElement;
@@ -50,7 +49,7 @@ void transformRows(T __restrict xArray[], int startRow, int endRow,
     for (idx1 = startRow; idx1 < endRow; idx1++){
         xElement = xArray + idx1 * rowStride;
         yElement = xElement + 1;
-        for (i = 0; i < rowStride; i += 2){
+        for (int i = 0; i < rowStride; i += 2){
             y = *yElement;
             *yElement = *xElement - y;
             *xElement += y;
@@ -62,7 +61,7 @@ void transformRows(T __restrict xArray[], int startRow, int endRow,
         
         xElement = xArray + idx1 * rowStride;
         yElement = xElement + 2;
-	    for (i = 0; i < rowStride; i += 4){
+	    for (int i = 0; i < rowStride; i += 4){
             y = *yElement;
             *yElement = *xElement - y;
             *xElement += y;
@@ -79,7 +78,7 @@ void transformRows(T __restrict xArray[], int startRow, int endRow,
 
         xElement = xArray + idx1 * rowStride;
         yElement = xElement + 4;
-	    for (i = 0; i < rowStride; i += 8){
+	    for (int i = 0; i < rowStride; i += 8){
             y = *yElement;
             *yElement = *xElement - y;
             *xElement += y;
@@ -108,11 +107,11 @@ void transformRows(T __restrict xArray[], int startRow, int endRow,
             continue;
 
         //The general, non-unrolled transform.
-        for (h = 8; h < dim2; h <<= 1){
-            for (i = 0; i < rowStride; i += (h << 1)){
+        for (int h = 8; h < dim2; h <<= 1){
+            for (int i = 0; i < rowStride; i += (h << 1)){
                 xElement = xArray + idx1 * rowStride + i;
                 yElement = xElement + h;
-                for (j=0; j < h; j++){
+                for (int j=0; j < h; j++){
                     y = *yElement;
                     *yElement = *xElement - y;
                     *xElement += y;

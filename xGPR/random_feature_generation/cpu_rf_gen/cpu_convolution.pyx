@@ -147,7 +147,6 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
                 int convWidth, int numThreads,
-                bool fitIntercept = False,
                 bool averageFeatures = False):
     """Uses wrapped C functions to generate random features for Conv1d RBF-related kernels.
     This function cannot be used to calculate the gradient so is only used for forward pass
@@ -168,8 +167,6 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
             array of shape m * C drawn from a chi distribution.
         convWidth (int): The width of the convolution. Must be <= D when xdata is (N x D x C).
         num_threads (int): Number of threads to use for FHT.
-        fitIntercept (bool): Whether to fit a y-intercept (in this case,
-            the first random feature generated should be set to 1).
         averageFeatures (bool): Whether to average the features generated along the
             first axis (makes kernel result less dependent on sequence length / graph
             size).
@@ -216,13 +213,10 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
         or not chiArr.flags["C_CONTIGUOUS"] or not sequence_lengths.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
 
-    if fitIntercept:
-        scalingTerm = np.sqrt(1.0 / (<double>chiArr.shape[0] - 0.5))
-    else:
-        scalingTerm = np.sqrt(1.0 / <double>(chiArr.shape[0]))
+    scalingTerm = np.sqrt(1.0 / <double>(chiArr.shape[0]))
 
     if averageFeatures:
-        scalingTerm /= <double>xdata.shape[1]
+        scalingTerm /= (<double>xdata.shape[1] - <double>convWidth + 1.)
 
     if chiArr.dtype == "float32" and xdata.dtype == "float32":
         errCode = convRBFFeatureGen_[float](&radem[0,0,0], <float*>addr_input,
@@ -246,11 +240,7 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing convolution.")
 
-    if fitIntercept:
-        outputArray *= scalingTerm
-        outputArray[:,0] = 1.
-    else:
-        outputArray *= scalingTerm
+    outputArray *= scalingTerm
 
 
 
@@ -263,7 +253,6 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
                 int convWidth, int numThreads, float sigma,
-                bool fitIntercept = False,
                 bool averageFeatures = False):
     """Performs feature generation for RBF-based convolution kernels while
     also performing gradient calculations.
@@ -283,8 +272,6 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
         convWidth (int): The width of the convolution. Must be <= D when xdata is (N x D x C).
         num_threads (int): Number of threads to use for FHT.
         sigma (float): The lengthscale.
-        fitIntercept (bool): Whether to fit a y-intercept (in this case,
-            the first random feature generated should be set to 1).
         averageFeatures (bool): Whether to average the features generated along the
             first axis (makes kernel result less dependent on sequence length / graph
             size).
@@ -334,12 +321,9 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
             not radem.flags["C_CONTIGUOUS"] or not chiArr.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments to a wrapped C++ func is not C contiguous.")
 
-    if fitIntercept:
-        scalingTerm = np.sqrt(1.0 / (<double>chiArr.shape[0] - 0.5))
-    else:
-        scalingTerm = np.sqrt(1.0 / <double>(chiArr.shape[0]))
+    scalingTerm = np.sqrt(1.0 / <double>(chiArr.shape[0]))
     if averageFeatures:
-        scalingTerm /= <double>xdata.shape[1]
+        scalingTerm /= (<double>xdata.shape[1] - <double>convWidth + 1.)
 
 
     if chiArr.dtype == "float32" and xdata.dtype == "float32":
@@ -366,12 +350,6 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered while performing graph convolution.")
 
-    if fitIntercept:
-        outputArray *= scalingTerm
-        gradient *= scalingTerm
-        outputArray[:,0] = 1.
-        gradient[:,0] = 0
-    else:
-        outputArray *= scalingTerm
-        gradient *= scalingTerm
+    outputArray *= scalingTerm
+    gradient *= scalingTerm
     return gradient

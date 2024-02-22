@@ -187,8 +187,7 @@ void *threadConvRBFGen(T xdata[], T copyBuffer[],
 
     int i, numRepeats, repeatPosition = 0;
     int numKmers = dim1 - convWidth + 1;
-    numRepeats = (numFreqs +
-            paddedBufferSize - 1) / paddedBufferSize;
+    numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
 
     for (i=0; i < numRepeats; i++){
         convSORF3DWithCopyBuffer(xdata, copyBuffer, rademArray, repeatPosition,
@@ -199,7 +198,7 @@ void *threadConvRBFGen(T xdata[], T copyBuffer[],
             paddedBufferSize, numFreqs, startRow,
             endRow, i);
         
-        repeatPosition += dim2;
+        repeatPosition += paddedBufferSize;
     }
     return NULL;
 }
@@ -229,8 +228,7 @@ void *threadConvRBFGrad(T xdata[], T copyBuffer[],
 
     int i, numRepeats, repeatPosition = 0;
     int numKmers = dim1 - convWidth + 1;
-    numRepeats = (numFreqs +
-            paddedBufferSize - 1) / paddedBufferSize;
+    numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
 
     for (i=0; i < numRepeats; i++){
         convSORF3DWithCopyBuffer(xdata, copyBuffer, rademArray, repeatPosition,
@@ -241,7 +239,7 @@ void *threadConvRBFGrad(T xdata[], T copyBuffer[],
             paddedBufferSize, numFreqs, startRow,
             endRow, i, sigma);
         
-        repeatPosition += dim2;
+        repeatPosition += paddedBufferSize;
     }
     return NULL;
 }
