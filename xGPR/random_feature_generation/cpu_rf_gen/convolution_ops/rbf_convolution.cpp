@@ -36,6 +36,7 @@
  * + `chiArr` A diagonal array that will be multiplied against the output
  * of the SORF operation. Of shape numFreqs.
  * + `outputArray` The output array. Of shape (N, 2 * numFreqs).
+ * + `seqlengths` The length of each sequence in the input. Of shape (N).
  * + `numThreads` The number of threads to use
  * + `dim0` The first dimension of xdata
  * + `dim1` The second dimension of xdata
@@ -43,6 +44,9 @@
  * + `numFreqs` The number of frequencies to sample. Must be <=
  * radem.shape[2].
  * + `rademShape2` The number of elements in one row of radem.
+ * + `convWidth` The width of the convolution.
+ * + `paddedBufferSize` dim2 of the copy buffer to create to perform
+ * the convolution.
  *
  * ## Returns:
  * "error" if an error, "no_error" otherwise.
@@ -50,6 +54,7 @@
 template <typename T>
 const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
             T chiArr[], double *outputArray,
+            int32_t *seqlengths,
             int numThreads, int dim0,
             int dim1, int dim2,
             int numFreqs, int rademShape2,
@@ -73,8 +78,8 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
 
         threads[i] = std::thread(&threadConvRBFGen<T>, xdata,
                 copyBuffer, radem, chiArr, outputArray,
-                dim1, dim2, numFreqs, rademShape2, startRow,
-                endRow, convWidth, paddedBufferSize);
+                seqlengths, dim1, dim2, numFreqs, rademShape2,
+                startRow, endRow, convWidth, paddedBufferSize);
     }
 
     for (auto& th : threads)
@@ -111,6 +116,7 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
  * + `chiArr` A diagonal array that will be multiplied against the output
  * of the SORF operation. Must be of shape numFreqs.
  * + `outputArray` The output array. Must be of shape (N, 2 * numFreqs).
+ * + `seqlengths` The length of each sequence in the input. Of shape (N).
  * + `gradientArray` The array in which the gradient will be stored.
  * + `sigma` The lengthscale hyperparameter.
  * + `numThreads` The number of threads to use
@@ -120,6 +126,9 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
  * + `numFreqs` The number of frequencies to sample. Must be <=
  * radem.shape[2].
  * + `rademShape2` The number of elements in one row of radem.
+ * + `convWidth` The width of the convolution.
+ * + `paddedBufferSize` dim2 of the copy buffer to create to perform
+ * the convolution.
  *
  * ## Returns:
  * "error" if an error, "no_error" otherwise.
@@ -127,6 +136,7 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
 template <typename T>
 const char *convRBFGrad_(int8_t *radem, T xdata[],
             T chiArr[], double *outputArray,
+            int32_t *seqlengths,
             double *gradientArray, T sigma,
             int numThreads, int dim0,
             int dim1, int dim2, int numFreqs,
@@ -149,7 +159,7 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
         if (endRow > dim0)
             endRow = dim0;
         threads[i] = std::thread(&threadConvRBFGrad<T>, xdata, copyBuffer,
-                radem, chiArr, outputArray, gradientArray, dim1,
+                radem, chiArr, outputArray, seqlengths, gradientArray, dim1,
                 dim2, numFreqs, rademShape2, startRow,
                 endRow, sigma, convWidth, paddedBufferSize);
     }
@@ -172,16 +182,11 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
  * Performs the RBF-based convolution kernel feature generation
  * process for the input, for one thread. xdata is split up into
  * num_threads chunks each with a start and end row.
- *
- * ## Args:
- * + `sharedArgs` A void pointer to a struct
- * containing pointers to the arrays needed to execute the
- * transform, the start and end rows etc.
  */
 template <typename T>
 void *threadConvRBFGen(T xdata[], T copyBuffer[],
         int8_t *rademArray, T chiArr[], double *outputArray,
-        int dim1, int dim2, int numFreqs,
+        int32_t *seqlengths, int dim1, int dim2, int numFreqs,
         int rademShape2, int startRow, int endRow,
         int convWidth, int paddedBufferSize){
 
@@ -196,7 +201,7 @@ void *threadConvRBFGen(T xdata[], T copyBuffer[],
         RBFPostProcess<T>(copyBuffer, chiArr,
             outputArray, numKmers,
             paddedBufferSize, numFreqs, startRow,
-            endRow, i);
+            endRow, i, convWidth, seqlengths);
         
         repeatPosition += paddedBufferSize;
     }
@@ -212,16 +217,11 @@ void *threadConvRBFGen(T xdata[], T copyBuffer[],
  * Performs the RBF-based convolution kernel feature generation
  * process for the input, for one thread. xdata is split up into
  * num_threads chunks each with a start and end row.
- *
- * ## Args:
- * + `sharedArgs` A void pointer to a struct
- * containing pointers to the arrays needed to execute the
- * transform, the start and end rows etc.
  */
 template <typename T>
 void *threadConvRBFGrad(T xdata[], T copyBuffer[],
         int8_t *rademArray, T chiArr[], double *outputArray,
-        double *gradientArray, int dim1,
+        int32_t *seqlengths, double *gradientArray, int dim1,
         int dim2, int numFreqs, int rademShape2,
         int startRow, int endRow, T sigma,
         int convWidth, int paddedBufferSize){
@@ -237,7 +237,7 @@ void *threadConvRBFGrad(T xdata[], T copyBuffer[],
         RBFPostGrad<T>(copyBuffer, chiArr,
             outputArray, gradientArray, numKmers,
             paddedBufferSize, numFreqs, startRow,
-            endRow, i, sigma);
+            endRow, i, sigma, convWidth, seqlengths);
         
         repeatPosition += paddedBufferSize;
     }
@@ -266,13 +266,18 @@ void *threadConvRBFGrad(T xdata[], T copyBuffer[],
  * + `startRow` The first row of the input to work on
  * + `endRow` The last row of the input to work on
  * + `repeatNum` The repeat number
+ * + `convWidth` The convolution width
+ * + `seqlengths` an N-shaped array indicating the length of each
+ * sequence.
  */
 template <typename T>
 void RBFPostProcess(const T __restrict xdata[],
         const T chiArr[], double *__restrict outputArray,
         int dim1, int dim2, int numFreqs,
-        int startRow, int endRow, int repeatNum){
-    int i, j, k, lenOutputRow, outputStart;
+        int startRow, int endRow, int repeatNum,
+        int convWidth, const int32_t *seqlengths){
+
+    int sequenceCutoff, lenOutputRow, outputStart;
     T prodVal;
     double *__restrict xOut;
     const T *__restrict xIn;
@@ -286,12 +291,15 @@ void RBFPostProcess(const T __restrict xdata[],
     endPosition -= outputStart;
     lenOutputRow = 2 * numFreqs;
     chiIn = chiArr + outputStart;
-    xIn = xdata + startRow * lenInputRow;
 
-    for (i=startRow; i < endRow; i++){
-        for (k=0; k < dim1; k++){
+    for (int i=startRow; i < endRow; i++){
+        sequenceCutoff = seqlengths[i] - convWidth + 1;
+        xIn = xdata + i * lenInputRow;
+
+        for (int k=0; k < sequenceCutoff; k++){
             xOut = outputArray + i * lenOutputRow + 2 * outputStart;
-            for (j=0; j < endPosition; j++){
+
+            for (int j=0; j < endPosition; j++){
                 prodVal = xIn[j] * chiIn[j];
                 *xOut += cos(prodVal);
                 xOut++;
@@ -331,6 +339,9 @@ void RBFPostProcess(const T __restrict xdata[],
  * + `endRow` The last row of the input to work on
  * + `repeatNum` The repeat number
  * + `sigma` The lengthscale hyperparameter
+ * + `convWidth` The convolution width
+ * + `seqlengths` an N-shaped array indicating the length of each
+ * sequence.
  */
 template <typename T>
 void RBFPostGrad(const T __restrict xdata[],
@@ -338,8 +349,10 @@ void RBFPostGrad(const T __restrict xdata[],
         double *__restrict gradientArray,
         int dim1, int dim2,
         int numFreqs, int startRow, int endRow,
-        int repeatNum, T sigma){
-    int i, j, k, lenOutputRow, outputStart;
+        int repeatNum, T sigma,
+        int convWidth, const int32_t *seqlengths){
+
+    int sequenceCutoff, lenOutputRow, outputStart;
     T prodVal, gradVal, cosVal, sinVal;
     double *__restrict xOut, *__restrict gradOut;
     const T *__restrict xIn;
@@ -355,13 +368,15 @@ void RBFPostGrad(const T __restrict xdata[],
     lenOutputRow = 2 * numFreqs;
     chiIn = chiArr + outputStart;
 
-    for (i=startRow; i < endRow; i++){
+    for (int i=startRow; i < endRow; i++){
+        sequenceCutoff = seqlengths[i] - convWidth + 1;
         xIn = xdata + i * lenInputRow;
         xOut = outputArray + i * lenOutputRow + 2 * outputStart;
         gradOut = gradientArray + i * lenOutputRow + 2 * outputStart;
 
-        for (k=0; k < dim1; k++){
-            for (j=0; j < endPosition; j++){
+        for (int k=0; k < sequenceCutoff; k++){
+
+            for (int j=0; j < endPosition; j++){
                 gradVal = xIn[j] * chiIn[j];
                 prodVal = gradVal * sigma;
                 cosVal = cos(prodVal);
@@ -379,22 +394,22 @@ void RBFPostGrad(const T __restrict xdata[],
 
 //Instantiate the templates the wrapper will need to access.
 template const char *convRBFFeatureGen_<float>(int8_t *radem, float xdata[],
-            float chiArr[], double *outputArray, int numThreads, int dim0,
-            int dim1, int dim2, int numFreqs, int rademShape2,
-            int convWidth, int paddedBufferSize);
+            float chiArr[], double *outputArray, int32_t *seqlengths,
+            int numThreads, int dim0, int dim1, int dim2, int numFreqs,
+            int rademShape2, int convWidth, int paddedBufferSize);
 template const char *convRBFFeatureGen_<double>(int8_t *radem, double xdata[],
-            double chiArr[], double *outputArray, int numThreads, int dim0,
-            int dim1, int dim2, int numFreqs, int rademShape2,
-            int convWidth, int paddedBufferSize);
+            double chiArr[], double *outputArray, int32_t *seqlengths,
+            int numThreads, int dim0, int dim1, int dim2, int numFreqs,
+            int rademShape2, int convWidth, int paddedBufferSize);
 
 template const char *convRBFGrad_<float>(int8_t *radem, float xdata[],
-            float chiArr[], double *outputArray,
+            float chiArr[], double *outputArray, int32_t *seqlengths,
             double *gradientArray, float sigma,
             int numThreads, int dim0, int dim1, int dim2,
             int numFreqs, int rademShape2,
             int convWidth, int paddedBufferSize);
 template const char *convRBFGrad_<double>(int8_t *radem, double xdata[],
-            double chiArr[], double *outputArray,
+            double chiArr[], double *outputArray, int32_t *seqlengths,
             double *gradientArray, double sigma,
             int numThreads, int dim0, int dim1, int dim2,
             int numFreqs, int rademShape2,

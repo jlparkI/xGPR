@@ -25,13 +25,13 @@ cdef extern from "convolution_ops/conv1d_operations.h" nogil:
 
 cdef extern from "convolution_ops/rbf_convolution.h" nogil:
     const char *convRBFFeatureGen_[T](int8_t *radem, T xdata[],
-            T chiArr[], double *outputArray,
+            T chiArr[], double *outputArray, int32_t *seqlengths,
             int numThreads, int dim0,
             int dim1, int dim2,
             int numFreqs, int rademShape2,
             int convWidth, int paddedBufferSize)
     const char *convRBFGrad_[T](int8_t *radem, T xdata[],
-            T chiArr[], double *outputArray,
+            T chiArr[], double *outputArray, int32_t *seqlengths,
             double *gradientArray, T sigma,
             int numThreads, int dim0,
             int dim1, int dim2, int numFreqs,
@@ -220,7 +220,7 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
 
     if chiArr.dtype == "float32" and xdata.dtype == "float32":
         errCode = convRBFFeatureGen_[float](&radem[0,0,0], <float*>addr_input,
-                <float*>addr_chi, &outputArray[0,0],
+                <float*>addr_chi, &outputArray[0,0], &sequence_lengths[0],
                 numThreads, xdata.shape[0],
                 xdata.shape[1], xdata.shape[2],
                 chiArr.shape[0], radem.shape[2],
@@ -228,7 +228,7 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
 
     elif chiArr.dtype == "float64" and xdata.dtype == "float64":
         errCode = convRBFFeatureGen_[double](&radem[0,0,0], <double*>addr_input,
-                <double*>addr_chi, &outputArray[0,0],
+                <double*>addr_chi, &outputArray[0,0], &sequence_lengths[0],
                 numThreads, xdata.shape[0],
                 xdata.shape[1], xdata.shape[2],
                 chiArr.shape[0], radem.shape[2],
@@ -328,7 +328,7 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
 
     if chiArr.dtype == "float32" and xdata.dtype == "float32":
         errCode = convRBFGrad_[float](&radem[0,0,0], <float*>addr_input,
-                    <float*>addr_chi, &outputArray[0,0],
+                    <float*>addr_chi, &outputArray[0,0], &sequence_lengths[0],
                     &gradient[0,0,0], sigma,
                     numThreads, xdata.shape[0],
                     xdata.shape[1], xdata.shape[2],
@@ -337,7 +337,7 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
 
     elif chiArr.dtype == "float64" and xdata.dtype == "float64":
         errCode = convRBFGrad_[double](&radem[0,0,0], <double*>addr_input,
-                    <double*>addr_chi, &outputArray[0,0],
+                    <double*>addr_chi, &outputArray[0,0], &sequence_lengths[0],
                     &gradient[0,0,0], sigma,
                     numThreads, xdata.shape[0],
                     xdata.shape[1], xdata.shape[2],

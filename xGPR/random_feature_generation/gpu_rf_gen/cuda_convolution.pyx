@@ -25,12 +25,12 @@ cdef extern from "convolution_ops/convolution.h" nogil:
 
 cdef extern from "convolution_ops/rbf_convolution.h" nogil:
     const char *convRBFFeatureGen[T](const int8_t *radem, const T xdata[],
-            const T chiArr[], double *outputArray,
+            const T chiArr[], double *outputArray, int32_t *seqlengths,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
             double scalingTerm)
     const char *convRBFFeatureGrad[T](const int8_t *radem, const T xdata[],
-            const T chiArr[], double *outputArray,
+            const T chiArr[], double *outputArray, int32_t *seqlengths,
             double *gradientArray, double sigma,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
@@ -231,6 +231,7 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
     cdef uintptr_t addr_xdata = xdata.data.ptr
     cdef uintptr_t addr_radem = radem.data.ptr
     cdef uintptr_t addr_chi = chiArr.data.ptr
+    cdef uintptr_t addr_seqlen = sequence_lengths.data.ptr
     cdef uintptr_t addr_output = outputArray.data.ptr
 
     scalingTerm = np.sqrt(1.0 / <double>chiArr.shape[0])
@@ -241,14 +242,16 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
     if outputArray.dtype == "float64" and xdata.dtype == "float32" and \
             chiArr.dtype == "float32":
         errCode = convRBFFeatureGen[float](<int8_t*>addr_radem, <float*>addr_xdata,
-                    <float*>addr_chi, <double*>addr_output, xdata.shape[0], xdata.shape[1],
+                    <float*>addr_chi, <double*>addr_output, <int32_t*>addr_seqlen,
+                    xdata.shape[0], xdata.shape[1],
                     xdata.shape[2], chiArr.shape[0], radem.shape[2],
                     convWidth, paddedBufferSize, scalingTerm)
 
     elif outputArray.dtype == "float64" and xdata.dtype == "float64" and \
             chiArr.dtype == "float64":
         errCode = convRBFFeatureGen[double](<int8_t*>addr_radem, <double*>addr_xdata,
-                    <double*>addr_chi, <double*>addr_output, xdata.shape[0], xdata.shape[1],
+                    <double*>addr_chi, <double*>addr_output, <int32_t*>addr_seqlen,
+                    xdata.shape[0], xdata.shape[1],
                     xdata.shape[2], chiArr.shape[0], radem.shape[2],
                     convWidth, paddedBufferSize, scalingTerm)
     else:
@@ -350,6 +353,7 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
     cdef uintptr_t addr_xdata = xdata.data.ptr
     cdef uintptr_t addr_radem = radem.data.ptr
     cdef uintptr_t addr_chi = chiArr.data.ptr
+    cdef uintptr_t addr_seqlen = sequence_lengths.data.ptr
     cdef uintptr_t addr_output = outputArray.data.ptr
     cdef uintptr_t addr_gradient = gradient.data.ptr
 
@@ -362,7 +366,8 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
     if outputArray.dtype == "float64" and xdata.dtype == "float32" and \
             chiArr.dtype == "float32":
         errCode = convRBFFeatureGrad[float](<int8_t*>addr_radem, <float*>addr_xdata,
-            <float*>addr_chi, <double*>addr_output, <double*>addr_gradient, sigma,
+            <float*>addr_chi, <double*>addr_output, <int32_t*>addr_seqlen,
+            <double*>addr_gradient, sigma,
             xdata.shape[0], xdata.shape[1], xdata.shape[2],
             chiArr.shape[0], radem.shape[2], convWidth,
             paddedBufferSize, scalingTerm)
@@ -370,7 +375,8 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
     elif outputArray.dtype == "float64" and xdata.dtype == "float64" and \
             chiArr.dtype == "float64":
         errCode = convRBFFeatureGrad[double](<int8_t*>addr_radem, <double*>addr_xdata,
-            <double*>addr_chi, <double*>addr_output, <double*>addr_gradient, sigma,
+            <double*>addr_chi, <double*>addr_output, <int32_t*>addr_seqlen,
+            <double*>addr_gradient, sigma,
             xdata.shape[0], xdata.shape[1], xdata.shape[2],
             chiArr.shape[0], radem.shape[2], convWidth,
             paddedBufferSize, scalingTerm)

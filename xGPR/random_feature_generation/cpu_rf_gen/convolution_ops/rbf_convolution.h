@@ -9,6 +9,7 @@
 template <typename T>
 const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
             T chiArr[], double *outputArray,
+            int32_t *seqlengths,
             int numThreads, int dim0,
             int dim1, int dim2,
             int numFreqs, int rademShape2,
@@ -17,6 +18,7 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
 template <typename T>
 const char *convRBFGrad_(int8_t *radem, T xdata[],
             T chiArr[], double *outputArray,
+            int32_t *seqlengths,
             double *gradientArray, T sigma,
             int numThreads, int dim0,
             int dim1, int dim2, int numFreqs,
@@ -26,14 +28,14 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
 template <typename T>
 void *threadConvRBFGen(T xdata[], T copyBuffer[],
         int8_t *rademArray, T chiArr[], double *outputArray,
-        int dim1, int dim2, int numFreqs,
+        int32_t *seqlengths, int dim1, int dim2, int numFreqs,
         int rademShape2, int startRow, int endRow,
         int convWidth, int paddedBufferSize);
 
 template <typename T>
 void *threadConvRBFGrad(T xdata[], T copyBuffer[],
         int8_t *rademArray, T chiArr[], double *outputArray,
-        double *gradientArray, int dim1,
+        int32_t *seqlengths, double *gradientArray, int dim1,
         int dim2, int numFreqs, int rademShape2,
         int startRow, int endRow, T sigma,
         int convWidth, int paddedBufferSize);
@@ -42,7 +44,8 @@ template <typename T>
 void RBFPostProcess(const T __restrict xdata[],
         const T chiArr[], double *__restrict outputArray,
         int dim1, int dim2, int numFreqs,
-        int startRow, int endRow, int repeatNum);
+        int startRow, int endRow, int repeatNum,
+        int convWidth, const int32_t *seqlengths);
 
 
 template <typename T>
@@ -51,6 +54,7 @@ void RBFPostGrad(const T __restrict xdata[],
         double *__restrict gradientArray,
         int dim1, int dim2,
         int numFreqs, int startRow, int endRow,
-        int repeatNum, T sigma);
+        int repeatNum, T sigma, int convWidth,
+        const int32_t *seqlengths);
 
 #endif

@@ -41,7 +41,10 @@ __global__ void cudaConvRBFStridedCopyOp(const T xdata[], T copyBuffer[],
 template <typename T>
 __global__ void convRBFPostProcessKernel(const T featureArray[], const T chiArr[],
             double *outputArray, int dim1, int dim2, int numFreqs,
-            int startPosition, int endPosition, double scalingTerm){
+            int startPosition, int endPosition, double scalingTerm,
+            int convWidth, const int32_t *seqlengths){
+
+    int colCutoff = seqlengths[blockIdx.x] - convWidth + 1;
     int zLoc = blockIdx.y * blockDim.x + threadIdx.x;
     int inputLoc = blockIdx.x * dim1 * dim2 + zLoc;
     int outputLoc = blockIdx.x * 2 * numFreqs + 2 * zLoc + 2 * startPosition;
@@ -51,7 +54,7 @@ __global__ void convRBFPostProcessKernel(const T featureArray[], const T chiArr[
     if (zLoc < endPosition){
         T chiVal = chiArr[startPosition + zLoc];
 
-        for (int i=0; i < (dim1 * dim2); i+=(gridDim.y * blockDim.x)){
+        for (int i=0; i < (colCutoff * dim2); i+=(gridDim.y * blockDim.x)){
             chiProd = chiVal * featurePtr[i];
             cosSum += cos(chiProd);
             sinSum += sin(chiProd);
@@ -70,7 +73,10 @@ template <typename T>
 __global__ void convRBFGradProcessKernel(const T featureArray[], const T chiArr[],
             double *outputArray, int dim1, int dim2, int numFreqs,
             int startPosition, int endPosition, double scalingTerm,
-            double sigma, double *gradientArray){
+            double sigma, double *gradientArray,
+            int convWidth, const int32_t *seqlengths){
+
+    int colCutoff = seqlengths[blockIdx.x] - convWidth + 1;
     int zLoc = blockIdx.y * blockDim.x + threadIdx.x;
     int inputLoc = blockIdx.x * dim1 * dim2 + zLoc;
     int outputLoc = blockIdx.x * 2 * numFreqs + 2 * zLoc + 2 * startPosition;
@@ -81,7 +87,7 @@ __global__ void convRBFGradProcessKernel(const T featureArray[], const T chiArr[
     if (zLoc < endPosition){
         T chiVal = chiArr[startPosition + zLoc];
 
-        for (int i=0; i < (dim1 * dim2); i+=(gridDim.y * blockDim.x)){
+        for (int i=0; i < (colCutoff * dim2); i+=(gridDim.y * blockDim.x)){
             chiProd = chiVal * featurePtr[i];
             cosVal = cos(chiProd * sigma);
             sinVal = sin(chiProd * sigma);
@@ -105,7 +111,7 @@ __global__ void convRBFGradProcessKernel(const T featureArray[], const T chiArr[
 //input array reshapedX of input type float.
 template <typename T>
 const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
-            const T chiArr[], double *outputArray,
+            const T chiArr[], double *outputArray, int32_t *seqlengths,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
             double scalingTerm){
@@ -157,7 +163,8 @@ const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
         //featureArray, multiply by scalingTerm, and transfer to outputArray.
         convRBFPostProcessKernel<T><<<sumBlocks, thPerSumBlock>>>(featureArray, chiArr,
                 outputArray, numKmers, paddedBufferSize, numFreqs,
-                startPosition, endPosition, scalingTerm);
+                startPosition, endPosition, scalingTerm,
+                convWidth, seqlengths);
     }
 
     cudaFree(featureArray);
@@ -166,12 +173,12 @@ const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
 //Explicitly instantiate so wrapper can use.
 template const char *convRBFFeatureGen<float>(const int8_t *radem,
             const float xdata[], const float chiArr[], double *outputArray,
-            int xdim0, int xdim1, int xdim2, int numFreqs,
+            int32_t *seqlengths, int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
             double scalingTerm);
 template const char *convRBFFeatureGen<double>(const int8_t *radem,
             const double xdata[], const double chiArr[], double *outputArray,
-            int xdim0, int xdim1, int xdim2, int numFreqs,
+            int32_t *seqlengths, int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
             double scalingTerm);
 
@@ -186,7 +193,7 @@ template const char *convRBFFeatureGen<double>(const int8_t *radem,
 //gradient calculation not implemented here.
 template <typename T>
 const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
-            const T chiArr[], double *outputArray,
+            const T chiArr[], double *outputArray, int32_t *seqlengths,
             double *gradientArray, double sigma,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
@@ -239,7 +246,7 @@ const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
         convRBFGradProcessKernel<T><<<sumBlocks, thPerSumBlock>>>(featureArray, chiArr,
                 outputArray, numKmers, paddedBufferSize, numFreqs,
                 startPosition, endPosition, scalingTerm, sigma,
-                gradientArray);
+                gradientArray, convWidth, seqlengths);
     }
 
     cudaFree(featureArray);
@@ -248,13 +255,13 @@ const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
 //Explicitly instantiate so wrapper can use.
 template const char *convRBFFeatureGrad<float>(const int8_t *radem,
             const float xdata[], const float chiArr[], double *outputArray,
-            double *gradientArray, double sigma,
+            int32_t *seqlengths, double *gradientArray, double sigma,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
             double scalingTerm);
 template const char *convRBFFeatureGrad<double>(const int8_t *radem,
             const double xdata[], const double chiArr[], double *outputArray,
-            double *gradientArray, double sigma,
+            int32_t *seqlengths, double *gradientArray, double sigma,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
             double scalingTerm);
