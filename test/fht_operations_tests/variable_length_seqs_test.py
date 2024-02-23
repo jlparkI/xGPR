@@ -98,6 +98,15 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
             outcomes.append(False)
         except:
            outcomes.append(True)
+
+        try:
+            sequence_lengths = np.full(dud_block.shape[0], 21).astype(np.int32)
+            if device == "gpu":
+                sequence_lengths = cp.asarray(sequence_lengths)
+            _ = model.kernel.transform_x(block2, sequence_lengths)
+            outcomes.append(False)
+        except:
+           outcomes.append(True)
     return outcomes
 
 
