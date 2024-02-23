@@ -174,8 +174,10 @@ class ModelBaseclass():
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
             x_array = cp.asarray(input_x)
+            if sequence_lengths is not None:
+                sequence_lengths = cp.asarray(sequence_lengths)
 
-        return x_array
+        return x_array, sequence_lengths
 
 
     def set_hyperparams(self, hyperparams = None, dataset = None):

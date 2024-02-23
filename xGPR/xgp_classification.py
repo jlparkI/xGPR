@@ -88,7 +88,7 @@ class xGPDiscriminant(ModelBaseclass):
                 not match what is expected, or if the model has
                 not yet been fitted, a ValueError is raised.
         """
-        xdata = self.pre_prediction_checks(input_x, sequence_lengths, get_var = False)
+        xdata, sequence_lengths = self.pre_prediction_checks(input_x, sequence_lengths, False)
         if self._gamma is None:
             raise ValueError("Model has not been fitted yet.")
         preds = []

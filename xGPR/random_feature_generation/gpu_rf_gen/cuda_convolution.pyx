@@ -187,6 +187,9 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
     cdef double expectedNFreq
     cdef int paddedBufferSize
 
+    if not isinstance(xdata, cp.ndarray) or not isinstance(sequence_lengths, cp.ndarray):
+        raise ValueError("Passed non-cupy arrays to GPU function.")
+
     if len(chiArr.shape) != 1 or len(radem.shape) != 3 or len(xdata.shape) != 3:
         raise ValueError("chiArr should be a 1d array. radem and xdata should be 3d arrays.")
     if len(outputArray.shape) != 2 or len(sequence_lengths.shape) != 1:
@@ -300,6 +303,9 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
     cdef int startPosition, cutoff, startPos2, cutoff2, i, j
     cdef double expectedNFreq
     cdef int paddedBufferSize
+
+    if not isinstance(xdata, cp.ndarray) or not isinstance(sequence_lengths, cp.ndarray):
+        raise ValueError("Passed non-cupy arrays to GPU function.")
 
     if len(chiArr.shape) != 1 or len(radem.shape) != 3 or len(xdata.shape) != 3:
         raise ValueError("chiArr should be a 1d array. radem and xdata should be 3d arrays.")
