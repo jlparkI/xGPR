@@ -122,13 +122,12 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
         num_freqs, sigma, precision = "double"):
     """Run an evaluation of RBF-based convolution kernel feature
     evaluation, without evaluating gradient."""
-    dim2, num_blocks, xdata, reshaped_x, features, s_mat, \
+    dim2, num_blocks, xdata, seqlen, features, s_mat, \
                 radem = get_initial_matrices_fht(ndatapoints, kernel_width,
                         aa_dim, num_aas, num_freqs, "conv", precision)
     true_features = get_features(xdata, kernel_width, dim2,
                             radem, s_mat, num_freqs, num_blocks, sigma,
-                            precision, False)
-    seqlen = np.full(xdata.shape[0], xdata.shape[1]).astype(np.int32)
+                            seqlen, precision)
     xd = xdata * sigma
     cpuConv1dFGen(xd, seqlen, radem, features, s_mat,
             kernel_width, 2)

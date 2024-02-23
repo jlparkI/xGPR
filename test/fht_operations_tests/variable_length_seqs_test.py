@@ -44,7 +44,8 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
     for each that failed. This is a simple does it work or does it
     raise an exception test -- the correctness of the FHT operations
     is tested under the other tests in this folder."""
-    sequence_lengths = np.full(block1.shape[0], block1.shape[1]).astype(np.int32)
+    sequence_lengths = np.full(block1.shape[0],
+                block1.shape[1]).astype(np.int32)
     online_dataset = build_regression_dataset(block1,
             np.zeros((block1.shape[0])), sequence_lengths)
     models = get_models(kernel, online_dataset,
@@ -54,6 +55,9 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
     for (model, device) in zip(models, ["cpu", "gpu"]):
         if model is None:
             continue
+
+        sequence_lengths = np.full(block1.shape[0],
+                block1.shape[1]).astype(np.int32)
         if device == "gpu":
             block1 = cp.asarray(block1)
             block2 = cp.asarray(block2)
@@ -64,14 +68,33 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
             outcomes.append(True)
         except:
             outcomes.append(False)
+
         try:
-            sequence_lengths = np.full(block2.shape[0], block2.shape[1]).astype(np.int32)
+            sequence_lengths = np.full(block2.shape[0],
+                    block2.shape[1]).astype(np.int32)
+            if device == "gpu":
+                sequence_lengths = cp.asarray(sequence_lengths)
             _ = model.kernel.transform_x(block2, sequence_lengths)
             outcomes.append(True)
         except:
             outcomes.append(False)
+
         try:
+            sequence_lengths = np.full(dud_block.shape[0],
+                    dud_block.shape[1]).astype(np.int32)
+            if device == "gpu":
+                sequence_lengths = cp.asarray(sequence_lengths)
             _ = model.kernel.transform_x(dud_block, sequence_lengths)
+            outcomes.append(False)
+        except:
+           outcomes.append(True)
+
+        try:
+            sequence_lengths = np.full(dud_block.shape[0],
+                    dud_block.shape[1]).astype(np.int32)
+            if device == "gpu":
+                sequence_lengths = cp.asarray(sequence_lengths)
+            _ = model.kernel.transform_x(block2, sequence_lengths)
             outcomes.append(False)
         except:
            outcomes.append(True)
