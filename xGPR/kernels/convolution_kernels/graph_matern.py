@@ -1,10 +1,10 @@
-"""This kernel is equivalent to the Conv1dRBF kernel but is specialized
+"""This kernel is equivalent to the Conv1dMatern kernel but is specialized
 to work on graphs, where we only ever want a convolution width of 1."""
 import numpy as np
 from .conv_kernel_baseclass import ConvKernelBaseclass
 
 
-class GraphRBF(ConvKernelBaseclass):
+class GraphMatern(ConvKernelBaseclass):
     """This is similar to sequence kernels but is specialized to work
     on graphs, where the input is a sequence of node descriptions.
     This class inherits from ConvKernelBaseclass.
@@ -44,7 +44,18 @@ class GraphRBF(ConvKernelBaseclass):
         super().__init__(xdim, num_rffs, random_seed,
                 num_threads, double_precision, 1,
                 kernel_spec_parms)
+        if "matern_nu" not in kernel_spec_parms:
+            raise ValueError("Tried to initialize a Matern kernel without supplying nu.")
+
+        self.matern_nu = kernel_spec_parms["matern_nu"]
+        if self.matern_nu < 1/2 or self.matern_nu > 5/2:
+            raise ValueError("nu must be >= 1/2 and <= 5/2.")
+        rng = np.random.default_rng(random_seed)
+        chisamples = np.sqrt(rng.chisquare(2 * self.matern_nu,
+                                    size=self.num_freqs)
+                                    / (self.matern_nu * 2) )
+        self.chi_arr /= chisamples
 
         self.hyperparams = np.ones((2))
-        self.bounds = np.asarray([[1e-3,1e2], [1e-2, 1e2]])
+        self.bounds = np.asarray([[1e-3,1e1], [1e-6, 1e2]])
         self.device = device

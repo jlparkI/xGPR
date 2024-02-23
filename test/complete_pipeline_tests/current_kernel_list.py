@@ -15,6 +15,8 @@ IMPLEMENTED_KERNELS = {"RBF":(False, 0.58),
         "MiniARD":(False, 0.64),
         "Poly":(False, 0.38),
         "Conv1dRBF":(True, 0.58),
+        "Conv1dMatern":(True, 0.56),
         "GraphRBF":(True, 0.38),
+        "GraphMatern":(True, 0.35),
         "GraphPoly":(True, 0.38)
         }
