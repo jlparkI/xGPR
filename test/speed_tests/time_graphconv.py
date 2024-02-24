@@ -44,10 +44,10 @@ D1 = D1.astype(np.int8)
 chi_arr = chi.rvs(df={ncols}, size=padded_width, random_state=random_seed)
 chi_arr = chi_arr.astype(np.float32)
 from __main__ import graphconv_cpu_test"""
-    print(f"Time(us) for GRAPH cpu with {nthreads} threads:")
-    time_taken = timeit.timeit(f"graphconv_cpu_test(marr, D1, chi_arr, nthreads, {conv_width})",
-            setup=cpu_graph_setup, number=ntests)
-    print(1e6 * time_taken / ntests)
+    #print(f"Time(us) for GRAPH cpu with {nthreads} threads:")
+    #time_taken = timeit.timeit(f"graphconv_cpu_test(marr, D1, chi_arr, nthreads, {conv_width})",
+    #        setup=cpu_graph_setup, number=ntests)
+    #print(1e6 * time_taken / ntests)
 
 
     random_seed = 123

@@ -94,7 +94,7 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
     sources += [cpu_basic_op_wrapper]
     cpu_basic_op_ext = Extension("cpu_rf_gen_module",
                     sources = sources, language="c++",
-                    extra_compile_args=['-O3', '-fopenmp'],
+                    extra_compile_args=['-ggdb'],
                     include_dirs=[numpy.get_include(),
                             cpu_fast_transform_path])
     return [cpu_basic_op_ext], [cpu_basic_op_wrapper]
@@ -137,6 +137,7 @@ def setup_cuda_fast_hadamard_extensions(setup_fpath,
                                     "lib64")],
                 include_dirs = [numpy.get_include(), os.path.join(CUDA_PATH,
                                     "include")],
+                extra_compile_args=['-O3'],
                 extra_link_args = ["-lrt"],
                 )
     return [cuda_basic_ext], [cuda_basic_path]

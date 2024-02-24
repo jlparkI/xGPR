@@ -31,10 +31,19 @@ class TestMaxpoolFeatureGen(unittest.TestCase):
             self.assertTrue(outcome)
 
         kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
-        sigma, ndatapoints = 1, 2000
+        sigma, ndatapoints = 1, 1000
 
         outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, mode = "maxpool", precision = "float")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+
+        kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 256, 500
+        sigma, ndatapoints = 1, 232
+
+        outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma, mode = "maxpool")
         for outcome in outcomes:
             self.assertTrue(outcome)
 
@@ -43,14 +52,15 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, mode, precision = "double"):
     """Run an evaluation for the ReLU / maxpool feature generation
     routine, primarily used for static layers."""
-    dim2, num_blocks, xdata, reshaped_x, features, s_mat, \
+    dim2, num_blocks, xdata, seqlen, features, s_mat, \
                 radem = get_initial_matrices_fht(ndatapoints, kernel_width,
                         aa_dim, num_aas, num_freqs, mode, precision)
     true_features = get_features_maxpool(xdata, kernel_width, dim2,
-                            radem, s_mat, num_freqs, num_blocks, precision)
+                            radem, s_mat, num_freqs, num_blocks,
+                            seqlen, precision)
 
-    cpuConv1dMaxpool(reshaped_x, radem, features,
-                s_mat, 2)
+    cpuConv1dMaxpool(xdata, seqlen, radem, features,
+                s_mat, kernel_width, 2)
 
     outcome = check_results(true_features, features[:,:num_freqs], precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
@@ -61,15 +71,14 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
     if "cupy" not in sys.modules:
         return [outcome]
 
-    xdata = cp.asarray(xdata)
-    reshaped_x = cp.asarray(reshaped_x)
+    xdata, seqlen = cp.asarray(xdata), cp.asarray(seqlen)
     features[:] = 0
     features = cp.asarray(features)
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
 
-    gpuConv1dMaxpool(reshaped_x, radem, features,
-                s_mat, 2)
+    gpuConv1dMaxpool(xdata, seqlen, radem, features,
+                s_mat, kernel_width, 2)
 
 
     outcome_cuda = check_results(true_features, features[:,:num_freqs], precision)

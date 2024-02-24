@@ -18,10 +18,10 @@ import math
 
 
 cdef extern from "convolution_ops/conv1d_operations.h" nogil:
-    const char *conv1dPrep_[T](int8_t *radem, T reshapedX[],
-            int numThreads, int reshapedDim0,
-            int reshapedDim1, int reshapedDim2,
-            int startPosition, int numFreqs)
+    const char *conv1dMaxpoolFeatureGen_[T](const int8_t *radem, const T xdata[],
+            const T chiArr[], double *outputArray, const int32_t *seqlengths,
+            int xdim0, int xdim1, int xdim2, int numThreads, int numFreqs,
+            int convWidth, int paddedBufferSize)
 
 cdef extern from "convolution_ops/rbf_convolution.h" nogil:
     const char *convRBFFeatureGen_[T](int8_t *radem, T xdata[],
@@ -41,44 +41,42 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def cpuConv1dMaxpool(np.ndarray[floating, ndim=3] reshapedX,
+def cpuConv1dMaxpool(np.ndarray[floating, ndim=3] xdata,
+                np.ndarray[np.int32_t, ndim=1] sequence_lengths,
                 np.ndarray[np.int8_t, ndim=3] radem,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
+                int convWidth,
                 int numThreads):
     """Uses wrapped C extensions to perform random feature generation
     with ReLU activation and maxpooling.
 
     Args:
-        reshapedX (np.ndarray): An array from which
-            the features will be generated. Is not modified. Must
-            be of shape (N x D x C) where C is a power of 2. Should
-            have been reshaped to be appropriate for convolution.
-        radem (np.ndarray): A stack of diagonal matrices of type int8_t
-            of shape (3 x 1 x m * C), where R is the number of random
-            features requested and m is ceil(R / C).
-        outputArray (np.ndarray): An N x R array in which the output features
-            will be stored.
+        xdata (np.ndarray): An input 3d raw data array of shape (N x D x C)
+            for N datapoints. D must be >= convWidth. C must be a power of 2.
+        sequence_lengths (np.ndarray): A 1d array of shape[0]==N where each element
+            is the length of the corresponding sequence in xdata. All values must be
+            >= convWidth.
+        radem (np.ndarray): A stack of diagonal matrices with elements drawn from the
+            Rademacher distribution. Shape must be (3 x D x C).
+        outputArray (np.ndarray): A numpy array in which the generated features will be
+            stored. Is modified in-place.
         chiArr (np.ndarray): A stack of diagonal matrices stored as an
-            array of shape (R) drawn from a chi distribution.
-        num_threads (int): This argument is so that this function has
-            the same interface as the CPU SORF Transform. It is not
-            needed for the GPU transform and is ignored.
+            array of shape m * C drawn from a chi distribution.
+        convWidth (int): The width of the convolution. Must be <= D when xdata is (N x D x C).
+        num_threads (int): Number of threads to use for FHT.
+
+    Raises:
+        ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
     """
     cdef const char *errCode
-    cdef int i, startPosition, cutoff
-    cdef np.ndarray[floating, ndim=3] reshapedXCopy = reshapedX.copy()
-    cdef np.ndarray[np.float64_t, ndim=2] gradient
-    cdef int num_repeats = (radem.shape[2] + reshapedX.shape[2] - 1) // reshapedX.shape[2]
-
-    cdef uintptr_t addr_input = reshapedXCopy.ctypes.data
-
+    cdef double expectedNFreq
+    cdef int paddedBufferSize
+    cdef uintptr_t addr_input = xdata.ctypes.data
+    cdef uintptr_t addr_chi = chiArr.ctypes.data
     
-    if reshapedX.shape[0] == 0:
-        raise ValueError("There must be at least one datapoint.")
-    if reshapedX.shape[0] != outputArray.shape[0]:
-        raise ValueError("The number of input and output datapoints do not "
-                "agree.")
+    if xdata.shape[0] == 0 or xdata.shape[0] != outputArray.shape[0]:
+        raise ValueError("Incorrect input / output shapes.")
 
 
     if radem.shape[0] != 3 or radem.shape[1] != 1:
@@ -90,53 +88,42 @@ def cpuConv1dMaxpool(np.ndarray[floating, ndim=3] reshapedX,
     if chiArr.shape[0] != radem.shape[2]:
         raise ValueError("chiArr.shape[0] must == radem.shape[2].")
         
-    logdim = np.log2(reshapedX.shape[2])
-    if np.ceil(logdim) != np.floor(logdim) or reshapedX.shape[2] < 2:
-        raise ValueError("dim2 of the reshapedX array must be a power of 2 >= 2.")
-    if not radem.shape[2] % reshapedX.shape[2] == 0:
-        raise ValueError("The number of sampled frequencies should be an integer multiple of "
-                "reshapedX.shape[2].")
+    expectedNFreq = <double>(convWidth * xdata.shape[2])
+    paddedBufferSize = <int>(2**math.ceil(np.log2(max(expectedNFreq, 2.)))  )
+    if not radem.shape[2] % paddedBufferSize == 0:
+        raise ValueError("radem should be an integer multiple of the padded width.")
 
-    if not outputArray.flags["C_CONTIGUOUS"] or not reshapedX.flags["C_CONTIGUOUS"] \
-            or not radem.flags["C_CONTIGUOUS"] or not chiArr.flags["C_CONTIGUOUS"]:
+    if sequence_lengths.shape[0] != xdata.shape[0]:
+        raise ValueError("Inappropriate size for sequence_lengths.")
+    if sequence_lengths.min() < convWidth or convWidth <= 0:
+        raise ValueError("All elements of sequence_lengths must be >= convWidth.")
+    if xdata.shape[1] < convWidth:
+        raise ValueError("convWidth must be <= the shape of the input data.")
+    if sequence_lengths.max() > xdata.shape[1]:
+        raise ValueError("Maximum sequence length must be <= the shape of the input data.")
+
+    if not outputArray.flags["C_CONTIGUOUS"] or not xdata.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] \
+        or not chiArr.flags["C_CONTIGUOUS"] or not sequence_lengths.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
 
-    startPosition, cutoff = 0, reshapedX.shape[2]
+    if chiArr.dtype == "float32" and xdata.dtype == "float32":
+        errCode = conv1dMaxpoolFeatureGen_[float](&radem[0,0,0], <float*>addr_input,
+                <float*>addr_chi, &outputArray[0,0], &sequence_lengths[0],
+                xdata.shape[0], xdata.shape[1], xdata.shape[2], numThreads,
+                radem.shape[2], convWidth, paddedBufferSize)
 
-    if reshapedX.dtype == "float32" and chiArr.dtype == "float32":
-        for i in range(num_repeats):
-            reshapedXCopy[:] = reshapedX
-            errCode = conv1dPrep_[float](&radem[0,0,0],
-                    <float*>addr_input, numThreads,
-                    reshapedX.shape[0], reshapedX.shape[1], 
-                    reshapedX.shape[2], i * reshapedX.shape[2],
-                    radem.shape[2])
-            if errCode.decode("UTF-8") != "no_error":
-                raise Exception("Fatal error encountered during random feature generation.")
-        
-            reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
-            outputArray[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
+    elif chiArr.dtype == "float64" and xdata.dtype == "float64":
+        errCode = conv1dMaxpoolFeatureGen_[double](&radem[0,0,0], <double*>addr_input,
+                <double*>addr_chi, &outputArray[0,0], &sequence_lengths[0],
+                xdata.shape[0], xdata.shape[1], xdata.shape[2], numThreads,
+                radem.shape[2], convWidth, paddedBufferSize)
 
-            cutoff += reshapedX.shape[2]
-            startPosition += reshapedX.shape[2]
-    elif reshapedX.dtype == "float64" and chiArr.dtype == "float64":
-        for i in range(num_repeats):
-            reshapedXCopy[:] = reshapedX
-            errCode = conv1dPrep_[double](&radem[0,0,0],
-                    <double*>addr_input, numThreads,
-                    reshapedX.shape[0], reshapedX.shape[1], 
-                    reshapedX.shape[2], i * reshapedX.shape[2],
-                    radem.shape[2])
-            if errCode.decode("UTF-8") != "no_error":
-                raise Exception("Fatal error encountered during random feature generation.")
-        
-            reshapedXCopy *= chiArr[None,None,(i * reshapedX.shape[2]):((i+1) * reshapedX.shape[2])]
-            outputArray[:,startPosition:cutoff] = reshapedXCopy.max(axis=1)
-
-            cutoff += reshapedX.shape[2]
-            startPosition += reshapedX.shape[2]
     else:
         raise ValueError("Unexpected types passed to wrapped C++ function.")
+
+    if errCode.decode("UTF-8") != "no_error":
+        raise Exception(errCode.decode("UTF-8"))
+
 
 
 @cython.boundscheck(False)
@@ -238,7 +225,7 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
         raise ValueError("Unexpected types passed to wrapped C++ function.")
 
     if errCode.decode("UTF-8") != "no_error":
-        raise Exception("Fatal error encountered while performing convolution.")
+        raise Exception(errCode.decode("UTF-8"))
 
     outputArray *= scalingTerm
 
@@ -348,7 +335,7 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
         raise ValueError("Unexpected types passed to wrapped C++ function.")
 
     if errCode.decode("UTF-8") != "no_error":
-        raise Exception("Fatal error encountered while performing graph convolution.")
+        raise Exception(errCode.decode("UTF-8"))
 
     outputArray *= scalingTerm
     gradient *= scalingTerm

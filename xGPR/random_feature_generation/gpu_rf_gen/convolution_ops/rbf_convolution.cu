@@ -107,8 +107,7 @@ __global__ void convRBFGradProcessKernel(const T featureArray[], const T chiArr[
 
 
 
-//This function generates and sums random features for an
-//input array reshapedX of input type float.
+//This function generates and sums random features for a Conv1d RBF-type kernel.
 template <typename T>
 const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
             const T chiArr[], double *outputArray, const int32_t *seqlengths,
