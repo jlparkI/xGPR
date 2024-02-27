@@ -164,15 +164,13 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, precision = "double"):
     """Evaluate RBF-based convolution kernel feature evaluation AND
     gradient calculation."""
-    dim2, num_blocks, xdata, reshaped_x, features, s_mat, \
+    dim2, num_blocks, xdata, seqlen, features, s_mat, \
                 radem = get_initial_matrices_fht(ndatapoints, kernel_width,
-                        aa_dim, num_aas, num_freqs, "conv_gradient", precision)
-    true_features, true_gradient = get_features_with_gradient(xdata,
-                            kernel_width, dim2, radem, s_mat, num_freqs,
-                            num_blocks, sigma, precision,
-                            False)
+                        aa_dim, num_aas, num_freqs, "conv", precision)
+    true_features, true_gradient = get_features_with_gradient(xdata, kernel_width, dim2,
+                            radem, s_mat, num_freqs, num_blocks, sigma,
+                            seqlen, precision)
 
-    seqlen = np.full(xdata.shape[0], xdata.shape[1]).astype(np.int32)
     xd = xdata * sigma
     gradient = cpuConvGrad(xd, seqlen, radem, features, s_mat,
             kernel_width, 2, sigma)
