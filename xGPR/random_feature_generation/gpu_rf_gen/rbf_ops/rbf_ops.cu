@@ -9,12 +9,11 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 #include <math.h>
+#include "../shared_constants.h"
 #include "../basic_ops/basic_array_operations.h"
 #include "rbf_ops.h"
 
 
-#define DEFAULT_THREADS_PER_BLOCK 256
-#define MAX_BASE_LEVEL_TRANSFORM 1024
 
 
 

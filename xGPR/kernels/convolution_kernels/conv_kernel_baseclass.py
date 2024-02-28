@@ -81,10 +81,14 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
         if len(xdim) != 3:
             raise ValueError("Tried to initialize the Conv1d kernel with a 2d x-"
                     "array! x should be a 3d array for Conv1d.")
-        self.sequence_average = False
+
+        self.sequence_average = "none"
         if "averaging" in kernel_spec_parms:
-            if kernel_spec_parms["averaging"]:
-                self.sequence_average = True
+            if kernel_spec_parms["averaging"] in ["none", "sqrt", "full"]:
+                self.sequence_average = kernel_spec_parms["averaging"]
+            else:
+                raise ValueError("Unrecognized value for 'averaging' supplied, "
+                        "should be one of 'none', 'sqrt', 'full'.")
 
         rng = np.random.default_rng(random_seed)
         self.conv_width = conv_width

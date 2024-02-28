@@ -11,10 +11,6 @@
 #include "../shared_fht_functions/shared_rfgen_ops.h"
 
 
-#define VALID_INPUTS 0
-#define INVALID_INPUTS 1
-
-
 
 /*!
  * # approxPolynomial_

@@ -4,26 +4,29 @@ added / any time one is removed."""
 from .basic_kernels.matern import Matern
 from .basic_kernels.rbf import RBF
 from .basic_kernels.linear import Linear
-from .basic_kernels.polynomial import Polynomial
+from .basic_kernels.cauchy import Cauchy
 
 from .convolution_kernels.conv1d_rbf import Conv1dRBF
 from .convolution_kernels.conv1d_matern import Conv1dMatern
+from .convolution_kernels.conv1d_cauchy import Conv1dCauchy
+
 from .convolution_kernels.graph_rbf import GraphRBF
 from .convolution_kernels.graph_matern import GraphMatern
-from .convolution_kernels.graph_polysum import GraphPolySum
+from .convolution_kernels.graph_cauchy import GraphCauchy
 
 from .ARD_kernels.mini_ard import MiniARD
 
 
 KERNEL_NAME_TO_CLASS = {"RBF":RBF,
         "Matern":Matern,
+        "Cauchy":Cauchy,
         "Conv1dRBF":Conv1dRBF,
         "Conv1dMatern":Conv1dMatern,
+        "Conv1dRatQuad":Conv1dCauchy,
         "GraphRBF":GraphRBF,
-        "Linear":Linear,
-        "Poly":Polynomial,
-        "GraphPoly":GraphPolySum,
         "GraphMatern":GraphMatern,
+        "GraphRatQuad":GraphCauchy,
+        "Linear":Linear,
         "MiniARD":MiniARD}
 
 # A list of kernels that require 3d arrays as input. This

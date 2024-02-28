@@ -8,9 +8,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include "polynomial_operations.h"
+#include "../shared_constants.h"
 #include "../basic_ops/basic_array_operations.h"
-
-#define DEFAULT_THREADS_PER_BLOCK 256
 
 
 

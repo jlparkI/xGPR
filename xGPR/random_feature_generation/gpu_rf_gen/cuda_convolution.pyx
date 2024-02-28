@@ -146,7 +146,7 @@ def gpuConv1dMaxpool(xdata, sequence_lengths, radem, outputArray,
 @cython.wraparound(False)
 def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
                 chiArr, int convWidth, int numThreads,
-                bool averageFeatures = False):
+                str averageFeatures = "none"):
     """Uses wrapped C functions to generate random features for Conv1d RBF-related kernels.
     This function cannot be used to calculate the gradient so is only used for forward pass
     only (during fitting, inference, non-gradient-based optimization). It does not multiply
@@ -166,9 +166,9 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
             array of shape m * C drawn from a chi distribution.
         convWidth (int): The width of the convolution. Must be <= D when xdata is (N x D x C).
         num_threads (int): Number of threads to use for FHT.
-        averageFeatures (bool): Whether to average the features generated along the
+        averageFeatures (str): Whether to average the features generated along the
             first axis (makes kernel result less dependent on sequence length / graph
-            size).
+            size). Must be one of 'none', 'sqrt', 'full'.
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -222,8 +222,10 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
 
     scalingTerm = np.sqrt(1.0 / <double>chiArr.shape[0])
 
-    if averageFeatures:
+    if averageFeatures == 'full':
         scalingTerm /= (<double>xdata.shape[1] - <double>convWidth + 1.)
+    elif averageFeatures == 'sqrt':
+        scalingTerm /= np.sqrt(<double>xdata.shape[1] - <double>convWidth + 1.)
 
     if outputArray.dtype == "float64" and xdata.dtype == "float32" and \
             chiArr.dtype == "float32":
@@ -252,7 +254,7 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
 @cython.wraparound(False)
 def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
                 int convWidth, int numThreads, float sigma,
-                bool averageFeatures = False):
+                str averageFeatures = "none"):
     """Performs feature generation for the GraphRBF kernel while also performing
     gradient calculations.
 
@@ -270,9 +272,9 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
         convWidth (int): The width of the convolution. Must be <= D when xdata is (N x D x C).
         num_threads (int): Number of threads to use for FHT.
         sigma (float): The lengthscale.
-        averageFeatures (bool): Whether to average the features generated along the
+        averageFeatures (str): Whether to average the features generated along the
             first axis (makes kernel result less dependent on sequence length / graph
-            size).
+            size). Must be one of 'none', 'sqrt', 'full'.
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -336,8 +338,10 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
 
     scalingTerm = np.sqrt(1.0 / <double>chiArr.shape[0])
 
-    if averageFeatures:
+    if averageFeatures == 'full':
         scalingTerm /= (<double>xdata.shape[1] - <double>convWidth + 1.)
+    elif averageFeatures == 'sqrt':
+        scalingTerm /= np.sqrt(<double>xdata.shape[1] - <double>convWidth + 1.)
 
     if outputArray.dtype == "float64" and xdata.dtype == "float32" and \
             chiArr.dtype == "float32":

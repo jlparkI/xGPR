@@ -3,6 +3,17 @@
 
 #include <stdint.h>
 
+
+template <typename T>
+void cudaHTransform(T cArray[],
+		int dim0, int dim1, int dim2);
+
+template <typename T>
+void cudaHTransformWithDiagMultiply(T cArray[],
+		int dim0, int dim1, int dim2, const int8_t *radem,
+        T normConstant, int numElementsPerRow);
+
+
 template <typename T>
 const char *cudaSORF3d(T npArray[],  const int8_t *radem,
                 int dim0, int dim1, int dim2);
@@ -15,12 +26,8 @@ const char *cudaConvSORF3d(T cArray[], const int8_t *radem,
 
 template <typename T>
 const char *cudaSRHT2d(T npArray[], 
-                const int8_t *radem, int dim0, int dim1);
-
-
-template <typename T>
-void cudaHTransform(T cArray[],
-		int dim0, int dim1, int dim2);
+                const int8_t *radem, int dim0,
+                int dim1);
 
 
 #endif

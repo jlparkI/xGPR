@@ -6,11 +6,9 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 #include <math.h>
+#include "../shared_constants.h"
 #include "../basic_ops/basic_array_operations.h"
 #include "rbf_convolution.h"
-
-#define DEFAULT_THREADS_PER_BLOCK 256
-#define DEFAULT_THREADS_PER_BLREDUCE 32
 
 
 
@@ -117,13 +115,6 @@ const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
 
     int numKmers = xdim1 - convWidth + 1;
     int numElements = xdim0 * numKmers * paddedBufferSize;
-
-    T *featureArray;
-    if (cudaMalloc(&featureArray, sizeof(T) * numElements) != cudaSuccess) {
-            cudaFree(featureArray);
-            return "Fatal malloc error";
-    };
-
     //This is the Hadamard normalization constant.
     T normConstant = log2(paddedBufferSize) / 2;
     normConstant = 1 / pow(2, normConstant);
@@ -132,6 +123,13 @@ const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
     int thPerCopyBlock = DEFAULT_THREADS_PER_BLOCK, thPerSumBlock;
     int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
     const char *errCode;
+
+    T *featureArray;
+    if (cudaMalloc(&featureArray, sizeof(T) * numElements) != cudaSuccess) {
+            cudaFree(featureArray);
+            return "Fatal malloc error";
+    };
+
 
     if (xdim2 <= 64)
         thPerCopyBlock = 64;
@@ -200,6 +198,8 @@ const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
 
     int numKmers = xdim1 - convWidth + 1;
     int numElements = xdim0 * numKmers * paddedBufferSize;
+    T normConstant = log2(paddedBufferSize) / 2;
+    normConstant = 1 / pow(2, normConstant);
 
     T *featureArray;
     if (cudaMalloc(&featureArray, sizeof(T) * numElements) != cudaSuccess) {
@@ -208,8 +208,6 @@ const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
     };
 
     //This is the Hadamard normalization constant.
-    T normConstant = log2(paddedBufferSize) / 2;
-    normConstant = 1 / pow(2, normConstant);
     int startPosition, endPosition;
     int thPerCopyBlock = DEFAULT_THREADS_PER_BLOCK, thPerSumBlock;
     int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;

@@ -450,6 +450,8 @@ template void convSORF3D<float>(float *xArray,
                         int startRow, int endRow, int dim1, int dim2,
                         int rademShape2);
 
+
+
 /*!
  * # convSORF3DWithCopyBuffer
  *

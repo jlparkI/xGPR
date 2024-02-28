@@ -27,7 +27,6 @@ class TestFastHadamardTransform(unittest.TestCase):
 
 
     def test_3d_array_transform(self):
-        return
         """Tests the 3d FHT transform. This is for CPU only;
         the cuda module does not provide a separate function
         for FHT only at this time."""
@@ -48,7 +47,6 @@ class TestFastHadamardTransform(unittest.TestCase):
 
 
     def test_2d_array_transform(self):
-        return
         """Tests the 2d FHT transform. This is for CPU only;
         the cuda module does not provide a separate function
         for FHT only at this time."""
@@ -100,7 +98,6 @@ class TestFastHadamardTransform(unittest.TestCase):
 
 
     def test_srht(self):
-        return
         """Tests SRHT functionality. Note that this tests SRHT
         functionality by using FHT. Therefore if the FHT did not
         pass, this one will not either."""

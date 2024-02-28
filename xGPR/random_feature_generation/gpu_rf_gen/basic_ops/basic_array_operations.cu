@@ -12,12 +12,9 @@
 #include <stdlib.h>
 #include <math.h>
 #include <complex.h>
+#include "../shared_constants.h"
 #include "basic_array_operations.h"
 #include "sharedmem.h"
-
-#define DEFAULT_THREADS_PER_BLOCK 256
-#define MAX_BASE_LEVEL_TRANSFORM 512
-#define MAX_SINGLE_STAGE_TRANSFORM 1024
 
 
 
@@ -57,6 +54,61 @@ __global__ void baseLevelTransform(T cArray[], int N, int log2N){
     for (i = threadIdx.x; i < N; i += blockDim.x)
         src_ptr[i] = s_data[i];
 }
+
+
+
+
+//Uses shared memory to perform a reasonably efficient single kernel
+//transform covering strides up to MAX_BASE_LEVEL_TRANSFORM, combined
+//with a diagonal matrix multiplication.
+template <typename T>
+__global__ void baseLevelTransformWithRademMultiply(T cArray[],
+        int N, int log2N, const int8_t *radem, T normConstant,
+        int numElementsPerRow){
+    
+
+    SharedMemory<T> shared;
+    T *s_data = shared.getPointer();
+    int i, spacing, pos = threadIdx.x;
+    int lo, id1, id2;
+    T *src_ptr = cArray + (blockIdx.x << log2N);
+    T y;
+
+    int rademStartPosition = (blockIdx.x << log2N) % numElementsPerRow;
+    const int8_t *rademPtr = radem + rademStartPosition;
+
+    //Copy data into shared memory while doing the first diagonal matmul.
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        s_data[i] = src_ptr[i];
+
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        s_data[i] = s_data[i] * rademPtr[i] * normConstant;
+
+    id1 = (pos << 1);
+    id2 = id1 + 1;
+    __syncthreads();
+    y = s_data[id2];
+    s_data[id2] = s_data[id1] - y;
+    s_data[id1] += y;
+
+
+    for (spacing = 2; spacing < N; spacing <<= 1){
+        //Equivalent to pos mod spacing if spacing is a power of 2,
+        //which here is always true.
+        lo = pos & (spacing - 1);
+        id1 = ((pos - lo) << 1) + lo;
+        id2 = id1 + spacing;
+        __syncthreads();
+        y = s_data[id2];
+        s_data[id2] = s_data[id1] - y;
+        s_data[id1] += y;
+    }
+    for (i = threadIdx.x; i < N; i += blockDim.x)
+        src_ptr[i] = s_data[i];
+}
+
+
+
 
 
 
@@ -384,6 +436,55 @@ void cudaHTransform(T cArray[],
 
 
 
+//We perform the transform over the last dimension
+//of cArray which must be 3d; we expect cArray.shape[2] to 
+//be a power of 2 (caller must verify). This can also be used
+//for 2d arrays by passing dim1=1. This function -- unlike
+//cudaHTransform -- also multiplies by a diagonal Rademacher
+//array while performing the H-transform. It should only
+//be applied for non-convolution-type operations (i.e. fixed-
+//vector kernels).
+template <typename T>
+void cudaHTransformWithDiagMultiply(T cArray[],
+		int dim0, int dim1, int dim2, const int8_t *radem,
+        T normConstant, int numElementsPerRow){
+
+    int N, log2N;
+    int spacing = 1;
+    int arrsize = dim0 * dim1 * dim2;
+    int blocksPerGrid;
+
+
+    //baseLevelTransform only covers strides up to MAX_BASE_LEVEL_TRANSFORM.
+    //If dim2 is less than that, we're set. Otherwise, run baseLevelTransform
+    //first then use a somewhat slower global memory procedure for larger strides.
+    N = (MAX_BASE_LEVEL_TRANSFORM < dim2) ? MAX_BASE_LEVEL_TRANSFORM : dim2;
+    log2N = log2(N);
+    blocksPerGrid = arrsize / N;
+
+    baseLevelTransformWithRademMultiply<T><<<blocksPerGrid, N / 2, 
+                    N * sizeof(T)>>>(cArray, N, log2N, radem,
+                            normConstant, numElementsPerRow);
+    
+    if (dim2 <= MAX_BASE_LEVEL_TRANSFORM)
+        return;
+    
+    //The largest strides (for large dim2) are handled by a somewhat
+    //slower global memory procedure.
+    spacing = MAX_BASE_LEVEL_TRANSFORM;
+    blocksPerGrid = (arrsize / 2) + DEFAULT_THREADS_PER_BLOCK - 1;
+    blocksPerGrid /= DEFAULT_THREADS_PER_BLOCK;
+    while (spacing < dim2){
+        levelNTransform<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, 
+                                arrsize, spacing);
+        spacing <<= 1;
+    }
+}
+
+
+
+
+
 //This function performs the SORF block transform (HD3 HD2 HD1) 
 //Note that cArray must have the same size across the
 //last two dimensions as radem and its last dimension must
@@ -412,26 +513,14 @@ const char *cudaSORF3d(T cArray[], const int8_t *radem,
                 radem, normConstant, numElementsPerRow);
     }
     else{
-        //Multiply by D1.
-        diagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem, 
-                                 numElementsPerRow, numElements, normConstant);
-    
-        //First H-transform.
-        cudaHTransform<T>(cArray, dim0, dim1, dim2);
-    
-        //Multiply by D2.
-        diagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + numElementsPerRow,
-                                 numElementsPerRow, numElements, normConstant);
-
-        //Second H-transform.
-        cudaHTransform<T>(cArray, dim0, dim1, dim2);
-    
-        //Multiply by D3.
-        diagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + 2 * numElementsPerRow,
-                                 numElementsPerRow, numElements, normConstant);
-    
-        //Last H-transform. Transform is in place so do not need to return anything except no error message.
-        cudaHTransform<T>(cArray, dim0, dim1, dim2);
+        cudaHTransformWithDiagMultiply(cArray, dim0, dim1, dim2,
+                radem, normConstant, numElementsPerRow);
+        cudaHTransformWithDiagMultiply(cArray, dim0, dim1, dim2,
+                radem + numElementsPerRow, normConstant,
+                numElementsPerRow);
+        cudaHTransformWithDiagMultiply(cArray, dim0, dim1, dim2,
+                radem + 2 * numElementsPerRow, normConstant,
+                numElementsPerRow);
     }
 
     //cudaProfilerStop();
@@ -519,21 +608,14 @@ template const char *cudaConvSORF3d<double>(double cArray[], const int8_t *radem
 template <typename T>
 const char *cudaSRHT2d(T cArray[], const int8_t *radem,
                 int dim0, int dim1){
-    int numElementsPerRow = dim1;
-    int numElements = dim1 * dim0;
     //This is the Hadamard normalization constant.
     T normConstant = log2(dim1) / 2;
     normConstant = 1 / pow(2, normConstant);
-    int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
 
     //cudaProfilerStart();
 
-    //Multiply by D1.
-    diagonalRademMultiply<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem, 
-                                 numElementsPerRow, numElements, normConstant);
-    
-    //First H-transform.
-    cudaHTransform<T>(cArray, dim0, 1, dim1);
+    cudaHTransformWithDiagMultiply(cArray, dim0, 1, dim1,
+                radem, normConstant, dim1);
 
     //cudaProfilerStop();
     return "no_error";

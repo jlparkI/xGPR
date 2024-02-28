@@ -76,10 +76,14 @@ class GraphPolySum(KernelBaseclass):
         self.polydegree = kernel_spec_parms["polydegree"]
         if self.polydegree < 2 or self.polydegree > 4:
             raise ValueError("Polydegree should be in the range from 2 to 4.")
-        self.graph_average = False
+
+        self.graph_average = "none"
         if "averaging" in kernel_spec_parms:
-            if kernel_spec_parms["averaging"]:
-                self.graph_average = True
+            if kernel_spec_parms["averaging"] in ["sqrt", "full"]:
+                self.graph_average = kernel_spec_parms["averaging"]
+            elif kernel_spec_parms["averaging"] != "none":
+                raise ValueError("Unrecognized value for 'averaging' supplied, "
+                        "should be one of 'none', 'sqrt', 'full'.")
 
         self.hyperparams = np.ones((1))
         self.bounds = np.asarray([[1e-3,1e2]])
@@ -159,8 +163,10 @@ class GraphPolySum(KernelBaseclass):
         scaling_constant = np.sqrt(1 / self.num_freqs)
         output_x = output_x[:,:self.num_rffs].astype(self.out_type) * scaling_constant
 
-        if self.graph_average:
+        if self.graph_average == "sqrt":
             output_x /= np.sqrt(float(input_x.shape[1]))
+        elif self.graph_average == "full":
+            output_x /= float(input_x.shape[1])
         if self.fit_intercept:
             output_x[:,0] = 1.
         return output_x

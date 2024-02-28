@@ -5,8 +5,8 @@ MAX_CLOSED_FORM_RFFS = 8192
 
 #The following are default settings for kernels that have
 #special parameters.
-DEFAULT_KERNEL_SPEC_PARMS = {"matern_nu":5/2, "conv_width":9,
-        "polydegree":2}
+DEFAULT_KERNEL_SPEC_PARMS = {"matern_nu":5/2, "intercept":True,
+        "ratquad_alpha":1}
 
 #The following is used if an error is encountered during
 #matrix decomposition.

@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 
-#define MIN(a,b) ((a) < (b) ? (a) : (b))
 
 template <typename T>
 const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],

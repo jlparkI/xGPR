@@ -10,11 +10,10 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 #include <math.h>
+#include "../shared_constants.h"
 #include "../basic_ops/basic_array_operations.h"
 #include "convolution.h"
 
-#define DEFAULT_THREADS_PER_BLOCK 256
-#define DEFAULT_THREADS_PER_BLREDUCE 32
 
 
 //Performs a strided copy from the original xdata into a temporary copy
