@@ -1,8 +1,6 @@
-"""Describes the SORFKernelBaseclass, which is used by the main
-fixed-vector kernels -- RBF, Matern.
-
-All of these share some methods and attributes in common
-which are stored here to avoid redundancy."""
+"""Describes the RBF + Linear kernel, a sum of an RBF kernel
+and a Linear kernel. This is highly effective in cases where
+there is a linear trend but with local deviations."""
 from abc import ABC
 from math import ceil
 
@@ -18,11 +16,13 @@ except:
     pass
 from ..kernel_baseclass import KernelBaseclass
 
-class SORFKernelBaseclass(KernelBaseclass, ABC):
-    """The baseclass for structured orthogonal random features (SORF)
-    kernels that accept fixed-vector inputs. Since it inherits from
-    KernelBaseclass, it includes the attributes of that class. Only
-    additional attributes unique to this class are described here.
+
+
+class RBFLinear(KernelBaseclass, ABC):
+    """An implementation of a Linear kernel + an RBF kernel.
+    Since it inherits from KernelBaseclass, it includes the
+    attributes of that class. Only additional attributes unique
+    to this class are described here.
 
     Attributes:
         nblocks (int): The SORF transform is performed in blocks
@@ -35,6 +35,15 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         padded_dims (int): The next largest power of two greater than
             xdim[-1], since the Hadamard transform only operates on
             vectors whose length is a power of two.
+        internal_rffs (int): The number of random features that will be generated.
+            This is different than num_rffs (from the parent class), which is what
+            the kernel will report to anyone asking how many features it generates.
+            The reason for this difference is that the linear + rbf kernel
+            concatenates the input (for the linear portion of the kernel) to
+            the random features generated for the RBF portion.
+        num_freqs (int): The number of frequencies to sample. Note that this is
+            calculated based on internal_rffs not num_rffs so the calculation
+            performed by the parent class is overriden.
         radem_diag: The diagonal matrices for the SORF transform. Type is int8.
         chi_arr: A diagonal array whose elements are drawn from the chi
             distribution. Ensures the marginals of the matrix resulting
@@ -45,17 +54,19 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             gradients.
     """
 
-    def __init__(self, num_rffs, xdim, num_threads = 2,
-                            sine_cosine_kernel = True, random_seed = 123,
-                            double_precision = False,
-                            kernel_spec_parms = {}):
-        """Constructor for the SORFKernelBaseclass. Calls the KernelBaseclass
+    def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
+                num_threads = 2, double_precision = False,
+                kernel_spec_parms = {}):
+        """Constructor. Calls the KernelBaseclass
         constructor first.
 
         Args:
             num_rffs (int): The user-requested number of random Fourier features.
                 For sine-cosine kernels (RBF, Matern), this will be saved by the
-                class as num_rffs.
+                class as num_rffs. Note that the number of input features (from xdim)
+                is subtracted from this to generate internal_rffs. If the result is
+                less than zero, the kernel will generate an exception upon being
+                created.
             xdim (tuple): The dimensions of the input. Either (N, D) or (N, M, D)
                 where N is the number of datapoints, D is number of features
                 and M is number of timepoints or sequence elements (convolution
@@ -63,26 +74,44 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             num_threads (int): The number of threads to use for generating random
                 features if running on CPU. If running on GPU, this is ignored.
             random_seed (int): The seed to the random number generator.
-            sine_cosine_kernel (bool): If True, the kernel is a sine-cosine kernel,
-                meaning it will sample self.num_freqs frequencies and use the sine
-                and cosine of each to generate twice as many features
-                (self.num_rffs). sine-cosine kernels only accept num_rffs
-                that are even numbers.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
-            kernel_spec_parms (dict): A dictionary of other kernel-specific settings.
+            kernel_spec_parms (dict): A dictionary of other optional kernel settings.
 
         Raises:
             ValueError: If a non 2d input array dimensionality is supplied.
         """
-        super().__init__(num_rffs, xdim, num_threads = num_threads,
-                sine_cosine_kernel = sine_cosine_kernel,
-                double_precision = double_precision,
-                kernel_spec_parms = kernel_spec_parms)
         if len(xdim) != 2:
             raise ValueError("The dimensionality of the input is inappropriate for "
                         "the kernel you have selected.")
 
+        #Although this IS a sine_cosine kernel, we don't want the parent class
+        #to enforce that num_rffs be a multiple of two (only needs to be true
+        #for internal rffs), so we set sine_cosine_kernel to False.
+        super().__init__(num_rffs, xdim, num_threads = num_threads,
+                sine_cosine_kernel = False,
+                double_precision = double_precision,
+                kernel_spec_parms = kernel_spec_parms)
+
+        self.internal_rffs = num_rffs - xdim[1]
+        if self.internal_rffs <= 1 or self.internal_rffs % 2 != 0:
+            import pdb
+            pdb.set_trace()
+            raise ValueError("For the RBFLinear kernel, the number of 'random' "
+                    "features requested includes the number of features in "
+                    "the input. So, for example, if the input is a length 100 "
+                    "vector and training_rffs is 1000, 900 random features will "
+                    "be generated and the input features will be concatenated to "
+                    "this to yield 1000 'random' features. The number of "
+                    "training and fitting rffs requested should therefore be "
+                    "at least num_input_features + 2, and after the input length "
+                    "is subtracted, the remainder should be an even number. The number of "
+                    "variance_rffs requested is not affected.")
+        self.hyperparams = np.ones((2))
+        self.bounds = np.asarray([[1e-3,1e1], [1e-6, 1e2]])
+
+
+        self.num_freqs = int(self.internal_rffs / 2)
         self.padded_dims = 2**ceil(np.log2(max(xdim[-1], 2)))
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
@@ -98,6 +127,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
 
         self.feature_gen = cpuRBFFeatureGen
         self.gradfun = cpuRBFGrad
+        self.device = device
 
 
 
@@ -138,11 +168,15 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
                             dtype = self.dtype)
         xtrans[:,:,:self._xdim[1]] = input_x[:,None,:] * self.hyperparams[1]
+
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
-        #The False argument here indicates that no intercept is required (intercept
-        #is only for RBFLinear).
-        self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.num_threads, False)
+        random_features = self.empty((input_x.shape[0], self.internal_rffs),
+                        self.out_type)
+        self.feature_gen(xtrans, random_features, self.radem_diag, self.chi_arr,
+                self.num_threads, self.fit_intercept)
+
+        output_x[:,:self.internal_rffs] = random_features
+        output_x[:,self.internal_rffs:] = input_x
         return output_x
 
 
@@ -172,9 +206,15 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
                             dtype = self.dtype)
         xtrans[:,:,:self._xdim[1]] = input_x[:,None,:]
+        random_features = self.empty((input_x.shape[0], self.internal_rffs),
+                self.out_type)
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
-        #The False argument here indicates that no intercept is required (intercept
-        #is only for RBFLinear).
-        dz_dsigma = self.gradfun(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads, False)
-        return output_x, dz_dsigma
+        output_grad = self.zero_arr((input_x.shape[0], self.num_rffs, 1), self.out_type)
+
+        output_grad[:,:self.internal_rffs,0:1] = self.gradfun(xtrans, random_features,
+                        self.radem_diag, self.chi_arr, self.hyperparams[1],
+                        self.num_threads, self.fit_intercept)
+
+        output_x[:,:self.internal_rffs] = random_features
+        output_x[:,self.internal_rffs:] = input_x
+        return output_x, output_grad

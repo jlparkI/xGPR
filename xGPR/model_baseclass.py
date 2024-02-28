@@ -1,6 +1,7 @@
 """Describes the ModelBaseclass from which other model classes inherit.
 """
 import sys
+import copy
 try:
     import cupy as cp
     from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
@@ -401,8 +402,11 @@ class ModelBaseclass():
         reset_num_rffs = False
         x_mean_corr = x_mean
         if self.num_rffs > 8192:
-            reset_num_rffs, num_rffs = True, self.num_rffs
-            self.num_rffs = 8192
+            reset_num_rffs, num_rffs = True, copy.deepcopy(self.num_rffs)
+            if self.kernel_choice == "RBFLinear" and self.num_rffs % 2 != 0:
+                self.num_rffs = 8191
+            else:
+                self.num_rffs = 8192
             x_mean_corr = self._get_x_mean(dataset)
 
         s_mat = srht_ratio_check(dataset, max_rank, self.kernel, self.random_seed,

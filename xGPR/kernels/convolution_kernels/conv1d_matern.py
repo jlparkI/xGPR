@@ -64,5 +64,5 @@ class Conv1dMatern(ConvKernelBaseclass):
         self.chi_arr /= chisamples
 
         self.hyperparams = np.ones((2))
-        self.bounds = np.asarray([[1e-3,1e1], [1e-6, 1e2]])
+        self.bounds = np.asarray([[1e-3,5], [1e-6, 1e2]])
         self.device = device

@@ -52,6 +52,6 @@ class Conv1dRBF(ConvKernelBaseclass):
                 num_threads, double_precision, kernel_spec_parms["conv_width"],
                 kernel_spec_parms)
         self.hyperparams = np.ones((2))
-        self.bounds = np.asarray([[1e-3,4], [1e-6, 1e2]])
+        self.bounds = np.asarray([[1e-3,5], [1e-6, 1e2]])
 
         self.device = device

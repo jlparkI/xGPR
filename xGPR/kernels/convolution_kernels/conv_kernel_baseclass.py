@@ -110,7 +110,6 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
         self.grad_func = None
 
 
-
     def kernel_specific_set_device(self, new_device):
         """Called by parent class when device is changed. Moves
         some of the object parameters to the appropriate device

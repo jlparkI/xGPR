@@ -25,7 +25,7 @@ class CheckKernelGradients(unittest.TestCase):
                 print("****Testing with averaging****")
                 costcomps = run_kernelspecific_test(kernel_name,
                         conv_kernel = is_conv_kernel,
-                        averaging = True)
+                        averaging = 'full')
                 for costcomp in costcomps:
                     self.assertTrue(costcomp)
 

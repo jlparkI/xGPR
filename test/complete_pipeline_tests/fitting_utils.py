@@ -35,8 +35,12 @@ def test_fit(kernel, conv_kernel, conv_width = 3,
 
     test_dataset, _ = build_test_dataset(conv_kernel = conv_kernel,
             xsuffix = "testxvalues.npy", ysuffix = "testyvalues.npy")
-    model.tune_hyperparams(train_dataset, n_restarts = 1, tol=1e-2,
+    if kernel == "MiniARD":
+        model.tune_hyperparams(train_dataset, n_restarts = 1, tol=1e-2,
             tuning_method = "L-BFGS-B")
+    else:
+        model.tune_hyperparams_crude(train_dataset)
+
 
     print(f"Hyperparams, cpu, {kernel}: {model.get_hyperparams()}")
     model.num_rffs = cg_fitting_rffs

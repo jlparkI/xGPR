@@ -21,7 +21,7 @@ RANDOM_STATE = 123
 
 def run_kernelspecific_test(kernel_choice, conv_kernel = False,
                 training_rffs = 512, conv_ard_kernel = False,
-                averaging = False):
+                averaging = 'none'):
     """Compares a numerical gradient with an exact gradient using
     generic hyperparameters and generic kernel settings."""
     online_data, _ = build_test_dataset(conv_kernel)
