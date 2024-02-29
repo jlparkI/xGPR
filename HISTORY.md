@@ -174,3 +174,11 @@ Altered the definition of averaging for conv kernels.
 
 Fixed a bug in rf feature generation for RBF-based kernels for
 situations where the number of input features is very large.
+
+### Version 0.3
+
+Extensive reworking of wrapped C++ / Cuda code for large improvements
+in either memory usage or speed for both fixed vector and convolution
+operations. Retired the poly and graph poly kernels, which are inefficient
+and rarely useful. Introduced sequence length masking, so that any zero
+padding we use is automatically masked if user so desires.
