@@ -9,8 +9,10 @@ You can build these for regression or classification:::
 
   from xGPR import build_regression_dataset, build_classification_dataset
 
-  reg_train_set = build_regression_dataset(x, y, chunk_size = 2000)
-  class_train_set = build_classification_dataset(x_class, y_class, chunk_size = 2000)
+  reg_train_set = build_regression_dataset(x, y, sequence_lengths = None,
+                        chunk_size = 2000)
+  class_train_set = build_classification_dataset(x_class, y_class, sequence_lengths = None,
+                        chunk_size = 2000)
 
 ``x`` and ``y`` can be *either* numpy arrays OR a list of filepaths
 to ``.npy`` files saved on disk. If the latter, no single one of the
@@ -25,12 +27,34 @@ The ``x`` array(s) can be either 2d for tabular data or 3d for sequences
 and graphs. If they are 2d, they should have shape (N, M) for N datapoints
 and M features. If they are 3d, they should have shape (N, D, M) for N
 datapoints, D sequence elements / timepoints / nodes and M features.
-If ``x`` is a list of ``.npy`` files saved on disk, D doesn't have
-to be the same for all of them -- you don't have to zero-pad sequences
-to be the same length. Also they don't have to be float64 -- you can
+If they are arrays saved on disk, they don't have to be float64 -- you can
 save the data as float32 or even uint8, and xGPR will convert it to
 float32 when loading (this can often save considerable disk space
 and also make model fitting faster).
+
+If your data is 3d (i.e. sequences or graphs), you have to also supply
+``sequence_lengths``. If ``x`` is an array with ``shape[0]=N``,
+``sequence_lengths`` should also be an array with shape ``(N,)`` that
+indicates the length of each sequence (or number of nodes in each graph)
+excluding zero-padding (unless you want to include zero-padding in the 
+kernel calculation for whatever reason, in which case, just set all
+sequence_lengths to be ``x.shape[1]``). xGPR will then "mask" the zero-
+padding when doing the kernel calculations.
+
+If your data is 3d but ``x`` is a list of ``.npy`` files on disk,
+``sequence_lengths`` should be a list of ``.npy`` files on disk
+of the same length. For each ``x`` file with shape ``(N,D,M)``,
+the corresponding sequence_length file should be an npy array
+of shape ``(N,)`` indicating the length of each corresponding
+sequence in that ``x`` file again (typically) excluding zero-
+padding.
+
+If using 3d data, you'll also have to pass the sequence lengths of your
+test datapoints to ``model.predict`` when making predictions -- see below
+for examples.
+
+See the Examples section for some illustrations of working with sequence
+and graph data. For fixed-vector 2d data, of course, sequence lengths are not required.
 
 When you create the dataset, xGPR will do some checks to make sure that
 what you fed it makes sense. If the dataset is very large, these may take a
@@ -93,22 +117,21 @@ Let's create two models using RBF kernels and fit them:::
   #slightly increases speed but increases memory usage. If you're worried
   #about memory usage, set a small chunk_size, otherwise default of 2000 is fine.
 
-  reg_preds = reg_model.predict(xtest_reg, chunk_size = 2000)
+  reg_preds = reg_model.predict(xtest_reg, sequence_lengths = None, chunk_size = 2000)
   class_model.device = "cpu"
   class_probs = class_model.predict(xtest_class)
 
   #For regression, we can also get the variance on the predictions, which
   #is useful as a measure of uncertainty.
 
-  reg_preds, reg_var = reg_model.predict(xtest_reg, get_var = True)
+  reg_preds, reg_var = reg_model.predict(xtest_reg, sequence_lengths = None, get_var = True)
 
 
 And that's basically it!
 
 We used "RBF" kernels here, but there are plenty of other options; see the Kernels
-section on the main page. Many of them have options that you can supply under the
-``kernel_settings`` dict (e.g. the degree of a polynomial if using a polynomial
-kernel, or the convolution width if using a sequence kernel).
+section on the main page. Some of them have options that you can supply under the
+``kernel_settings`` dict (e.g. the convolution width if using a sequence kernel).
 
 Notice also that we had to specify ``num_rffs`` when setting up the model (but can
 change it subsequently as well, at least right up until we fit). ``num_rffs`` controls
@@ -118,6 +141,11 @@ makes the model more accurate, but with diminishing returns. It also increases
 computational expense (fitting using ``num_rffs=4096`` will be much faster than fitting
 with ``num_rffs=32,768``).
 
+Finally, notice that when calling ``model.predict`` just as when building a dataset,
+``sequence_lengths`` is None if you're using a fixed-length kernel; if you're inputting
+a 3d array and using a convolution kernel, you have to supply a numpy array of sequence
+lengths so that xGPR can mask zero-padding (if you're using zero-padding).
+
 There's one big missing piece we haven't discussed so far of course, which is...
 
 
@@ -125,10 +153,11 @@ How to find good hyperparameter values?
 ----------------------------------------
 
 Most kernels in xGPR have either two hyperparameters ("lambda", "sigma") or one ("lambda").
-(There's an exception to this, the ``MiniARD`` kernel, but we'll save that one for an
-advanced tutorial.) The Lambda hyperparameter is like the ridge penalty in ridge regression:
-it provides regularization and is roughly related to how "noisy" the data is expected to
-be. Larger (more positive) values = stronger regularization.
+(There's an exception to this, the ``MiniARD`` kernel, which is a fixed-length kernel
+that assigns a different "importance" or lengthscale to different groups of features. 
+We'll save that one for an advanced tutorial.) The Lambda hyperparameter is like the ridge
+penalty in ridge regression: it provides regularization and is roughly related to how "noisy"
+the data is expected to be. Larger (more positive) values = stronger regularization.
 xGPR squares the Lambda hyperparameter when fitting.
 
 The "sigma" hyperparameter, for kernels that have it, is an inverse lengthscale that (to oversimplify
@@ -152,11 +181,12 @@ hyperparameter settings and look at performance on a validation set. Right now, 
 only supported option for classification. So in this scheme, for each set of
 hyperparameters you're considering, you would:::
 
-   def my_hparam_evalation_function(my_new_hyperparams, my_validation_set_array):
+   def my_hparam_evalation_function(my_new_hyperparams, my_validation_set_array,
+                    my_validation_set_sequence_lengths = None):
        my_model.set_hyperparams(my_new_hyperparams, my_train_dataset)
        my_model.fit(my_train_dataset, mode="cg")
-       preds = my_model.predict(my_validation_set_array)
-       ##Add some score evaluation here
+       preds = my_model.predict(my_validation_set_array, my_validation_set_sequence_lengths)
+       ##Add some score evaluation, R^2, MAE, accuracy, etc. here...
        return score
 
 where ``my_new_hyperparams`` is a numpy array. You can easily plug this into Optuna or
@@ -185,8 +215,8 @@ Now, we just minimize the value returned by this function -- again, we can use O
 grid search, Bayesian optimization, what have you.
 
 Notice one funny trick in the function above. ``exact_nmll`` is much faster if the
-number of RFFs is small. On GPU, it can be reasonably fast up to about 8,192 RFFs or
-so. It has cubic scaling, however, so for large numbers of RFFs it can get very
+number of RFFs is small. On GPU, it can be reasonably fast up to about 8,192 RFFs.
+It has cubic scaling, however, so for large numbers of RFFs it can get very
 slow very quickly. ``approximate_nmll`` has much better scaling and so is your
 friend if you want to tune using a large ``num_rffs``. It does involve an additional
 approximation (above and beyond the random feature approximation used throughout xGPR).
@@ -235,7 +265,7 @@ fast initial search, then (if desired) further fine-tune the hyperparameters usi
   #pass that as bounds, set n_restarts to say 3 and
   #thoroughly explore the space around rough_hparams. Or
   #even just do a gridsearch across the space around rough
-  #hparams -- there are a lot of options.
+  #hparams. See the examples section for some illustrations.
   my_model.num_rffs = 4096
   my_model.tune_hyperparams(my_train_dataset, max_iter = 50,
                         tuning_method = "L-BFGS-B",
@@ -249,7 +279,7 @@ but has to calculate the gradient on each, so it's slow if ``num_rffs`` is large
 If ``num_rffs`` is large, instead, consider ``Powell`` and ``Nelder-Mead``. ``Nelder-Mead``
 is usually better than ``Powell`` at finding the absolute best possible value, but
 it can take a *lot* of iterations to converge, so it's only good if you're not in a
-hurry.
+hurry. We generally prefer Powell to Nelder-Mead.
 
 Remember that when calculating NMLL, we could use ``exact_nmll`` or
 ``approximate_nmll``. The function ``tune_hyperparams`` offers you the same choice:

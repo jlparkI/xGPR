@@ -6,7 +6,7 @@ clustering. xGPR has a tool that will generate the random features
 for your data for you, and then you just run k-means or PCA on the resulting
 features using your package of choice. This is (approximately) equivalent to running
 kernel k-means or kernel PCA on the original data, but faster, because there is no
-need to construct an N x N kernel matrix! Also, it enables you to use
+need to construct an N x N kernel matrix. Also, it enables you to use
 the graph and sequence kernels in xGPR for clustering or visualization.
 (It is also possible to use another algorithm aside from k-means to cluster
 the random features representations, although due to its scalability k-means
@@ -40,7 +40,7 @@ To generate random features, use the KernelFGen tool below:::
                     kernel_settings = {}, random_seed = 123, verbose = True,
                     num_threads = 2)
 
-  my_feature_rep = fgen.predict(my_input_numpy_array,
+  my_feature_rep = fgen.predict(my_input_numpy_array, sequence_lengths = None,
                                            chunk_size = 2000)
 
 Now you can cluster ``my_feature_rep`` -- it's just a random features representation

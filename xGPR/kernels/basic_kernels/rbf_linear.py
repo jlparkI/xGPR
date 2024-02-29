@@ -95,8 +95,6 @@ class RBFLinear(KernelBaseclass, ABC):
 
         self.internal_rffs = num_rffs - xdim[1]
         if self.internal_rffs <= 1 or self.internal_rffs % 2 != 0:
-            import pdb
-            pdb.set_trace()
             raise ValueError("For the RBFLinear kernel, the number of 'random' "
                     "features requested includes the number of features in "
                     "the input. So, for example, if the input is a length 100 "

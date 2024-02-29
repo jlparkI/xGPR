@@ -104,12 +104,13 @@ Finally, note that ``mode=lbfgs`` is available as an alternative. We don't
 really recommend this -- it's mostly used for testing. In the past, we've found
 that both LBFGS and numerous flavors of stochastic gradient descent are
 substantially slower for fitting than exact and preconditioned CG, at least
-for tol < 1e-4. (SGD is popular in the literature because it works well for
+for tol < 1e-4.
+
+As a side note: SGD is popular in the literature because it works well for
 deep learning. Most papers that recommend some flavor of SGD haven't tried
 to use it for high-dimensional linear problems that may sometimes be
 ill-conditioned and where a tight fit is desired -- SGD does NOT work well
 under this particular set of circumstances, at least Adam, AMSGrad, SVRG,
 and the other usual suspects. The amount of learning rate tuning required
 to get SGD to work well is simply not acceptable for an out of the box
-fitting routine. Of course, if this changes and some better SGD variant
-becomes available, we'll add it here too...)
+fitting routine.

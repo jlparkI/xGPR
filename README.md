@@ -18,6 +18,13 @@ which only provide kernels for fixed-vector data (tabular data),
 xGPR provides powerful convolution kernels for variable-length time series,
 sequences and graphs.
 
+### What's new in v0.3
+In v0.3, we've improved the speed and memory consumption for most processes
+and introduced sequence length masking, so that any zero-padding you use
+is masked for convolution kernels (if desired). We've also introduced
+5 new kernels for a variety of tasks and made some simplifications to the API.
+
+
 ### Documentation
 
 [The documentation](https://xgpr.readthedocs.io/en/latest/) covers a variety of use cases, including tabular data,

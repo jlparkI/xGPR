@@ -4,7 +4,7 @@ How kernels are approximated in xGPR
 An exact kernel machine measures the similarity of each training datapoint
 to every other training datapoint using a kernel function. This is completely
 impractical for large datasets (consider constructing a one million by one
-million matrix for a million-datapoint dataset!)
+million matrix for a million-datapoint dataset.)
 
 xGPR approximates the kernel matrix by representing each datapoint using a
 set of "random features", a representation constructed such that the
@@ -46,6 +46,10 @@ these "screening" experiments fast. Once we've picked a kernel, we
 use a larger number of random features (e.g. 8192 - 16,384) to "fine
 tune" the hyperparameters and fit the model. See the quickstart tutorial
 and the examples on the main page for some illustrations. 
+
+As a general rule, the more high-dimensional the input data, the more RFFs you will likely
+need for an effective approximation. Thus, the RFF approximation (and xGPR
+in general) may not make sense if your data is very high-dimensional.
 
 The variance (i.e. the uncertainty) on new predictions for regression
 is a useful quantity, but it generally only needs to be calculated very

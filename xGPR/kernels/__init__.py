@@ -23,10 +23,10 @@ KERNEL_NAME_TO_CLASS = {"RBF":RBF,
         "Cauchy":Cauchy,
         "Conv1dRBF":Conv1dRBF,
         "Conv1dMatern":Conv1dMatern,
-        "Conv1dRatQuad":Conv1dCauchy,
+        "Conv1dCauchy":Conv1dCauchy,
         "GraphRBF":GraphRBF,
         "GraphMatern":GraphMatern,
-        "GraphRatQuad":GraphCauchy,
+        "GraphCauchy":GraphCauchy,
         "Linear":Linear,
         "RBFLinear":RBFLinear,
         "MiniARD":MiniARD}
@@ -34,5 +34,5 @@ KERNEL_NAME_TO_CLASS = {"RBF":RBF,
 # A list of kernels that require 3d arrays as input. This
 # is used by kernel_fgen for generating random features
 # outside of a regressor / classifier.
-ARR_3D_KERNELS = {"GraphRBF", "GraphPoly", "Conv1dRBF", "Conv1dMatern",
-        "GraphMatern"}
+ARR_3D_KERNELS = {"GraphRBF", "Conv1dRBF", "Conv1dMatern",
+        "GraphMatern", "GraphCauchy", "Conv1dCauchy"}
