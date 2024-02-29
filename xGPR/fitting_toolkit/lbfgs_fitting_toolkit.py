@@ -150,8 +150,8 @@ class lBFGSModelFit:
         if self.device == "gpu":
             wvec = cp.asarray(wvec).astype(self.dtype)
         xprod = self.lambda_**2 * wvec
-        for xdata in self.dataset.get_chunked_x_data():
-            xtrans = self.kernel.transform_x(xdata)
+        for (xdata, ldata) in self.dataset.get_chunked_x_data():
+            xtrans = self.kernel.transform_x(xdata, ldata)
             xprod += (xtrans.T @ (xtrans @ wvec))
 
 
@@ -187,8 +187,8 @@ class lBFGSModelFit:
         else:
             xprod = np.zeros((self.kernel.get_num_rffs(), self.n_classes))
 
-        for xdata in self.dataset.get_chunked_x_data():
-            xtrans = self.kernel.transform_x(xdata) - x_mean[None,:]
+        for (xdata, ldata) in self.dataset.get_chunked_x_data():
+            xtrans = self.kernel.transform_x(xdata, ldata) - x_mean[None,:]
             xprod += (xtrans.T @ (xtrans @ wvec))
 
         xprod /= self.dataset.get_ndatapoints()
@@ -223,8 +223,8 @@ class lBFGSModelFit:
         grad = self.lambda_**2 * wvec
         loss = self.lambda_**2 * (wvec.T @ wvec)
 
-        for xdata, ydata in self.dataset.get_chunked_data():
-            xtrans = self.kernel.transform_x(xdata)
+        for xdata, ydata, ldata in self.dataset.get_chunked_data():
+            xtrans = self.kernel.transform_x(xdata, ldata)
             pred = (xtrans @ -wvec).clip(max=30)
             pred = (1 / (1 + 2.71828**pred)).flatten()
             pred = pred.clip(min=1e-12, max=1e12)
@@ -258,8 +258,8 @@ class lBFGSModelFit:
         if self.device == "gpu":
             wvec = cp.asarray(wvec).astype(self.dtype)
         xprod = self.lambda_**2 * wvec
-        for xdata in self.dataset.get_chunked_x_data():
-            xtrans = self.kernel.transform_x(xdata)
+        for (xdata, ldata) in self.dataset.get_chunked_x_data():
+            xtrans = self.kernel.transform_x(xdata, ldata)
             xprod += (xtrans.T @ (xtrans @ wvec))
 
 

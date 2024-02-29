@@ -11,19 +11,19 @@ convolution-based feature extraction*, by contrast, you have to supply your
 data in the form of a Dataset object, which is
 analogous to the DataLoader in PyTorch.
 
-Currently you can build a Dataset using either a numpy X array and a y-array
-in memory *OR* using a list of x-files and a corresponding list of y-files,
-both of which must be numpy arrays saved on disk as .npy files. In the latter
-case, xGPR will only load one x-y pair from the list at a time, making it easy
-to work with datasets too large to fit in memory. The order in which datapoints
-are provided is not important, *unless* you plan to use stochastic gradient
-descent for hyperparameter tuning or fitting, in which case datapoints should
-be "shuffled". Likewise, the size of the .npy files (i.e. number of datapoints)
-is not important, so long as they are all less than some maximum size.
+Currently you can build a Dataset using either a numpy X array, a numpy
+``sequence_length`` array (only if X is a 3d array) and a y-array
+in memory *OR* using a list of x-files, a corresponding list of sequence_length
+files (only if each x array is 3d) and a corresponding list of y-files,
+all of which must be numpy arrays saved on disk as .npy files. In the latter
+case, xGPR will only load one x-seqlen-y set from the lists at a time, making it easy
+to work with datasets too large to fit in memory. Likewise, the size of the .npy
+files (i.e. number of datapoints) is not important, so long as they are all
+less than some maximum size.
 
 When loading data, xGPR converts it to float32. You can therefore save it on
 disk as float32, float64, or even uint8 or any other convenient format. Saving
-it as float32 or (if applicable) uint8 can save considerable memory and make
+it as float32 or (if applicable) uint8 can save considerable disk space and make
 model fitting faster (since there is much less to load on each pass over the
 dataset).
 
@@ -66,6 +66,10 @@ we're using. Using more RFFs means xGPR will take longer to train however.
 xGPR approximates an exact GP when making predictions and when estimating
 uncertainty.
 
+The more high-dimensional the data, the more RFFs you may need to get a good
+kernel approximation. Thus, xGPR may not be a good alternative for very high-dimensional
+input.
+
 Setting hyperparameters
 ------------------------
 
@@ -83,19 +87,20 @@ Setting up a model for convolution
 
 There are currently two ways to do convolution on multivariate sequence
 (multivariate time series, sequences) and graphs. The first is to use
-a dedicated convolution kernel, (e.g. ``FHTConv1d`` for sequences
+a dedicated convolution kernel, (e.g. ``Conv1dRBF`` for sequences
 or ``GraphRBF`` for graphs), e.g.:::
 
   from xGPR import xGPRegression
   my_model = xGPRegression(num_rffs = 2048,
-                        variance_rffs = 512, kernel_choice = "FHTConv1d",
+                        variance_rffs = 512, kernel_choice = "Conv1dRBF",
                         device = "gpu", kernel_settings =
                         {"conv_width":9}, verbose = True)
 
 Everything else remains unchanged, you just need to ensure the dataset
-you supply contains 3d arrays (otherwise a ValueError is raised). For
-details on available convolution kernels, see the
-Available Kernels section on the main page.
+you supply contains 3d arrays (otherwise a ValueError is raised) and
+that sequence lengths are supplied (so that xGPR can mask zero
+padding if you are using zero padding). For details on available convolution
+kernels, see the Available Kernels section on the main page.
 
 Another option is to use a feature extractor (aka "static layer"),
 which is itself a kind of kernel, then feed the output of this feature

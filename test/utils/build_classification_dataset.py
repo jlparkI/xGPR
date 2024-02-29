@@ -31,9 +31,19 @@ def build_discriminant_traintest_split():
     xvalues, yvalues = xvalues[idx,:], yvalues[idx]
     cutoff = int(0.75 * idx.shape[0])
 
-    train_data = build_classification_dataset(xvalues[:cutoff,...],
-            yvalues[:cutoff], chunk_size = 2000)
-    test_data = build_classification_dataset(xvalues[cutoff:,...],
-            yvalues[cutoff:], chunk_size = 2000)
+    if len(xvalues.shape) == 2:
+        sequence_lengths = None
+        train_data = build_classification_dataset(xvalues[:cutoff,...],
+                yvalues[:cutoff], chunk_size = 2000)
+        test_data = build_classification_dataset(xvalues[cutoff:,...],
+                yvalues[cutoff:], chunk_size = 2000)
+
+    else:
+        sequence_lengths = np.full(xvalues.shape[0], xvalues.shape[1]).astype(np.int32)
+        train_data = build_classification_dataset(xvalues[:cutoff,...],
+                yvalues[:cutoff], sequence_lengths[:cutoff], chunk_size = 2000)
+        test_data = build_classification_dataset(xvalues[cutoff:,...],
+                yvalues[cutoff:], sequence_lengths[cutoff:], chunk_size = 2000)
+
 
     return train_data, test_data

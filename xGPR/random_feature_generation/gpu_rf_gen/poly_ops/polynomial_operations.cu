@@ -8,49 +8,9 @@
 #include <stdlib.h>
 #include <math.h>
 #include "polynomial_operations.h"
+#include "../shared_constants.h"
 #include "../basic_ops/basic_array_operations.h"
 
-#define DEFAULT_THREADS_PER_BLOCK 256
-
-
-//Performs an elementwise multiplication of a [c,M,P] array against the
-//[N,M,P] input array or a [P] array against the [N,P] input array.
-//Note that we mutiiply by the Hadamard normalization constant here.
-template <typename T>
-__global__ void polyMultByDiagRademMat(T cArray[], int8_t *rademArray,
-			int numElementsPerRow, int numElements, T normConstant)
-{
-    int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    int rVal, position;
-    
-    position = tid % numElementsPerRow;
-
-    if (tid < numElements){
-        rVal = rademArray[position];
-        cArray[tid] = cArray[tid] * rVal * normConstant;
-    }
-}
-
-
-//Performs an elementwise multiplication of a [c,M,P] array against the
-//[N,M,P] input array or a [P] array against the [N,P] input array,
-//WHILE copying from the input array into a copy buffer.
-//Note that we mutiiply by the Hadamard normalization constant here.
-template <typename T>
-__global__ void polyMultAndCopyDiagRademMat(T cArray[], T copyBuffer[],
-            int8_t *rademArray, int numElementsPerRow,
-            int numElements, T normConstant)
-{
-    int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    int rVal, position;
-    
-    position = tid % numElementsPerRow;
-    
-    if (tid < numElements){
-        rVal = rademArray[position];
-        copyBuffer[tid] = cArray[tid] * rVal * normConstant;
-    }
-}
 
 
 
@@ -114,22 +74,16 @@ const char *approxPolynomial_(int8_t *radem, T reshapedX[],
     //This is the Hadamard normalization constant.
     T normConstant = log2(reshapedDim2) / 2;
     normConstant = 1 / pow(2, normConstant);
-    int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     int outputBlocks = (numOutputElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
+    const char *errCode;
     //cudaProfilerStart();
     
     // First, copy the input into copy buffer and perform the initial SORF operation.
     // Then copy the results into output array while multiplying by chiArr.
-    polyMultAndCopyDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX,
-                copyBuffer, radem, numElementsPerRow, numElements, normConstant);
-    cudaHTransform3d<T>(copyBuffer, reshapedDim0, reshapedDim1, reshapedDim2);
-    for (int k=1; k < 3; k++){
-        polyMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(copyBuffer,
-                radem + k * numElementsPerRow,
-                numElementsPerRow, numElements, normConstant);
-        cudaHTransform3d<T>(copyBuffer, reshapedDim0, reshapedDim1, reshapedDim2);
-    }
-    
+    cudaMemcpy(copyBuffer, reshapedX, sizeof(T) * numElements,
+                cudaMemcpyDeviceToDevice);
+    errCode = cudaSORF3d<T>(copyBuffer, radem,
+            reshapedDim0, reshapedDim1, reshapedDim2);
     polyOutArrayCopyTransfer<T><<<outputBlocks, DEFAULT_THREADS_PER_BLOCK>>>(copyBuffer,
             chiArr, outArray, numFreqs, numElementsPerRow,
             numElements);
@@ -138,23 +92,17 @@ const char *approxPolynomial_(int8_t *radem, T reshapedX[],
     // the results of the SORF operation on copyBuffer; do this up to polydegree
     // times.
     for (int i=1; i < polydegree; i++){
-        polyMultAndCopyDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(reshapedX,
-                copyBuffer, radem + (i * 3 * numElementsPerRow),
-                numElementsPerRow, numElements, normConstant);
-        cudaHTransform3d<T>(copyBuffer, reshapedDim0, reshapedDim1, reshapedDim2);
-        for (int k=1; k < 3; k++){
-            polyMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(copyBuffer,
-                radem + (i * 3 + k) * numElementsPerRow,
-                numElementsPerRow, numElements, normConstant);
-            cudaHTransform3d<T>(copyBuffer, reshapedDim0, reshapedDim1, reshapedDim2);
-        }
+        cudaMemcpy(copyBuffer, reshapedX, sizeof(T) * numElements,
+                cudaMemcpyDeviceToDevice);
+        errCode = cudaSORF3d<T>(copyBuffer, radem + (i * 3 * numElementsPerRow),
+                reshapedDim0, reshapedDim1, reshapedDim2);
         polyOutArrayMultTransfer<T><<<outputBlocks, DEFAULT_THREADS_PER_BLOCK>>>(copyBuffer,
             chiArr, outArray, numFreqs, numElementsPerRow,
             numElements, i);
     }
 
     //cudaProfilerStop();
-    return "no_error";
+    return errCode;
 }
 //Instantiate templates explicitly so wrapper can use.
 template const char *approxPolynomial_<float>(int8_t *radem, float reshapedX[],

@@ -4,41 +4,13 @@
  * This module uses the "low-level" functions in array_operations to perform
  * fast Hadamard transforms, SORF and SRHT operations on a variety of different
  * array shapes.
- *
- * + fastHadamard3dArray_
- * Performs the unnormalized fast Hadamard on a 3d array using multithreading.
- * + fastHadamard2dArray_
- * Performs the unnormalized fast Hadamard on a 2d array using multithreading.
- * 
- * + SORFBlockTransform_
- * Performs the structured orthogonal features operation on an input
- * 3d array using multithreading.
- * 
- * + SRHTBlockTransform_
- * Performs the key operations in the SRHT on an input 2d array using multithreading.
- *
- * + ThreadSORFRows3D
- * Performs operations for a single thread of the SORF operation.
- *
- * + ThreadSRHTRows
- * Performs operations for a single thread of the SRHT operation.
- *
- * + ThreadTransformRows3D
- * Performs operations for a single thread of the fast Hadamard.
- * 
- * + ThreadTransformRows2D
- * Performs operations for a single thread of the fast Hadamard 2d.
  */
 #include <Python.h>
 #include <vector>
 #include <thread>
 #include "transform_functions.h"
 #include "../shared_fht_functions/hadamard_transforms.h"
-#include "../shared_fht_functions/diagonal_matmul_ops.h"
-
-
-#define VALID_INPUTS 0
-#define INVALID_INPUTS 1
+#include "../shared_fht_functions/shared_rfgen_ops.h"
 
 /*!
  * # fastHadamard3dArray_
@@ -237,28 +209,8 @@ const char *SRHTBlockTransform_(T Z[], int8_t *radem,
 template <typename T>
 void *ThreadSORFRows3D(T arrayStart[], int8_t* rademArray,
         int dim1, int dim2, int startPosition, int endPosition){
-    int rowSize = dim1 * dim2;
-
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray,
-                    dim1, dim2, 
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
-
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray + rowSize,
-                    dim1, dim2, 
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
-    
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray + 2 * rowSize,
-                    dim1, dim2, 
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
+    SORF3D(arrayStart, rademArray, startPosition, endPosition,
+            dim1, dim2);
     return NULL;
 }
 
@@ -282,8 +234,8 @@ void *ThreadSRHTRows2D(T arrayStart[], int8_t* rademArray,
     multiplyByDiagonalRademacherMat2D<T>(arrayStart,
                     rademArray, dim1,
                     startPosition, endPosition);
-    transformRows2D<T>(arrayStart, startPosition, 
-                    endPosition, dim1);
+    transformRows<T>(arrayStart, startPosition, 
+                    endPosition, 1, dim1);
     return NULL;
 }
 
@@ -301,7 +253,7 @@ void *ThreadSRHTRows2D(T arrayStart[], int8_t* rademArray,
 template <typename T>
 void *ThreadTransformRows3D(T arrayStart[], int startPosition,
         int endPosition, int dim1, int dim2){
-    transformRows3D<T>(arrayStart, startPosition, 
+    transformRows<T>(arrayStart, startPosition, 
                     endPosition, dim1, dim2);
     return NULL;
 }
@@ -320,8 +272,8 @@ void *ThreadTransformRows3D(T arrayStart[], int startPosition,
 template <typename T>
 void *ThreadTransformRows2D(T arrayStart[], int startPosition,
         int endPosition, int dim1){
-    transformRows2D<T>(arrayStart, startPosition, 
-                    endPosition, dim1);
+    transformRows<T>(arrayStart, startPosition, 
+                    endPosition, 1, dim1);
     return NULL;
 }
 

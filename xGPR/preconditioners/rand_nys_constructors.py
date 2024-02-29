@@ -32,14 +32,14 @@ def single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose,
             data) and should never be None for classification (classification does).
     """
     if x_mean is None:
-        for j, xdata in enumerate(dataset.get_chunked_x_data()):
-            xdata = kernel.transform_x(xdata)
+        for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
+            xdata = kernel.transform_x(xdata, ldata)
             acc_results += xdata.T @ (xdata @ q_mat)
             if j % 10 == 0 and verbose:
                 print(f"Chunk {j} complete.")
     else:
-        for j, xdata in enumerate(dataset.get_chunked_x_data()):
-            xdata = kernel.transform_x(xdata) - x_mean[None,:]
+        for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
+            xdata = kernel.transform_x(xdata, ldata) - x_mean[None,:]
             acc_results += xdata.T @ (xdata @ q_mat)
             if j % 10 == 0 and verbose:
                 print(f"Chunk {j} complete.")
@@ -63,14 +63,14 @@ def single_pass_srht(dataset, kernel, compressor, acc_results, verbose,
             data) and should never be None for classification (classification does).
     """
     if x_mean is None:
-        for j, xdata in enumerate(dataset.get_chunked_x_data()):
-            xdata = kernel.transform_x(xdata)
+        for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
+            xdata = kernel.transform_x(xdata, ldata)
             acc_results += compressor.transform_x(xdata).T @ xdata
             if j % 10 == 0 and verbose:
                 print(f"Chunk {j} complete.")
     else:
-        for j, xdata in enumerate(dataset.get_chunked_x_data()):
-            xdata = kernel.transform_x(xdata) - x_mean[None,:]
+        for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
+            xdata = kernel.transform_x(xdata, ldata) - x_mean[None,:]
             acc_results += compressor.transform_x(xdata).T @ xdata
             if j % 10 == 0 and verbose:
                 print(f"Chunk {j} complete.")
@@ -104,19 +104,25 @@ def subsampled_srht(dataset, kernel, compressor, acc_results, verbose,
     """
     if x_mean is None:
         rng = np.random.default_rng(random_seed)
-        for j, xdata in enumerate(dataset.get_chunked_x_data()):
+        for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
             cutoff = max(int(sample_frac * float(xdata.shape[0])), 1)
             idx = rng.permutation(xdata.shape[0])[:cutoff]
-            xdata = kernel.transform_x(xdata[idx,...])
+            if ldata is not None:
+                xdata = kernel.transform_x(xdata[idx,...], ldata[idx])
+            else:
+                xdata = kernel.transform_x(xdata[idx,...])
             acc_results += compressor.transform_x(xdata).T @ xdata
             if j % 10 == 0 and verbose:
                 print(f"Chunk {j} complete.")
     else:
         rng = np.random.default_rng(random_seed)
-        for j, xdata in enumerate(dataset.get_chunked_x_data()):
+        for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
             cutoff = max(int(sample_frac * float(xdata.shape[0])), 1)
             idx = rng.permutation(xdata.shape[0])[:cutoff]
-            xdata = kernel.transform_x(xdata[idx,...]) - x_mean[None,:]
+            if ldata is not None:
+                xdata = kernel.transform_x(xdata[idx,...], ldata[idx]) - x_mean[None,:]
+            else:
+                xdata = kernel.transform_x(xdata[idx,...]) - x_mean[None,:]
             acc_results += compressor.transform_x(xdata).T @ xdata
             if j % 10 == 0 and verbose:
                 print(f"Chunk {j} complete.")
@@ -140,8 +146,8 @@ def single_pass_srht_zty(dataset, kernel, compressor, acc_results, z_trans_y,
         verbose (bool): Whether to print updates.
     """
     y_trans_y = 0.0
-    for j, (xdata, ydata) in enumerate(dataset.get_chunked_data()):
-        xdata = kernel.transform_x(xdata)
+    for j, (xdata, ydata, ldata) in enumerate(dataset.get_chunked_data()):
+        xdata = kernel.transform_x(xdata, ldata)
         z_trans_y += xdata.T @ ydata
         y_trans_y += ydata.T @ ydata
         acc_results += compressor.transform_x(xdata).T @ xdata

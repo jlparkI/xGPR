@@ -114,9 +114,14 @@ class KernelBaseclass(ABC):
 
 
     @abc.abstractmethod
-    def transform_x(self, input_x):
+    def transform_x(self, input_x, sequence_length):
         """Kernel classes must implement a method that generates
         random features for a given set of inputs."""
+
+    @abc.abstractmethod
+    def kernel_specific_gradient(self, input_x, sequence_length):
+        """Kernel classes must implement a method that calculates
+        the NMLL gradient for any kernel-specific hyperparameters."""
 
     @abc.abstractmethod
     def kernel_specific_set_device(self, new_device):

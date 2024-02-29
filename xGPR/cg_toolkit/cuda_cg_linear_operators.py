@@ -1,6 +1,4 @@
 """Linear operators for performing matvecs for conjugate gradients for Cuda."""
-from scipy.sparse.linalg import LinearOperator
-import numpy as np
 try:
     import cupy as cp
     from cupyx.scipy.sparse.linalg import LinearOperator as cpx_LinearOperator
@@ -54,7 +52,7 @@ class Cuda_CGLinearOperator(cpx_LinearOperator):
             print(f"Iteration {self.n_iter}")
         self.n_iter += 1
         xprod = self.kernel.get_lambda()**2 * x
-        for xdata in self.dataset.get_chunked_x_data():
-            xdata = self.kernel.transform_x(xdata)
+        for xdata, lengths in self.dataset.get_chunked_x_data():
+            xdata = self.kernel.transform_x(xdata, lengths)
             xprod += (xdata.T @ (xdata @ x))
         return xprod

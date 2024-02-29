@@ -10,7 +10,7 @@ RANDOM_STATE = 123
 
 
 def get_models(kernel_choice, dataset, conv_width = 3, num_rffs = 512,
-        conv_ard_kernel = False, averaging = False):
+        conv_ard_kernel = False, averaging = 'none'):
     """Generates a CPU model and a GPU model with generic
     kernel settings."""
     if not conv_ard_kernel:

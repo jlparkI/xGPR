@@ -58,8 +58,8 @@ def calc_gradient_terms(dataset, kernel, device, subsample = 1):
     ndatapoints = 0
 
     if subsample == 1:
-        for xdata, ydata in dataset.get_chunked_data():
-            xfeatures, dz_dsigma = kernel.kernel_specific_gradient(xdata)
+        for xdata, ydata, ldata in dataset.get_chunked_data():
+            xfeatures, dz_dsigma = kernel.kernel_specific_gradient(xdata, ldata)
             z_trans_y += xfeatures.T @ ydata
             z_trans_z += xfeatures.T @ xfeatures
             y_trans_y += ydata.T @ ydata
@@ -70,11 +70,12 @@ def calc_gradient_terms(dataset, kernel, device, subsample = 1):
                 inner_deriv[:,:,i] += dz_dsigma[:,:,i].T @ xfeatures
     else:
         rng = np.random.default_rng(123)
-        for xdata, ydata in dataset.get_chunked_data():
+        for xdata, ydata, ldata in dataset.get_chunked_data():
             idx_size = max(1, int(subsample * xdata.shape[0]))
             idx = rng.choice(xdata.shape[0], idx_size, replace=False)
-            xdata, ydata = xdata[idx,...], ydata[idx]
-            xfeatures, dz_dsigma = kernel.kernel_specific_gradient(xdata)
+            xdata, ydata, ldata = xdata[idx,...], ydata[idx], ldata[idx]
+            xfeatures, dz_dsigma = kernel.kernel_specific_gradient(xdata, ldata)
+
             z_trans_y += xfeatures.T @ ydata
             z_trans_z += xfeatures.T @ xfeatures
             y_trans_y += ydata.T @ ydata

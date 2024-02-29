@@ -1,9 +1,7 @@
 """Describes the ModelBaseclass from which other model classes inherit.
-
-The ModelBaseclass describes class attributes and methods shared by
-model classes like xGPModel.
 """
 import sys
+import copy
 try:
     import cupy as cp
     from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
@@ -57,7 +55,6 @@ class ModelBaseclass():
             generating random features. For most problems, it is not beneficial
             to set this to True -- it merely increases computational expense
             with negligible benefit -- but this option is useful for testing.
-            Defaults to False.
         exact_var_calculation (bool): If True, variance is calculated exactly (within
             the limits of the random feature approximation). If False, a preconditioner
             is used. The preconditioner approach is only used for linear kernels.
@@ -134,11 +131,14 @@ class ModelBaseclass():
         self._gamma = None
 
 
-    def pre_prediction_checks(self, input_x, get_var:bool):
+    def pre_prediction_checks(self, input_x, sequence_lengths, get_var:bool):
         """Checks input data to ensure validity.
 
         Args:
             input_x (np.ndarray): A numpy array containing the input data.
+            sequence_lengths: None if you are using a fixed-vector kernel (e.g.
+                RBF) and a 1d array of the number of elements in each sequence /
+                nodes in each graph if you are using a graph or Conv1d kernel.
             get_var (bool): Whether a variance calculation is desired.
 
         Returns:
@@ -154,6 +154,15 @@ class ModelBaseclass():
             raise ValueError("Model has not yet been successfully fitted.")
         if not self.kernel.validate_new_datapoints(input_x):
             raise ValueError("The input has incorrect dimensionality.")
+        if sequence_lengths is None:
+            if len(x_array.shape) != 2:
+                raise ValueError("sequence_lengths is required if using a "
+                        "convolution kernel.")
+        else:
+            if len(x_array.shape) == 2:
+                raise ValueError("sequence_lengths must be None if using a "
+                    "fixed vector kernel.")
+
         #This should never happen, but just in case.
         if self.weights.shape[0] != self.kernel.get_num_rffs():
             raise ValueError("The size of the weight vector does not "
@@ -166,8 +175,10 @@ class ModelBaseclass():
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
             x_array = cp.asarray(input_x)
+            if sequence_lengths is not None:
+                sequence_lengths = cp.asarray(sequence_lengths)
 
-        return x_array
+        return x_array, sequence_lengths
 
 
     def set_hyperparams(self, hyperparams = None, dataset = None):
@@ -391,8 +402,11 @@ class ModelBaseclass():
         reset_num_rffs = False
         x_mean_corr = x_mean
         if self.num_rffs > 8192:
-            reset_num_rffs, num_rffs = True, self.num_rffs
-            self.num_rffs = 8192
+            reset_num_rffs, num_rffs = True, copy.deepcopy(self.num_rffs)
+            if self.kernel_choice == "RBFLinear" and self.num_rffs % 2 != 0:
+                self.num_rffs = 8191
+            else:
+                self.num_rffs = 8192
             x_mean_corr = self._get_x_mean(dataset)
 
         s_mat = srht_ratio_check(dataset, max_rank, self.kernel, self.random_seed,
@@ -614,8 +628,6 @@ class ModelBaseclass():
         """Setter for the random_seed attribute. If this is
         reset the kernel needs to be re-initialized."""
         self._random_seed = value
-        if self.kernel is not None:
-            self.kernel.double_precision = value
         if self.kernel is not None:
             self._initialize_kernel(xdim = self.kernel.get_xdim(),
                    hyperparams = self.kernel.get_hyperparams(),

@@ -1,5 +1,7 @@
-"""This kernel is a fast Hadamard transform based convolutional
-kernel that is the random features equivalent of the Ngram kernel."""
+"""Describes the Conv1dKernelBaseclass, which is shared
+as a parent class by several convolution kernels for
+graphs and sequences."""
+from abc import ABC
 from math import ceil
 
 import numpy as np
@@ -14,27 +16,22 @@ from ..kernel_baseclass import KernelBaseclass
 from cpu_rf_gen_module import cpuConv1dFGen, cpuConvGrad
 
 
-class FHTConv1d(KernelBaseclass):
-    """The Conv1d class is a convolutional kernel that can work
-    with non-aligned time series or sequences.
-    This class inherits from KernelBaseclass.
-    Only attributes unique to this child are described in this docstring.
+
+class ConvKernelBaseclass(KernelBaseclass, ABC):
+    """The baseclass for structured orthogonal random features (SORF)
+    kernels that do 1d convolution. Since it inherits from
+    KernelBaseclass, it includes the attributes of that class. Only
+    additional attributes unique to this class are described here.
 
     Attributes:
-        hyperparams (np.ndarray): This kernel has two
-            hyperparameters: lambda_ (noise)
-            and sigma (inverse mismatch tolerance).
         conv_width (int): The width of the convolution kernel.
             This hyperparameter can be set based on experimentation
-            or domain knowledge. Defaults to 9.
+            or domain knowledge.
         dim2_no_padding (int): The size of the expected input data
             once reshaped for convolution, before zero padding.
         padded_dims (int): The size of the expected input data
             once reshaped for convolution, after zero-padding to
             be a power of 2.
-        init_calc_freqsize (int): The number of times the transform
-            will need to be performed to generate the requested number
-            of sampled frequencies.
         init_calc_featsize (int): The number of features generated initially
             (before discarding excess).
         radem_diag: The diagonal matrices for the SORF transform. Type is int8.
@@ -45,19 +42,16 @@ class FHTConv1d(KernelBaseclass):
             appropriate for the current device.
         grad_func: A reference to the random feature generation & gradient
             calculation function appropriate for the current device.
-        stride_tricks: A reference to cp.lib.stride_tricks.as_strided
-            or np.lib.stride_tricks.as_strided, as appropriate based
-            on the current device.
         sequence_average (bool): If True, the features are averaged over the sequence
             when summing. Can be set to True by passing "averaging":True under
             kernel_spec_parms, otherwise defaults to False. This is useful if
             modeling properties of a sequence that are not size-extensive.
     """
 
-    def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
+    def __init__(self, xdim, num_rffs, random_seed = 123,
                     num_threads = 2, double_precision = False,
-                    kernel_spec_parms = {}):
-        """Constructor for FHT_Conv1d.
+                    conv_width = 9, kernel_spec_parms = {}):
+        """Constructor.
 
         Args:
             xdim (tuple): The dimensions of the input. Either (N, D) or (N, M, D)
@@ -73,8 +67,9 @@ class FHTConv1d(KernelBaseclass):
                 if running on CPU. If running on GPU, this is ignored.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
+            conv_width (int): The width of the convolution to perform.
             kernel_spec_parms (dict): A dictionary of additional kernel-specific
-                attributes. In this case, should contain 'conv_width'.
+                attributes.
 
         Raises:
             ValueError: A ValueError is raised if the dimensions of the input are
@@ -86,38 +81,34 @@ class FHTConv1d(KernelBaseclass):
         if len(xdim) != 3:
             raise ValueError("Tried to initialize the Conv1d kernel with a 2d x-"
                     "array! x should be a 3d array for Conv1d.")
-        if "conv_width" not in kernel_spec_parms:
-            raise ValueError("Conv_width not supplied to conv1d kernel!")
-        self.sequence_average = False
-        if "averaging" in kernel_spec_parms:
-            if kernel_spec_parms["averaging"]:
-                self.sequence_average = True
 
-        self.hyperparams = np.ones((2))
+        self.sequence_average = "none"
+        if "averaging" in kernel_spec_parms:
+            if kernel_spec_parms["averaging"] in ["none", "sqrt", "full"]:
+                self.sequence_average = kernel_spec_parms["averaging"]
+            else:
+                raise ValueError("Unrecognized value for 'averaging' supplied, "
+                        "should be one of 'none', 'sqrt', 'full'.")
+
         rng = np.random.default_rng(random_seed)
-        self.conv_width = kernel_spec_parms["conv_width"]
-        if self.conv_width >= xdim[1]:
-            raise ValueError("The conv_width for the convolution kernels must be "
-                    "< the length of the time series / sequence.")
+        self.conv_width = conv_width
 
         self.dim2_no_padding = self.conv_width * xdim[2]
         self.padded_dims = 2**ceil(np.log2(max(self.dim2_no_padding, 2)))
-        self.init_calc_freqsize = ceil(self.num_freqs / self.padded_dims) * \
+        init_calc_freqsize = ceil(self.num_freqs / self.padded_dims) * \
                         self.padded_dims
-        self.init_calc_featsize = 2 * self.init_calc_freqsize
-        self.bounds = np.asarray([[1e-3,1e2], [1e-2, 1e2]])
+
+        self.init_calc_featsize = 2 * init_calc_freqsize
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
-        self.radem_diag = rng.choice(radem_array, size=(3, 1, self.init_calc_freqsize),
+        self.radem_diag = rng.choice(radem_array, size=(3, 1, init_calc_freqsize),
                                 replace=True)
         self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
 
         self.conv_func = None
         self.grad_func = None
-        self.stride_tricks = None
-        self.device = device
-
+        self.int_type = None
 
 
     def kernel_specific_set_device(self, new_device):
@@ -132,7 +123,7 @@ class FHTConv1d(KernelBaseclass):
             self.grad_func = gpuConvGrad
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
-            self.stride_tricks = cp.lib.stride_tricks.as_strided
+            self.int_type = cp.int32
         else:
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
@@ -141,12 +132,12 @@ class FHTConv1d(KernelBaseclass):
                 self.chi_arr = self.chi_arr.astype(self.dtype)
             self.conv_func = cpuConv1dFGen
             self.grad_func = cpuConvGrad
-            self.stride_tricks = np.lib.stride_tricks.as_strided
             self.chi_arr = self.chi_arr.astype(self.dtype)
+            self.int_type = np.int32
 
 
 
-    def transform_x(self, input_x):
+    def transform_x(self, input_x, sequence_length):
         """Generates random features.
 
         Args:
@@ -154,13 +145,16 @@ class FHTConv1d(KernelBaseclass):
 
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
+            sequence_length: A numpy or cupy array containing the number of
+                elements in each sequence -- so that zero padding can be masked.
 
         Raises:
             ValueError: A value error is raised if the dimensionality of the
                 input does not meet validity criteria.
         """
-        #Because we are using stride_tricks, we need to run some additional
-        #checks on the input before doing anything else.
+        if sequence_length is None:
+            raise ValueError("sequence_length is required for convolution kernels.")
+
         if input_x.shape[1] <= self.conv_width:
             raise ValueError("Input X must have shape[1] >= the convolution "
                     "kernel width.")
@@ -170,17 +164,12 @@ class FHTConv1d(KernelBaseclass):
             raise ValueError("Unexpected input shape supplied.")
 
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
+        slen = sequence_length.astype(self.int_type)
 
-        num_slides = input_x.shape[1] - self.conv_width + 1
-        reshaped_x = self.zero_arr((input_x.shape[0], num_slides,
-                                self.padded_dims), self.dtype)
-        x_strided = self.stride_tricks(input_x, shape=(input_x.shape[0],
-                            num_slides, self.dim2_no_padding),
-                            strides=(input_x.strides[0], input_x.shape[2] * input_x.strides[2],
-                                input_x.strides[2]))
-        reshaped_x[:,:,:self.dim2_no_padding] = x_strided * self.hyperparams[1]
-        self.conv_func(reshaped_x, self.radem_diag, xtrans, self.chi_arr, self.num_threads,
-                self.fit_intercept, self.sequence_average)
+        x_in = input_x.astype(self.dtype) * self.hyperparams[1]
+        self.conv_func(x_in, slen, self.radem_diag, xtrans,
+                self.chi_arr, self.conv_width, self.num_threads,
+                self.sequence_average)
         return xtrans
 
 
@@ -191,15 +180,14 @@ class FHTConv1d(KernelBaseclass):
         return
 
 
-    def kernel_specific_gradient(self, input_x):
-        """Since all kernels share the beta and lambda hyperparameters,
-        the gradient for these can be calculated by the parent class.
-        The gradient kernel-specific hyperparameters however is calculated
-        using an array (dz_dsigma) specific to each
-        kernel. The kernel-specific arrays are calculated here.
+    def kernel_specific_gradient(self, input_x, sequence_length):
+        """The gradient for kernel-specific hyperparameters is calculated
+        using an array (dz_dsigma) specific to each kernel.
 
         Args:
             input_x: A cupy or numpy array containing the raw input data.
+            sequence_length: A numpy or cupy array containing the number of
+                elements in each sequence -- so that zero padding can be masked.
 
         Returns:
             output_x: A cupy or numpy array containing the random feature
@@ -207,6 +195,9 @@ class FHTConv1d(KernelBaseclass):
             dz_dsigma: A cupy or numpy array containing the derivative of
                 output_x with respect to the kernel-specific hyperparameters.
         """
+        if sequence_length is None:
+            raise ValueError("sequence_length is required for convolution kernels.")
+
         if input_x.shape[1] <= self.conv_width:
             raise ValueError("Input X must have shape[1] >= the convolution "
                     "kernel width.")
@@ -215,16 +206,11 @@ class FHTConv1d(KernelBaseclass):
         if input_x.shape[2] != self._xdim[2]:
             raise ValueError("Unexpected input shape supplied.")
 
-        output_x = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
-        num_slides = input_x.shape[1] - self.conv_width + 1
-        reshaped_x = self.zero_arr((input_x.shape[0], num_slides,
-                                self.padded_dims), self.dtype)
-        x_strided = self.stride_tricks(input_x, shape=(input_x.shape[0],
-                            num_slides, self.dim2_no_padding),
-                            strides=(input_x.strides[0], input_x.shape[2] *
-                                input_x.strides[2], input_x.strides[2]))
-        reshaped_x[:,:,:self.dim2_no_padding] = x_strided
-        dz_dsigma = self.grad_func(reshaped_x, self.radem_diag,
-                output_x, self.chi_arr, self.num_threads, self.hyperparams[1],
-                self.fit_intercept, self.sequence_average)
-        return output_x, dz_dsigma
+        xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
+
+        x_in = input_x.astype(self.dtype)
+        slen = sequence_length.astype(self.int_type)
+        dz_dsigma = self.grad_func(x_in, slen, self.radem_diag,
+                xtrans, self.chi_arr, self.conv_width, self.num_threads,
+                self.hyperparams[1], self.sequence_average)
+        return xtrans, dz_dsigma

@@ -100,19 +100,19 @@ class FHTMaxpoolConv1dFeatureExtractor():
             self.conv_func = gpuConv1dMaxpool
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
-            self.stride_tricks = cp.lib.stride_tricks.as_strided
         else:
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
                 self.chi_arr = cp.asnumpy(self.chi_arr)
             self.chi_arr = self.chi_arr.astype(self.dtype)
             self.conv_func = cpuConv1dMaxpool
-            self.stride_tricks = np.lib.stride_tricks.as_strided
 
 
-    def transform_x(self, input_x):
+    def transform_x(self, input_x, sequence_length):
         """Performs the feature generation by calling the appropriate
         Cython function, referenced as self.conv_func."""
+        if sequence_length is None:
+            raise ValueError("sequence_length is required for convolution kernels.")
         if input_x.shape[1] <= self.conv_width:
             raise ValueError("Input input_x must have shape[1] >= the convolution "
                     "kernel width.")
@@ -122,19 +122,11 @@ class FHTMaxpoolConv1dFeatureExtractor():
             raise ValueError("Unexpected number of features per timepoint / sequence element "
                     "on this input.")
 
-        num_slides = input_x.shape[1] - self.conv_width + 1
         output_x = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
-        reshaped_x = self.zero_arr((input_x.shape[0], num_slides,
-                                self.padded_dims), self.dtype)
-        #TODO: Find non stride tricks way to implement this restructing. Stride tricks
-        #is a little dangerous to use.
-        x_strided = self.stride_tricks(input_x, shape=(input_x.shape[0], num_slides,
-                            self.dim2_no_padding),
-                            strides=(input_x.strides[0], input_x.shape[2] *
-                                input_x.strides[2], input_x.strides[2]))
-        reshaped_x[:,:,:self.dim2_no_padding] = x_strided
-        self.conv_func(reshaped_x, self.radem_diag,
-                output_x, self.chi_arr, self.num_threads)
+        x_in = input_x.astype(self.dtype)
+        self.conv_func(x_in, sequence_length, self.radem_diag,
+                output_x, self.chi_arr, self.conv_width,
+                self.num_threads)
         output_x = output_x[:,:self.num_rffs]
         return output_x
 

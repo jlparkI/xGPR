@@ -3,10 +3,15 @@
 
 
 template <typename T>
-void transformRows3D(T xArray[], int startRow, int endRow,
+void transformRows(T __restrict xArray[], int startRow, int endRow,
                     int dim1, int dim2);
 
 template <typename T>
-void transformRows2D(T xArray[], int startRow, int endRow,
-                    int dim1);
+void smallBlockTransform(T xArray[], int startRow, int endRow,
+                    int dim1, int dim2);
+
+template <typename T>
+void generalTransform(T xArray[], int startRow, int endRow,
+                    int dim1, int dim2);
+
 #endif

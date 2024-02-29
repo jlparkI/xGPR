@@ -97,8 +97,8 @@ def calc_discriminant_weights_exact(dataset, kernel, x_mean,
     else:
         z_trans_z = cp.zeros((num_rffs, num_rffs))
 
-    for i, xdata in enumerate(dataset.get_chunked_x_data()):
-        xfeatures = kernel.transform_x(xdata) - x_mean[None,:]
+    for i, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
+        xfeatures = kernel.transform_x(xdata, ldata) - x_mean[None,:]
         z_trans_z += xfeatures.T @ xfeatures
         if i % 2 == 0:
             if kernel.device == "gpu":

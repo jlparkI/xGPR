@@ -3,40 +3,7 @@
  *
  * This module performs all major steps involved in feature generation for
  * RBF-type kernels, which includes RBF, Matern, ARD and MiniARD (and by extension
- * the static layer kernels). Functions from array_operations are used to perform
- * the fast Hadamard transform and rademacher matrix multiplication pieces.
- * The "specialized" piece, multiplication by a diagonal matrix while performing
- * sine-cosine operations, is performed here.
- *
- * + rbfFeatureGen_
- * Performs the feature generation steps on an input array of doubles.
- *
- * + rbfGrad_
- * Performs the feature generation steps on an input array of doubles
- * AND generates the gradient info (stored in a separate array). For non-ARD
- * kernels only.
- *
- * + ardGrad_
- * Performs gradient and feature generation calculations for an RBF ARD kernel.
- * Slower than rbfFeatureGen, so use only if gradient is required.
- *
- * + ThreadRBFGen
- * Performs operations for a single thread of the feature generation operation.
- *
- * + ThreadRBFGrad
- * Performs operations for a single thread of the gradient / feature operation.
- * 
- * + ThreadARDGrad
- * Performs operations for a single thread of the ARD gradient-only calculation.
- *
- * + rbfFeatureGenLastStep_
- * Performs the final operations involved in the feature generation for doubles.
- *
- * + rbfGradLastStep_
- * Performs the final operations involved in feature / gradient calc for doubles.
- *
- * + ardGradCalcs
- * Performs the key operations involved in gradient-only calc for ARD.
+ * the static layer kernels).
  */
 #include <Python.h>
 #include <stdint.h>
@@ -45,13 +12,8 @@
 #include <thread>
 #include "rbf_ops.h"
 #include "../shared_fht_functions/hadamard_transforms.h"
-#include "../shared_fht_functions/diagonal_matmul_ops.h"
+#include "../shared_fht_functions/shared_rfgen_ops.h"
 
-
-#define VALID_INPUTS 0
-#define INVALID_INPUTS 1
-#define EPS_TOLERANCE 0.0
-#define MAX_THREADS 8
 
 
 /*!
@@ -121,24 +83,8 @@ void *ThreadRBFGen(T arrayStart[], int8_t *rademArray,
         T chiArr[], double *outputArray,
         int dim1, int dim2, int startPosition,
         int endPosition, int numFreqs, double rbfNormConstant){
-    int rowSize = dim1 * dim2;
-
-    multiplyByDiagonalRademacherMat<T>(arrayStart, rademArray,
-                    dim1, dim2, startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
-
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray + rowSize, dim1, dim2, 
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
-    
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray + 2 * rowSize, dim1, dim2,
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
+    SORF3D(arrayStart, rademArray, startPosition, endPosition,
+            dim1, dim2);
     rbfFeatureGenLastStep_<T>(arrayStart, chiArr,
                     outputArray, rbfNormConstant,
                     startPosition, endPosition,
@@ -222,28 +168,8 @@ void *ThreadRBFGrad(T arrayStart[], int8_t* rademArray,
         double *gradientArray, int dim1, int dim2,
         int startPosition, int endPosition, int numFreqs,
         double rbfNormConstant, T sigma){
-    int rowSize = dim1 * dim2;
-
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray,
-                    dim1, dim2, 
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
-
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray + rowSize,
-                    dim1, dim2, 
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
-    
-    multiplyByDiagonalRademacherMat<T>(arrayStart,
-                    rademArray + 2 * rowSize,
-                    dim1, dim2, 
-                    startPosition, endPosition);
-    transformRows3D<T>(arrayStart, startPosition, 
-                    endPosition, dim1, dim2);
+    SORF3D(arrayStart, rademArray, startPosition, endPosition,
+            dim1, dim2);
     rbfGradLastStep_<T>(arrayStart, chiArr,
                     outputArray, gradientArray,
                     rbfNormConstant, sigma,
@@ -361,14 +287,14 @@ void *ThreadARDGrad(T inputX[], double *randomFeats,
  * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
  */
 template <typename T>
-void rbfFeatureGenLastStep_(T xArray[], T chiArray[],
-        double *outputArray, double normConstant,
-        int startRow, int endRow, int dim1,
+void rbfFeatureGenLastStep_(const T __restrict xArray[],
+        const T chiArray[], double *__restrict outputArray,
+        double normConstant, int startRow, int endRow, int dim1,
         int dim2, int numFreqs){
     int i, j;
     int elementsPerRow = dim1 * dim2;
-    T *xElement;
-    double *outputElement;
+    const T *__restrict xElement;
+    double *__restrict outputElement;
     T outputVal;
 
     for (i=startRow; i < endRow; i++){
@@ -406,16 +332,18 @@ void rbfFeatureGenLastStep_(T xArray[], T chiArray[],
  * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
  */
 template <typename T>
-void rbfGradLastStep_(T xArray[], T chiArray[],
-        double *outputArray, double *gradientArray,
+void rbfGradLastStep_(const T __restrict xArray[],
+        const T chiArray[], double *__restrict outputArray,
+        double *__restrict gradientArray,
         double normConstant, T sigma,
         int startRow, int endRow, int dim1,
         int dim2, int numFreqs){
     int i, j;
     int elementsPerRow = dim1 * dim2;
-    T *xElement;
+    const T *__restrict xElement;
     T outputVal;
-    double *outputElement, *gradientElement;
+    double *__restrict outputElement;
+    double *__restrict gradientElement;
     double cosVal, sinVal;
 
     for (i=startRow; i < endRow; i++){

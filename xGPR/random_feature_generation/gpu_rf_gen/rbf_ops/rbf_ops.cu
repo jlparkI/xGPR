@@ -9,32 +9,12 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 #include <math.h>
+#include "../shared_constants.h"
 #include "../basic_ops/basic_array_operations.h"
 #include "rbf_ops.h"
 
 
-#define DEFAULT_THREADS_PER_BLOCK 256
-#define MAX_BASE_LEVEL_TRANSFORM 1024
 
-//Performs an elementwise multiplication of a [c,M,P] array against the
-//[N,M,P] input array or a [P] array against the [N,P] input array.
-//Note that the last dimensions of these must be the
-//same, and this function does not check this -- caller must check. Note that
-//we mutiiply by the Hadamard normalization constant here.
-template <typename T>
-__global__ void specMultByDiagRademMat(T cArray[], int8_t *rademArray,
-			int numElementsPerRow, int numElements, T normConstant)
-{
-    int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    int rVal, position;
-    
-    position = tid % numElementsPerRow;
-
-    if (tid < numElements){
-        rVal = rademArray[position];
-        cArray[tid] = cArray[tid] * rVal * normConstant;
-    }
-}
 
 
 
@@ -177,33 +157,14 @@ const char *RBFFeatureGen(T cArray[], int8_t *radem,
                 int dim0, int dim1, int dim2,
                 int numFreqs){
     int numElementsPerRow = dim1 * dim2;
-    int numElements = dim1 * dim2 * dim0;
     //This is the Hadamard normalization constant.
     T normConstant = log2(dim2) / 2;
     normConstant = 1 / pow(2, normConstant);
-    int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
+    int blocksPerGrid;
     int numOutputElements = numFreqs * dim0;
+    const char *errCode;
 
-    //Multiply by D1.
-    specMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem, 
-                                 numElementsPerRow, numElements, normConstant);
-    
-    //First H-transform.
-    cudaHTransform3d<T>(cArray, dim0, dim1, dim2);
-    
-    //Multiply by D2.
-    specMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + numElementsPerRow,
-                                 numElementsPerRow, numElements, normConstant);
-
-    //Second H-transform.
-    cudaHTransform3d<T>(cArray, dim0, dim1, dim2);
-    
-    //Multiply by D3.
-    specMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + 2 * numElementsPerRow,
-                                 numElementsPerRow, numElements, normConstant);
-    
-    //Last H-transform.
-    cudaHTransform3d<T>(cArray, dim0, dim1, dim2); 
+    errCode = cudaSORF3d<T>(cArray, radem, dim0, dim1, dim2);
 
 
     //Generate output features in-place in the output array.
@@ -211,7 +172,7 @@ const char *RBFFeatureGen(T cArray[], int8_t *radem,
     rbfFeatureGenLastStep<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, outputArray,
                     chiArr, numFreqs, numElementsPerRow, numOutputElements, rbfNormConstant);
 
-    return "no_error";
+    return errCode;
 }
 //Instantiate templates so Cython / PyBind wrappers can import.
 template const char *RBFFeatureGen<double>(double cArray[], int8_t *radem,
@@ -241,27 +202,9 @@ const char *RBFFeatureGrad(T cArray[], int8_t *radem,
     normConstant = 1 / pow(2, normConstant);
     int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     int numOutputElements = numFreqs * dim0;
+    const char *errCode;
 
-    //Multiply by D1.
-    specMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem, 
-                                 numElementsPerRow, numElements, normConstant);
-    
-    //First H-transform.
-    cudaHTransform3d<T>(cArray, dim0, dim1, dim2);
-    
-    //Multiply by D2.
-    specMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + numElementsPerRow,
-                                 numElementsPerRow, numElements, normConstant);
-
-    //Second H-transform.
-    cudaHTransform3d<T>(cArray, dim0, dim1, dim2);
-    
-    //Multiply by D3.
-    specMultByDiagRademMat<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, radem + 2 * numElementsPerRow,
-                                 numElementsPerRow, numElements, normConstant);
-    
-    //Last H-transform.
-    cudaHTransform3d<T>(cArray, dim0, dim1, dim2); 
+    errCode = cudaSORF3d<T>(cArray, radem, dim0, dim1, dim2);
 
 
     //Generate output features in-place in the output array.

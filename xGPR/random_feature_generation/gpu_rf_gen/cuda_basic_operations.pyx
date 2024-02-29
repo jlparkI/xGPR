@@ -20,7 +20,8 @@ cdef extern from "basic_ops/basic_array_operations.h" nogil:
     const char *cudaSORF3d[T](T npArray[], np.int8_t *radem, 
                     int dim0, int dim1, int dim2)
     const char *cudaSRHT2d[T](T npArray[], 
-                    int8_t *radem, int dim0, int dim1)
+                    int8_t *radem, int dim0,
+                    int dim1)
 
 
 @cython.boundscheck(False)
@@ -61,8 +62,7 @@ def cudaPySORFTransform(cpArray, radem, int numThreads):
         raise ValueError("radem must have length 3 for dim 0.")
     
     if not cpArray.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"]:
-        raise ValueError("One or more arguments to floatCudaPySORFTransform is not "
-                "C contiguous.")
+        raise ValueError("One or more arguments is not C contiguous.")
     if not radem.dtype == "int8":
         raise ValueError("radem must be of type int8.")
     logdim = np.log2(cpArray.shape[2])
@@ -112,7 +112,7 @@ def cudaSRHT(Z, radem,
             shared interface with CPU functions.
     """
     cdef const char *errCode
-    cdef double scaling_factor;
+    cdef double dbl_scaling_factor;
     cdef uintptr_t addr = Z.data.ptr
     cdef uintptr_t addr_radem = radem.data.ptr
 
@@ -122,30 +122,29 @@ def cudaSRHT(Z, radem,
         raise ValueError("Incorrect array dims passed.")
     if Z.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if Z.shape[1] != radem.shape[0]:
-        raise ValueError("Incorrect array dims passed.")
-    if sampler.shape[0] != compression_size:
+    if Z.shape[1] != radem.shape[0] or sampler.shape[0] != compression_size:
         raise ValueError("Incorrect array dims passed.")
     if compression_size > Z.shape[1] or compression_size < 2:
         raise ValueError("Compression size must be <= num rffs but >= 2.")
 
     if not Z.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"]:
-        raise ValueError("One or more arguments to cpuSORFTransform is not "
-                "C contiguous.")
+        raise ValueError("One or more arguments is not C contiguous.")
     logdim = np.log2(Z.shape[1])
     if np.ceil(logdim) != np.floor(logdim) or Z.shape[1] < 2:
         raise ValueError("dim1 of the input array must be a power of 2 >= 2.")
 
     if Z.dtype == "float32":
-        errCode = cudaSRHT2d[float](<float*>addr, <int8_t*>addr_radem, Z.shape[0], Z.shape[1])
+        errCode = cudaSRHT2d[float](<float*>addr, <int8_t*>addr_radem, Z.shape[0],
+                Z.shape[1])
     elif Z.dtype == "float64":
-        errCode = cudaSRHT2d[double](<double*>addr, <int8_t*>addr_radem, Z.shape[0], Z.shape[1])
+        errCode = cudaSRHT2d[double](<double*>addr, <int8_t*>addr_radem, Z.shape[0],
+                Z.shape[1])
     else:
         raise ValueError("Incorrect data types passed.")
 
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered.")
 
+    dbl_scaling_factor = np.sqrt( <double>radem.shape[0] / <double>compression_size )
     Z[:,:compression_size] = Z[:,sampler]
-    scaling_factor = np.sqrt( <double>radem.shape[0] / <double>compression_size )
-    Z[:,:compression_size] *= scaling_factor
+    Z[:,:compression_size] *= dbl_scaling_factor
