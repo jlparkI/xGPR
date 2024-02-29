@@ -108,6 +108,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
 
         self.conv_func = None
         self.grad_func = None
+        self.int_type = None
 
 
     def kernel_specific_set_device(self, new_device):
@@ -122,6 +123,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
             self.grad_func = gpuConvGrad
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
+            self.int_type = cp.int32
         else:
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
@@ -131,6 +133,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
             self.conv_func = cpuConv1dFGen
             self.grad_func = cpuConvGrad
             self.chi_arr = self.chi_arr.astype(self.dtype)
+            self.int_type = np.int32
 
 
 
@@ -161,9 +164,10 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
             raise ValueError("Unexpected input shape supplied.")
 
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
+        slen = sequence_length.astype(self.int_type)
 
         x_in = input_x.astype(self.dtype) * self.hyperparams[1]
-        self.conv_func(x_in, sequence_length, self.radem_diag, xtrans,
+        self.conv_func(x_in, slen, self.radem_diag, xtrans,
                 self.chi_arr, self.conv_width, self.num_threads,
                 self.sequence_average)
         return xtrans
@@ -205,7 +209,8 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
 
         x_in = input_x.astype(self.dtype)
-        dz_dsigma = self.grad_func(x_in, sequence_length, self.radem_diag,
+        slen = sequence_length.astype(self.int_type)
+        dz_dsigma = self.grad_func(x_in, slen, self.radem_diag,
                 xtrans, self.chi_arr, self.conv_width, self.num_threads,
                 self.hyperparams[1], self.sequence_average)
         return xtrans, dz_dsigma

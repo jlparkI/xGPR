@@ -7,5 +7,4 @@ multiple .pyx files to a single extension."""
 cimport cython
 include "cpu_basic_operations.pyx"
 include "cpu_convolution.pyx"
-include "cpu_polynomial.pyx"
 include "cpu_rbf_operations.pyx"

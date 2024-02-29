@@ -629,8 +629,6 @@ class ModelBaseclass():
         reset the kernel needs to be re-initialized."""
         self._random_seed = value
         if self.kernel is not None:
-            self.kernel.double_precision = value
-        if self.kernel is not None:
             self._initialize_kernel(xdim = self.kernel.get_xdim(),
                    hyperparams = self.kernel.get_hyperparams(),
                    bounds = self.kernel.get_bounds())
