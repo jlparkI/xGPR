@@ -64,7 +64,9 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
 
     int bufferRowSize = (dim1 - convWidth + 1) * paddedBufferSize * dim0;
 
-    T *copyBuffer = new T[bufferRowSize];
+    T *copyBuffer = new (std::nothrow) T[bufferRowSize];
+    if (copyBuffer == NULL)
+        return "Out of memory! Could not allocate a copy buffer. Check input sizes.";
 
     std::vector<std::thread> threads(numThreads);
     int startRow, endRow;
@@ -147,7 +149,9 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
 
     int bufferRowSize = (dim1 - convWidth + 1) * paddedBufferSize * dim0;
 
-    T *copyBuffer = new T[bufferRowSize];
+    T *copyBuffer = new (std::nothrow) T[bufferRowSize];
+    if (copyBuffer == NULL)
+        return "Out of memory! Could not allocate a copy buffer. Check input sizes.";
 
     std::vector<std::thread> threads(numThreads);
     int startRow, endRow;

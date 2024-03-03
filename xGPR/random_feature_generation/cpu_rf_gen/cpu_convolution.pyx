@@ -207,6 +207,7 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
     elif averageFeatures == 'sqrt':
         scalingTerm /= np.sqrt(<double>xdata.shape[1] - <double>convWidth + 1.)
 
+
     if chiArr.dtype == "float32" and xdata.dtype == "float32":
         errCode = convRBFFeatureGen_[float](&radem[0,0,0], <float*>addr_input,
                 <float*>addr_chi, &outputArray[0,0], &sequence_lengths[0],

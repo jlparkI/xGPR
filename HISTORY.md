@@ -182,3 +182,7 @@ in either memory usage or speed for both fixed vector and convolution
 operations. Retired the poly and graph poly kernels, which are inefficient
 and rarely useful. Introduced sequence length masking, so that any zero
 padding we use is automatically masked if user so desires.
+
+### Version 0.3.1
+
+Fixed bug in static layers module.

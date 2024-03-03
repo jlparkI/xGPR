@@ -188,7 +188,7 @@ class FastConv1d:
                 x_in = x_array[i:cutoff,:,:]
                 seqlen_in = sequence_lengths[i:cutoff]
 
-                xtrans = self.conv_kernel.transform_x(x_in, seqlen_in)
+            xtrans = self.conv_kernel.transform_x(x_in, seqlen_in)
 
             if self.device == "gpu":
                 xtrans = cp.asnumpy(xtrans).astype(np.float64)
