@@ -16,8 +16,8 @@ model, set ``kernel_choice = 'kernel name'``, e.g.
      - kernel_settings
    * - RBF
      - | Models smooth, infinitely differentiable
-       | functions.; good default.
-     - |
+       | functions; good default.
+     - | "intercept":bool
    * - Matern
      - | Models "rougher" functions than RBF.
        | nu = 5/2 models twice differentiable functions,
@@ -27,12 +27,13 @@ model, set ``kernel_choice = 'kernel name'``, e.g.
        | issues encountered by the RBF kernel in high-dimensional
        | spaces.
      - | "matern_nu":float
+       | "intercept":bool
    * - Cauchy
      - | A scale mixture of RBF kernels; models functions that
        | vary smoothly across multiple lengthscales.
        | This is a rational quadratic kernel with degrees of
        | freedom set to 1.
-     - | 
+     - | "intercept":bool
    * - RBFLinear
      - | The sum of a linear kernel and an RBF kernel. Models
        | functions that are close to linear but with some fairly

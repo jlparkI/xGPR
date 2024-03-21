@@ -21,6 +21,7 @@ model, set ``kernel_choice = 'kernel name'``, e.g.
      - | "averaging": str
        | One of 'none', 'sqrt', 'full'. See
        | below.
+       | "intercept":bool
    * - GraphMatern
      - | Compares graphs by averaging over
        | a Matern kernel applied pairwise to
@@ -30,6 +31,7 @@ model, set ``kernel_choice = 'kernel name'``, e.g.
        | One of 'none', 'sqrt', 'full'. See
        | below.
        | "matern_nu":float
+       | "intercept":bool
    * - GraphCauchy
      - | Compares graphs by averaging over
        | a Cauchy kernel applied pairwise to
@@ -38,6 +40,7 @@ model, set ``kernel_choice = 'kernel name'``, e.g.
      - | "averaging": str
        | One of 'none', 'sqrt', 'full'. See
        | below.
+       | "intercept":bool
 
 Consider a graph where each node has an associated 
 set of features. GraphRBF compares two graphs A and B by

@@ -207,7 +207,6 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
     elif averageFeatures == 'sqrt':
         scalingTerm /= np.sqrt(<double>xdata.shape[1] - <double>convWidth + 1.)
 
-
     if chiArr.dtype == "float32" and xdata.dtype == "float32":
         errCode = convRBFFeatureGen_[float](&radem[0,0,0], <float*>addr_input,
                 <float*>addr_chi, &outputArray[0,0], &sequence_lengths[0],
@@ -243,7 +242,7 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
                 int convWidth, int numThreads, float sigma,
-                bool averageFeatures = False):
+                str averageFeatures = 'none'):
     """Performs feature generation for RBF-based convolution kernels while
     also performing gradient calculations.
 
@@ -262,9 +261,9 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
         convWidth (int): The width of the convolution. Must be <= D when xdata is (N x D x C).
         num_threads (int): Number of threads to use for FHT.
         sigma (float): The lengthscale.
-        averageFeatures (bool): Whether to average the features generated along the
+        averageFeatures (str): Whether to average the features generated along the
             first axis (makes kernel result less dependent on sequence length / graph
-            size).
+            size). Must be one of 'none', 'sqrt', 'full'.
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -312,8 +311,10 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
         raise ValueError("One or more arguments to a wrapped C++ func is not C contiguous.")
 
     scalingTerm = np.sqrt(1.0 / <double>(chiArr.shape[0]))
-    if averageFeatures:
+    if averageFeatures == 'full':
         scalingTerm /= (<double>xdata.shape[1] - <double>convWidth + 1.)
+    elif averageFeatures == 'sqrt':
+        scalingTerm /= np.sqrt(<double>xdata.shape[1] - <double>convWidth + 1.)
 
 
     if chiArr.dtype == "float32" and xdata.dtype == "float32":

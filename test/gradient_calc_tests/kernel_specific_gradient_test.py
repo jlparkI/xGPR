@@ -39,6 +39,7 @@ def run_kernelspecific_test(kernel_choice, conv_kernel = False,
     num_grad = approx_fprime(params, cpu_mod.exact_nmll,
                             eps, online_data)
 
+
     print(f"Kernel: {kernel_choice}")
     print(f"Analytic gradient, cpu:  {cpu_grad}")
     print(f"Numerical gradient, cpu: {num_grad}")

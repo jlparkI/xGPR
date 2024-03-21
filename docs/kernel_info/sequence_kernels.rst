@@ -28,6 +28,7 @@ may in some cases be beneficial.
      - | "conv_width":int
        | "averaging": str One of 'none', 'sqrt',
        | 'full'. See below.
+       | "intercept":bool
    * - Conv1dMatern
      - | Compares sequences by averaging over
        | a Matern kernel applied pairwise to
@@ -36,6 +37,8 @@ may in some cases be beneficial.
      - | "conv_width":int
        | "averaging": str One of 'none', 'sqrt',
        | 'full'. See below.
+       | "intercept":bool
+       | "matern_nu":float
    * - Conv1dCauchy
      - | Compares sequences by averaging over
        | a Cauchy kernel applied pairwise to
@@ -44,6 +47,7 @@ may in some cases be beneficial.
      - | "conv_width":int
        | "averaging": str One of 'none', 'sqrt',
        | 'full'. See below.
+       | "intercept":bool
 
 
 If we have a sequence (or time series) of length N and k = conv_width,

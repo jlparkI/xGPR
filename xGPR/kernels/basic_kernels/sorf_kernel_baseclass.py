@@ -139,10 +139,8 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
                             dtype = self.dtype)
         xtrans[:,:,:self._xdim[1]] = input_x[:,None,:] * self.hyperparams[1]
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
-        #The False argument here indicates that no intercept is required (intercept
-        #is only for RBFLinear).
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.num_threads, False)
+                self.num_threads, self.fit_intercept)
         return output_x
 
 
@@ -173,8 +171,6 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
                             dtype = self.dtype)
         xtrans[:,:,:self._xdim[1]] = input_x[:,None,:]
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
-        #The False argument here indicates that no intercept is required (intercept
-        #is only for RBFLinear).
         dz_dsigma = self.gradfun(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads, False)
+                self.hyperparams[1], self.num_threads, self.fit_intercept)
         return output_x, dz_dsigma

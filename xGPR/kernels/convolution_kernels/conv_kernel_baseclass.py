@@ -170,6 +170,8 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
         self.conv_func(x_in, slen, self.radem_diag, xtrans,
                 self.chi_arr, self.conv_width, self.num_threads,
                 self.sequence_average)
+        if self.fit_intercept:
+            xtrans[:,0] = 1
         return xtrans
 
 
@@ -207,10 +209,13 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
             raise ValueError("Unexpected input shape supplied.")
 
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-
         x_in = input_x.astype(self.dtype)
         slen = sequence_length.astype(self.int_type)
+
         dz_dsigma = self.grad_func(x_in, slen, self.radem_diag,
                 xtrans, self.chi_arr, self.conv_width, self.num_threads,
                 self.hyperparams[1], self.sequence_average)
+        if self.fit_intercept:
+            xtrans[:,0] = 1
+            dz_dsigma[:,0,0] = 0
         return xtrans, dz_dsigma
