@@ -40,7 +40,8 @@ template <typename T>
 __global__ void convRBFPostProcessKernel(const T featureArray[], const T chiArr[],
             double *outputArray, int dim1, int dim2, int numFreqs,
             int startPosition, int endPosition, double scalingTerm,
-            int convWidth, const int32_t *seqlengths){
+            int convWidth, const int32_t *seqlengths,
+            int scalingType){
 
     int colCutoff = seqlengths[blockIdx.x] - convWidth + 1;
     int zLoc = blockIdx.y * blockDim.x + threadIdx.x;
@@ -48,6 +49,17 @@ __global__ void convRBFPostProcessKernel(const T featureArray[], const T chiArr[
     int outputLoc = blockIdx.x * 2 * numFreqs + 2 * zLoc + 2 * startPosition;
     const T *featurePtr = featureArray + inputLoc;
     double chiProd, sinSum = 0, cosSum = 0;
+
+    switch (scalingType){
+        case 0:
+            break;
+        case 1:
+            scalingTerm = scalingTerm / sqrt( (double) colCutoff);
+            break;
+        case 2:
+            scalingTerm = scalingTerm / (double) colCutoff;
+            break;
+    }
 
     if (zLoc < endPosition){
         T chiVal = chiArr[startPosition + zLoc];
@@ -72,7 +84,8 @@ __global__ void convRBFGradProcessKernel(const T featureArray[], const T chiArr[
             double *outputArray, int dim1, int dim2, int numFreqs,
             int startPosition, int endPosition, double scalingTerm,
             double sigma, double *gradientArray,
-            int convWidth, const int32_t *seqlengths){
+            int convWidth, const int32_t *seqlengths,
+            int scalingType){
 
     int colCutoff = seqlengths[blockIdx.x] - convWidth + 1;
     int zLoc = blockIdx.y * blockDim.x + threadIdx.x;
@@ -81,6 +94,17 @@ __global__ void convRBFGradProcessKernel(const T featureArray[], const T chiArr[
     const T *featurePtr = featureArray + inputLoc;
     double chiProd, cosVal, sinVal, sinSum = 0, cosSum = 0;
     double gradSinVal = 0, gradCosVal = 0;
+
+    switch (scalingType){
+        case 0:
+            break;
+        case 1:
+            scalingTerm = scalingTerm / sqrt( (double) colCutoff);
+            break;
+        case 2:
+            scalingTerm = scalingTerm / (double) colCutoff;
+            break;
+    }
 
     if (zLoc < endPosition){
         T chiVal = chiArr[startPosition + zLoc];
@@ -111,7 +135,7 @@ const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
             const T chiArr[], double *outputArray, const int32_t *seqlengths,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm){
+            double scalingTerm, int scalingType){
 
     int numKmers = xdim1 - convWidth + 1;
     int numElements = xdim0 * numKmers * paddedBufferSize;
@@ -161,7 +185,7 @@ const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
         convRBFPostProcessKernel<T><<<sumBlocks, thPerSumBlock>>>(featureArray, chiArr,
                 outputArray, numKmers, paddedBufferSize, numFreqs,
                 startPosition, endPosition, scalingTerm,
-                convWidth, seqlengths);
+                convWidth, seqlengths, scalingType);
     }
 
     cudaFree(featureArray);
@@ -172,12 +196,12 @@ template const char *convRBFFeatureGen<float>(const int8_t *radem,
             const float xdata[], const float chiArr[], double *outputArray,
             const int32_t *seqlengths, int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm);
+            double scalingTerm, int scalingType);
 template const char *convRBFFeatureGen<double>(const int8_t *radem,
             const double xdata[], const double chiArr[], double *outputArray,
             const int32_t *seqlengths, int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm);
+            double scalingTerm, int scalingType);
 
 
 
@@ -194,7 +218,7 @@ const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
             double *gradientArray, double sigma,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm){
+            double scalingTerm, int scalingType){
 
     int numKmers = xdim1 - convWidth + 1;
     int numElements = xdim0 * numKmers * paddedBufferSize;
@@ -243,7 +267,7 @@ const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
         convRBFGradProcessKernel<T><<<sumBlocks, thPerSumBlock>>>(featureArray, chiArr,
                 outputArray, numKmers, paddedBufferSize, numFreqs,
                 startPosition, endPosition, scalingTerm, sigma,
-                gradientArray, convWidth, seqlengths);
+                gradientArray, convWidth, seqlengths, scalingType);
     }
 
     cudaFree(featureArray);
@@ -255,10 +279,10 @@ template const char *convRBFFeatureGrad<float>(const int8_t *radem,
             const int32_t *seqlengths, double *gradientArray, double sigma,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm);
+            double scalingTerm, int scalingType);
 template const char *convRBFFeatureGrad<double>(const int8_t *radem,
             const double xdata[], const double chiArr[], double *outputArray,
             const int32_t *seqlengths, double *gradientArray, double sigma,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm);
+            double scalingTerm, int scalingType);

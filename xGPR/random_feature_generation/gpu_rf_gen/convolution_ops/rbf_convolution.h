@@ -9,7 +9,7 @@ const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
             const T chiArr[], double *outputArray, const int32_t *seqlengths,
             int dim0, int dim1, int dim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm);
+            double scalingTerm, int scalingType);
 
 template <typename T>
 const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
@@ -17,6 +17,6 @@ const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
             double *gradientArray, double sigma,
             int dim0, int dim1, int dim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm);
+            double scalingTerm, int scalingType);
 
 #endif

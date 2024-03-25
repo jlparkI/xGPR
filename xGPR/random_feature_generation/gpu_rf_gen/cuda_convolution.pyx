@@ -28,13 +28,13 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
             const T chiArr[], double *outputArray, int32_t *seqlengths,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm)
+            double scalingTerm, int scalingType)
     const char *convRBFFeatureGrad[T](const int8_t *radem, const T xdata[],
             const T chiArr[], double *outputArray, int32_t *seqlengths,
             double *gradientArray, double sigma,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm)
+            double scalingTerm, int scalingType)
 
 
 @cython.boundscheck(False)
@@ -175,6 +175,7 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
     """
     cdef const char *errCode
     cdef double scalingTerm
+    cdef int scalingType
     cdef double expectedNFreq
     cdef int paddedBufferSize
 
@@ -221,11 +222,12 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
     cdef uintptr_t addr_output = outputArray.data.ptr
 
     scalingTerm = np.sqrt(1.0 / <double>chiArr.shape[0])
+    scalingType = 0
 
     if averageFeatures == 'full':
-        scalingTerm /= (<double>xdata.shape[1] - <double>convWidth + 1.)
+        scalingType = 2
     elif averageFeatures == 'sqrt':
-        scalingTerm /= np.sqrt(<double>xdata.shape[1] - <double>convWidth + 1.)
+        scalingType = 1
 
     if outputArray.dtype == "float64" and xdata.dtype == "float32" and \
             chiArr.dtype == "float32":
@@ -233,7 +235,8 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
                     <float*>addr_chi, <double*>addr_output, <int32_t*>addr_seqlen,
                     xdata.shape[0], xdata.shape[1],
                     xdata.shape[2], chiArr.shape[0], radem.shape[2],
-                    convWidth, paddedBufferSize, scalingTerm)
+                    convWidth, paddedBufferSize, scalingTerm,
+                    scalingType)
 
     elif outputArray.dtype == "float64" and xdata.dtype == "float64" and \
             chiArr.dtype == "float64":
@@ -241,7 +244,8 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
                     <double*>addr_chi, <double*>addr_output, <int32_t*>addr_seqlen,
                     xdata.shape[0], xdata.shape[1],
                     xdata.shape[2], chiArr.shape[0], radem.shape[2],
-                    convWidth, paddedBufferSize, scalingTerm)
+                    convWidth, paddedBufferSize, scalingTerm,
+                    scalingType)
     else:
         raise ValueError("Incorrect data types supplied.")
 
@@ -284,6 +288,7 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
     """
     cdef const char *errCode
     cdef double scalingTerm
+    cdef int scalingType
     cdef int num_repeats = (radem.shape[2] + xdata.shape[2] - 1) // xdata.shape[2]
     cdef int startPosition, cutoff, startPos2, cutoff2, i, j
     cdef double expectedNFreq
@@ -337,11 +342,12 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
 
 
     scalingTerm = np.sqrt(1.0 / <double>chiArr.shape[0])
+    scalingType = 0
 
     if averageFeatures == 'full':
-        scalingTerm /= (<double>xdata.shape[1] - <double>convWidth + 1.)
+        scalingType = 2
     elif averageFeatures == 'sqrt':
-        scalingTerm /= np.sqrt(<double>xdata.shape[1] - <double>convWidth + 1.)
+        scalingType = 1
 
     if outputArray.dtype == "float64" and xdata.dtype == "float32" and \
             chiArr.dtype == "float32":
@@ -350,7 +356,7 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
             <double*>addr_gradient, sigma,
             xdata.shape[0], xdata.shape[1], xdata.shape[2],
             chiArr.shape[0], radem.shape[2], convWidth,
-            paddedBufferSize, scalingTerm)
+            paddedBufferSize, scalingTerm, scalingType)
 
     elif outputArray.dtype == "float64" and xdata.dtype == "float64" and \
             chiArr.dtype == "float64":
@@ -359,7 +365,7 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
             <double*>addr_gradient, sigma,
             xdata.shape[0], xdata.shape[1], xdata.shape[2],
             chiArr.shape[0], radem.shape[2], convWidth,
-            paddedBufferSize, scalingTerm)
+            paddedBufferSize, scalingTerm, scalingType)
     else:
         raise ValueError("Incorrect data types supplied.")
 

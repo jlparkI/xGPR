@@ -111,18 +111,16 @@ from __main__ import poly_cpu_test"""
 def graphconv_cpu_test(marr, diag, chi_arr, nthreads, conv_width):
     """Run the CPU graph convolution feature generation routine."""
     output_arr = np.zeros((marr.shape[0], diag.shape[2] * 2))
-    beta = 1.0
     seqlen = np.full(marr.shape[0], marr.shape[1]).astype(np.int32)
     cpuConv1dFGen(marr, seqlen, diag, output_arr, chi_arr, conv_width,
-            nthreads, beta)
+            nthreads, "none")
 
 
 def graphconv_gpu_test(marr, diag, chi_arr, conv_width, seqlen):
     """Run the CPU graph convolution feature generation routine."""
     output_arr = cp.zeros((marr.shape[0], diag.shape[2] * 2))
-    beta = 1.0
     gpuConv1dFGen(marr, seqlen, diag, output_arr, chi_arr, conv_width,
-            1, beta)
+            1, "none")
 
 def poly_cpu_test(marr, diag, chi_arr, nthreads):
     output_arr = np.zeros((marr.shape[0], diag.shape[2]), dtype=np.float32)

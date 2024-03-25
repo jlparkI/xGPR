@@ -29,14 +29,16 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
             int numThreads, int dim0,
             int dim1, int dim2,
             int numFreqs, int rademShape2,
-            int convWidth, int paddedBufferSize)
+            int convWidth, int paddedBufferSize,
+            double scalingTerm, int scalingType)
     const char *convRBFGrad_[T](int8_t *radem, T xdata[],
             T chiArr[], double *outputArray, int32_t *seqlengths,
             double *gradientArray, T sigma,
             int numThreads, int dim0,
             int dim1, int dim2, int numFreqs,
             int rademShape2, int convWidth,
-            int paddedBufferSize)
+            int paddedBufferSize,
+            double scalingTerm, int scalingType)
 
 
 @cython.boundscheck(False)
@@ -163,6 +165,7 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
     """
     cdef const char *errCode
     cdef double scalingTerm
+    cdef int scalingType
     cdef double expectedNFreq
     cdef int paddedBufferSize
 
@@ -201,11 +204,12 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
         raise ValueError("One or more arguments is not C contiguous.")
 
     scalingTerm = np.sqrt(1.0 / <double>(chiArr.shape[0]))
+    scalingType = 0
 
     if averageFeatures == 'full':
-        scalingTerm /= (<double>xdata.shape[1] - <double>convWidth + 1.)
+        scalingType = 2
     elif averageFeatures == 'sqrt':
-        scalingTerm /= np.sqrt(<double>xdata.shape[1] - <double>convWidth + 1.)
+        scalingType = 1
 
     if chiArr.dtype == "float32" and xdata.dtype == "float32":
         errCode = convRBFFeatureGen_[float](&radem[0,0,0], <float*>addr_input,
@@ -213,7 +217,8 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
                 numThreads, xdata.shape[0],
                 xdata.shape[1], xdata.shape[2],
                 chiArr.shape[0], radem.shape[2],
-                convWidth, paddedBufferSize)
+                convWidth, paddedBufferSize,
+                scalingTerm, scalingType)
 
     elif chiArr.dtype == "float64" and xdata.dtype == "float64":
         errCode = convRBFFeatureGen_[double](&radem[0,0,0], <double*>addr_input,
@@ -221,7 +226,8 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
                 numThreads, xdata.shape[0],
                 xdata.shape[1], xdata.shape[2],
                 chiArr.shape[0], radem.shape[2],
-                convWidth, paddedBufferSize)
+                convWidth, paddedBufferSize,
+                scalingTerm, scalingType)
 
     else:
         raise ValueError("Unexpected types passed to wrapped C++ function.")
@@ -229,7 +235,6 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
     if errCode.decode("UTF-8") != "no_error":
         raise Exception(errCode.decode("UTF-8"))
 
-    outputArray *= scalingTerm
 
 
 
@@ -275,6 +280,7 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
     cdef np.ndarray[np.float64_t, ndim=3] gradient = np.zeros((outputArray.shape[0],
                             outputArray.shape[1], 1))
     cdef double scalingTerm
+    cdef int scalingType
 
     cdef uintptr_t addr_input = xdata.ctypes.data
     cdef uintptr_t addr_chi = chiArr.ctypes.data
@@ -311,10 +317,12 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
         raise ValueError("One or more arguments to a wrapped C++ func is not C contiguous.")
 
     scalingTerm = np.sqrt(1.0 / <double>(chiArr.shape[0]))
+    scalingType = 0
+
     if averageFeatures == 'full':
-        scalingTerm /= (<double>xdata.shape[1] - <double>convWidth + 1.)
+        scalingType = 2
     elif averageFeatures == 'sqrt':
-        scalingTerm /= np.sqrt(<double>xdata.shape[1] - <double>convWidth + 1.)
+        scalingType = 1
 
 
     if chiArr.dtype == "float32" and xdata.dtype == "float32":
@@ -324,7 +332,8 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
                     numThreads, xdata.shape[0],
                     xdata.shape[1], xdata.shape[2],
                     chiArr.shape[0], radem.shape[2],
-                    convWidth, paddedBufferSize)
+                    convWidth, paddedBufferSize,
+                    scalingTerm, scalingType)
 
     elif chiArr.dtype == "float64" and xdata.dtype == "float64":
         errCode = convRBFGrad_[double](&radem[0,0,0], <double*>addr_input,
@@ -333,7 +342,8 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
                     numThreads, xdata.shape[0],
                     xdata.shape[1], xdata.shape[2],
                     chiArr.shape[0], radem.shape[2],
-                    convWidth, paddedBufferSize)
+                    convWidth, paddedBufferSize,
+                    scalingTerm, scalingType)
 
     else:
         raise ValueError("Unexpected types passed to wrapped C++ function.")
@@ -341,6 +351,4 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
     if errCode.decode("UTF-8") != "no_error":
         raise Exception(errCode.decode("UTF-8"))
 
-    outputArray *= scalingTerm
-    gradient *= scalingTerm
     return gradient

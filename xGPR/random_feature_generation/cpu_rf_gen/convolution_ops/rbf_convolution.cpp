@@ -47,6 +47,9 @@
  * + `convWidth` The width of the convolution.
  * + `paddedBufferSize` dim2 of the copy buffer to create to perform
  * the convolution.
+ * + `scalingTerm` The scaling term to apply for the random feature generation.
+ * + `scalingType` An int that is one of 0, 1 or 2 to indicate what type of
+ * additional scaling (if any) to perform.
  *
  * ## Returns:
  * "error" if an error, "no_error" otherwise.
@@ -58,7 +61,8 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
             int numThreads, int dim0,
             int dim1, int dim2,
             int numFreqs, int rademShape2,
-            int convWidth, int paddedBufferSize){
+            int convWidth, int paddedBufferSize,
+            double scalingTerm, int scalingType){
     if (numThreads > dim0)
         numThreads = dim0;
 
@@ -81,7 +85,8 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
         threads[i] = std::thread(&threadConvRBFGen<T>, xdata,
                 copyBuffer, radem, chiArr, outputArray,
                 seqlengths, dim1, dim2, numFreqs, rademShape2,
-                startRow, endRow, convWidth, paddedBufferSize);
+                startRow, endRow, convWidth, paddedBufferSize,
+                scalingTerm, scalingType);
     }
 
     for (auto& th : threads)
@@ -131,6 +136,9 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
  * + `convWidth` The width of the convolution.
  * + `paddedBufferSize` dim2 of the copy buffer to create to perform
  * the convolution.
+ * + `scalingTerm` The scaling term to apply for the random feature generation.
+ * + `scalingType` An int that is one of 0, 1 or 2 to indicate what type of
+ * additional scaling (if any) to perform.
  *
  * ## Returns:
  * "error" if an error, "no_error" otherwise.
@@ -143,7 +151,8 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
             int numThreads, int dim0,
             int dim1, int dim2, int numFreqs,
             int rademShape2, int convWidth,
-            int paddedBufferSize){
+            int paddedBufferSize,
+            double scalingTerm, int scalingType){
     if (numThreads > dim0)
         numThreads = dim0;
 
@@ -165,7 +174,8 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
         threads[i] = std::thread(&threadConvRBFGrad<T>, xdata, copyBuffer,
                 radem, chiArr, outputArray, seqlengths, gradientArray, dim1,
                 dim2, numFreqs, rademShape2, startRow,
-                endRow, sigma, convWidth, paddedBufferSize);
+                endRow, sigma, convWidth, paddedBufferSize,
+                scalingTerm, scalingType);
     }
 
     for (auto& th : threads)
@@ -192,7 +202,8 @@ void *threadConvRBFGen(T xdata[], T copyBuffer[],
         int8_t *rademArray, T chiArr[], double *outputArray,
         int32_t *seqlengths, int dim1, int dim2, int numFreqs,
         int rademShape2, int startRow, int endRow,
-        int convWidth, int paddedBufferSize){
+        int convWidth, int paddedBufferSize,
+        double scalingTerm, int scalingType){
 
     int i, numRepeats, repeatPosition = 0;
     int numKmers = dim1 - convWidth + 1;
@@ -205,7 +216,8 @@ void *threadConvRBFGen(T xdata[], T copyBuffer[],
         RBFPostProcess<T>(copyBuffer, chiArr,
             outputArray, numKmers,
             paddedBufferSize, numFreqs, startRow,
-            endRow, i, convWidth, seqlengths);
+            endRow, i, convWidth, seqlengths,
+            scalingTerm, scalingType);
         
         repeatPosition += paddedBufferSize;
     }
@@ -228,7 +240,8 @@ void *threadConvRBFGrad(T xdata[], T copyBuffer[],
         int32_t *seqlengths, double *gradientArray, int dim1,
         int dim2, int numFreqs, int rademShape2,
         int startRow, int endRow, T sigma,
-        int convWidth, int paddedBufferSize){
+        int convWidth, int paddedBufferSize,
+        double scalingTerm, int scalingType){
 
     int i, numRepeats, repeatPosition = 0;
     int numKmers = dim1 - convWidth + 1;
@@ -241,7 +254,8 @@ void *threadConvRBFGrad(T xdata[], T copyBuffer[],
         RBFPostGrad<T>(copyBuffer, chiArr,
             outputArray, gradientArray, numKmers,
             paddedBufferSize, numFreqs, startRow,
-            endRow, i, sigma, convWidth, seqlengths);
+            endRow, i, sigma, convWidth, seqlengths,
+            scalingTerm, scalingType);
         
         repeatPosition += paddedBufferSize;
     }
@@ -273,13 +287,18 @@ void *threadConvRBFGrad(T xdata[], T copyBuffer[],
  * + `convWidth` The convolution width
  * + `seqlengths` an N-shaped array indicating the length of each
  * sequence.
+ * + `scalingTerm` The scaling term to apply for the random feature generation.
+ * + `scalingType` An int that is one of 0, 1 or 2 to indicate what type of
+ * additional scaling (if any) to perform.
+ *
  */
 template <typename T>
 void RBFPostProcess(const T __restrict xdata[],
         const T chiArr[], double *__restrict outputArray,
         int dim1, int dim2, int numFreqs,
         int startRow, int endRow, int repeatNum,
-        int convWidth, const int32_t *seqlengths){
+        int convWidth, const int32_t *seqlengths,
+        double scalingTerm, int scalingType){
 
     int sequenceCutoff, lenOutputRow, outputStart;
     T prodVal;
@@ -298,6 +317,11 @@ void RBFPostProcess(const T __restrict xdata[],
 
     for (int i=startRow; i < endRow; i++){
         sequenceCutoff = seqlengths[i] - convWidth + 1;
+        if (scalingType == 1)
+            scalingTerm /= sqrt( (double)sequenceCutoff);
+        else if (scalingType == 2)
+            scalingTerm /= (double)sequenceCutoff;
+
         xIn = xdata + i * lenInputRow;
 
         for (int k=0; k < sequenceCutoff; k++){
@@ -305,9 +329,9 @@ void RBFPostProcess(const T __restrict xdata[],
 
             for (int j=0; j < endPosition; j++){
                 prodVal = xIn[j] * chiIn[j];
-                *xOut += cos(prodVal);
+                *xOut += cos(prodVal) * scalingTerm;
                 xOut++;
-                *xOut += sin(prodVal);
+                *xOut += sin(prodVal) * scalingTerm;
                 xOut++;
             }
             xIn += dim2;
@@ -346,6 +370,9 @@ void RBFPostProcess(const T __restrict xdata[],
  * + `convWidth` The convolution width
  * + `seqlengths` an N-shaped array indicating the length of each
  * sequence.
+ * + `scalingTerm` The scaling term to apply for the random feature generation.
+ * + `scalingType` An int that is one of 0, 1 or 2 to indicate what type of
+ * additional scaling (if any) to perform.
  */
 template <typename T>
 void RBFPostGrad(const T __restrict xdata[],
@@ -354,7 +381,8 @@ void RBFPostGrad(const T __restrict xdata[],
         int dim1, int dim2,
         int numFreqs, int startRow, int endRow,
         int repeatNum, T sigma,
-        int convWidth, const int32_t *seqlengths){
+        int convWidth, const int32_t *seqlengths,
+        double scalingTerm, int scalingType){
 
     int sequenceCutoff, lenOutputRow, outputStart;
     T prodVal, gradVal, cosVal, sinVal;
@@ -374,6 +402,11 @@ void RBFPostGrad(const T __restrict xdata[],
 
     for (int i=startRow; i < endRow; i++){
         sequenceCutoff = seqlengths[i] - convWidth + 1;
+        if (scalingType == 1)
+            scalingTerm /= sqrt( (double)sequenceCutoff);
+        else if (scalingType == 2)
+            scalingTerm /= (double)sequenceCutoff;
+
         xIn = xdata + i * lenInputRow;
         xOut = outputArray + i * lenOutputRow + 2 * outputStart;
         gradOut = gradientArray + i * lenOutputRow + 2 * outputStart;
@@ -383,8 +416,8 @@ void RBFPostGrad(const T __restrict xdata[],
             for (int j=0; j < endPosition; j++){
                 gradVal = xIn[j] * chiIn[j];
                 prodVal = gradVal * sigma;
-                cosVal = cos(prodVal);
-                sinVal = sin(prodVal);
+                cosVal = cos(prodVal) * scalingTerm;
+                sinVal = sin(prodVal) * scalingTerm;
                 xOut[2*j] += cosVal;
                 xOut[2*j+1] += sinVal;
                 gradOut[2*j] += -sinVal * gradVal;
@@ -400,21 +433,25 @@ void RBFPostGrad(const T __restrict xdata[],
 template const char *convRBFFeatureGen_<float>(int8_t *radem, float xdata[],
             float chiArr[], double *outputArray, int32_t *seqlengths,
             int numThreads, int dim0, int dim1, int dim2, int numFreqs,
-            int rademShape2, int convWidth, int paddedBufferSize);
+            int rademShape2, int convWidth, int paddedBufferSize,
+            double scalingTerm, int scalingType);
 template const char *convRBFFeatureGen_<double>(int8_t *radem, double xdata[],
             double chiArr[], double *outputArray, int32_t *seqlengths,
             int numThreads, int dim0, int dim1, int dim2, int numFreqs,
-            int rademShape2, int convWidth, int paddedBufferSize);
+            int rademShape2, int convWidth, int paddedBufferSize,
+            double scalingTerm, int scalingType);
 
 template const char *convRBFGrad_<float>(int8_t *radem, float xdata[],
             float chiArr[], double *outputArray, int32_t *seqlengths,
             double *gradientArray, float sigma,
             int numThreads, int dim0, int dim1, int dim2,
             int numFreqs, int rademShape2,
-            int convWidth, int paddedBufferSize);
+            int convWidth, int paddedBufferSize,
+            double scalingTerm, int scalingType);
 template const char *convRBFGrad_<double>(int8_t *radem, double xdata[],
             double chiArr[], double *outputArray, int32_t *seqlengths,
             double *gradientArray, double sigma,
             int numThreads, int dim0, int dim1, int dim2,
             int numFreqs, int rademShape2,
-            int convWidth, int paddedBufferSize);
+            int convWidth, int paddedBufferSize,
+            double scalingTerm, int scalingType);
