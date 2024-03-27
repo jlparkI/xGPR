@@ -4,6 +4,7 @@ The AuxiliaryBaseclass describes class attributes and methods shared by
 auxiliary tools like kernel_xPCA and kernel_FGen.
 """
 import sys
+import numpy as np
 
 try:
     import cupy as cp
@@ -25,6 +26,9 @@ class AuxiliaryBaseclass():
         device (str): One of "gpu", "cpu". The user can update this as desired.
             All predict / tune / fit operations are carried out using the
             current device.
+        double_precision_fht (bool): Indicates whether we are using double precision.
+        dtype: A convenience reference to np.float32, np.float64, cp.float32 or
+            cp.float64.
         verbose (bool): If True, regular updates are printed during
             hyperparameter tuning and fitting.
     """
@@ -91,6 +95,9 @@ class AuxiliaryBaseclass():
                             num_rffs, random_seed, device,
                             num_threads, double_precision_fht,
                             kernel_spec_parms = kernel_settings)
+
+        self.double_precision_fht = double_precision_fht
+        self.dtype = np.float32
         self.device = device
         full_hparams = self.kernel.get_hyperparams()
         if full_hparams.shape[0] > 1:
@@ -131,8 +138,11 @@ class AuxiliaryBaseclass():
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
             x_array = cp.asarray(input_x)
+            if sequence_lengths is not None:
+                sequence_lengths = cp.asarray(sequence_lengths)
 
-        return x_array
+        x_array = x_array.astype(self.dtype)
+        return x_array, sequence_lengths
 
 
     ####The remaining functions are all getters / setters.
@@ -163,4 +173,13 @@ class AuxiliaryBaseclass():
         if value == "gpu":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
+            if self.double_precision_fht:
+                self.dtype = cp.float64
+            else:
+                self.dtype = cp.float32
+        else:
+            if self.double_precision_fht:
+                self.dtype = np.float64
+            else:
+                self.dtype = np.float32
         self._device = value

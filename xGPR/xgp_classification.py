@@ -96,9 +96,9 @@ class xGPDiscriminant(ModelBaseclass):
         for i in range(0, xdata.shape[0], chunk_size):
             cutoff = min(i + chunk_size, xdata.shape[0])
             if sequence_lengths is not None:
-                xfeatures = self.kernel.transform_x(xdata[i:cutoff, :], sequence_lengths[i:cutoff])
+                xfeatures = self.kernel.transform_x(xdata[i:cutoff,...], sequence_lengths[i:cutoff])
             else:
-                xfeatures = self.kernel.transform_x(xdata[i:cutoff, :])
+                xfeatures = self.kernel.transform_x(xdata[i:cutoff,...])
 
             pred = xfeatures @ self.weights + self._gamma[None,:]
 

@@ -75,15 +75,15 @@ class KernelFGen(AuxiliaryBaseclass):
             ValueError: A ValueError is raised if inappropriate inputs are
                 supplied.
         """
-        xdata = self.pre_prediction_checks(input_x, sequence_lengths)
+        xdata, seqlen = self.pre_prediction_checks(input_x, sequence_lengths)
         preds = []
         for i in range(0, xdata.shape[0], chunk_size):
             cutoff = min(i + chunk_size, xdata.shape[0])
             if sequence_lengths is not None:
-                preds.append(self.kernel.transform_x(xdata[i:cutoff, :],
-                    sequence_lengths[i:cutoff]))
+                preds.append(self.kernel.transform_x(xdata[i:cutoff, ...],
+                    seqlen[i:cutoff]))
             else:
-                preds.append(self.kernel.transform_x(xdata[i:cutoff, :]))
+                preds.append(self.kernel.transform_x(xdata[i:cutoff, ...]))
 
         if self.device == "gpu":
             preds = cp.asnumpy(cp.vstack(preds))

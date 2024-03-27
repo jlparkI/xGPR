@@ -302,6 +302,7 @@ void RBFPostProcess(const T __restrict xdata[],
 
     int sequenceCutoff, lenOutputRow, outputStart;
     T prodVal;
+    double rowScaler;
     double *__restrict xOut;
     const T *__restrict xIn;
     const T *chiIn;
@@ -318,9 +319,11 @@ void RBFPostProcess(const T __restrict xdata[],
     for (int i=startRow; i < endRow; i++){
         sequenceCutoff = seqlengths[i] - convWidth + 1;
         if (scalingType == 1)
-            scalingTerm /= sqrt( (double)sequenceCutoff);
+            rowScaler = scalingTerm / sqrt( (double)sequenceCutoff);
         else if (scalingType == 2)
-            scalingTerm /= (double)sequenceCutoff;
+            rowScaler = scalingTerm / (double)sequenceCutoff;
+        else
+            rowScaler = 1.
 
         xIn = xdata + i * lenInputRow;
 
@@ -329,9 +332,9 @@ void RBFPostProcess(const T __restrict xdata[],
 
             for (int j=0; j < endPosition; j++){
                 prodVal = xIn[j] * chiIn[j];
-                *xOut += cos(prodVal) * scalingTerm;
+                *xOut += cos(prodVal) * rowScaler;
                 xOut++;
-                *xOut += sin(prodVal) * scalingTerm;
+                *xOut += sin(prodVal) * rowScaler;
                 xOut++;
             }
             xIn += dim2;
@@ -385,7 +388,7 @@ void RBFPostGrad(const T __restrict xdata[],
         double scalingTerm, int scalingType){
 
     int sequenceCutoff, lenOutputRow, outputStart;
-    T prodVal, gradVal, cosVal, sinVal;
+    T prodVal, gradVal, cosVal, sinVal, rowScaler;
     double *__restrict xOut, *__restrict gradOut;
     const T *__restrict xIn;
     const T *chiIn;
@@ -403,9 +406,11 @@ void RBFPostGrad(const T __restrict xdata[],
     for (int i=startRow; i < endRow; i++){
         sequenceCutoff = seqlengths[i] - convWidth + 1;
         if (scalingType == 1)
-            scalingTerm /= sqrt( (double)sequenceCutoff);
+            rowScaler = scalingTerm / sqrt( (double)sequenceCutoff);
         else if (scalingType == 2)
-            scalingTerm /= (double)sequenceCutoff;
+            rowScaler = scalingTerm / (double)sequenceCutoff;
+        else
+            rowScaler = 1.
 
         xIn = xdata + i * lenInputRow;
         xOut = outputArray + i * lenOutputRow + 2 * outputStart;
@@ -416,8 +421,8 @@ void RBFPostGrad(const T __restrict xdata[],
             for (int j=0; j < endPosition; j++){
                 gradVal = xIn[j] * chiIn[j];
                 prodVal = gradVal * sigma;
-                cosVal = cos(prodVal) * scalingTerm;
-                sinVal = sin(prodVal) * scalingTerm;
+                cosVal = cos(prodVal) * rowScaler;
+                sinVal = sin(prodVal) * rowScaler;
                 xOut[2*j] += cosVal;
                 xOut[2*j+1] += sinVal;
                 gradOut[2*j] += -sinVal * gradVal;
