@@ -323,7 +323,7 @@ void RBFPostProcess(const T __restrict xdata[],
         else if (scalingType == 2)
             rowScaler = scalingTerm / (double)sequenceCutoff;
         else
-            rowScaler = 1.
+            rowScaler = scalingTerm;
 
         xIn = xdata + i * lenInputRow;
 
@@ -410,7 +410,7 @@ void RBFPostGrad(const T __restrict xdata[],
         else if (scalingType == 2)
             rowScaler = scalingTerm / (double)sequenceCutoff;
         else
-            rowScaler = 1.
+            rowScaler = scalingTerm;
 
         xIn = xdata + i * lenInputRow;
         xOut = outputArray + i * lenOutputRow + 2 * outputStart;
