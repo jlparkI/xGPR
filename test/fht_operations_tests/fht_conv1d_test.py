@@ -116,10 +116,30 @@ class TestConv1d(unittest.TestCase):
             self.assertTrue(outcome)
 
 
+    def test_normalization(self):
+        """Tests that sqrt and full normalization are behaving as
+        expected."""
+        kernel_width, num_aas, aa_dim, num_freqs = 7, 53, 105, 784
+        sigma, ndatapoints = 1, 38
+
+        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma, normalization = "sqrt")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        kernel_width, num_aas, aa_dim, num_freqs = 7, 53, 105, 784
+        sigma, ndatapoints = 1, 38
+
+        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma, normalization = "full")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
 
 
 def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-        num_freqs, sigma, precision = "double"):
+        num_freqs, sigma, precision = "double",
+        normalization = "none"):
     """Run an evaluation of RBF-based convolution kernel feature
     evaluation, without evaluating gradient."""
     dim2, num_blocks, xdata, seqlen, features, s_mat, \
@@ -127,12 +147,14 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                         aa_dim, num_aas, num_freqs, "conv", precision)
     true_features = get_features(xdata, kernel_width, dim2,
                             radem, s_mat, num_freqs, num_blocks, sigma,
-                            seqlen, precision)
+                            seqlen, precision, normalization)
     xd = xdata * sigma
     cpuConv1dFGen(xd, seqlen, radem, features, s_mat,
-            kernel_width, 2)
+            kernel_width, 2, normalization)
 
     outcome = check_results(true_features, features, precision)
+    if normalization != "none":
+        print(f"****Running test with {normalization} normalization.****")
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
         f"sigma: {sigma}, mode: RBF convolution, precision {precision}\n"
@@ -146,7 +168,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
     gpuConv1dFGen(xd, seqlen, radem, features, s_mat,
-            kernel_width, 2)
+            kernel_width, 2, normalization)
 
     features = cp.asnumpy(features)
     outcome_cuda = check_results(true_features, features, precision)
