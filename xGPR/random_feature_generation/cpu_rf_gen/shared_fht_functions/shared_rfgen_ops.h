@@ -49,5 +49,9 @@ void convSORF3DWithCopyBuffer(T reshapedXArray[], T copyBuffer[],
         int endRow, int dim1, int dim2, int rademShape2,
         int convWidth, int bufferDim2);
 
+template <typename T>
+void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
+        int repeatPosition, int rademShape2,
+        int cbufferDim2);
 
 #endif

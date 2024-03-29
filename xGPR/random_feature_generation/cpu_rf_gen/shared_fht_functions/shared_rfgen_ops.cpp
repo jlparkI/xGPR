@@ -52,6 +52,7 @@ void multiplyByDiagonalRademacherMat2D(T __restrict xArray[],
     
     for(i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
+        #pragma omp simd
         for (j = 0; j < rowStride; j++){
             *xElement *= rademArray[j] * normConstant;
             xElement++;
@@ -115,6 +116,7 @@ void multiplyByDiagonalRademacherMat(T __restrict xArray[],
     
     for(i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
+        #pragma omp simd
         for (j = 0; j < rowStride; j++){
             *xElement *= rademArray[j] * normConstant;
             xElement++;
@@ -183,6 +185,7 @@ void multiplyByDiagonalRademAndCopy(const T xArray[],
     for(i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
         outElement = copyBuffer + i * rowStride;
+        #pragma omp simd
         for (j = 0; j < rowStride; j++){
             *outElement = *xElement * rademArray[j] * normConstant;
             xElement++;
@@ -249,6 +252,7 @@ void conv1dMultiplyByRadem(T __restrict xArray[],
 
     for (int i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
+        #pragma omp simd
         for (j = 0; j < reshapedDim1; j++){
             for (k = 0; k < reshapedDim2; k++){
                 *xElement *= rademArray[startPosition + k] * normConstant;
@@ -481,6 +485,7 @@ template void convSORF3D<float>(float *xArray,
  * N x D x C)
  * + `rademShape2` The size of F in the shape of the rademArray.
  * + `convWidth` The number of elements in a convolution.
+ * + `bufferDim2` The dim2 of the copy buffer.
  */
 template <typename T>
 void convSORF3DWithCopyBuffer(T reshapedXArray[], T copyBuffer[],
@@ -527,3 +532,60 @@ template void convSORF3DWithCopyBuffer<float>(float *reshapedXArray, float *copy
                         const int8_t *rademArray, int repeatPosition,
                         int startRow, int endRow, int dim1, int dim2,
                         int rademShape2, int convWidth, int bufferDim2);
+
+
+
+/*!
+ * # singleVectorSORF
+ *
+ * Performs all the steps involved in the SORF convolution
+ * operation on a 1d array.
+ *
+ * ## Args:
+ *
+ * + `cbuffer` Pointer to the first element of the 1d array. Size must
+ * be a power of 2.
+ * + `rademArray` Pointer to the first element of the diagonal rademacher
+ * array (size (3,1,F) where F is a multiple of C).
+ * + `repeatPosition` A multiple of C that indicates how far along dim2 of
+ * rademArray to start.
+ * + `rademShape2` dim2 of radem (i.e. F from above).
+ * + `cbufferDim2` The size of cbuffer. Must be a power of 2.
+ */
+template <typename T>
+void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
+        int repeatPosition, int rademShape2,
+        int cbufferDim2){
+    T normConstant = log2(cbufferDim2) / 2;
+    normConstant = 1 / pow(2, normConstant);
+    const int8_t *rademElement = rademArray + repeatPosition;
+
+    #pragma omp simd
+    for (int i = 0; i < cbufferDim2; i++)
+        cbuffer[i] *= rademElement[i] * normConstant;
+
+    rademElement += rademShape2;
+    transformRows<T>(cbuffer, 0, 1, 1, cbufferDim2);
+
+
+    #pragma omp simd
+    for (int i = 0; i < cbufferDim2; i++)
+        cbuffer[i] *= rademElement[i] * normConstant;
+
+    rademElement += rademShape2;
+    transformRows<T>(cbuffer, 0, 1, 1, cbufferDim2);
+
+
+    #pragma omp simd
+    for (int i = 0; i < cbufferDim2; i++)
+        cbuffer[i] *= rademElement[i] * normConstant;
+
+    transformRows<T>(cbuffer, 0, 1, 1, cbufferDim2);
+}
+//Explicitly instantiate for external use.
+template void singleVectorSORF<double>(double cbuffer[], const int8_t *rademArray,
+        int repeatPosition, int rademShape2,
+        int cbufferDim2);
+template void singleVectorSORF<float>(float cbuffer[], const int8_t *rademArray,
+        int repeatPosition, int rademShape2,
+        int cbufferDim2);

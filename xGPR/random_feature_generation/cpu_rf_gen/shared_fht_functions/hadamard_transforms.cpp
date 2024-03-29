@@ -3,7 +3,6 @@
  *
  * This module performs core Hadamard transform ops.
  */
-
 #include <stdint.h>
 #include <math.h>
 #include "hadamard_transforms.h"
@@ -80,7 +79,6 @@ template void smallBlockTransform<float>(float *xArray, int startRow, int endRow
                     int dim1, int dim2);
 
 
-
 template <typename T>
 void generalTransform(T xArray[], int startRow, int endRow,
                     int dim1, int dim2){
@@ -93,10 +91,11 @@ void generalTransform(T xArray[], int startRow, int endRow,
         for (int idx2 = 0; idx2 < dim1; idx2++){
 
             //We unroll the first few loops to make this very easy
-            //for compiler to vectorize; this provides a small speedup.
+            //for compiler to optimize; this provides a small speedup.
             xElement = xArray + idx1 * rowStride + idx2 * dim2;
             for (int i=0; i < dim2; i += 8){
 
+                #pragma omp simd
                 for (int k=0; k < 8; k+=2){
                     yGrp[k] = xElement[k] + xElement[k+1];
                     yGrp[k+1] = xElement[k] - xElement[k+1];
@@ -116,15 +115,13 @@ void generalTransform(T xArray[], int startRow, int endRow,
                 yGrp[7] = yGrp[5] - y;
                 yGrp[5] += y;
 
-                xElement[0] = yGrp[0] + yGrp[4];
-                xElement[1] = yGrp[1] + yGrp[5];
-                xElement[2] = yGrp[2] + yGrp[6];
-                xElement[3] = yGrp[3] + yGrp[7];
+                #pragma omp simd
+                for (int k=0; k < 4; k++)
+                    xElement[k] = yGrp[k] + yGrp[k+4];
 
-                xElement[4] = yGrp[0] - yGrp[4];
-                xElement[5] = yGrp[1] - yGrp[5];
-                xElement[6] = yGrp[2] - yGrp[6];
-                xElement[7] = yGrp[3] - yGrp[7];
+                #pragma omp simd
+                for (int k=4; k < 8; k++)
+                    xElement[k] = yGrp[k-4] - yGrp[k];
 
                 xElement += 8;
             }
@@ -135,11 +132,9 @@ void generalTransform(T xArray[], int startRow, int endRow,
                     xElement = xArray + idx1 * rowStride + idx2 * dim2 + i;
                     yElement = xElement + h;
                     for (int j=0; j < h; j++){
-                        y = *yElement;
-                        *yElement = *xElement - y;
-                        *xElement += y;
-                        xElement++;
-                        yElement++;
+                        y = yElement[j];
+                        yElement[j] = xElement[j] - y;
+                        xElement[j] += y;
                     }
                 }
             }

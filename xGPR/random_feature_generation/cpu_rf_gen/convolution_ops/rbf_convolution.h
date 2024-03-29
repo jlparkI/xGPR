@@ -28,39 +28,32 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
             double scalingTerm, int scalingType);
 
 template <typename T>
-void *threadConvRBFGen(T xdata[], T copyBuffer[],
-        int8_t *rademArray, T chiArr[], double *outputArray,
-        int32_t *seqlengths, int dim1, int dim2, int numFreqs,
-        int rademShape2, int startRow, int endRow,
+void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, int32_t *seqlengths, int dim1, int dim2,
+        int numFreqs, int rademShape2, int startRow, int endRow,
         int convWidth, int paddedBufferSize,
         double scalingTerm, int scalingType);
 
 template <typename T>
-void *threadConvRBFGrad(T xdata[], T copyBuffer[],
-        int8_t *rademArray, T chiArr[], double *outputArray,
-        int32_t *seqlengths, double *gradientArray, int dim1,
-        int dim2, int numFreqs, int rademShape2,
-        int startRow, int endRow, T sigma,
-        int convWidth, int paddedBufferSize,
-        double scalingTerm, int scalingType);
+void *allInOneConvRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, int32_t *seqlengths, double *gradientArray,
+        int dim1, int dim2, int numFreqs, int rademShape2, int startRow,
+        int endRow, int convWidth, int paddedBufferSize,
+        double scalingTerm, int scalingType, T sigma);
 
 template <typename T>
-void RBFPostProcess(const T __restrict xdata[],
-        const T chiArr[], double *__restrict outputArray,
-        int dim1, int dim2, int numFreqs,
-        int startRow, int endRow, int repeatNum,
-        int convWidth, const int32_t *seqlengths,
-        double scalingTerm, int scalingType);
-
+void singleVectorRBFPostProcess(const T xdata[],
+        const T chiArr[], double *outputArray,
+        int dim2, int numFreqs,
+        int rowNumber, int repeatNum,
+        double scalingTerm);
 
 template <typename T>
-void RBFPostGrad(const T __restrict xdata[],
-        const T chiArr[], double *__restrict outputArray,
-        double *__restrict gradientArray,
-        int dim1, int dim2,
-        int numFreqs, int startRow, int endRow,
-        int repeatNum, T sigma, int convWidth,
-        const int32_t *seqlengths,
-        double scalingTerm, int scalingType);
+void singleVectorRBFPostGrad(const T xdata[],
+        const T chiArr[], double *outputArray,
+        double *gradientArray, T sigma,
+        int dim2, int numFreqs,
+        int rowNumber, int repeatNum,
+        double scalingTerm);
 
 #endif

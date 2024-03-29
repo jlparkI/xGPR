@@ -66,12 +66,6 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
     if (numThreads > dim0)
         numThreads = dim0;
 
-    int bufferRowSize = (dim1 - convWidth + 1) * paddedBufferSize * dim0;
-
-    T *copyBuffer = new (std::nothrow) T[bufferRowSize];
-    if (copyBuffer == NULL)
-        return "Out of memory! Could not allocate a copy buffer. Check input sizes.";
-
     std::vector<std::thread> threads(numThreads);
     int startRow, endRow;
     int chunkSize = (dim0 + numThreads - 1) / numThreads;
@@ -82,8 +76,8 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
         if (endRow > dim0)
             endRow = dim0;
 
-        threads[i] = std::thread(&threadConvRBFGen<T>, xdata,
-                copyBuffer, radem, chiArr, outputArray,
+        threads[i] = std::thread(&allInOneConvRBFGen<T>, xdata,
+                radem, chiArr, outputArray,
                 seqlengths, dim1, dim2, numFreqs, rademShape2,
                 startRow, endRow, convWidth, paddedBufferSize,
                 scalingTerm, scalingType);
@@ -92,7 +86,6 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
     for (auto& th : threads)
         th.join();
 
-    delete[] copyBuffer;
     return "no_error";
 }
 
@@ -156,12 +149,6 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
     if (numThreads > dim0)
         numThreads = dim0;
 
-    int bufferRowSize = (dim1 - convWidth + 1) * paddedBufferSize * dim0;
-
-    T *copyBuffer = new (std::nothrow) T[bufferRowSize];
-    if (copyBuffer == NULL)
-        return "Out of memory! Could not allocate a copy buffer. Check input sizes.";
-
     std::vector<std::thread> threads(numThreads);
     int startRow, endRow;
     int chunkSize = (dim0 + numThreads - 1) / numThreads;
@@ -171,175 +158,134 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
         endRow = (i + 1) * chunkSize;
         if (endRow > dim0)
             endRow = dim0;
-        threads[i] = std::thread(&threadConvRBFGrad<T>, xdata, copyBuffer,
+        threads[i] = std::thread(&allInOneConvRBFGrad<T>, xdata,
                 radem, chiArr, outputArray, seqlengths, gradientArray, dim1,
                 dim2, numFreqs, rademShape2, startRow,
-                endRow, sigma, convWidth, paddedBufferSize,
-                scalingTerm, scalingType);
+                endRow, convWidth, paddedBufferSize,
+                scalingTerm, scalingType, sigma);
     }
 
     for (auto& th : threads)
         th.join();
 
-    delete[] copyBuffer;
     return "no_error";
 }
 
 
 
-
-
-
 /*!
- * # threadConvRBFGen
+ * # allInOneConvRBFGen
  *
  * Performs the RBF-based convolution kernel feature generation
- * process for the input, for one thread. xdata is split up into
- * num_threads chunks each with a start and end row.
+ * process for the input, for one thread.
  */
 template <typename T>
-void *threadConvRBFGen(T xdata[], T copyBuffer[],
-        int8_t *rademArray, T chiArr[], double *outputArray,
-        int32_t *seqlengths, int dim1, int dim2, int numFreqs,
-        int rademShape2, int startRow, int endRow,
+void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, int32_t *seqlengths, int dim1, int dim2,
+        int numFreqs, int rademShape2, int startRow, int endRow,
         int convWidth, int paddedBufferSize,
         double scalingTerm, int scalingType){
 
-    int i, numRepeats, repeatPosition = 0;
-    int numKmers = dim1 - convWidth + 1;
-    numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
-
-    for (i=0; i < numRepeats; i++){
-        convSORF3DWithCopyBuffer(xdata, copyBuffer, rademArray, repeatPosition,
-                startRow, endRow, dim1, dim2,
-                rademShape2, convWidth, paddedBufferSize);
-        RBFPostProcess<T>(copyBuffer, chiArr,
-            outputArray, numKmers,
-            paddedBufferSize, numFreqs, startRow,
-            endRow, i, convWidth, seqlengths,
-            scalingTerm, scalingType);
-        
-        repeatPosition += paddedBufferSize;
-    }
-    return NULL;
-}
-
-
-
-
-/*!
- * # threadConvRBFGrad
- *
- * Performs the RBF-based convolution kernel feature generation
- * process for the input, for one thread. xdata is split up into
- * num_threads chunks each with a start and end row.
- */
-template <typename T>
-void *threadConvRBFGrad(T xdata[], T copyBuffer[],
-        int8_t *rademArray, T chiArr[], double *outputArray,
-        int32_t *seqlengths, double *gradientArray, int dim1,
-        int dim2, int numFreqs, int rademShape2,
-        int startRow, int endRow, T sigma,
-        int convWidth, int paddedBufferSize,
-        double scalingTerm, int scalingType){
-
-    int i, numRepeats, repeatPosition = 0;
-    int numKmers = dim1 - convWidth + 1;
-    numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
-
-    for (i=0; i < numRepeats; i++){
-        convSORF3DWithCopyBuffer(xdata, copyBuffer, rademArray, repeatPosition,
-                startRow, endRow, dim1, dim2,
-                rademShape2, convWidth, paddedBufferSize);
-        RBFPostGrad<T>(copyBuffer, chiArr,
-            outputArray, gradientArray, numKmers,
-            paddedBufferSize, numFreqs, startRow,
-            endRow, i, sigma, convWidth, seqlengths,
-            scalingTerm, scalingType);
-        
-        repeatPosition += paddedBufferSize;
-    }
-    return NULL;
-}
-
-
-
-/*!
- * # RBFPostProcess
- *
- * Performs the last steps in RBF-based convolution kernel feature
- * generation.
- *
- * ## Args:
- * + `xdata` Pointer to the first element of the array that has been
- * used for the convolution. Shape is (N x D x C). C must be
- * a power of 2.
- * + `chiArr` Pointer to the first element of chiArr, a diagonal array
- * that will be multipled against xdata.
- * + `outputArray` A pointer to the first element of the array in which
- * the output will be stored.
- * + `dim1` The second dimension of xdata
- * + `dim2` The last dimension of xdata
- * + `numFreqs` The number of frequencies to sample.
- * + `startRow` The first row of the input to work on
- * + `endRow` The last row of the input to work on
- * + `repeatNum` The repeat number
- * + `convWidth` The convolution width
- * + `seqlengths` an N-shaped array indicating the length of each
- * sequence.
- * + `scalingTerm` The scaling term to apply for the random feature generation.
- * + `scalingType` An int that is one of 0, 1 or 2 to indicate what type of
- * additional scaling (if any) to perform.
- *
- */
-template <typename T>
-void RBFPostProcess(const T __restrict xdata[],
-        const T chiArr[], double *__restrict outputArray,
-        int dim1, int dim2, int numFreqs,
-        int startRow, int endRow, int repeatNum,
-        int convWidth, const int32_t *seqlengths,
-        double scalingTerm, int scalingType){
-
-    int sequenceCutoff, lenOutputRow, outputStart;
-    T prodVal;
+    int numKmers;
+    int32_t seqlength;
+    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
     double rowScaler;
-    double *__restrict xOut;
-    const T *__restrict xIn;
-    const T *chiIn;
-    int endPosition, lenInputRow = dim1 * dim2;
-
-    outputStart = repeatNum * dim2;
-
-    //NOTE: MIN is defined in the header.
-    endPosition = MIN(numFreqs, (repeatNum + 1) * dim2);
-    endPosition -= outputStart;
-    lenOutputRow = 2 * numFreqs;
-    chiIn = chiArr + outputStart;
+    //Notice that we don't have error handling here...very naughty. Out of
+    //memory should be extremely rare since we are only allocating memory
+    //for one row of the convolution. TODO: add error handling here.
+    T *copyBuffer = new T[paddedBufferSize];
+    T *xElement;
 
     for (int i=startRow; i < endRow; i++){
-        sequenceCutoff = seqlengths[i] - convWidth + 1;
+        seqlength = seqlengths[i];
+        numKmers = seqlength - convWidth + 1;
         if (scalingType == 1)
-            rowScaler = scalingTerm / sqrt( (double)sequenceCutoff);
+            rowScaler = scalingTerm / sqrt( (double)numKmers);
         else if (scalingType == 2)
-            rowScaler = scalingTerm / (double)sequenceCutoff;
+            rowScaler = scalingTerm / (double)numKmers;
         else
             rowScaler = scalingTerm;
 
-        xIn = xdata + i * lenInputRow;
+        for (int j=0; j < numKmers; j++){
+            int repeatPosition = 0;
+            xElement = xdata + i * dim1 * dim2 + j * dim2;
 
-        for (int k=0; k < sequenceCutoff; k++){
-            xOut = outputArray + i * lenOutputRow + 2 * outputStart;
+            for (int k=0; k < numRepeats; k++){
+                for (int m=0; m < (convWidth * dim2); m++)
+                    copyBuffer[m] = xElement[m];
+                for (int m=(convWidth * dim2); m < paddedBufferSize; m++)
+                    copyBuffer[m] = 0;
 
-            for (int j=0; j < endPosition; j++){
-                prodVal = xIn[j] * chiIn[j];
-                *xOut += cos(prodVal) * rowScaler;
-                xOut++;
-                *xOut += sin(prodVal) * rowScaler;
-                xOut++;
+                singleVectorSORF(copyBuffer, rademArray, repeatPosition,
+                        rademShape2, paddedBufferSize);
+                singleVectorRBFPostProcess(copyBuffer, chiArr, outputArray,
+                        paddedBufferSize, numFreqs, i, k, rowScaler);
+                repeatPosition += paddedBufferSize;
             }
-            xIn += dim2;
         }
     }
+    delete[] copyBuffer;
+
+    return NULL;
+}
+
+
+/*!
+ * # allInOneConvRBFGrad
+ *
+ * Performs the RBF-based convolution kernel feature generation
+ * process for the input, for one thread, and calculates the
+ * gradient, which is stored in a separate array.
+ */
+template <typename T>
+void *allInOneConvRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, int32_t *seqlengths, double *gradientArray,
+        int dim1, int dim2, int numFreqs, int rademShape2, int startRow,
+        int endRow, int convWidth, int paddedBufferSize,
+        double scalingTerm, int scalingType, T sigma){
+
+    int numKmers;
+    int32_t seqlength;
+    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
+    double rowScaler;
+    //Notice that we don't have error handling here...very naughty. Out of
+    //memory should be extremely rare since we are only allocating memory
+    //for one row of the convolution. TODO: add error handling here.
+    T *copyBuffer = new T[paddedBufferSize];
+    T *xElement;
+
+    for (int i=startRow; i < endRow; i++){
+        seqlength = seqlengths[i];
+        numKmers = seqlength - convWidth + 1;
+        if (scalingType == 1)
+            rowScaler = scalingTerm / sqrt( (double)numKmers);
+        else if (scalingType == 2)
+            rowScaler = scalingTerm / (double)numKmers;
+        else
+            rowScaler = scalingTerm;
+
+        for (int j=0; j < numKmers; j++){
+            int repeatPosition = 0;
+            xElement = xdata + i * dim1 * dim2 + j * dim2;
+
+            for (int k=0; k < numRepeats; k++){
+                for (int m=0; m < (convWidth * dim2); m++)
+                    copyBuffer[m] = xElement[m];
+                for (int m=(convWidth * dim2); m < paddedBufferSize; m++)
+                    copyBuffer[m] = 0;
+
+                singleVectorSORF(copyBuffer, rademArray, repeatPosition,
+                        rademShape2, paddedBufferSize);
+                singleVectorRBFPostGrad(copyBuffer, chiArr, outputArray,
+                        gradientArray, sigma, paddedBufferSize, numFreqs,
+                        i, k, rowScaler);
+                repeatPosition += paddedBufferSize;
+            }
+        }
+    }
+    delete[] copyBuffer;
+
+    return NULL;
 }
 
 
@@ -347,89 +293,112 @@ void RBFPostProcess(const T __restrict xdata[],
 
 
 /*!
- * # RBFPostGrad
+ * # singleVectorRBFPostProcess
  *
  * Performs the last steps in RBF-based convolution kernel feature
- * generation, while additionally calculating the gradient w/r/t
- * the lengthscale.
+ * generation for a single convolution element.
  *
  * ## Args:
  * + `xdata` Pointer to the first element of the array that has been
- * used for the convolution. Shape is (N x D x C). C must be
- * a power of 2.
+ * used for the convolution. Shape is (C). C must be a power of 2.
  * + `chiArr` Pointer to the first element of chiArr, a diagonal array
  * that will be multipled against xdata.
  * + `outputArray` A pointer to the first element of the array in which
  * the output will be stored.
- * + `gradientArray` A pointer to the first element of the array in which
- * the gradient will be stored.
- * + `dim1` The second dimension of xdata
  * + `dim2` The last dimension of xdata
  * + `numFreqs` The number of frequencies to sample.
- * + `startRow` The first row of the input to work on
- * + `endRow` The last row of the input to work on
+ * + `rowNumber` The row of the output array to use.
  * + `repeatNum` The repeat number
- * + `sigma` The lengthscale hyperparameter
  * + `convWidth` The convolution width
- * + `seqlengths` an N-shaped array indicating the length of each
- * sequence.
  * + `scalingTerm` The scaling term to apply for the random feature generation.
- * + `scalingType` An int that is one of 0, 1 or 2 to indicate what type of
- * additional scaling (if any) to perform.
+ *
  */
 template <typename T>
-void RBFPostGrad(const T __restrict xdata[],
-        const T chiArr[], double *__restrict outputArray,
-        double *__restrict gradientArray,
-        int dim1, int dim2,
-        int numFreqs, int startRow, int endRow,
-        int repeatNum, T sigma,
-        int convWidth, const int32_t *seqlengths,
-        double scalingTerm, int scalingType){
+void singleVectorRBFPostProcess(const T xdata[],
+        const T chiArr[], double *outputArray,
+        int dim2, int numFreqs,
+        int rowNumber, int repeatNum,
+        double scalingTerm){
 
-    int sequenceCutoff, lenOutputRow, outputStart;
-    T prodVal, gradVal, cosVal, sinVal, rowScaler;
-    double *__restrict xOut, *__restrict gradOut;
-    const T *__restrict xIn;
+    int outputStart = repeatNum * dim2;
+    T prodVal;
+    double *__restrict xOut;
     const T *chiIn;
-    int endPosition, lenInputRow = dim1 * dim2;
-
-    outputStart = repeatNum * dim2;
-
     //NOTE: MIN is defined in the header.
-    endPosition = MIN(numFreqs, (repeatNum + 1) * dim2);
+    int endPosition = MIN(numFreqs, (repeatNum + 1) * dim2);
     endPosition -= outputStart;
 
-    lenOutputRow = 2 * numFreqs;
     chiIn = chiArr + outputStart;
+    xOut = outputArray + 2 * outputStart + rowNumber * 2 * numFreqs;
 
-    for (int i=startRow; i < endRow; i++){
-        sequenceCutoff = seqlengths[i] - convWidth + 1;
-        if (scalingType == 1)
-            rowScaler = scalingTerm / sqrt( (double)sequenceCutoff);
-        else if (scalingType == 2)
-            rowScaler = scalingTerm / (double)sequenceCutoff;
-        else
-            rowScaler = scalingTerm;
+    for (int i=0; i < endPosition; i++){
+        prodVal = xdata[i] * chiIn[i];
+        *xOut += cos(prodVal) * scalingTerm;
+        xOut++;
+        *xOut += sin(prodVal) * scalingTerm;
+        xOut++;
+    }
+}
 
-        xIn = xdata + i * lenInputRow;
-        xOut = outputArray + i * lenOutputRow + 2 * outputStart;
-        gradOut = gradientArray + i * lenOutputRow + 2 * outputStart;
 
-        for (int k=0; k < sequenceCutoff; k++){
 
-            for (int j=0; j < endPosition; j++){
-                gradVal = xIn[j] * chiIn[j];
-                prodVal = gradVal * sigma;
-                cosVal = cos(prodVal) * rowScaler;
-                sinVal = sin(prodVal) * rowScaler;
-                xOut[2*j] += cosVal;
-                xOut[2*j+1] += sinVal;
-                gradOut[2*j] += -sinVal * gradVal;
-                gradOut[2*j+1] += cosVal * gradVal;
-            }
-            xIn += dim2;
-        }
+/*!
+ * # singleVectorRBFPostGrad
+ *
+ * Performs the last steps in RBF-based convolution kernel feature
+ * generation for a single convolution element.
+ *
+ * ## Args:
+ * + `xdata` Pointer to the first element of the array that has been
+ * used for the convolution. Shape is (C). C must be a power of 2.
+ * + `chiArr` Pointer to the first element of chiArr, a diagonal array
+ * that will be multipled against xdata.
+ * + `outputArray` A pointer to the first element of the array in which
+ * the output will be stored.
+ * + `gradientArray` A pointer to the first element of the array in
+ * which the gradient will be stored.
+ * + `sigma` The sigma hyperparameter.
+ * + `dim2` The last dimension of xdata
+ * + `numFreqs` The number of frequencies to sample.
+ * + `rowNumber` The row of the output array to use.
+ * + `repeatNum` The repeat number
+ * + `convWidth` The convolution width
+ * + `scalingTerm` The scaling term to apply for the random feature generation.
+ *
+ */
+template <typename T>
+void singleVectorRBFPostGrad(const T xdata[],
+        const T chiArr[], double *outputArray,
+        double *gradientArray, T sigma,
+        int dim2, int numFreqs,
+        int rowNumber, int repeatNum,
+        double scalingTerm){
+
+    int outputStart = repeatNum * dim2;
+    T prodVal, gradVal, cosVal, sinVal;
+    double *__restrict xOut, *__restrict gradOut;
+    const T *chiIn;
+    //NOTE: MIN is defined in the header.
+    int endPosition = MIN(numFreqs, (repeatNum + 1) * dim2);
+    endPosition -= outputStart;
+
+    chiIn = chiArr + outputStart;
+    xOut = outputArray + 2 * outputStart + rowNumber * 2 * numFreqs;
+    gradOut = gradientArray + 2 * outputStart + rowNumber * 2 * numFreqs;
+
+    for (int i=0; i < endPosition; i++){
+        gradVal = xdata[i] * chiIn[i];
+        prodVal = gradVal * sigma;
+        cosVal = cos(prodVal) * scalingTerm;
+        sinVal = sin(prodVal) * scalingTerm;
+        *xOut += cosVal;
+        xOut++;
+        *xOut += sinVal;
+        xOut++;
+        *gradOut -= sinVal * gradVal;
+        gradOut++;
+        *gradOut += cosVal * gradVal;
+        gradOut++;
     }
 }
 
