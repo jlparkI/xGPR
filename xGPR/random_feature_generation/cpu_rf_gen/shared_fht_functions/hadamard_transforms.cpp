@@ -12,64 +12,54 @@ void smallBlockTransform(T xArray[], int startRow, int endRow,
                     int dim1, int dim2){
     T y;
     int rowStride = dim1 * dim2;
-    T *__restrict xElement, *__restrict yElement;
+    T *__restrict xElement;
 
     for (int idx1 = startRow; idx1 < endRow; idx1++){
         xElement = xArray + idx1 * rowStride;
-        yElement = xElement + 1;
         for (int i = 0; i < rowStride; i += 2){
-            y = *yElement;
-            *yElement = *xElement - y;
+            y = xElement[1];
+            xElement[1] = *xElement - y;
             *xElement += y;
             xElement += 2;
-            yElement += 2;
         }
         if (dim2 <= 2)
             continue;
         
         xElement = xArray + idx1 * rowStride;
-        yElement = xElement + 2;
 	    for (int i = 0; i < rowStride; i += 4){
-            y = *yElement;
-            *yElement = *xElement - y;
+            y = xElement[2];
+            xElement[2] = *xElement - y;
             *xElement += y;
             xElement ++;
-            yElement ++;
-            y = *yElement;
-            *yElement = *xElement - y;
+            y = xElement[2];
+            xElement[2] = *xElement - y;
             *xElement += y;
             xElement += 3;
-            yElement += 3;
         }
         if (dim2 <= 4)
             continue;
 
         xElement = xArray + idx1 * rowStride;
-        yElement = xElement + 4;
 	    for (int i = 0; i < rowStride; i += 8){
-            y = *yElement;
-            *yElement = *xElement - y;
+            y = xElement[4];
+            xElement[4] = *xElement - y;
             *xElement += y;
             xElement ++;
-            yElement ++;
             
-            y = *yElement;
-            *yElement = *xElement - y;
+            y = xElement[4];
+            xElement[4] = *xElement - y;
             *xElement += y;
             xElement ++;
-            yElement ++;
             
-            y = *yElement;
-            *yElement = *xElement - y;
+            y = xElement[4];
+            xElement[4] = *xElement - y;
             *xElement += y;
             xElement ++;
-            yElement ++;
-            y = *yElement;
-            *yElement = *xElement - y;
+            y = xElement[4];
+            xElement[4] = *xElement - y;
             *xElement += y;
             
             xElement += 5;
-            yElement += 5;
         }
     }
 }
@@ -85,7 +75,7 @@ void generalTransform(T xArray[], int startRow, int endRow,
     T y;
     T yGrp[8];
     int rowStride = dim1 * dim2;
-    T *__restrict xElement, *__restrict yElement;
+    T *__restrict xElement;
 
     for (int idx1 = startRow; idx1 < endRow; idx1++){
         for (int idx2 = 0; idx2 < dim1; idx2++){
@@ -130,11 +120,11 @@ void generalTransform(T xArray[], int startRow, int endRow,
             for (int h = 8; h < dim2; h <<= 1){
                 for (int i = 0; i < dim2; i += (h << 1)){
                     xElement = xArray + idx1 * rowStride + idx2 * dim2 + i;
-                    yElement = xElement + h;
                     for (int j=0; j < h; j++){
-                        y = yElement[j];
-                        yElement[j] = xElement[j] - y;
-                        xElement[j] += y;
+                        y = xElement[h];
+                        xElement[h] = *xElement - y;
+                        *xElement += y;
+                        xElement++;
                     }
                 }
             }
@@ -185,3 +175,95 @@ template void transformRows<double>(double *__restrict xArray, int startRow, int
                     int dim1, int dim2);
 template void transformRows<float>(float *__restrict xArray, int startRow, int endRow,
                     int dim1, int dim2);
+
+
+
+
+
+
+/*!
+ * # singleVectorTransform
+ *
+ * Performs an unnormalized Hadamard transform along a single
+ * vector, which allows for some simplifications.
+ *
+ * ## Args:
+ *
+ * + `xArray` Pointer to the first element of the array to be
+ * modified. Must be a 1d array (e.g. C). C MUST be
+ * a power of 2.
+ * + `dim` The length of the array.
+ */
+template <typename T>
+void singleVectorTransform(T xArray[], int dim){
+    T y;
+    T *__restrict xElement;
+    
+    xElement = xArray;
+    for (int i = 0; i < dim; i += 2){
+        y = xElement[1];
+        xElement[1] = *xElement - y;
+        *xElement += y;
+        xElement += 2;
+    }
+    if (dim <= 2){
+        return;
+    }
+        
+    xElement = xArray;
+	for (int i = 0; i < dim; i += 4){
+        y = xElement[2];
+        xElement[2] = *xElement - y;
+        *xElement += y;
+        xElement ++;
+        y = xElement[2];
+        xElement[2] = *xElement - y;
+        *xElement += y;
+        xElement += 3;
+    }    
+    if (dim <= 4){
+        return;
+    }
+
+    xElement = xArray;
+	for (int i = 0; i < dim; i += 8){
+        y = xElement[4];
+        xElement[4] = *xElement - y;
+        *xElement += y;
+        xElement ++;
+            
+        y = xElement[4];
+        xElement[4] = *xElement - y;
+        *xElement += y;
+        xElement ++;
+            
+        y = xElement[4];
+        xElement[4] = *xElement - y;
+        *xElement += y;
+        xElement ++;
+        y = xElement[4];
+        xElement[4] = *xElement - y;
+        *xElement += y;
+            
+        xElement += 5;
+    }
+    if (dim <= 8){
+        return;
+    }
+
+
+    //The general, non-unrolled transform.
+    for (int h = 8; h < dim; h <<= 1){
+        for (int i = 0; i < dim; i += (h << 1)){
+            xElement = xArray + i;
+            for (int j=0; j < h; j++){
+                y = xElement[h];
+                xElement[h] = *xElement - y;
+                *xElement += y;
+                xElement++;
+            }
+        }
+    }
+}
+template void singleVectorTransform<double>(double *__restrict xArray, int dim);
+template void singleVectorTransform<float>(float *__restrict xArray, int dim);

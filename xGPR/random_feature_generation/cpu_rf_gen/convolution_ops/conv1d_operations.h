@@ -26,16 +26,15 @@ void *threadConv1d(T reshapedXArray[], int8_t* rademArray,
         int startRow, int endRow, int startPosition);
 
 template <typename T>
-void *threadConv1dMaxpoolFeatureGen(T xdata[], T copyBuffer[],
-        int8_t *rademArray, T chiArr[], double *outputArray,
-        int32_t *seqlengths, int dim1, int dim2, int numFreqs,
-        int startRow, int endRow, int convWidth, int paddedBufferSize);
+void *allInOneConvMaxpoolGen(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, int32_t *seqlengths, int dim1, int dim2,
+        int numFreqs, int startRow, int endRow,
+        int convWidth, int paddedBufferSize);
 
 template <typename T>
-void MaxpoolPostProcess(const T __restrict xdata[],
-        const T chiArr[], double *__restrict outputArray,
-        int dim1, int dim2, int numFreqs,
-        int startRow, int endRow, int repeatNum,
-        int convWidth, const int32_t *seqlengths);
+void singleVectorMaxpoolPostProcess(const T xdata[],
+        const T chiArr[], double *outputArray,
+        int dim2, int numFreqs,
+        int rowNumber, int repeatNum);
 
 #endif

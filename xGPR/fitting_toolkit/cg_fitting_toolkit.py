@@ -103,19 +103,18 @@ def cg_fit_lib_ext(kernel, dataset, cg_tol = 1e-5, max_iter = 500,
         losses (list): The loss on each iteration; for diagnostic
             purposes.
     """
+    z_trans_y, _ = calc_zty(dataset, kernel)
     if kernel.device == "gpu":
-        cg_fun = Cuda_CG
         cg_operator = Cuda_CGLinearOperator(dataset, kernel,
                 verbose)
+        weights, convergence = Cuda_CG(A = cg_operator, b = z_trans_y,
+            M = preconditioner, tol = cg_tol, atol = 0, maxiter = max_iter)
     else:
-        cg_fun = CPU_CG
         cg_operator = CPU_CGLinearOperator(dataset, kernel,
                 verbose)
+        weights, convergence = CPU_CG(A = cg_operator, b = z_trans_y,
+            M = preconditioner, rtol = cg_tol, atol = 0, maxiter = max_iter)
 
-    z_trans_y, _ = calc_zty(dataset, kernel)
-
-    weights, convergence = cg_fun(A = cg_operator, b = z_trans_y,
-            M = preconditioner, tol = cg_tol, atol = 0, maxiter = max_iter)
 
     if convergence != 0:
         warnings.warn("Conjugate gradients failed to converge! Try refitting "

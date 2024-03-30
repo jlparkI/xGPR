@@ -565,22 +565,21 @@ void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
         cbuffer[i] *= rademElement[i] * normConstant;
 
     rademElement += rademShape2;
-    transformRows<T>(cbuffer, 0, 1, 1, cbufferDim2);
-
+    singleVectorTransform<T>(cbuffer, cbufferDim2);
 
     #pragma omp simd
     for (int i = 0; i < cbufferDim2; i++)
         cbuffer[i] *= rademElement[i] * normConstant;
 
     rademElement += rademShape2;
-    transformRows<T>(cbuffer, 0, 1, 1, cbufferDim2);
+    singleVectorTransform<T>(cbuffer, cbufferDim2);
 
 
     #pragma omp simd
     for (int i = 0; i < cbufferDim2; i++)
         cbuffer[i] *= rademElement[i] * normConstant;
 
-    transformRows<T>(cbuffer, 0, 1, 1, cbufferDim2);
+    singleVectorTransform<T>(cbuffer, cbufferDim2);
 }
 //Explicitly instantiate for external use.
 template void singleVectorSORF<double>(double cbuffer[], const int8_t *rademArray,

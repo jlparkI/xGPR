@@ -331,6 +331,7 @@ void singleVectorRBFPostProcess(const T xdata[],
     chiIn = chiArr + outputStart;
     xOut = outputArray + 2 * outputStart + rowNumber * 2 * numFreqs;
 
+    #pragma omp simd
     for (int i=0; i < endPosition; i++){
         prodVal = xdata[i] * chiIn[i];
         *xOut += cos(prodVal) * scalingTerm;
