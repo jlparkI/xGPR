@@ -26,9 +26,9 @@ To install, visit the `github page <https://github.com/jlparkI/xGPR>`_
 and click on Releases on the right hand side. Find the version number
 for the latest release, then install it as follows:::
 
-  pip install git+https://github.com/jlparkI/xGPR@0.3.0 --verbose
+  pip install git+https://github.com/jlparkI/xGPR@0.3.2 --verbose
 
-but replace 0.3.0 with the latest release number. We'll provide
+but replace 0.3.2 with the latest release number. We'll provide
 wheels on PyPi once xGPR development is complete. We recommend
 using the verbose flag as shown.
 
