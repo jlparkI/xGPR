@@ -113,7 +113,7 @@ def cg_fit_lib_ext(kernel, dataset, cg_tol = 1e-5, max_iter = 500,
         cg_operator = CPU_CGLinearOperator(dataset, kernel,
                 verbose)
         weights, convergence = CPU_CG(A = cg_operator, b = z_trans_y,
-            M = preconditioner, rtol = cg_tol, atol = 0, maxiter = max_iter)
+            M = preconditioner, tol = cg_tol, atol = 0, maxiter = max_iter)
 
 
     if convergence != 0:

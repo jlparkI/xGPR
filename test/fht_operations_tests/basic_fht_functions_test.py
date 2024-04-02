@@ -35,6 +35,16 @@ class TestFastHadamardTransform(unittest.TestCase):
         self.assertTrue(outcome_d)
         self.assertTrue(outcome_f)
 
+        dim = (124,36,2)
+        outcome_f, outcome_d = run_fht_test(dim)
+        self.assertTrue(outcome_d)
+        self.assertTrue(outcome_f)
+
+        dim = (124,36,32)
+        outcome_f, outcome_d = run_fht_test(dim)
+        self.assertTrue(outcome_d)
+        self.assertTrue(outcome_f)
+
         dim = (3001, 5, 1024)
         outcome_f, outcome_d = run_fht_test(dim)
         self.assertTrue(outcome_d)
@@ -51,6 +61,16 @@ class TestFastHadamardTransform(unittest.TestCase):
         the cuda module does not provide a separate function
         for FHT only at this time."""
         dim = (124, 4)
+        outcome_f, outcome_d = run_fht_2d_test(dim)
+        self.assertTrue(outcome_d)
+        self.assertTrue(outcome_f)
+
+        dim = (124, 2)
+        outcome_f, outcome_d = run_fht_2d_test(dim)
+        self.assertTrue(outcome_d)
+        self.assertTrue(outcome_f)
+
+        dim = (124, 32)
         outcome_f, outcome_d = run_fht_2d_test(dim)
         self.assertTrue(outcome_d)
         self.assertTrue(outcome_f)

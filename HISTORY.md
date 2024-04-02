@@ -186,3 +186,10 @@ padding we use is automatically masked if user so desires.
 ### Version 0.3.1
 
 Fixed bug in static layers module.
+
+### Version 0.3.2
+
+Extensive modifications to wrapped C++ code for CPU convolution kernels
+specifically, achieving a 25% speedup and a large reduction in memory
+usage, which is now constant irrespective of sequence length. Fixed
+bug in sequence length normalization.
