@@ -24,25 +24,27 @@ cdef extern from "rbf_ops/rbf_ops.h" nogil:
     const char *rbfFeatureGen_[T](T cArray[], int8_t *radem,
                 T chiArr[], double *outputArray,
                 double rbfNormConstant,
-                int dim0, int dim1, int dim2,
-                int numFreqs, int numThreads);
+                int dim0, int dim1, int rademShape2,
+                int numFreqs, int numThreads,
+                int paddedBufferSize)
     const char *rbfGrad_[T](T cArray[], int8_t *radem,
                 T chiArr[], double *outputArray,
                 double *gradientArray,
                 double rbfNormConstant, T sigma,
-                int dim0, int dim1, int dim2,
-                int numFreqs, int numThreads)
+                int dim0, int dim1, int rademShape2,
+                int numFreqs, int numThreads,
+                int paddedBufferSize)
     const char *ardGrad_[T](T inputX[], double *randomFeatures,
                 T precompWeights[], int32_t *sigmaMap, double *sigmaVals,
                 double *gradient, int dim0, int dim1, int numLengthscales,
-                int numFreqs, double rbfNormConstant, int numThreads);
+                int numFreqs, double rbfNormConstant, int numThreads)
 
 
 
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def cpuRBFFeatureGen(np.ndarray[floating, ndim=3] inputArray,
+def cpuRBFFeatureGen(np.ndarray[floating, ndim=2] inputArray,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[np.int8_t, ndim=3] radem,
                 np.ndarray[floating, ndim=1] chiArr,
@@ -53,13 +55,11 @@ def cpuRBFFeatureGen(np.ndarray[floating, ndim=3] inputArray,
     of the bounds checks, type checks etc and should not be bypassed.
 
     Args:
-        inputArray (np.ndarray): The array on which the SORF transform will be performed.
-            Transform is in place so nothing is returned. Shape is (N x C).
-            C must be a power of 2.
+        inputArray (np.ndarray): The data for which features are generated.
         outputArray (np.ndarray): The output array in which the generated features will
             be stored. Must be of shape (N, numRffs) where numRffs is 2x numFreqs.
         radem (np.ndarray): A stack of diagonal matrices of type int8_t
-            of shape (3 x D x C).
+            of shape (3 x 1 x M) where M is the smallest power of 2 > numFreqs.
         chiArr (np.ndarray): An array of shape (numFreqs).
         numThreads (int): Number of threads to run.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
@@ -72,34 +72,32 @@ def cpuRBFFeatureGen(np.ndarray[floating, ndim=3] inputArray,
     cdef const char *errCode
     cdef float logdim
     cdef double rbfNormConstant
+    cdef double expectedNFreq
+    cdef int paddedBufferSize
     cdef uintptr_t addr_input = inputArray.ctypes.data
     cdef uintptr_t addr_chi = chiArr.ctypes.data
 
-
     if inputArray.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if inputArray.shape[1] != radem.shape[1] or inputArray.shape[2] != radem.shape[2]:
-        raise ValueError("Incorrect array dims passed to a wrapped RBF feature gen function.")
-    if radem.shape[0] != 3:
-        raise ValueError("radem must have length 3 for dim 0.")
     if inputArray.shape[0] != outputArray.shape[0]:
-        raise ValueError("inputArray and outputArray to RBF feature gen must have same number "
-                    "of datapoints.")
-    if outputArray.shape[1] != 2 * chiArr.shape[0]:
-        raise ValueError("chiArr input to RBF feature gen is of incorrect size.")
-    if 2 * inputArray.shape[1] * inputArray.shape[2] < outputArray.shape[1]:
-        raise ValueError("Sizes on input and output arrays to RBF feature gen are inappropriate.")
+        raise ValueError("The number of datapoints in outputs and inputs do "
+                "not agree.")
+    if radem.shape[0] != 3 or radem.shape[1] != 1:
+        raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
+    if outputArray.shape[1] % 2 != 0 or outputArray.shape[1] < 2:
+        raise ValueError("Shape of output array is not appropriate.")
+    if 2 * chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
+        raise ValueError("Shape of output array and / or chiArr is inappropriate.")
+
+    expectedNFreq = <double>(inputArray.shape[1])
+    paddedBufferSize = <int>(2**math.ceil(np.log2(max(expectedNFreq, 2.)))  )
+    if not radem.shape[2] % paddedBufferSize == 0:
+        raise ValueError("radem should be an integer multiple of the padded width.")
 
     if not inputArray.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] or not \
             chiArr.flags["C_CONTIGUOUS"] or not outputArray.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments to a wrapped RBF feature gen function is not "
                 "C contiguous.")
-    if not radem.dtype == "int8":
-        raise ValueError("radem must be of type int8.")
-    logdim = np.log2(inputArray.shape[2])
-    if np.ceil(logdim) != np.floor(logdim) or inputArray.shape[2] < 2:
-        raise ValueError("dim2 of the input array to RBF feature gen functions "
-                            "must be a power of 2 >= 2.")
 
     if fitIntercept:
         rbfNormConstant = np.sqrt(1.0 / (<double>chiArr.shape[0] - 0.5))
@@ -111,15 +109,15 @@ def cpuRBFFeatureGen(np.ndarray[floating, ndim=3] inputArray,
         errCode = rbfFeatureGen_[float](<float*>addr_input, &radem[0,0,0],
                 <float*>addr_chi, &outputArray[0,0], rbfNormConstant,
                 inputArray.shape[0], inputArray.shape[1],
-                inputArray.shape[2], chiArr.shape[0],
-                numThreads);
+                radem.shape[2], chiArr.shape[0],
+                numThreads, paddedBufferSize);
     elif inputArray.dtype == "float64" and outputArray.dtype == "float64" \
             and chiArr.dtype == "float64":
         errCode = rbfFeatureGen_[double](<double*>addr_input, &radem[0,0,0],
                 <double*>addr_chi, &outputArray[0,0], rbfNormConstant,
                 inputArray.shape[0], inputArray.shape[1],
-                inputArray.shape[2], chiArr.shape[0],
-                numThreads);
+                radem.shape[2], chiArr.shape[0],
+                numThreads, paddedBufferSize);
     else:
         raise ValueError("The input, output and chiArr arrays do not have expected types.")
     if errCode.decode("UTF-8") != "no_error":
@@ -134,7 +132,7 @@ def cpuRBFFeatureGen(np.ndarray[floating, ndim=3] inputArray,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def cpuRBFGrad(np.ndarray[floating, ndim=3] inputArray,
+def cpuRBFGrad(np.ndarray[floating, ndim=2] inputArray,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[np.int8_t, ndim=3] radem,
                 np.ndarray[floating, ndim=1] chiArr,
@@ -146,13 +144,11 @@ def cpuRBFGrad(np.ndarray[floating, ndim=3] inputArray,
     of the bounds checks, type checks etc and should not be bypassed.
 
     Args:
-        inputArray (np.ndarray): The array on which the SORF transform will be performed.
-            Transform is in place so nothing is returned. Shape is (N x C).
-            C must be a power of 2.
+        inputArray (np.ndarray): The data for which features are generated.
         outputArray (np.ndarray): The output array in which the generated features will
             be stored. Must be of shape (N, numRffs) where numRffs is 2x numFreqs.
         radem (np.ndarray): A stack of diagonal matrices of type int8_t
-            of shape (3 x D x C).
+            of shape (3 x 1 x M) where M is the smallest power of 2 > numFreqs.
         chiArr (np.ndarray): An array of shape (numFreqs).
         sigmaHparam (float): The sigma hyperparameter.
         numThreads (int): Number of threads to run.
@@ -170,36 +166,34 @@ def cpuRBFGrad(np.ndarray[floating, ndim=3] inputArray,
     cdef const char *errCode
     cdef float logdim
     cdef double rbfNormConstant
+    cdef double expectedNFreq
+    cdef int paddedBufferSize
     cdef uintptr_t addr_input = inputArray.ctypes.data
     cdef uintptr_t addr_chi = chiArr.ctypes.data
     cdef np.ndarray[np.float64_t, ndim=3] gradient = np.zeros((outputArray.shape[0],
                         outputArray.shape[1], 1))
 
-
     if inputArray.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if inputArray.shape[1] != radem.shape[1] or inputArray.shape[2] != radem.shape[2]:
-        raise ValueError("Incorrect array dims passed to a wrapped RBF feature gen function.")
-    if radem.shape[0] != 3:
-        raise ValueError("radem must have length 3 for dim 0.")
     if inputArray.shape[0] != outputArray.shape[0]:
-        raise ValueError("inputArray and outputArray to RBF feature gen must have same number "
-                    "of datapoints.")
-    if outputArray.shape[1] != 2 * chiArr.shape[0]:
-        raise ValueError("chiArr input to RBF feature gen is of incorrect size.")
-    if 2 * inputArray.shape[1] * inputArray.shape[2] < outputArray.shape[1]:
-        raise ValueError("Sizes on input and output arrays to RBF feature gen are inappropriate.")
+        raise ValueError("The number of datapoints in outputs and inputs do "
+                "not agree.")
+    if radem.shape[0] != 3 or radem.shape[1] != 1:
+        raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
+    if outputArray.shape[1] % 2 != 0 or outputArray.shape[1] < 2:
+        raise ValueError("Shape of output array is not appropriate.")
+    if 2 * chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
+        raise ValueError("Shape of output array and / or chiArr is inappropriate.")
 
     if not inputArray.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"] or not \
             chiArr.flags["C_CONTIGUOUS"] or not outputArray.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments to a wrapped RBF feature gen function is not "
                 "C contiguous.")
-    if not radem.dtype == "int8":
-        raise ValueError("radem must be of type int8.")
-    logdim = np.log2(inputArray.shape[2])
-    if np.ceil(logdim) != np.floor(logdim) or inputArray.shape[2] < 2:
-        raise ValueError("dim2 of the input array to RBF feature gen functions "
-                            "must be a power of 2 >= 2.")
+    
+    expectedNFreq = <double>(inputArray.shape[1])
+    paddedBufferSize = <int>(2**math.ceil(np.log2(max(expectedNFreq, 2.)))  )
+    if not radem.shape[2] % paddedBufferSize == 0:
+        raise ValueError("radem should be an integer multiple of the padded width.")
 
     if fitIntercept:
         rbfNormConstant = np.sqrt(1.0 / (<double>chiArr.shape[0] - 0.5))
@@ -212,16 +206,16 @@ def cpuRBFGrad(np.ndarray[floating, ndim=3] inputArray,
                 <float*>addr_chi, &outputArray[0,0], &gradient[0,0,0],
                 rbfNormConstant, sigmaHparam,
                 inputArray.shape[0], inputArray.shape[1],
-                inputArray.shape[2], chiArr.shape[0],
-                numThreads)
+                radem.shape[2], chiArr.shape[0],
+                numThreads, paddedBufferSize)
     elif inputArray.dtype == "float64" and outputArray.dtype == "float64" and \
             chiArr.dtype == "float64":
         errCode = rbfGrad_[double](<double*>addr_input, &radem[0,0,0],
                 <double*>addr_chi, &outputArray[0,0], &gradient[0,0,0],
                 rbfNormConstant, sigmaHparam,
-                inputArray.shape[0], inputArray.shape[1],
+                radem.shape[0], inputArray.shape[1],
                 inputArray.shape[2], chiArr.shape[0],
-                numThreads)
+                numThreads, paddedBufferSize)
     else:
         raise ValueError("The input, output and chiArr arrays do not have expected types.")
     if errCode.decode("UTF-8") != "no_error":

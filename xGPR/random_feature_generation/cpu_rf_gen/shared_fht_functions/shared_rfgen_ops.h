@@ -54,4 +54,19 @@ void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
         int repeatPosition, int rademShape2,
         int cbufferDim2);
 
+template <typename T>
+void singleVectorRBFPostProcess(const T xdata[],
+        const T chiArr[], double *outputArray,
+        int dim2, int numFreqs,
+        int rowNumber, int repeatNum,
+        double scalingTerm);
+
+template <typename T>
+void singleVectorRBFPostGrad(const T xdata[],
+        const T chiArr[], double *outputArray,
+        double *gradientArray, T sigma,
+        int dim2, int numFreqs,
+        int rowNumber, int repeatNum,
+        double scalingTerm);
+
 #endif

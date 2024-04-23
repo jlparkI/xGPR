@@ -97,7 +97,7 @@ class MiniARD(KernelBaseclass):
             self.nblocks = ceil(self.num_freqs / self.padded_dims)
         else:
             self.nblocks = 1
-        self.radem_diag = rng.choice(radem_array, size=(3, self.nblocks, self.padded_dims),
+        self.radem_diag = rng.choice(radem_array, size=(3, 1, self.nblocks * self.padded_dims),
                                 replace=True)
         self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
@@ -190,10 +190,7 @@ class MiniARD(KernelBaseclass):
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
-        xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
-                            dtype = self.dtype)
-        xtrans[:,:,:self._xdim[1]] = (input_x * self.full_ard_weights[None,:])[:,None,:]
-
+        xtrans = input_x.astype(self.dtype) * self.full_ard_weights[None,:]
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
                 self.num_threads, self.fit_intercept)

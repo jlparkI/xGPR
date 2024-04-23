@@ -153,6 +153,12 @@ const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
             cudaFree(featureArray);
             return "Fatal malloc error";
     };
+    T *dim2Reduction;
+    if (cudaMalloc(&dim2Reduction, sizeof(T) * xdim0 * numKmers) != cudaSuccess) {
+            cudaFree(dim2Reduction);
+            cudaFree(featureArray);
+            return "Fatal malloc error";
+    };
 
 
     if (xdim2 <= 64)
@@ -189,6 +195,7 @@ const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
     }
 
     cudaFree(featureArray);
+    cudaFree(dim2Reduction);
     return errCode;
 }
 //Explicitly instantiate so wrapper can use.
@@ -227,6 +234,12 @@ const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
 
     T *featureArray;
     if (cudaMalloc(&featureArray, sizeof(T) * numElements) != cudaSuccess) {
+            cudaFree(featureArray);
+            return "Fatal malloc error";
+    };
+    T *dim2Reduction;
+    if (cudaMalloc(&dim2Reduction, sizeof(T) * xdim0 * numKmers) != cudaSuccess) {
+            cudaFree(dim2Reduction);
             cudaFree(featureArray);
             return "Fatal malloc error";
     };
@@ -271,6 +284,7 @@ const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
     }
 
     cudaFree(featureArray);
+    cudaFree(dim2Reduction);
     return errCode;
 }
 //Explicitly instantiate so wrapper can use.

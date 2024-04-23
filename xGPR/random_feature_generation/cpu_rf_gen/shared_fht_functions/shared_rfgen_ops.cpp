@@ -9,6 +9,7 @@
 #include <cstring>
 #include "shared_rfgen_ops.h"
 #include "hadamard_transforms.h"
+#include "simplex_rff_projections.h"
 
 
 /*!
@@ -580,6 +581,8 @@ void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
         cbuffer[i] *= rademElement[i] * normConstant;
 
     singleVectorTransform<T>(cbuffer, cbufferDim2);
+
+    //singleVectorSimplexProj(cbuffer, cbufferDim2);
 }
 //Explicitly instantiate for external use.
 template void singleVectorSORF<double>(double cbuffer[], const int8_t *rademArray,
@@ -588,3 +591,133 @@ template void singleVectorSORF<double>(double cbuffer[], const int8_t *rademArra
 template void singleVectorSORF<float>(float cbuffer[], const int8_t *rademArray,
         int repeatPosition, int rademShape2,
         int cbufferDim2);
+
+
+/*!
+ * # singleVectorRBFPostProcess
+ *
+ * Performs the last steps in RBF-based kernel feature
+ * generation for a single vector. This can be used either
+ * for convolution or standard RBF kernels.
+ *
+ * ## Args:
+ * + `xdata` Pointer to the first element of the array that has been
+ * used for the convolution. Shape is (C). C must be a power of 2.
+ * + `chiArr` Pointer to the first element of chiArr, a diagonal array
+ * that will be multipled against xdata.
+ * + `outputArray` A pointer to the first element of the array in which
+ * the output will be stored.
+ * + `dim2` The last dimension of xdata
+ * + `numFreqs` The number of frequencies to sample.
+ * + `rowNumber` The row of the output array to use.
+ * + `repeatNum` The repeat number
+ * + `convWidth` The convolution width
+ * + `scalingTerm` The scaling term to apply for the random feature generation.
+ *
+ */
+template <typename T>
+void singleVectorRBFPostProcess(const T xdata[],
+        const T chiArr[], double *outputArray,
+        int dim2, int numFreqs,
+        int rowNumber, int repeatNum,
+        double scalingTerm){
+
+    int outputStart = repeatNum * dim2;
+    T prodVal;
+    double *__restrict xOut;
+    const T *chiIn;
+    //NOTE: MIN is defined in the header.
+    int endPosition = MIN(numFreqs, (repeatNum + 1) * dim2);
+    endPosition -= outputStart;
+
+    chiIn = chiArr + outputStart;
+    xOut = outputArray + 2 * outputStart + rowNumber * 2 * numFreqs;
+
+    #pragma omp simd
+    for (int i=0; i < endPosition; i++){
+        prodVal = xdata[i] * chiIn[i];
+        *xOut += cos(prodVal) * scalingTerm;
+        xOut++;
+        *xOut += sin(prodVal) * scalingTerm;
+        xOut++;
+    }
+}
+//Explicitly instantiate for external use.
+template void singleVectorRBFPostProcess<double>(const double xdata[], const double chiArr[],
+        double *outputArray, int dim2, int numFreqs, int rowNumber, int repeatNum,
+        double scalingTerm);
+template void singleVectorRBFPostProcess<float>(const float xdata[], const float chiArr[],
+        double *outputArray, int dim2, int numFreqs, int rowNumber, int repeatNum,
+        double scalingTerm);
+
+
+
+/*!
+ * # singleVectorRBFPostGrad
+ *
+ * Performs the last steps in RBF-based kernel feature
+ * generation for a single vector. This can be used
+ * either for convolution or standard RBF kernels.
+ *
+ * ## Args:
+ * + `xdata` Pointer to the first element of the array that has been
+ * used for the convolution. Shape is (C). C must be a power of 2.
+ * + `chiArr` Pointer to the first element of chiArr, a diagonal array
+ * that will be multipled against xdata.
+ * + `outputArray` A pointer to the first element of the array in which
+ * the output will be stored.
+ * + `gradientArray` A pointer to the first element of the array in
+ * which the gradient will be stored.
+ * + `sigma` The sigma hyperparameter.
+ * + `dim2` The last dimension of xdata
+ * + `numFreqs` The number of frequencies to sample.
+ * + `rowNumber` The row of the output array to use.
+ * + `repeatNum` The repeat number
+ * + `convWidth` The convolution width
+ * + `scalingTerm` The scaling term to apply for the random feature generation.
+ *
+ */
+template <typename T>
+void singleVectorRBFPostGrad(const T xdata[],
+        const T chiArr[], double *outputArray,
+        double *gradientArray, T sigma,
+        int dim2, int numFreqs,
+        int rowNumber, int repeatNum,
+        double scalingTerm){
+
+    int outputStart = repeatNum * dim2;
+    T prodVal, gradVal, cosVal, sinVal;
+    double *__restrict xOut, *__restrict gradOut;
+    const T *chiIn;
+    //NOTE: MIN is defined in the header.
+    int endPosition = MIN(numFreqs, (repeatNum + 1) * dim2);
+    endPosition -= outputStart;
+
+    chiIn = chiArr + outputStart;
+    xOut = outputArray + 2 * outputStart + rowNumber * 2 * numFreqs;
+    gradOut = gradientArray + 2 * outputStart + rowNumber * 2 * numFreqs;
+
+    for (int i=0; i < endPosition; i++){
+        gradVal = xdata[i] * chiIn[i];
+        prodVal = gradVal * sigma;
+        cosVal = cos(prodVal) * scalingTerm;
+        sinVal = sin(prodVal) * scalingTerm;
+        *xOut += cosVal;
+        xOut++;
+        *xOut += sinVal;
+        xOut++;
+        *gradOut -= sinVal * gradVal;
+        gradOut++;
+        *gradOut += cosVal * gradVal;
+        gradOut++;
+    }
+}
+//Explicitly instantiate for external use.
+template void singleVectorRBFPostGrad<double>(const double xdata[], const double chiArr[],
+        double *outputArray, double *gradientArray, double sigma,
+        int dim2, int numFreqs, int rowNumber, int repeatNum,
+        double scalingTerm);
+template void singleVectorRBFPostGrad<float>(const float xdata[], const float chiArr[],
+        double *outputArray, double *gradientArray, float sigma,
+        int dim2, int numFreqs, int rowNumber, int repeatNum,
+        double scalingTerm);

@@ -91,8 +91,8 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             self.nblocks = ceil(self.num_freqs / self.padded_dims)
         else:
             self.nblocks = 1
-        self.radem_diag = rng.choice(radem_array, size=(3, self.nblocks, self.padded_dims),
-                                replace=True)
+        self.radem_diag = rng.choice(radem_array, size=(3, 1,
+                self.nblocks * self.padded_dims), replace=True)
         self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
 
@@ -135,9 +135,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
-        xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
-                            dtype = self.dtype)
-        xtrans[:,:,:self._xdim[1]] = input_x[:,None,:] * self.hyperparams[1]
+        xtrans = input_x.astype(self.dtype) * self.hyperparams[1]
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
                 self.num_threads, self.fit_intercept)
@@ -167,9 +165,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             dz_dsigma: A cupy or numpy array containing the derivative of
                 output_x with respect to the kernel-specific hyperparameters.
         """
-        xtrans = self.zero_arr((input_x.shape[0], self.nblocks, self.padded_dims),
-                            dtype = self.dtype)
-        xtrans[:,:,:self._xdim[1]] = input_x[:,None,:]
+        xtrans = input_x.astype(self.dtype) * self.hyperparams[1]
         output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
         dz_dsigma = self.gradfun(xtrans, output_x, self.radem_diag, self.chi_arr,
                 self.hyperparams[1], self.num_threads, self.fit_intercept)

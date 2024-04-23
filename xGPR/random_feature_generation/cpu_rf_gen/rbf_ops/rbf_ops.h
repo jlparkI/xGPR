@@ -8,16 +8,34 @@ template <typename T>
 const char *rbfFeatureGen_(T cArray[], int8_t *radem,
                 T chiArr[], double *outputArray,
                 double rbfNormConstant,
-                int dim0, int dim1, int dim2,
-                int numFreqs, int numThreads);
+                int dim0, int dim1, int rademShape2,
+                int numFreqs, int numThreads,
+                int paddedBufferSize);
 
 template <typename T>
 const char *rbfGrad_(T cArray[], int8_t *radem,
                 T chiArr[], double *outputArray,
                 double *gradientArray,
                 double rbfNormConstant, T sigma,
-                int dim0, int dim1, int dim2,
-                int numFreqs, int numThreads);
+                int dim0, int dim1, int rademShape2,
+                int numFreqs, int numThreads,
+                int paddedBufferSize);
+
+
+template <typename T>
+void *allInOneRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, int dim1, int numFreqs, int rademShape2,
+        int startRow, int endRow, int paddedBufferSize,
+        double scalingTerm);
+
+
+template <typename T>
+void *allInOneRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, double *gradientArray,
+        int dim1, int numFreqs, int rademShape2, int startRow,
+        int endRow, int paddedBufferSize,
+        double scalingTerm, T sigma);
+
 
 template <typename T>
 const char *ardGrad_(T inputX[], double *randomFeatures,
@@ -26,46 +44,13 @@ const char *ardGrad_(T inputX[], double *randomFeatures,
         int numFreqs, double rbfNormConstant, int numThreads);
 
 
-template <typename T>
-void *ThreadRBFGen(T arrayStart[], int8_t *rademArray,
-        T chiArr[], double *outputArray,
-        int dim1, int dim2, int startPosition,
-        int endPosition, int numFreqs, double rbfNormConstant);
 
 template <typename T>
-void *ThreadRBFGrad(T arrayStart[], int8_t* rademArray,
-        T chiArr[], double *outputArray,
-        double *gradientArray, int dim1, int dim2,
-        int startPosition, int endPosition, int numFreqs,
-        double rbfNormConstant, T sigma);
-
-template <typename T>
-void *ThreadARDGrad(T inputX[], double *randomFeats,
+void *ThreadARDGrad(T inputX[], double *randomFeatures,
         T precompWeights[], int32_t *sigmaMap,
-        double *sigmaVals, double *gradientArray,
-        int startPosition, int endPosition,
+        double *sigmaVals, double *gradient,
+        int startRow, int endRow,
         int dim1, int numLengthscales,
         int numFreqs, double rbfNormConstant);
-
-
-template <typename T>
-void rbfFeatureGenLastStep_(const T __restrict xArray[],
-        const T chiArray[], double *__restrict outputArray,
-        double normConstant, int startRow, int endRow, int dim1,
-        int dim2, int numFreqs);
-
-template <typename T>
-void rbfGradLastStep_(const T __restrict xArray[],
-        const T chiArray[], double *__restrict outputArray,
-        double *__restrict gradientArray,
-        double normConstant, T sigma,
-        int startRow, int endRow, int dim1,
-        int dim2, int numFreqs);
-
-template <typename T>
-void ardGradCalcs_(T inputX[], double *randomFeatures,
-        T precompWeights[], int32_t *sigmaMap, double *sigmaVals,
-        double *gradient, int startRow, int endRow, int dim1,
-        int numLengthscales, double rbfNormConstant, int numFreqs);
 
 #endif
