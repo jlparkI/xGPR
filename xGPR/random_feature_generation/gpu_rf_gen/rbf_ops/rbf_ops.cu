@@ -1,8 +1,6 @@
 /*
 * Contains specialized functions for generating random features for
-* the RBF and related kernels. It makes use of the hadamard transform functions
-* implemented under array_operations.h, so only the pieces specific
-* to the kernel need to be implemented here.
+* the RBF and related kernels (non-convolution).
 */
 
 #include <cuda.h>
@@ -12,6 +10,9 @@
 #include "../shared_constants.h"
 #include "../basic_ops/basic_array_operations.h"
 #include "rbf_ops.h"
+
+
+//Handles feature generation for RBF
 
 
 
@@ -154,35 +155,34 @@ template <typename T>
 const char *RBFFeatureGen(T cArray[], int8_t *radem,
                 T chiArr[], double *outputArray,
                 double rbfNormConstant,
-                int dim0, int dim1, int dim2,
-                int numFreqs){
-    int numElementsPerRow = dim1 * dim2;
+                int dim0, int dim1, int rademShape2,
+                int numFreqs, int paddedBufferSize){
     //This is the Hadamard normalization constant.
-    T normConstant = log2(dim2) / 2;
+    T normConstant = log2(paddedBufferSize) / 2;
     normConstant = 1 / pow(2, normConstant);
     int blocksPerGrid;
     int numOutputElements = numFreqs * dim0;
-    const char *errCode;
+    const char *errCode = "wow";
 
-    errCode = cudaSORF3d<T>(cArray, radem, dim0, dim1, dim2);
+    //errCode = cudaSORF3d<T>(cArray, radem, dim0, dim1, dim2);
 
 
     //Generate output features in-place in the output array.
     blocksPerGrid = (numOutputElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     rbfFeatureGenLastStep<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, outputArray,
-                    chiArr, numFreqs, numElementsPerRow, numOutputElements, rbfNormConstant);
+                    chiArr, numFreqs, dim1, numOutputElements, rbfNormConstant);
 
     return errCode;
 }
 //Instantiate templates so Cython / PyBind wrappers can import.
 template const char *RBFFeatureGen<double>(double cArray[], int8_t *radem,
                 double chiArr[], double *outputArray,
-                double rbfNormConstant, int dim0, int dim1,
-                int dim2, int numFreqs);
+                double rbfNormConstant, int dim0, int dim1, 
+                int rademShape2, int numFreqs, int paddedBufferSize);
 template const char *RBFFeatureGen<float>(float cArray[], int8_t *radem,
                 float chiArr[], double *outputArray,
                 double rbfNormConstant, int dim0, int dim1,
-                int dim2, int numFreqs);
+                int rademShape2, int numFreqs, int paddedBufferSize);
 
 
 //This function generates random features for RBF kernels ONLY
@@ -192,40 +192,39 @@ template <typename T>
 const char *RBFFeatureGrad(T cArray[], int8_t *radem,
                 T chiArr[], double *outputArray,
                 double *gradientArray, double rbfNormConstant,
-                T sigma, int dim0, int dim1, int dim2,
-                int numFreqs){
+                T sigma, int dim0, int dim1, int rademShape2,
+                int numFreqs, int paddedBufferSize){
 
-    int numElementsPerRow = dim1 * dim2;
-    int numElements = dim1 * dim2 * dim0;
+    int numElements = dim1 * dim0;
     //This is the Hadamard normalization constant.
-    T normConstant = log2(dim2) / 2;
+    T normConstant = log2(paddedBufferSize) / 2;
     normConstant = 1 / pow(2, normConstant);
     int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     int numOutputElements = numFreqs * dim0;
-    const char *errCode;
+    const char *errCode = "wow";
 
-    errCode = cudaSORF3d<T>(cArray, radem, dim0, dim1, dim2);
+    //errCode = cudaSORF3d<T>(cArray, radem, dim0, dim1, dim2);
 
 
     //Generate output features in-place in the output array.
     blocksPerGrid = (numOutputElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     rbfGradLastStep<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, outputArray,
                     chiArr, gradientArray, sigma, numFreqs,
-                    numElementsPerRow, numOutputElements, rbfNormConstant);
+                    dim1, numOutputElements, rbfNormConstant);
 
-    return "no_error";
+    return errCode;
 }
 //Instantiate templates so Cython / PyBind wrappers can import.
 template const char *RBFFeatureGrad<double>(double cArray[], int8_t *radem,
                 double chiArr[], double *outputArray,
                 double *gradientArray, double rbfNormConstant,
-                double sigma, int dim0, int dim1, int dim2,
-                int numFreqs);
+                double sigma, int dim0, int dim1, int rademShape2,
+                int numFreqs, int paddedBufferSize);
 template const char *RBFFeatureGrad<float>(float cArray[], int8_t *radem,
                 float chiArr[], double *outputArray,
                 double *gradientArray, double rbfNormConstant,
-                float sigma, int dim0, int dim1, int dim2,
-                int numFreqs);
+                float sigma, int dim0, int dim1, int rademShape2,
+                int numFreqs, int paddedBufferSize);
 
 
 //This function generates the gradient and random features

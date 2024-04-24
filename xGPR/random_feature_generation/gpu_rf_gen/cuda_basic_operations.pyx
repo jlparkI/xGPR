@@ -17,8 +17,8 @@ from libc.stdint cimport int8_t
 
 
 cdef extern from "basic_ops/basic_array_operations.h" nogil:
-    const char *cudaSORF3d[T](T npArray[], np.int8_t *radem, 
-                    int dim0, int dim1, int dim2)
+    void cudaHTransform[T](T cArray[],
+                int dim0, int dim1, int dim2)
     const char *cudaSRHT2d[T](T npArray[], 
                     int8_t *radem, int dim0,
                     int dim1)
@@ -26,63 +26,37 @@ cdef extern from "basic_ops/basic_array_operations.h" nogil:
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def cudaPySORFTransform(cpArray, radem, int numThreads):
-    """This function performs the calculation of the structured
-    orthogonal features or SORF approach to random Fourier features
-    by wrapping floatCudaSORF3d, when the input array is an array
-    of floats.
-    Note that floatCudaSORF3d should ONLY be accessed through this wrapper
-    since this wrapper performs key checks (the shape of the input
-    arrays, are they C-contiguous etc.) that should not be bypassed.
+def cudaFastHadamardTransform2D(Z, int numThreads):
+    """Wraps the Cuda code for performing a fast hadamard transform
+    on a 2d array. This wrapper performs all of the bounds checks,
+    type checks etc and should not be bypassed.
 
     Args:
-        cpArray (cp.ndarray): An array of type float32 on which the
-            SORF operation will be performed in place. Must
-            be of shape (N x D x C) where C is a power of 2.
-        radem (cp.ndarray): A stack of diagonal matrices of type int8_t
-            of shape (3 x D x C).
-        num_threads (int): This argument is so that this function has
-            the same interface as the CPU SORF Transform. It is not
-            needed for the GPU transform and is ignored.
+        Z (cp.ndarray): The array on which the transform will be performed.
+            Transform is in place so nothing is returned. Shape is (N x C).
+            C must be a power of 2.
+        numThreads (int): Not currently used, accepted only to preserve
+            shared interface with CPU functions.
     """
-    cdef const char *errCode
-    cdef float logdim
-    cdef uintptr_t addr = cpArray.data.ptr
-    cdef uintptr_t addr_radem = radem.data.ptr
+    cdef uintptr_t addr = Z.data.ptr
 
-    #We need to know that cpArray.shape[1] and shape[2] match shape[1]
-    #and shape[2] of radem, that all arrays are C contiguous and
-    #have the correct data types, and that shape[2] of cpArray is a power
-    #of two, which is a requirement for the transform.
-    if cpArray.shape[0] == 0:
+    if len(Z.shape) != 2:
+        raise ValueError("Incorrect array dims passed.")
+    if Z.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if cpArray.shape[1] != radem.shape[1] or cpArray.shape[2] != radem.shape[2]:
-        raise ValueError("Incorrect array dims passed to floatCudaPySORFTransform.")
-    if radem.shape[0] != 3:
-        raise ValueError("radem must have length 3 for dim 0.")
-    
-    if not cpArray.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"]:
+
+    if not Z.flags["C_CONTIGUOUS"]:
         raise ValueError("One or more arguments is not C contiguous.")
-    if not radem.dtype == "int8":
-        raise ValueError("radem must be of type int8.")
-    logdim = np.log2(cpArray.shape[2])
-    if np.ceil(logdim) != np.floor(logdim) or cpArray.shape[2] < 2:
-        raise ValueError("dim2 of the input array to floatCudaPySORFTransform "
-                            "must be a power of 2 >= 2.")
+    logdim = np.log2(Z.shape[1])
+    if np.ceil(logdim) != np.floor(logdim) or Z.shape[1] < 2:
+        raise ValueError("dim1 of the input array must be a power of 2 >= 2.")
 
-
-    if cpArray.dtype == "float32":
-        errCode = cudaSORF3d[float](<float*>addr, <int8_t*>addr_radem,
-                cpArray.shape[0], cpArray.shape[1],
-                cpArray.shape[2])
-    elif cpArray.dtype == "float64":
-        errCode = cudaSORF3d[double](<double*>addr, <int8_t*>addr_radem,
-                cpArray.shape[0], cpArray.shape[1],
-                cpArray.shape[2])
+    if Z.dtype == "float32":
+        cudaHTransform[float](<float*>addr, Z.shape[0], Z.shape[1], 1)
+    elif Z.dtype == "float64":
+        cudaHTransform[double](<double*>addr, Z.shape[0], Z.shape[1], 1)
     else:
-        raise ValueError("Unexpected array type passed to a wrapped C++ function.")
-    if errCode.decode("UTF-8") != "no_error":
-        raise Exception("Fatal error encountered in floatCudaSORF3d.")
+        raise ValueError("Incorrect data types passed.")
 
 
 

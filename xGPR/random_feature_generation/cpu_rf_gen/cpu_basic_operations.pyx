@@ -22,8 +22,6 @@ cdef extern from "basic_ops/transform_functions.h" nogil:
                         int numThreads)
     const char *fastHadamard2dArray_[T](T Z[], int zDim0, int zDim1,
                         int numThreads)
-    const char *SORFBlockTransform_[T](T Z[], int8_t *radem, int zDim0,
-        int zDim1, int zDim2, int numThreads)
     const char *SRHTBlockTransform_[T](T Z[], int8_t *radem,
             int zDim0, int zDim1, int numThreads)
 
@@ -116,65 +114,6 @@ def cpuFastHadamardTransform2D(np.ndarray[floating, ndim=2] Z,
 
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered.")
-
-
-
-
-
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def cpuSORFTransform(np.ndarray[floating, ndim=3] Z,
-                np.ndarray[np.int8_t, ndim=3] radem,
-                int numThreads):
-    """Wraps SORFBlockTransform_ from transform_functions.c and uses
-    it to perform the SORF operation on a 3d array.
-    This wrapper performs all of the bounds checks,
-    type checks etc and should not be bypassed.
-
-    Args:
-        Z (np.ndarray): The array on which the transform will be performed.
-            Transform is in place so nothing is returned. Shape is (N x D x C).
-            C must be a power of 2.
-        radem (np.ndarray): A stack of diagonal matrices with elements drawn from the
-            Rademacher distribution. Shape must be (3 x D x C).
-        numThreads (int): The number of threads to use.
-    """
-    cdef const char *errCode
-    cdef uintptr_t addr_input = Z.ctypes.data
-
-    if Z.shape[0] == 0:
-        raise ValueError("There must be at least one datapoint.")
-    if Z.shape[1] != radem.shape[1] or Z.shape[2] != radem.shape[2]:
-        raise ValueError("Incorrect array dims passed to cpuSORFTransform.")
-    if radem.shape[0] != 3:
-        raise ValueError("radem must have length 3 for dim 0.")
-    
-    if not Z.flags["C_CONTIGUOUS"] or not radem.flags["C_CONTIGUOUS"]:
-        raise ValueError("One or more arguments to cpuSORFTransform is not "
-                "C contiguous.")
-    logdim = np.log2(Z.shape[2])
-    if np.ceil(logdim) != np.floor(logdim) or Z.shape[2] < 2:
-        raise ValueError("dim2 of the input array to cpuSORFTransform "
-                            "must be a power of 2 >= 2.")
-    cdef int zDim0 = Z.shape[0]
-    cdef int zDim1 = Z.shape[1]
-    cdef int zDim2 = Z.shape[2]
-
-    if Z.dtype == "float32":
-        errCode = SORFBlockTransform_[float](<float*>addr_input, &radem[0,0,0], zDim0, zDim1, zDim2,
-                        numThreads)
-    elif Z.dtype == "float64":
-        errCode = SORFBlockTransform_[double](<double*>addr_input, &radem[0,0,0], zDim0, zDim1, zDim2,
-                        numThreads)
-    else:
-        raise ValueError("Unexpected types passed to wrapped C++ function.")
-
-    if errCode.decode("UTF-8") != "no_error":
-        raise Exception("Fatal error encountered in cpuSORFTransform_.")
-
-
 
 
 

@@ -8,12 +8,11 @@ from scipy.linalg import hadamard
 
 from cpu_rf_gen_module import cpuFastHadamardTransform as cFHT
 from cpu_rf_gen_module import cpuFastHadamardTransform2D as cFHT2D
-from cpu_rf_gen_module import cpuSORFTransform as cSORF
 from cpu_rf_gen_module import cpuSRHT as cSRHT
 
 #try:
-from cuda_rf_gen_module import cudaPySORFTransform as cudaSORF
 from cuda_rf_gen_module import cudaSRHT
+from cuda_rf_gen_module import cudaFastHadamardTransform2D as cudaFHT2D
 import cupy as cp
 #except:
 #    pass
@@ -86,37 +85,6 @@ class TestFastHadamardTransform(unittest.TestCase):
         self.assertTrue(outcome_f)
 
 
-
-    def test_block_transform(self):
-        """Tests SORF functionality. Note that this tests SORF
-        functionality by using FHT. Therefore if the FHT did not
-        pass, this one will not either."""
-
-        outcomes = run_sorf_test(1, 2048)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        outcomes = run_sorf_test(3, 256)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        outcomes = run_sorf_test(30, 128)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        outcomes = run_sorf_test(35, 4)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        outcomes = run_sorf_test(3, 1024)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        outcomes = run_sorf_test(1, 2)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-
     def test_srht(self):
         """Tests SRHT functionality. Note that this tests SRHT
         functionality by using FHT. Therefore if the FHT did not
@@ -143,10 +111,10 @@ def run_fht_test(dim, random_seed = 123):
     cFHT(marr_float, 1)
     outcome_d = np.allclose(scipy_double, marr)
     outcome_f = np.allclose(scipy_float, marr_float, rtol=1e-4, atol=1e-4)
-    print("**********\nDid the C extension provide the correct result for columnwise "
-            f"transforms of a {dim} 3d array of doubles? {outcome_d}\n*******")
-    print("**********\nDid the C extension provide the correct result for columnwise "
-            f"transforms of a {dim} 3d array of floats? {outcome_f}\n*******")
+    print("Did the C extension provide the correct result for "
+            f"a {dim} 3d array of doubles? {outcome_d}\n*******")
+    print("Did the C extension provide the correct result for "
+            f"a {dim} 3d array of floats? {outcome_f}\n*******")
     return outcome_d, outcome_f
 
 
@@ -155,14 +123,23 @@ def run_fht_2d_test(dim, random_seed = 123):
     """A helper function that runs an FHT 2d test with specified
     dimensionality."""
     scipy_double, scipy_float, marr, marr_float = setup_fht_2d_test(dim, random_seed)
+    cupy_marr, cupy_marr_float = cp.asarray(marr), cp.asarray(marr_float)
     cFHT2D(marr, 1)
     cFHT2D(marr_float, 1)
+    cudaFHT2D(cupy_marr, 1)
+    cudaFHT2D(cupy_marr_float, 1)
     outcome_d = np.allclose(scipy_double, marr)
     outcome_f = np.allclose(scipy_float, marr_float, rtol=1e-4, atol=1e-4)
-    print("**********\nDid the C extension provide the correct result for columnwise "
-            f"transforms of a {dim} 2d array of doubles? {outcome_d}\n*******")
-    print("**********\nDid the C extension provide the correct result for columnwise "
-            f"transforms of a {dim} 2d array of floats? {outcome_f}\n*******")
+    print("Did the C extension provide the correct result for "
+            f"a {dim} 2d array of doubles? {outcome_d}\n*******")
+    print("Did the C extension provide the correct result for "
+            f"a {dim} 2d array of floats? {outcome_f}\n*******")
+    outcome_d = np.allclose(scipy_double, cupy_marr)
+    outcome_f = np.allclose(scipy_float, cupy_marr_float, rtol=1e-4, atol=1e-4)
+    print("Did the cuda extension provide the correct result for "
+            f"a {dim} 2d array of doubles? {outcome_d}\n*******")
+    print("Did the cuda extension provide the correct result for "
+            f"a {dim} 2d array of floats? {outcome_f}\n*******")
     return outcome_d, outcome_f
 
 
@@ -208,76 +185,6 @@ def setup_fht_2d_test(dim, random_seed = 123):
     scipy_float = np.matmul(hmat, marr_float.T).T
     return scipy_double, scipy_float, marr, marr_float
 
-
-def run_sorf_test(nblocks, dim2, random_seed = 123):
-    """A helper function that runs the SORF test for
-    specified input dimensions."""
-    marr_gt_double, marr_test_double, marr_gt_float, marr_test_float,\
-            radem, norm_constant = setup_sorf_test(nblocks, dim2, random_seed)
-
-    if "cupy" in sys.modules:
-        cuda_test_double = cp.asarray(marr_test_double)
-        cuda_test_float = cp.asarray(marr_test_float)
-
-    marr_gt_double = marr_gt_double * radem[0:1,:,:] * norm_constant
-    cFHT(marr_gt_double, 2)
-    marr_gt_double = marr_gt_double * radem[1:2,:,:] * norm_constant
-    cFHT(marr_gt_double, 2)
-    marr_gt_double = marr_gt_double * radem[2:3,:,:] * norm_constant
-    cFHT(marr_gt_double, 2)
-
-    marr_gt_float = marr_gt_float * radem[0:1,:,:] * norm_constant
-    cFHT(marr_gt_float, 2)
-    marr_gt_float = marr_gt_float * radem[1:2,:,:] * norm_constant
-    cFHT(marr_gt_float, 2)
-    marr_gt_float = marr_gt_float * radem[2:3,:,:] * norm_constant
-    cFHT(marr_gt_float, 2)
-
-    cSORF(marr_test_double, radem, 2)
-    cSORF(marr_test_float, radem, 2)
-    outcome_d = np.allclose(marr_gt_double, marr_test_double)
-    outcome_f = np.allclose(marr_gt_float, marr_test_float)
-    print("**********\nDid the C extension provide the correct result for SORF of "
-            f"an {nblocks}, {dim2} 3d array of doubles? {outcome_d}\n*******")
-    print("**********\nDid the C extension provide the correct result for SORF of "
-            f"an {nblocks}, {dim2} 3d array of floats? {outcome_f}\n*******")
-
-    if "cupy" in sys.modules:
-        radem = cp.asarray(radem)
-        cudaSORF(cuda_test_double, radem, 2)
-        cudaSORF(cuda_test_float, radem, 2)
-        cuda_test_double = cp.asnumpy(cuda_test_double)
-        cuda_test_float = cp.asnumpy(cuda_test_float)
-        outcome_cuda_d = np.allclose(marr_gt_double, cuda_test_double)
-        outcome_cuda_f = np.allclose(marr_gt_float, cuda_test_float)
-        print("**********\nDid the Cuda extension provide the correct result for SORF of "
-            f"an {nblocks}, {dim2} 3d array of doubles? {outcome_cuda_d}\n*******")
-        print("**********\nDid the Cuda extension provide the correct result for SORF of "
-            f"an {nblocks}, {dim2} 3d array of floats? {outcome_cuda_f}\n*******")
-        return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f
-    return outcome_d, outcome_f
-
-
-
-def setup_sorf_test(nblocks, dim2, random_seed = 123):
-    """A helper function that builds the matrices required for
-    the SORF test, specified using the input dimensions."""
-    radem_array = np.asarray([-1.0,1.0], dtype=np.int8)
-    rng = np.random.default_rng(random_seed)
-
-    marr_gt_double = rng.uniform(low=-10.0,high=10.0, size=(1233,nblocks,dim2))
-    marr_test_double = marr_gt_double.copy()
-    marr_gt_float = marr_gt_double.copy().astype(np.float32)
-    marr_test_float = marr_gt_float.copy()
-
-    radem = rng.choice(radem_array, size=(3,nblocks,dim2), replace=True)
-    norm_constant = np.log2(dim2) / 2
-    norm_constant = 1 / (2**norm_constant)
-    return marr_gt_double, marr_test_double, marr_gt_float, marr_test_float, \
-            radem, norm_constant
-
-
-
 def run_srht_test(dim, compression_size, random_seed = 123):
     """A helper function that runs the SRHT test for
     specified input dimensions."""
@@ -303,9 +210,9 @@ def run_srht_test(dim, compression_size, random_seed = 123):
     cSRHT(marr_test_float, radem, sampler, compression_size, 2)
     outcome_d = np.allclose(marr_gt_double, marr_test_double)
     outcome_f = np.allclose(marr_gt_float, marr_test_float)
-    print("**********\nDid the C extension provide the correct result for SRHT of "
+    print("Did the C extension provide the correct result for SRHT of "
             f"a {dim} 2d array of doubles? {outcome_d}\n*******")
-    print("**********\nDid the C extension provide the correct result for SRHT of "
+    print("Did the C extension provide the correct result for SRHT of "
             f"a {dim} 2d array of floats? {outcome_f}\n*******")
 
     if "cupy" in sys.modules:
@@ -316,9 +223,9 @@ def run_srht_test(dim, compression_size, random_seed = 123):
         cuda_test_float = cp.asnumpy(cuda_test_float)
         outcome_cuda_d = np.allclose(marr_gt_double, cuda_test_double)
         outcome_cuda_f = np.allclose(marr_gt_float, cuda_test_float)
-        print("**********\nDid the Cuda extension provide the correct result for SRHT of "
+        print("Did the Cuda extension provide the correct result for SRHT of "
             f"a {dim} 2d array of doubles? {outcome_cuda_d}\n*******")
-        print("**********\nDid the Cuda extension provide the correct result for SRHT of "
+        print("Did the Cuda extension provide the correct result for SRHT of "
             f"a {dim} 2d array of floats? {outcome_cuda_f}\n*******")
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f
 
