@@ -208,16 +208,19 @@ def cpuRBFGrad(np.ndarray[floating, ndim=2] inputArray,
                 inputArray.shape[0], inputArray.shape[1],
                 radem.shape[2], chiArr.shape[0],
                 numThreads, paddedBufferSize)
+
     elif inputArray.dtype == "float64" and outputArray.dtype == "float64" and \
             chiArr.dtype == "float64":
         errCode = rbfGrad_[double](<double*>addr_input, &radem[0,0,0],
                 <double*>addr_chi, &outputArray[0,0], &gradient[0,0,0],
                 rbfNormConstant, sigmaHparam,
-                radem.shape[0], inputArray.shape[1],
-                inputArray.shape[2], chiArr.shape[0],
+                inputArray.shape[0], inputArray.shape[1],
+                radem.shape[2], chiArr.shape[0],
                 numThreads, paddedBufferSize)
+
     else:
         raise ValueError("The input, output and chiArr arrays do not have expected types.")
+
     if errCode.decode("UTF-8") != "no_error":
         raise Exception("Fatal error encountered in RBF feature gen.")
     if fitIntercept:

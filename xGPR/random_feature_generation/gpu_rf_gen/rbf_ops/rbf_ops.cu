@@ -11,8 +11,87 @@
 #include "../basic_ops/basic_array_operations.h"
 #include "rbf_ops.h"
 
+//Generates the RBF features. This single kernel loops over 1)
+//the number of repeats then inside that loop 2) the three diagonal
+//matrix multiplications and fast Hadamard transforms before
+//applying 4) the simplex projection and 5) diagonal matmul before
+//activation function.
+template <typename T>
+__global__ void rbfFeatureGen(const T origData[], T cArray[],
+        double *outputArray, const T chiArr[], const int8_t *radem,
+        int N, int log2N, int numFreqs, int inputElementsPerRow,
+        int numElements, T normConstant,
+        double scalingConstant){
+    int stepSize = MIN(N, MAX_BASE_LEVEL_TRANSFORM);
+    int nHSteps = N / stepSize;
 
-//Handles feature generation for RBF
+    SharedMemory<T> shared;
+    T *s_data = shared.getPointer();
+    int spacing, pos = threadIdx.x;
+    int lo, id1, id2;
+    T *src_ptr = cArray + (blockIdx.x << log2N);
+    const T *input_ptr = originalData + blockIdx.x * inputElementsPerRow;
+    T y;
+
+    const int8_t *rademPtr = radem;
+
+    for (int rep = 0; rep < nRepeats; rep++){
+        for (int sorfRep = 0; sorfRep < 3; sorfRep++){
+            for (int hStep = 0; hStep < nHSteps; hStep++){
+                for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
+                    s_data[i] = src_ptr[i];
+
+                //Multiply by the diagonal array here.
+                for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
+                    s_data[i] = s_data[i] * rademPtr[i] * normConstant;
+
+                rademPtr += stepSize;
+
+                id1 = (pos << 1);
+                id2 = id1 + 1;
+                __syncthreads();
+                y = s_data[id2];
+                s_data[id2] = s_data[id1] - y;
+                s_data[id1] += y;
+
+
+                for (spacing = 2; spacing < stepSize; spacing <<= 1){
+                    //Equivalent to pos mod spacing if spacing is a power of 2,
+                    //which here is always true.
+                    lo = pos & (spacing - 1);
+                    id1 = ((pos - lo) << 1) + lo;
+                    id2 = id1 + spacing;
+                    __syncthreads();
+                    y = s_data[id2];
+                    s_data[id2] = s_data[id1] - y;
+                    s_data[id1] += y;
+                }
+                __syncthreads();
+                for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
+                    src_ptr[i] = s_data[i];
+                __syncthreads();
+                src_ptr += stepSize;
+            }
+
+            if (N > MAX_BASE_LEVEL_TRANSFORM){
+                src_ptr = cArray + (blockIdx.x << log2N);
+
+                for (int spacing = stepSize; spacing < N; spacing <<= 1){
+                    __syncthreads();
+
+                    for (int k = 0; k < N; k += (spacing << 1)){
+                        for (int i = threadIdx.x; i < spacing; i += blockDim.x){
+                            id1 = i+k;
+                            id2 = id1 + spacing;
+                            y = src_ptr[id2];
+                            src_ptr[id2] = src_ptr[id1] - y;
+                            src_ptr[id1] += y;
+                    }
+                }
+            }
+        }
+    }
+}
 
 
 
