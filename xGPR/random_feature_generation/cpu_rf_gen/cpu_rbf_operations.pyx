@@ -34,6 +34,8 @@ cdef extern from "rbf_ops/rbf_ops.h" nogil:
                 int dim0, int dim1, int rademShape2,
                 int numFreqs, int numThreads,
                 int paddedBufferSize)
+
+cdef extern from "rbf_ops/ard_ops.h" nogil:
     const char *ardGrad_[T](T inputX[], double *randomFeatures,
                 T precompWeights[], int32_t *sigmaMap, double *sigmaVals,
                 double *gradient, int dim0, int dim1, int numLengthscales,
