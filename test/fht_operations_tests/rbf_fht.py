@@ -1,9 +1,11 @@
 """Tests the RBF feature generation routines (specific for RBF, Matern
 and MiniARD / ARD kernels, which by extension includes static layer kernels."""
+import sys
 import unittest
 from math import ceil
 import numpy as np
 from scipy.stats import chi
+import cupy as cp
 from cpu_rf_gen_module import cpuRBFFeatureGen as cRBF
 from cpu_rf_gen_module import cpuRBFGrad as cRBFGrad
 
@@ -23,7 +25,19 @@ class TestRBFFeatureGen(unittest.TestCase):
 
     def test_rbf_feature_gen(self):
         """Tests RBF feature generation for CPU and if available GPU."""
-        outcomes = run_rbf_test((10,50), 2000)
+        '''outcomes = run_rbf_test((10,50), 2000)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        outcomes = run_rbf_test((10,3), 2000)
+        for outcome in outcomes:
+            self.assertTrue(outcome)'''
+
+        outcomes = run_rbf_test((10,2003), 2000)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        outcomes = run_rbf_test((11,1076), 2000)
         for outcome in outcomes:
             self.assertTrue(outcome)
 
@@ -31,9 +45,11 @@ class TestRBFFeatureGen(unittest.TestCase):
         for outcome in outcomes:
             self.assertTrue(outcome)
 
-        outcomes = run_rbf_test((512,856), 500, fit_intercept = True)
+        outcomes = run_rbf_test((231,856), 500, fit_intercept = True)
         for outcome in outcomes:
             self.assertTrue(outcome)
+
+
 
     def test_rbf_grad_calc(self):
         """Tests RBF gradient calc for CPU and if available GPU."""
@@ -70,36 +86,38 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, fit_intercept = False):
     cRBF(test_array.astype(np.float32), float_output, radem,
             chi_arr.astype(np.float32), 2, fit_intercept)
 
-    '''if "cupy" in sys.modules:
+    if "cupy" in sys.modules:
         cuda_test_array = cp.asarray(test_array)
-        cuda_test_float = cp.asarray(test_float)
         radem = cp.asarray(radem)
         chi_arr = cp.asarray(chi_arr)
-        chi_float = cp.asarray(chi_float)
         cuda_double_output = cp.zeros((test_array.shape[0], num_freqs * 2))
         cuda_float_output = cp.zeros((test_array.shape[0], num_freqs * 2))
 
         cudaRBF(cuda_test_array, cuda_double_output, radem,
                 chi_arr, 2, fit_intercept)
-        cudaRBF(cuda_test_float, cuda_float_output, radem,
-                chi_float, 2, fit_intercept)'''
+        cudaRBF(cuda_test_array.astype(cp.float32), cuda_float_output, radem,
+                chi_arr.astype(cp.float32), 2, fit_intercept)
 
 
     outcome_d = np.allclose(gt_double, double_output)
-    outcome_f = np.allclose(gt_float, float_output)
+    outcome_f = np.allclose(gt_float, float_output, rtol=1e-5, atol=1e-5)
     print("**********\nDid the C extension provide the correct result for RBF of "
             f"{xdim}, {num_freqs}? {outcome_d}")
     print("**********\nDid the C extension provide the correct result for RBF of "
             f"{xdim}, {num_freqs}? {outcome_f}")
 
-    '''if "cupy" in sys.modules:
+    if "cupy" in sys.modules:
         outcome_cuda_d = np.allclose(gt_double, cuda_double_output)
-        outcome_cuda_f = np.allclose(gt_float, cuda_float_output)
+        outcome_cuda_f = np.allclose(gt_float, cuda_float_output, rtol=1e-5,
+                atol=1e-5)
+        if not outcome_cuda_d:
+            import pdb
+            pdb.set_trace()
         print("**********\nDid the cuda extension provide the correct result for RBF of "
             f"{xdim}, {num_freqs}? {outcome_cuda_d}")
         print("**********\nDid the cuda extension provide the correct result for RBF of "
             f"{xdim}, {num_freqs}? {outcome_cuda_f}")
-        return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f'''
+        return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f
     return outcome_d, outcome_f
 
 

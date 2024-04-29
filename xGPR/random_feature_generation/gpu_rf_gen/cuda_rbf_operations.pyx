@@ -79,17 +79,15 @@ def cudaRBFFeatureGen(inputArray, outputArray, radem,
 
     if inputArray.shape[0] == 0:
         raise ValueError("There must be at least one datapoint.")
-    if inputArray.shape[1] != radem.shape[1] or inputArray.shape[2] != radem.shape[2]:
-        raise ValueError("Incorrect array dims passed to a wrapped RBF feature gen function.")
-    if radem.shape[0] != 3:
-        raise ValueError("radem must have length 3 for dim 0.")
     if inputArray.shape[0] != outputArray.shape[0]:
-        raise ValueError("inputArray and outputArray to RBF feature gen must have same number "
-                    "of datapoints.")
-    if outputArray.shape[1] != 2 * chiArr.shape[0]:
-        raise ValueError("chiArr input to RBF feature gen is of incorrect size.")
-    if 2 * inputArray.shape[1] * inputArray.shape[2] < outputArray.shape[1]:
-        raise ValueError("Sizes on input and output arrays to RBF feature gen are inappropriate.")
+        raise ValueError("The number of datapoints in outputs and inputs do "
+                "not agree.")
+    if radem.shape[0] != 3 or radem.shape[1] != 1:
+        raise ValueError("radem must have length 3 for dim 0 and length 1 for dim1.")
+    if outputArray.shape[1] % 2 != 0 or outputArray.shape[1] < 2:
+        raise ValueError("Shape of output array is not appropriate.")
+    if 2 * chiArr.shape[0] != outputArray.shape[1] or chiArr.shape[0] > radem.shape[2]:
+        raise ValueError("Shape of output array and / or chiArr is inappropriate.")
 
     expectedNFreq = <double>(inputArray.shape[1])
     paddedBufferSize = <int>(2**math.ceil(np.log2(max(expectedNFreq, 2.)))  )

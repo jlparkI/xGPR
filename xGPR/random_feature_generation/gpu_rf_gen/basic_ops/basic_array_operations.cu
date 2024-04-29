@@ -11,7 +11,7 @@
 #include <math.h>
 #include "../shared_constants.h"
 #include "basic_array_operations.h"
-#include "sharedmem.h"
+#include "../sharedmem.h"
 
 
 
