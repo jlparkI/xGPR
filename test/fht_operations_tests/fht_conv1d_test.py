@@ -38,7 +38,7 @@ class TestConv1d(unittest.TestCase):
             self.assertTrue(outcome)
 
         kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
-        sigma, ndatapoints = 1, 1000
+        sigma, ndatapoints = 1, 236
 
         outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma)
@@ -64,7 +64,7 @@ class TestConv1d(unittest.TestCase):
             self.assertTrue(outcome)
 
         kernel_width, num_aas, aa_dim, num_freqs = 1, 56, 2, 151
-        sigma, ndatapoints = 1, 1000
+        sigma, ndatapoints = 1, 333
 
         outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma)
@@ -139,6 +139,7 @@ class TestConv1d(unittest.TestCase):
                     num_freqs, sigma, precision = "float")
         for outcome in outcomes:
             self.assertTrue(outcome)
+
 
 
     def test_normalization(self):

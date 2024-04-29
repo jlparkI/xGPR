@@ -191,7 +191,8 @@ class MiniARD(KernelBaseclass):
             xtrans: A cupy or numpy array containing the generated features.
         """
         xtrans = input_x.astype(self.dtype) * self.full_ard_weights[None,:]
-        output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
+        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
+        output_x_2 = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
                 self.num_threads, self.fit_intercept)
         return output_x
@@ -240,8 +241,7 @@ class MiniARD(KernelBaseclass):
             ident_mat *= padded_chi_arr[init_pt:cut_pt]
 
             precomp_weights.append(ident_mat.T[:,:self._xdim[-1]])
-        import pdb
-        pdb.set_trace()
+
         self.precomputed_weights = np.vstack(precomp_weights)[:self.num_freqs,:]
         if not self.double_precision:
             self.precomputed_weights = self.precomputed_weights.astype(np.float32)

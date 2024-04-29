@@ -79,8 +79,6 @@ def run_mini_ard_grad_test(xdim, num_freqs, split_points, random_seed = 123,
     outcome_f = np.allclose(gt_double, float_output, rtol=1e-5, atol=1e-5)
     outcome_grad_d = np.allclose(gt_double_grad, double_grad)
     outcome_grad_f = np.allclose(gt_double_grad, float_grad, rtol=1e-4, atol=1e-3)
-    import pdb
-    pdb.set_trace()
     print("Did the Grad Calc C extension provide the correct result for RBF of "
             f"{xdim}, {num_freqs}, double precision? {outcome_d}")
     print("Did the Grad Calc C extension provide the correct result for RBF of "

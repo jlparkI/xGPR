@@ -368,6 +368,7 @@ void *ThreadARDGrad(T inputX[], double *randomFeatures,
             *randomFeature = cosVal;
             randomFeature++;
             *randomFeature = sinVal;
+            randomFeature++;
 
             for (k=0; k < numLengthscales; k++){
                 gradVal = gradientElement[k];
@@ -375,7 +376,6 @@ void *ThreadARDGrad(T inputX[], double *randomFeatures,
                 gradientElement[k + numLengthscales] = gradVal * cosVal;
             }
             gradientElement += 2 * numLengthscales;
-            randomFeature++;
         }
         xElement += dim1;
     }
