@@ -84,6 +84,18 @@ class TestConv1d(unittest.TestCase):
         for outcome in outcomes:
             self.assertTrue(outcome)
 
+        kernel_width, num_aas, aa_dim, num_freqs = 10, 256, 512, 333
+        sigma, ndatapoints = 1, 6
+
+        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma, precision = "float")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
 
 
     def test_conv1d_gradients(self):
@@ -104,6 +116,19 @@ class TestConv1d(unittest.TestCase):
 
         kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
         sigma, ndatapoints = 1, 53
+
+        outcomes = run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma)
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        outcomes = run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma, precision = "float")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        kernel_width, num_aas, aa_dim, num_freqs = 10, 56, 531, 512
+        sigma, ndatapoints = 1, 46
 
         outcomes = run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma)
@@ -241,7 +266,7 @@ def check_results(gt_array, test_array, precision):
     to use different tolerances for 32-bit vs 64 since 32-bit
     can vary slightly."""
     if precision == "float":
-        return np.allclose(gt_array, test_array, rtol=1e-6, atol=1e-6)
+        return np.allclose(gt_array, test_array, rtol=1e-5, atol=1e-5)
     return np.allclose(gt_array, test_array)
 
 

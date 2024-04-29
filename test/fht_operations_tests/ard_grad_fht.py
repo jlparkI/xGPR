@@ -79,14 +79,16 @@ def run_mini_ard_grad_test(xdim, num_freqs, split_points, random_seed = 123,
     outcome_f = np.allclose(gt_double, float_output, rtol=1e-5, atol=1e-5)
     outcome_grad_d = np.allclose(gt_double_grad, double_grad)
     outcome_grad_f = np.allclose(gt_double_grad, float_grad, rtol=1e-4, atol=1e-3)
-    print("**********\nDid the Grad Calc C extension provide the correct result for RBF of "
+    import pdb
+    pdb.set_trace()
+    print("Did the Grad Calc C extension provide the correct result for RBF of "
             f"{xdim}, {num_freqs}, double precision? {outcome_d}")
-    print("**********\nDid the Grad Calc C extension provide the correct result for RBF of "
+    print("Did the Grad Calc C extension provide the correct result for RBF of "
             f"{xdim}, {num_freqs}, float precision? {outcome_f}")
-    print("**********\nDid the Grad Calc C extension provide the correct result for the "
+    print("Did the Grad Calc C extension provide the correct result for the "
             f"gradient for RBF of {xdim}, {num_freqs}, "
             f"double precision? {outcome_grad_d}")
-    print("**********\nDid the Grad Calc C extension provide the correct result for the "
+    print("Did the Grad Calc C extension provide the correct result for the "
             f"gradient for RBF of {xdim}, {num_freqs}, "
             f"float precision? {outcome_grad_f}")
 
@@ -95,13 +97,13 @@ def run_mini_ard_grad_test(xdim, num_freqs, split_points, random_seed = 123,
         outcome_cuda_f = np.allclose(gt_double, cuda_float_output, rtol=1e-5, atol=1e-5)
         outcome_cuda_grad_d = np.allclose(gt_double_grad, cuda_double_grad)
         outcome_cuda_grad_f = np.allclose(gt_double_grad, cuda_float_grad, rtol=1e-4, atol=1e-3)
-        print("**********\nDid the cuda extension provide the correct result for RBF of "
+        print("Did the cuda extension provide the correct result for RBF of "
             f"{xdim}, {num_freqs}? {outcome_cuda_d}")
-        print("**********\nDid the cuda extension provide the correct result for RBF of "
+        print("Did the cuda extension provide the correct result for RBF of "
             f"{xdim}, {num_freqs}? {outcome_cuda_f}")
-        print("**********\nDid the Grad Calc cuda extension provide the correct result for the "
+        print("Did the Grad Calc cuda extension provide the correct result for the "
             f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_d}")
-        print("**********\nDid the Grad Calc cuda extension provide the correct result for the "
+        print("Did the Grad Calc cuda extension provide the correct result for the "
             f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_f}")
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f, \
                 outcome_grad_d, outcome_cuda_grad_d

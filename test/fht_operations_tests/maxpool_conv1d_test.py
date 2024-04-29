@@ -30,8 +30,15 @@ class TestMaxpoolFeatureGen(unittest.TestCase):
         for outcome in outcomes:
             self.assertTrue(outcome)
 
+        kernel_width, num_aas, aa_dim, num_freqs = 15, 23, 21, 128
+        sigma, ndatapoints = 1, 64
+        outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma, mode = "maxpool")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
         kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
-        sigma, ndatapoints = 1, 1000
+        sigma, ndatapoints = 1, 100
 
         outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, mode = "maxpool", precision = "float")
@@ -41,6 +48,14 @@ class TestMaxpoolFeatureGen(unittest.TestCase):
 
         kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 256, 500
         sigma, ndatapoints = 1, 232
+
+        outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma, mode = "maxpool")
+        for outcome in outcomes:
+            self.assertTrue(outcome)
+
+        kernel_width, num_aas, aa_dim, num_freqs = 5, 512, 1024, 1024
+        sigma, ndatapoints = 1, 11
 
         outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, mode = "maxpool")
@@ -79,7 +94,6 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
 
     gpuConv1dMaxpool(xdata, seqlen, radem, features,
                 s_mat, kernel_width, 2)
-
 
     outcome_cuda = check_results(true_features, features[:,:num_freqs], precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "

@@ -21,7 +21,7 @@ cdef extern from "convolution_ops/convolution.h" nogil:
     const char *conv1dMaxpoolFeatureGen[T](const int8_t *radem, const T xdata[],
             const T chiArr[], double *outputArray, const int32_t *seqlengths,
             int xdim0, int xdim1, int xdim2, int numFreqs,
-            int convWidth, int paddedBufferSize)
+            int convWidth, int paddedBufferSize, int rademShape2)
 
 cdef extern from "convolution_ops/rbf_convolution.h" nogil:
     const char *convRBFFeatureGen[T](const int8_t *radem, const T xdata[],
@@ -51,7 +51,7 @@ def gpuConv1dMaxpool(xdata, sequence_lengths, radem, outputArray,
             is the length of the corresponding sequence in xdata. All values must be
             >= convWidth.
         radem (cp.ndarray): A stack of diagonal matrices with elements drawn from the
-            Rademacher distribution. Shape must be (3 x D x C).
+            Rademacher distribution. Shape must be (3 x 1 x C).
         outputArray (cp.ndarray): A numpy array in which the generated features will be
             stored. Is modified in-place.
         chiArr (cp.ndarray): A stack of diagonal matrices stored as an
@@ -124,7 +124,8 @@ def gpuConv1dMaxpool(xdata, sequence_lengths, radem, outputArray,
                     <float*>addr_chi, <double*>addr_output, <int32_t*>addr_seqlen,
                     xdata.shape[0], xdata.shape[1],
                     xdata.shape[2], chiArr.shape[0],
-                    convWidth, paddedBufferSize)
+                    convWidth, paddedBufferSize,
+                    radem.shape[2])
 
     elif outputArray.dtype == "float64" and xdata.dtype == "float64" and \
             chiArr.dtype == "float64":
@@ -132,7 +133,8 @@ def gpuConv1dMaxpool(xdata, sequence_lengths, radem, outputArray,
                     <double*>addr_chi, <double*>addr_output, <int32_t*>addr_seqlen,
                     xdata.shape[0], xdata.shape[1],
                     xdata.shape[2], chiArr.shape[0],
-                    convWidth, paddedBufferSize)
+                    convWidth, paddedBufferSize,
+                    radem.shape[2])
     else:
         raise ValueError("Incorrect data types supplied.")
 

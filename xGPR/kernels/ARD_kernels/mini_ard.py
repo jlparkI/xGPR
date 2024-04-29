@@ -206,7 +206,7 @@ class MiniARD(KernelBaseclass):
         and store weights. This is not ideal but was easier to implement
         than having caller decide whether kernel is ARD and if so whether
         it should precompute weights on initialization. TODO: Find a
-        simpler approach.
+        better approach.
 
         Note that precomputing weights is only helpful for ARD kernels
         because of the much greater complexity of calculating the gradient
@@ -229,17 +229,19 @@ class MiniARD(KernelBaseclass):
 
         for i in range(self.nblocks):
             ident_mat = np.eye(self.padded_dims)
-            ident_mat *= self.radem_diag[0:1,i,:] * norm_constant
+            init_pt, cut_pt = i * self.padded_dims, (i+1) * self.padded_dims
+            ident_mat *= self.radem_diag[0:1,0,init_pt:cut_pt] * norm_constant
             dFHT2d(ident_mat, self.num_threads)
-            ident_mat *= self.radem_diag[1:2,i,:] * norm_constant
+            ident_mat *= self.radem_diag[1:2,0,init_pt:cut_pt] * norm_constant
             dFHT2d(ident_mat, self.num_threads)
-            ident_mat *= self.radem_diag[2:3,i,:] * norm_constant
+            ident_mat *= self.radem_diag[2:3,0,init_pt:cut_pt] * norm_constant
             dFHT2d(ident_mat, self.num_threads)
 
-            ident_mat *= padded_chi_arr[i*self.padded_dims:(i+1)*self.padded_dims]
+            ident_mat *= padded_chi_arr[init_pt:cut_pt]
 
             precomp_weights.append(ident_mat.T[:,:self._xdim[-1]])
-
+        import pdb
+        pdb.set_trace()
         self.precomputed_weights = np.vstack(precomp_weights)[:self.num_freqs,:]
         if not self.double_precision:
             self.precomputed_weights = self.precomputed_weights.astype(np.float32)

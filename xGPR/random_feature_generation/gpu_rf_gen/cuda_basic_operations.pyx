@@ -1,5 +1,6 @@
 """Handles basic hadamard transform based operations, primarily
-SORF and SRHT.
+SRHT and fast hadamard transforms. The latter are useful for
+prototyping new kernels.
 
 Also performs all of the bounds and safety checks needed to use these
 functions (the C functions do not do their own bounds checking). It

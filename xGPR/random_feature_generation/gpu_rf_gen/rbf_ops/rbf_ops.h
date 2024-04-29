@@ -17,11 +17,4 @@ const char *RBFFeatureGrad(T cArray[], int8_t *radem,
                 T sigma, int dim0, int dim1, int rademShape2,
                 int numFreqs, int paddedBufferSize);
 
-template <typename T>
-const char *ardCudaGrad(T inputX[], double *randomFeats,
-                T precompWeights[], int32_t *sigmaMap,
-                double *sigmaVals, double *gradient, int dim0,
-                int dim1, int numLengthscales, int numFreqs,
-                double rbfNormConstant);
-
 #endif
