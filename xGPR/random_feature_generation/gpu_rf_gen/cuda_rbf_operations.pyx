@@ -19,12 +19,12 @@ from libcpp cimport bool
 
 
 cdef extern from "rbf_ops/rbf_ops.h" nogil:
-    const char *RBFFeatureGen[T](T cArray[], int8_t *radem,
+    const char *RBFFeatureGen[T](T origData[], int8_t *radem,
                 T chiArr[], double *outputArray,
                 double rbfNormConstant,
                 int dim0, int dim1, int rademShape2,
                 int numFreqs, int paddedBufferSize)
-    const char *RBFFeatureGrad[T](T cArray[], int8_t *radem,
+    const char *RBFFeatureGrad[T](T origData[], int8_t *radem,
                 T chiArr[], double *outputArray,
                 double *gradientArray, double rbfNormConstant,
                 T sigma, int dim0, int dim1, int rademShape2,

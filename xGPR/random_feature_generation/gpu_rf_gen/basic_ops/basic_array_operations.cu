@@ -265,12 +265,9 @@ template const char *cudaSRHT2d<double>(double cArray[], const int8_t *radem,
 template <typename T>
 const char *cudaSORF3d(T cArray[], const int8_t *radem,
                 int dim0, int dim1, int dim2){
-    int numElementsPerRow = dim1 * dim2;
-    int numElements = dim1 * dim2 * dim0;
     //This is the Hadamard normalization constant.
     T normConstant = log2(dim2) / 2;
     normConstant = 1 / pow(2, normConstant);
-    int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
     //cudaProfilerStart();
 
     //else{

@@ -25,15 +25,14 @@ __global__ void rbfFeatureGenKernel(const T origData[], T cArray[],
         int nRepeats, int rademShape2, T normConstant,
         double scalingConstant){
     int stepSize = MIN(N, MAX_BASE_LEVEL_TRANSFORM);
-    int nHSteps = N / stepSize;
 
     SharedMemory<T> shared;
     T *s_data = shared.getPointer();
     int spacing, pos = threadIdx.x;
     int lo, id1, id2;
-    int tempArrPos = (blockIdx.x << log2N);
+    int tempArrPos, chiArrPos = 0;
     int inputArrPos = (blockIdx.x * inputElementsPerRow);
-    int outputArrPos = (blockIdx.x * numFreqs * 2), chiArrPos = 0;
+    int outputArrPos = (blockIdx.x * numFreqs * 2);
     T y, outputVal;
 
     const int8_t *rademPtr = radem;
@@ -44,7 +43,7 @@ __global__ void rbfFeatureGenKernel(const T origData[], T cArray[],
         tempArrPos = (blockIdx.x << log2N);
 
         //Copy original data into the temporary array.
-        for (int i = threadIdx.x; i < stepSize; i += blockDim.x){
+        for (int i = threadIdx.x; i < N; i += blockDim.x){
             if (i < inputElementsPerRow)
                 cArray[i + tempArrPos] = origData[i + inputArrPos];
             else
@@ -56,9 +55,11 @@ __global__ void rbfFeatureGenKernel(const T origData[], T cArray[],
             rademPtr = radem + N * rep + sorfRep * rademShape2;
             tempArrPos = (blockIdx.x << log2N);
 
-            for (int hStep = 0; hStep < nHSteps; hStep++){
+            for (int hStep = 0; hStep < N; hStep+=stepSize){
                 for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
                     s_data[i] = cArray[i + tempArrPos];
+
+                __syncthreads();
 
                 //Multiply by the diagonal array here.
                 for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
@@ -72,7 +73,6 @@ __global__ void rbfFeatureGenKernel(const T origData[], T cArray[],
                 y = s_data[id2];
                 s_data[id2] = s_data[id1] - y;
                 s_data[id1] += y;
-                __syncthreads();
 
                 for (spacing = 2; spacing < stepSize; spacing <<= 1){
                     //Equivalent to pos mod spacing if spacing is a power of 2,
@@ -86,10 +86,12 @@ __global__ void rbfFeatureGenKernel(const T origData[], T cArray[],
                     s_data[id1] += y;
                 }
                 __syncthreads();
+
                 for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
                     cArray[i + tempArrPos] = s_data[i];
-                __syncthreads();
+
                 tempArrPos += stepSize;
+                __syncthreads();
             }
 
             //A less efficient global memory procedure to complete the FHT
@@ -98,28 +100,27 @@ __global__ void rbfFeatureGenKernel(const T origData[], T cArray[],
                 tempArrPos = (blockIdx.x << log2N);
 
                 for (int spacing = stepSize; spacing < N; spacing <<= 1){
-                    __syncthreads();
 
                     for (int k = 0; k < N; k += (spacing << 1)){
                         for (int i = threadIdx.x; i < spacing; i += blockDim.x){
-                            id1 = i+k + tempArrPos;
-                            id2 = id1 + spacing + tempArrPos;
+                            id1 = i + k + tempArrPos;
+                            id2 = id1 + spacing;
                             y = cArray[id2];
                             cArray[id2] = cArray[id1] - y;
                             cArray[id1] += y;
                         }
+                        __syncthreads();
                     }
                 }
             }
         }
-
         //Now take the results stored in the temporary array, apply the
         //activation function, and populate the output array. Note that
         //we multiply by 2 in the output array position since two
         //features are generated for each frequency sampled.
         tempArrPos = (blockIdx.x << log2N);
 
-        for (int i = threadIdx.x; i < stepSize; i += blockDim.x){
+        for (int i = threadIdx.x; i < N; i += blockDim.x){
             if ((i + chiArrPos) >= numFreqs)
                 break;
             outputVal = chiArr[chiArrPos + i] * cArray[tempArrPos + i];
@@ -136,34 +137,128 @@ __global__ void rbfFeatureGenKernel(const T origData[], T cArray[],
 
 
 
-//Performs the last step in gradient / feature generation for RBF (NOT ARD)
-//kernels.
+//Generates the RBF features with gradient. This single kernel loops over 1)
+//the number of repeats then inside that loop 2) the three diagonal
+//matrix multiplications and fast Hadamard transforms before
+//applying 4) the simplex projection and 5) diagonal matmul before
+//activation function. The only difference from rbfFeatureGenKernel
+//is that the gradient is also calculated.
 template <typename T>
-__global__ void rbfGradLastStep(T cArray[], double *outputArray,
-            T chiArr[], double *gradientArray, T sigma, int numFreqs,
-            int inputElementsPerRow, int numElements, double normConstant)
-{
-    int tid = blockDim.x * blockIdx.x + threadIdx.x;
-    int chiArrPosition, inputPosition, outputRow, outputPosition;
-    T outputVal, sinVal, cosVal;
+__global__ void rbfFeatureGradKernel(const T origData[], T cArray[],
+        double *outputArray, const T chiArr[], const int8_t *radem,
+        int N, int log2N, int numFreqs, int inputElementsPerRow,
+        int nRepeats, int rademShape2, T normConstant,
+        double scalingConstant, double *gradient){
+    int stepSize = MIN(N, MAX_BASE_LEVEL_TRANSFORM);
 
-    chiArrPosition = tid % numFreqs;
-    outputRow = (tid / numFreqs);
-    inputPosition = outputRow * inputElementsPerRow + chiArrPosition;
-    //Multiply by 2 here since we store both the sine and cosine
-    //of the feature in the output array.
-    outputPosition = 2 * (outputRow * numFreqs + chiArrPosition);
+    SharedMemory<T> shared;
+    T *s_data = shared.getPointer();
+    int spacing, pos = threadIdx.x;
+    int lo, id1, id2;
+    int tempArrPos, chiArrPos = 0;
+    int inputArrPos = (blockIdx.x * inputElementsPerRow);
+    int outputArrPos = (blockIdx.x * numFreqs * 2);
+    T y, outputVal;
 
-    if (tid < numElements)
-    {
-        outputVal = chiArr[chiArrPosition] * cArray[inputPosition];
+    const int8_t *rademPtr = radem;
 
-        cosVal = normConstant * cos(outputVal * sigma);
-        sinVal = normConstant * sin(outputVal * sigma);
-        outputArray[outputPosition] = cosVal;
-        outputArray[outputPosition + 1] = sinVal;
-        gradientArray[outputPosition] = -outputVal * sinVal;
-        gradientArray[outputPosition + 1] = outputVal * cosVal;
+    //Run over the number of repeats required to generate the random
+    //features.
+    for (int rep = 0; rep < nRepeats; rep++){
+        tempArrPos = (blockIdx.x << log2N);
+
+        //Copy original data into the temporary array.
+        for (int i = threadIdx.x; i < N; i += blockDim.x){
+            if (i < inputElementsPerRow)
+                cArray[i + tempArrPos] = origData[i + inputArrPos];
+            else
+                cArray[i + tempArrPos] = 0;
+        }
+
+        //Run over three repeats for the SORF procedure.
+        for (int sorfRep = 0; sorfRep < 3; sorfRep++){
+            rademPtr = radem + N * rep + sorfRep * rademShape2;
+            tempArrPos = (blockIdx.x << log2N);
+
+            for (int hStep = 0; hStep < N; hStep+=stepSize){
+                for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
+                    s_data[i] = cArray[i + tempArrPos];
+
+                __syncthreads();
+
+                //Multiply by the diagonal array here.
+                for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
+                    s_data[i] = s_data[i] * rademPtr[i] * normConstant;
+
+                rademPtr += stepSize;
+
+                id1 = (pos << 1);
+                id2 = id1 + 1;
+                __syncthreads();
+                y = s_data[id2];
+                s_data[id2] = s_data[id1] - y;
+                s_data[id1] += y;
+
+                for (spacing = 2; spacing < stepSize; spacing <<= 1){
+                    //Equivalent to pos mod spacing if spacing is a power of 2,
+                    //which here is always true.
+                    lo = pos & (spacing - 1);
+                    id1 = ((pos - lo) << 1) + lo;
+                    id2 = id1 + spacing;
+                    __syncthreads();
+                    y = s_data[id2];
+                    s_data[id2] = s_data[id1] - y;
+                    s_data[id1] += y;
+                }
+                __syncthreads();
+
+                for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
+                    cArray[i + tempArrPos] = s_data[i];
+
+                tempArrPos += stepSize;
+                __syncthreads();
+            }
+
+            //A less efficient global memory procedure to complete the FHT
+            //for long arrays.
+            if (N > MAX_BASE_LEVEL_TRANSFORM){
+                tempArrPos = (blockIdx.x << log2N);
+
+                for (int spacing = stepSize; spacing < N; spacing <<= 1){
+
+                    for (int k = 0; k < N; k += (spacing << 1)){
+                        for (int i = threadIdx.x; i < spacing; i += blockDim.x){
+                            id1 = i + k + tempArrPos;
+                            id2 = id1 + spacing;
+                            y = cArray[id2];
+                            cArray[id2] = cArray[id1] - y;
+                            cArray[id1] += y;
+                        }
+                        __syncthreads();
+                    }
+                }
+            }
+        }
+        //Now take the results stored in the temporary array, apply the
+        //activation function, and populate the output array. Note that
+        //we multiply by 2 in the output array position since two
+        //features are generated for each frequency sampled.
+        tempArrPos = (blockIdx.x << log2N);
+
+        for (int i = threadIdx.x; i < N; i += blockDim.x){
+            if ((i + chiArrPos) >= numFreqs)
+                break;
+            outputVal = chiArr[chiArrPos + i] * cArray[tempArrPos + i];
+            outputArray[outputArrPos + 2 * i] = scalingConstant * cos(outputVal);
+            outputArray[outputArrPos + 2 * i + 1] = scalingConstant * sin(outputVal);
+            gradient[outputArrPos + 2 * i] = -scalingConstant * sin(outputVal) * outputVal;
+            gradient[outputArrPos + 2 * i + 1] = scalingConstant * cos(outputVal) * outputVal;
+        }
+
+        chiArrPos += stepSize;
+        outputArrPos += 2 * stepSize;
+        __syncthreads();
+
     }
 }
 
@@ -283,38 +378,41 @@ template const char *RBFFeatureGen<float>(float cArray[], int8_t *radem,
 //(NOT ARD), and simultaneously generates the gradient, storing
 //it in a separate array.
 template <typename T>
-const char *RBFFeatureGrad(T cArray[], int8_t *radem,
+const char *RBFFeatureGrad(T origData[], int8_t *radem,
                 T chiArr[], double *outputArray,
                 double *gradientArray, double rbfNormConstant,
                 T sigma, int dim0, int dim1, int rademShape2,
                 int numFreqs, int paddedBufferSize){
-
-    int numElements = dim1 * dim0;
     //This is the Hadamard normalization constant.
     T normConstant = log2(paddedBufferSize) / 2;
     normConstant = 1 / pow(2, normConstant);
-    int blocksPerGrid = (numElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
-    int numOutputElements = numFreqs * dim0;
-    const char *errCode = "wow";
+    int stepSize, log2N;
+    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
 
-    //errCode = cudaSORF3d<T>(cArray, radem, dim0, dim1, dim2);
+    stepSize = MIN(MAX_BASE_LEVEL_TRANSFORM, paddedBufferSize);
+    log2N = log2(paddedBufferSize);
 
+    T *featureArray;
+    if (cudaMalloc(&featureArray, sizeof(T) * dim0 * paddedBufferSize) != cudaSuccess) {
+        cudaFree(featureArray);
+        return "Fatal malloc error";
+    };
 
-    //Generate output features in-place in the output array.
-    blocksPerGrid = (numOutputElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
-    rbfGradLastStep<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(cArray, outputArray,
-                    chiArr, gradientArray, sigma, numFreqs,
-                    dim1, numOutputElements, rbfNormConstant);
+    rbfFeatureGradKernel<T><<<dim0, stepSize / 2, stepSize * sizeof(T)>>>(origData, featureArray,
+            outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, dim1,
+            numRepeats, rademShape2, normConstant, rbfNormConstant, gradientArray);
 
-    return errCode;
+    cudaFree(&featureArray);
+
+    return "no_error";
 }
 //Instantiate templates so Cython / PyBind wrappers can import.
-template const char *RBFFeatureGrad<double>(double cArray[], int8_t *radem,
+template const char *RBFFeatureGrad<double>(double origData[], int8_t *radem,
                 double chiArr[], double *outputArray,
                 double *gradientArray, double rbfNormConstant,
                 double sigma, int dim0, int dim1, int rademShape2,
                 int numFreqs, int paddedBufferSize);
-template const char *RBFFeatureGrad<float>(float cArray[], int8_t *radem,
+template const char *RBFFeatureGrad<float>(float origData[], int8_t *radem,
                 float chiArr[], double *outputArray,
                 double *gradientArray, double rbfNormConstant,
                 float sigma, int dim0, int dim1, int rademShape2,
