@@ -582,7 +582,7 @@ void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
 
     singleVectorTransform<T>(cbuffer, cbufferDim2);
 
-    //singleVectorSimplexProj(cbuffer, cbufferDim2);
+    singleVectorSimplexProj(cbuffer, cbufferDim2);
 }
 //Explicitly instantiate for external use.
 template void singleVectorSORF<double>(double cbuffer[], const int8_t *rademArray,

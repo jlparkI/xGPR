@@ -32,7 +32,7 @@ __global__ void rbfFeatureGenKernel(const T origData[], T cArray[],
     int tempArrPos, chiArrPos = 0;
     int inputArrPos = (blockIdx.x * inputElementsPerRow);
     int outputArrPos = (blockIdx.x * numFreqs * 2);
-    T y, outputVal;
+    T y, outputVal, simplexProjPrefactor;
 
     const int8_t *rademPtr = radem;
 
@@ -113,6 +113,21 @@ __global__ void rbfFeatureGenKernel(const T origData[], T cArray[],
                 }
             }
         }
+
+        //Now apply the simplex projection to the temporary array. We
+        //first have to sum the elements of the temporary array and
+        //use the existing shared memory as storage to help with this.
+        for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
+            s_data[i] = 0;
+
+        tempArrPos = (blockIdx.x << log2N);
+        simplexProjPrefactor = 1 / sqrt( (double)paddedBufferSize - 1.);
+
+        for (int i = threadIdx.x; i < (paddedBufferSize - 1); i += blockDim.x)
+            s_data[threadIdx.x] += cArray[i + tempArrPos] * simplexProjPrefactor;
+
+        
+
         //Now take the results stored in the temporary array, apply the
         //activation function, and populate the output array. Note that
         //we multiply by 2 in the output array position since two
