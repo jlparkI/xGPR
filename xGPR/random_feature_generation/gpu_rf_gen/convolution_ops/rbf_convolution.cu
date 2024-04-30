@@ -33,7 +33,8 @@ __global__ void convRBFFeatureGenKernel(const T origData[], T cArray[],
     int tempArrPos, chiArrPos = 0, inputCutoff = xDim2 * convWidth;
     int inputArrPos = (blockIdx.x * xDim1 * xDim2);
     int outputArrPos = (blockIdx.x * numFreqs * 2);
-    T y, outputVal, modifiedScaling = scalingConstant;
+    T y, simplexProjPrefactor, bufferSum, modifiedScaling = scalingConstant;
+    double outputVal;
 
     const int8_t *rademPtr = radem;
 
@@ -131,6 +132,36 @@ __global__ void convRBFFeatureGenKernel(const T origData[], T cArray[],
                     }
                 }
             }
+            //Now apply the simplex projection to the temporary array. We
+            //first have to sum the elements of the temporary array and
+            //use the existing shared memory as storage to help with this.
+            s_data[threadIdx.x] = 0;
+            tempArrPos = (blockIdx.x << log2N);
+            simplexProjPrefactor = sqrt( (T)paddedBufferSize - 1.);
+
+            for (int i = threadIdx.x; i < (paddedBufferSize - 1); i += blockDim.x)
+                s_data[threadIdx.x] += cArray[i + tempArrPos];
+
+            __syncthreads();
+            for (int i = blockDim.x/2; i > 0; i >>=1){
+                if (threadIdx.x < i)
+                    s_data[threadIdx.x] += s_data[threadIdx.x + i];
+                __syncthreads();
+            }
+
+            if (threadIdx.x == 0)
+                cArray[tempArrPos + paddedBufferSize - 1] = s_data[0] / simplexProjPrefactor;
+
+            __syncthreads();
+            bufferSum = s_data[0] / simplexProjPrefactor;
+            bufferSum *= ( (sqrt( (T)paddedBufferSize) + 1) / ((T)paddedBufferSize - 1.) );
+            simplexProjPrefactor = sqrt( (T)paddedBufferSize / ((T)paddedBufferSize - 1.) );
+
+            for (int i=threadIdx.x; i < (paddedBufferSize - 1); i+=blockDim.x)
+                cArray[i + tempArrPos] = (cArray[i + tempArrPos] * simplexProjPrefactor - bufferSum);
+
+            __syncthreads();
+
             //Now take the results stored in the temporary array, apply the
             //activation function, and populate the output array. Note that
             //we multiply by 2 in the output array position since two
@@ -178,7 +209,8 @@ __global__ void convRBFFeatureGradKernel(const T origData[], T cArray[],
     int tempArrPos, chiArrPos = 0, inputCutoff = xDim2 * convWidth;
     int inputArrPos = (blockIdx.x * xDim1 * xDim2);
     int outputArrPos = (blockIdx.x * numFreqs * 2);
-    T y, outputVal, modifiedScaling = scalingConstant;
+    T y, simplexProjPrefactor, bufferSum, modifiedScaling = scalingConstant;
+    double outputVal;
 
     const int8_t *rademPtr = radem;
 
@@ -276,6 +308,36 @@ __global__ void convRBFFeatureGradKernel(const T origData[], T cArray[],
                     }
                 }
             }
+            //Now apply the simplex projection to the temporary array. We
+            //first have to sum the elements of the temporary array and
+            //use the existing shared memory as storage to help with this.
+            s_data[threadIdx.x] = 0;
+            tempArrPos = (blockIdx.x << log2N);
+            simplexProjPrefactor = sqrt( (T)paddedBufferSize - 1.);
+
+            for (int i = threadIdx.x; i < (paddedBufferSize - 1); i += blockDim.x)
+                s_data[threadIdx.x] += cArray[i + tempArrPos];
+
+            __syncthreads();
+            for (int i = blockDim.x/2; i > 0; i >>=1){
+                if (threadIdx.x < i)
+                    s_data[threadIdx.x] += s_data[threadIdx.x + i];
+                __syncthreads();
+            }
+
+            if (threadIdx.x == 0)
+                cArray[tempArrPos + paddedBufferSize - 1] = s_data[0] / simplexProjPrefactor;
+
+            __syncthreads();
+            bufferSum = s_data[0] / simplexProjPrefactor;
+            bufferSum *= ( (sqrt( (T)paddedBufferSize) + 1) / ((T)paddedBufferSize - 1.) );
+            simplexProjPrefactor = sqrt( (T)paddedBufferSize / ((T)paddedBufferSize - 1.) );
+
+            for (int i=threadIdx.x; i < (paddedBufferSize - 1); i+=blockDim.x)
+                cArray[i + tempArrPos] = (cArray[i + tempArrPos] * simplexProjPrefactor - bufferSum);
+
+            __syncthreads();
+
             //Now take the results stored in the temporary array, apply the
             //activation function, and populate the output array. Note that
             //we multiply by 2 in the output array position since two

@@ -165,8 +165,8 @@ class RBFLinear(KernelBaseclass, ABC):
         """
         xtrans = input_x.astype(self.dtype) * self.hyperparams[1]
 
-        output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
-        random_features = self.empty((input_x.shape[0], self.internal_rffs),
+        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
+        random_features = self.zero_arr((input_x.shape[0], self.internal_rffs),
                         self.out_type)
         self.feature_gen(xtrans, random_features, self.radem_diag, self.chi_arr,
                 self.num_threads, self.fit_intercept)
@@ -200,9 +200,9 @@ class RBFLinear(KernelBaseclass, ABC):
                 output_x with respect to the kernel-specific hyperparameters.
         """
         xtrans = input_x.astype(self.dtype)
-        random_features = self.empty((input_x.shape[0], self.internal_rffs),
+        random_features = self.zero_arr((input_x.shape[0], self.internal_rffs),
                 self.out_type)
-        output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
+        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         output_grad = self.zero_arr((input_x.shape[0], self.num_rffs, 1), self.out_type)
 
         output_grad[:,:self.internal_rffs,0:1] = self.gradfun(xtrans, random_features,

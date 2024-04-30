@@ -105,25 +105,22 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, fit_intercept = False):
     outcome_d = np.allclose(gt_double, double_output)
     outcome_f = np.allclose(gt_float, float_output, rtol=1e-5, atol=1e-5)
     print("Did the C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_d}")
-    print("Did the C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_f}")
+            f"{xdim}, {num_freqs} for float, double? {outcome_f},{outcome_d}")
 
-    if "cupy" in sys.modules and 0 == 1:
+    if "cupy" in sys.modules:
         outcome_cuda_d = np.allclose(gt_double, cuda_double_output)
         outcome_cuda_f = np.allclose(gt_float, cuda_float_output, rtol=1e-5,
                 atol=1e-5)
         print("Did the cuda extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_cuda_d}")
-        print("Did the cuda extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_cuda_f}")
+            f"{xdim}, {num_freqs} for float, double? {outcome_cuda_f},{outcome_cuda_d}")
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f
     return outcome_d, outcome_f
 
 
 
 
-def run_rbf_grad_test(xdim, num_freqs, random_seed = 123, fit_intercept = False):
+def run_rbf_grad_test(xdim, num_freqs, random_seed = 123,
+        fit_intercept = False):
     """A helper function that tests the Cython wrapper which both
     generates RFs and calculates the gradient for specified input params."""
 
@@ -166,31 +163,24 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123, fit_intercept = False)
     outcome_grad_d = np.allclose(gt_double_grad, double_grad)
     outcome_grad_f = np.allclose(gt_float_grad, float_grad,
             atol=1e-4, rtol=1e-4)
-    if not outcome_f or not outcome_grad_f:
-        import pdb
-        pdb.set_trace()
     print("Did the Grad Calc C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_d}")
-    print("Did the Grad Calc C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_f}")
+            f"{xdim}, {num_freqs} for float, double? {outcome_f},{outcome_d}")
     print("Did the Grad Calc C extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_grad_d}")
-    print("Did the Grad Calc C extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_grad_f}")
+            f"gradient for RBF of {xdim}, {num_freqs} for float, double? "
+            f"{outcome_grad_f},{outcome_grad_d}")
 
-    if "cupy" in sys.modules and 0 == 1:
+    if "cupy" in sys.modules:
         outcome_cuda_d = np.allclose(gt_double, cuda_double_output)
-        outcome_cuda_f = np.allclose(gt_float, cuda_float_output)
+        outcome_cuda_f = np.allclose(gt_float, cuda_float_output,
+                atol=1e-4, rtol=1e-4)
         outcome_cuda_grad_d = np.allclose(gt_double_grad, cuda_double_grad)
-        outcome_cuda_grad_f = np.allclose(gt_float_grad, cuda_float_grad)
+        outcome_cuda_grad_f = np.allclose(gt_float_grad, cuda_float_grad,
+                atol=1e-2, rtol=1e-2)
         print("Did the cuda extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_cuda_d}")
-        print("Did the cuda extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_cuda_f}")
+            f"{xdim}, {num_freqs} for float, double? {outcome_cuda_f},{outcome_cuda_d}")
         print("Did the Grad Calc cuda extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_d}")
-        print("Did the Grad Calc cuda extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_f}")
+            f"gradient for RBF of {xdim}, {num_freqs} for float, double? "
+            f"{outcome_cuda_grad_f},{outcome_cuda_grad_d}")
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f, \
                 outcome_grad_d, outcome_grad_f, outcome_cuda_grad_d, \
                 outcome_cuda_grad_f
@@ -263,25 +253,21 @@ def generate_rbf_values(test_array, radem, chi_arr, nblocks,
     pretrans_x *= chi_arr[None,:]
 
 
-    xtrans = np.zeros((test_array.shape[0], chi_arr.shape[0] * 2),
-            dtype=test_array.dtype)
-    gradient = np.zeros((test_array.shape[0], chi_arr.shape[0] * 2, 1),
-            dtype=test_array.dtype)
+    xtrans = np.zeros((test_array.shape[0], chi_arr.shape[0] * 2))
+    gradient = np.zeros((test_array.shape[0], chi_arr.shape[0] * 2, 1))
 
     for j in range(0, chi_arr.shape[0], 1):
         xtrans[:,2*j] = np.cos(pretrans_x[:,j])
         xtrans[:,2*j+1] = np.sin(pretrans_x[:,j])
 
         gradient[:,2*j,0] = -xtrans[:,2*j+1] * \
-                pretrans_x[:,j]
+                pretrans_x[:,j].astype(np.float64)
         gradient[:,2*j+1,0] = xtrans[:,2*j] * \
-                pretrans_x[:,j]
+                pretrans_x[:,j].astype(np.float64)
 
     if fit_intercept:
-        xtrans *= np.sqrt(1 / (chi_arr.shape[0]-0.5),
-                dtype=test_array.dtype)
-        gradient *= np.sqrt(1 / (chi_arr.shape[0]-0.5),
-                dtype=test_array.dtype)
+        xtrans *= np.sqrt(1 / (chi_arr.shape[0]-0.5))
+        gradient *= np.sqrt(1 / (chi_arr.shape[0]-0.5))
         xtrans[:,0] = 1
         gradient[:,0] = 0
     else:

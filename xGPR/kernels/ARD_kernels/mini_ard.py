@@ -190,9 +190,10 @@ class MiniARD(KernelBaseclass):
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
-        xtrans = input_x.astype(self.dtype) * self.full_ard_weights[None,:]
+        xtrans = input_x.astype(self.dtype) * self.full_ard_weights[None,:].astype(self.dtype)
         output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        output_x_2 = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
+        #import pdb
+        #pdb.set_trace()
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
                 self.num_threads, self.fit_intercept)
         return output_x
@@ -238,9 +239,27 @@ class MiniARD(KernelBaseclass):
             ident_mat *= self.radem_diag[2:3,0,init_pt:cut_pt] * norm_constant
             dFHT2d(ident_mat, self.num_threads)
 
-            ident_mat *= padded_chi_arr[init_pt:cut_pt]
 
+            #Incorporate the simplex projection. We use a deliberately
+            #clumsy / inefficient approach here because it is easy to
+            #debug / trace.
+            scalar = np.sqrt(self.padded_dims - 1, dtype=ident_mat.dtype)
+            sum_arr = np.zeros((ident_mat.shape[0]), dtype=ident_mat.dtype)
+            for j in range(ident_mat.shape[1] - 1):
+                sum_arr += ident_mat[:,j]
+
+            sum_arr /= scalar
+            ident_mat[:,-1] = sum_arr
+            scalar = ((1 + np.sqrt(self.padded_dims, dtype=ident_mat.dtype)) /
+                (self.padded_dims - 1)).astype(ident_mat.dtype)
+            sum_arr *= scalar
+            scalar = np.sqrt(self.padded_dims / (self.padded_dims - 1),
+                dtype=ident_mat.dtype)
+            ident_mat[:,:-1] = ident_mat[:,:-1] * scalar - sum_arr[:,None]
+
+            ident_mat *= padded_chi_arr[init_pt:cut_pt]
             precomp_weights.append(ident_mat.T[:,:self._xdim[-1]])
+        
 
         self.precomputed_weights = np.vstack(precomp_weights)[:self.num_freqs,:]
         if not self.double_precision:

@@ -80,15 +80,10 @@ def run_mini_ard_grad_test(xdim, num_freqs, split_points, random_seed = 123,
     outcome_grad_d = np.allclose(gt_double_grad, double_grad)
     outcome_grad_f = np.allclose(gt_double_grad, float_grad, rtol=1e-4, atol=1e-3)
     print("Did the Grad Calc C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}, double precision? {outcome_d}")
-    print("Did the Grad Calc C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}, float precision? {outcome_f}")
+            f"{xdim}, {num_freqs}, floats, doubles? {outcome_f},{outcome_d}")
     print("Did the Grad Calc C extension provide the correct result for the "
             f"gradient for RBF of {xdim}, {num_freqs}, "
-            f"double precision? {outcome_grad_d}")
-    print("Did the Grad Calc C extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}, "
-            f"float precision? {outcome_grad_f}")
+            f"floats, doubles? {outcome_grad_f},{outcome_grad_d}")
 
     if "cupy" in sys.modules:
         outcome_cuda_d = np.allclose(gt_double, cuda_double_output)
@@ -96,13 +91,11 @@ def run_mini_ard_grad_test(xdim, num_freqs, split_points, random_seed = 123,
         outcome_cuda_grad_d = np.allclose(gt_double_grad, cuda_double_grad)
         outcome_cuda_grad_f = np.allclose(gt_double_grad, cuda_float_grad, rtol=1e-4, atol=1e-3)
         print("Did the cuda extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_cuda_d}")
-        print("Did the cuda extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs}? {outcome_cuda_f}")
+            f"{xdim}, {num_freqs} for floats, doubles? "
+            f"{outcome_cuda_f},{outcome_cuda_d}")
         print("Did the Grad Calc cuda extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_d}")
-        print("Did the Grad Calc cuda extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs}? {outcome_cuda_grad_f}")
+            f"gradient for RBF of {xdim}, {num_freqs} for floats, doubles? "
+            f"{outcome_cuda_grad_f},{outcome_cuda_grad_d}")
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f, \
                 outcome_grad_d, outcome_cuda_grad_d
     return outcome_d, outcome_f, outcome_grad_d, outcome_grad_f

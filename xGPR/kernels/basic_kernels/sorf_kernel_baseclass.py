@@ -136,7 +136,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             xtrans: A cupy or numpy array containing the generated features.
         """
         xtrans = input_x.astype(self.dtype) * self.hyperparams[1]
-        output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
+        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
                 self.num_threads, self.fit_intercept)
         return output_x
@@ -166,7 +166,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
                 output_x with respect to the kernel-specific hyperparameters.
         """
         xtrans = input_x.astype(self.dtype) * self.hyperparams[1]
-        output_x = self.empty((input_x.shape[0], self.num_rffs), self.out_type)
+        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
         dz_dsigma = self.gradfun(xtrans, output_x, self.radem_diag, self.chi_arr,
                 self.hyperparams[1], self.num_threads, self.fit_intercept)
         return output_x, dz_dsigma

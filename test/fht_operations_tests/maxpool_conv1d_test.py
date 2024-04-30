@@ -83,7 +83,7 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
         f"sigma: {sigma}, mode: {mode}, precision {precision}\n"
         f"Does result match on CPU? {outcome}")
 
-    if "cupy" not in sys.modules or 0 == 0:
+    if "cupy" not in sys.modules:
         return [outcome]
 
     xdata, seqlen = cp.asarray(xdata), cp.asarray(seqlen)
