@@ -350,7 +350,7 @@ const char *RBFFeatureGen(T origData[], int8_t *radem,
             outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, dim1,
             numRepeats, rademShape2, normConstant, rbfNormConstant);
 
-    cudaFree(&featureArray);
+    cudaFree(featureArray);
     return "no_error";
 }
 //Instantiate templates so Cython / PyBind wrappers can import.
@@ -390,7 +390,7 @@ const char *RBFFeatureGrad(T origData[], int8_t *radem,
             outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, dim1,
             numRepeats, rademShape2, normConstant, rbfNormConstant, gradientArray);
 
-    cudaFree(&featureArray);
+    cudaFree(featureArray);
 
     return "no_error";
 }
