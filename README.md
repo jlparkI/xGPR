@@ -18,14 +18,15 @@ which only provide kernels for fixed-vector data (tabular data),
 xGPR provides powerful convolution kernels for variable-length time series,
 sequences and graphs.
 
-### What's new in v0.3.2
-In v0.3, we've improved the speed and memory consumption for most processes
-and introduced sequence length masking, so that any zero-padding you use
-is masked for convolution kernels (if desired). We've also introduced
-5 new kernels for a variety of tasks and made some simplifications to the API.
-Memory usage for convolution kernels on CPU has been minimized so that
-the amount of memory used to generate RFFs is the same regardless of
-sequence length (on CPU only).
+### What's new in v0.3.5
+In v0.3.5, we've improved speed (close to 3x) and memory consumption for
+random feature generation on both CPU and GPU. Starting from v0.3.2,
+sequence length masking has been introduceds, so that (if desired)
+any zero-padding you use is masked for convolution kernels. The
+amount of memory used to generate RFFs is now the same regardless of
+sequence length on both CPU and GPU. The simplex random features
+modification of Reid et al. 2023 is also now provided as an (experimental)
+option for most kernels (see docs).
 
 
 ### Documentation

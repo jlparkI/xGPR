@@ -193,3 +193,11 @@ Extensive modifications to wrapped C++ code for CPU convolution kernels
 specifically, achieving a 25% speedup and a large reduction in memory
 usage, which is now constant irrespective of sequence length. Fixed
 bug in sequence length normalization.
+
+### Version 0.3.5
+Achieved a close to 3x speedup for GPU random feature generation for
+convolution kernels and significant further speedup for CPU convolution
+kernels. Memory consumption now scales as O(1) with sequence length
+for both CPU / GPU. Added the simplex random features (Reid et al. 2023)
+modification as an option for most kernels, with the exception of
+MiniARD and (of course) Linear.
