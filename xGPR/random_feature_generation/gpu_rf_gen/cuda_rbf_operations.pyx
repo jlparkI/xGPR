@@ -23,12 +23,14 @@ cdef extern from "rbf_ops/rbf_ops.h" nogil:
                 T chiArr[], double *outputArray,
                 double rbfNormConstant,
                 int dim0, int dim1, int rademShape2,
-                int numFreqs, int paddedBufferSize)
+                int numFreqs, int paddedBufferSize,
+                bool simplex)
     const char *RBFFeatureGrad[T](T origData[], int8_t *radem,
                 T chiArr[], double *outputArray,
                 double *gradientArray, double rbfNormConstant,
                 T sigma, int dim0, int dim1, int rademShape2,
-                int numFreqs, int paddedBufferSize)
+                int numFreqs, int paddedBufferSize,
+                bool simplex)
 
 cdef extern from "rbf_ops/ard_ops.h" nogil:
     const char *ardCudaGrad[T](T inputX[], double *randomFeats,
@@ -42,7 +44,8 @@ cdef extern from "rbf_ops/ard_ops.h" nogil:
 @cython.wraparound(False)
 def cudaRBFFeatureGen(inputArray, outputArray, radem,
                 chiArr, int numThreads,
-                fitIntercept = False):
+                bool fitIntercept = False,
+                bool simplex = False):
     """Wraps RBFFeatureGen from double_specialized_ops and uses
     it to to generate random features for an RBF kernel (this same routine
     can also be used for Matern, ARD and MiniARD). This wrapper performs all
@@ -59,6 +62,7 @@ def cudaRBFFeatureGen(inputArray, outputArray, radem,
             shared interface with CPU functions.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
             the first random feature generated should be set to 1).
+        simplex (bool): If True, generate simplex random features (Reid et al. 2023).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -107,14 +111,14 @@ def cudaRBFFeatureGen(inputArray, outputArray, radem,
                 <float*>addr_chi, <double*>addr_output, rbfNormConstant,
                 inputArray.shape[0], inputArray.shape[1],
                 radem.shape[2], chiArr.shape[0],
-                paddedBufferSize);
+                paddedBufferSize, simplex);
     elif inputArray.dtype == "float64" and outputArray.dtype == "float64" and \
             chiArr.dtype == "float64":
         errCode = RBFFeatureGen[double](<double*>addr_input, <int8_t*>addr_radem,
                 <double*>addr_chi, <double*>addr_output, rbfNormConstant,
                 inputArray.shape[0], inputArray.shape[1],
                 radem.shape[2], chiArr.shape[0],
-                paddedBufferSize);
+                paddedBufferSize, simplex);
     else:
         raise ValueError("The input and chiArr arrays are of inconsistent types.")
 
@@ -129,7 +133,8 @@ def cudaRBFFeatureGen(inputArray, outputArray, radem,
 @cython.wraparound(False)
 def cudaRBFGrad(inputArray, outputArray, radem,
                 chiArr, double sigmaHparam,
-                int numThreads, bool fitIntercept = False):
+                int numThreads, bool fitIntercept = False,
+                bool simplex = False):
     """Wraps RBFFeatureGen and uses
     it to to generate random features for an RBF kernel
     together with the gradient. This wrapper performs all
@@ -147,6 +152,7 @@ def cudaRBFGrad(inputArray, outputArray, radem,
             shared interface with CPU functions.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
             the first random feature generated should be set to 1).
+        simplex (bool): If True, generate simplex random features (Reid et al. 2023).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -209,7 +215,7 @@ def cudaRBFGrad(inputArray, outputArray, radem,
                 rbfNormConstant, sigmaHparam,
                 inputArray.shape[0], inputArray.shape[1],
                 radem.shape[2], chiArr.shape[0],
-                paddedBufferSize);
+                paddedBufferSize, simplex);
     elif inputArray.dtype == "float64" and outputArray.dtype == "float64" and \
             chiArr.dtype == "float64":
         errCode = RBFFeatureGrad[double](<double*>addr_input, <int8_t*>addr_radem,
@@ -217,7 +223,7 @@ def cudaRBFGrad(inputArray, outputArray, radem,
                 rbfNormConstant, sigmaHparam,
                 inputArray.shape[0], inputArray.shape[1],
                 radem.shape[2], chiArr.shape[0],
-                paddedBufferSize);
+                paddedBufferSize, simplex);
     else:    
         raise ValueError("The input and chiArr arrays are of inconsistent types.")
     if errCode.decode("UTF-8") != "no_error":

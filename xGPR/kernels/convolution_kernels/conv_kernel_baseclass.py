@@ -169,7 +169,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
         x_in = input_x.astype(self.dtype) * self.hyperparams[1]
         self.conv_func(x_in, slen, self.radem_diag, xtrans,
                 self.chi_arr, self.conv_width, self.num_threads,
-                self.sequence_average)
+                self.sequence_average, self.simplex_rffs)
         if self.fit_intercept:
             xtrans[:,0] = 1
         return xtrans
@@ -214,7 +214,8 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
 
         dz_dsigma = self.grad_func(x_in, slen, self.radem_diag,
                 xtrans, self.chi_arr, self.conv_width, self.num_threads,
-                self.hyperparams[1], self.sequence_average)
+                self.hyperparams[1], self.sequence_average,
+                self.simplex_rffs)
         if self.fit_intercept:
             xtrans[:,0] = 1
             dz_dsigma[:,0,0] = 0

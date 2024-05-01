@@ -21,7 +21,8 @@ cdef extern from "convolution_ops/conv1d_operations.h" nogil:
     const char *conv1dMaxpoolFeatureGen_[T](const int8_t *radem, const T xdata[],
             const T chiArr[], double *outputArray, const int32_t *seqlengths,
             int xdim0, int xdim1, int xdim2, int numThreads, int numFreqs,
-            int convWidth, int paddedBufferSize)
+            int convWidth, int paddedBufferSize,
+            bool simplex)
 
 cdef extern from "convolution_ops/rbf_convolution.h" nogil:
     const char *convRBFFeatureGen_[T](int8_t *radem, T xdata[],
@@ -30,7 +31,8 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
             int dim1, int dim2,
             int numFreqs, int rademShape2,
             int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType)
+            double scalingTerm, int scalingType,
+            bool simplex)
     const char *convRBFGrad_[T](int8_t *radem, T xdata[],
             T chiArr[], double *outputArray, int32_t *seqlengths,
             double *gradientArray, T sigma,
@@ -38,7 +40,8 @@ cdef extern from "convolution_ops/rbf_convolution.h" nogil:
             int dim1, int dim2, int numFreqs,
             int rademShape2, int convWidth,
             int paddedBufferSize,
-            double scalingTerm, int scalingType)
+            double scalingTerm, int scalingType,
+            bool simplex)
 
 
 @cython.boundscheck(False)
@@ -48,8 +51,8 @@ def cpuConv1dMaxpool(np.ndarray[floating, ndim=3] xdata,
                 np.ndarray[np.int8_t, ndim=3] radem,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
-                int convWidth,
-                int numThreads):
+                int convWidth, int numThreads,
+                bool simplex = False):
     """Uses wrapped C extensions to perform random feature generation
     with ReLU activation and maxpooling.
 
@@ -67,6 +70,7 @@ def cpuConv1dMaxpool(np.ndarray[floating, ndim=3] xdata,
             array of shape m * C drawn from a chi distribution.
         convWidth (int): The width of the convolution. Must be <= D when xdata is (N x D x C).
         num_threads (int): Number of threads to use for FHT.
+        simplex (bool): If True, use simplex random features (Reid et al. 2023).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -112,13 +116,13 @@ def cpuConv1dMaxpool(np.ndarray[floating, ndim=3] xdata,
         errCode = conv1dMaxpoolFeatureGen_[float](&radem[0,0,0], <float*>addr_input,
                 <float*>addr_chi, &outputArray[0,0], &sequence_lengths[0],
                 xdata.shape[0], xdata.shape[1], xdata.shape[2], numThreads,
-                radem.shape[2], convWidth, paddedBufferSize)
+                radem.shape[2], convWidth, paddedBufferSize, simplex)
 
     elif chiArr.dtype == "float64" and xdata.dtype == "float64":
         errCode = conv1dMaxpoolFeatureGen_[double](&radem[0,0,0], <double*>addr_input,
                 <double*>addr_chi, &outputArray[0,0], &sequence_lengths[0],
                 xdata.shape[0], xdata.shape[1], xdata.shape[2], numThreads,
-                radem.shape[2], convWidth, paddedBufferSize)
+                radem.shape[2], convWidth, paddedBufferSize, simplex)
 
     else:
         raise ValueError("Unexpected types passed to wrapped C++ function.")
@@ -136,7 +140,8 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
                 int convWidth, int numThreads,
-                str averageFeatures = 'none'):
+                str averageFeatures = 'none',
+                bool simplex = False):
     """Uses wrapped C functions to generate random features for Conv1d RBF-related kernels.
     This function cannot be used to calculate the gradient so is only used for forward pass
     only (during fitting, inference, non-gradient-based optimization). It does not multiply
@@ -159,6 +164,7 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
         averageFeatures (str): Whether to average the features generated along the
             first axis (makes kernel result less dependent on sequence length / graph
             size). Must be one of 'none', 'sqrt', 'full'.
+        simplex (bool): If True, use simplex random features (Reid et al. 2023).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -218,7 +224,8 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
                 xdata.shape[1], xdata.shape[2],
                 chiArr.shape[0], radem.shape[2],
                 convWidth, paddedBufferSize,
-                scalingTerm, scalingType)
+                scalingTerm, scalingType,
+                simplex)
 
     elif chiArr.dtype == "float64" and xdata.dtype == "float64":
         errCode = convRBFFeatureGen_[double](&radem[0,0,0], <double*>addr_input,
@@ -227,7 +234,8 @@ def cpuConv1dFGen(np.ndarray[floating, ndim=3] xdata,
                 xdata.shape[1], xdata.shape[2],
                 chiArr.shape[0], radem.shape[2],
                 convWidth, paddedBufferSize,
-                scalingTerm, scalingType)
+                scalingTerm, scalingType,
+                simplex)
 
     else:
         raise ValueError("Unexpected types passed to wrapped C++ function.")
@@ -247,7 +255,8 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[floating, ndim=1] chiArr,
                 int convWidth, int numThreads, float sigma,
-                str averageFeatures = 'none'):
+                str averageFeatures = 'none',
+                bool simplex = False):
     """Performs feature generation for RBF-based convolution kernels while
     also performing gradient calculations.
 
@@ -269,6 +278,7 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
         averageFeatures (str): Whether to average the features generated along the
             first axis (makes kernel result less dependent on sequence length / graph
             size). Must be one of 'none', 'sqrt', 'full'.
+        simplex (bool): If True, use simplex random features (Reid et al. 2023).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -333,7 +343,8 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
                     xdata.shape[1], xdata.shape[2],
                     chiArr.shape[0], radem.shape[2],
                     convWidth, paddedBufferSize,
-                    scalingTerm, scalingType)
+                    scalingTerm, scalingType,
+                    simplex)
 
     elif chiArr.dtype == "float64" and xdata.dtype == "float64":
         errCode = convRBFGrad_[double](&radem[0,0,0], <double*>addr_input,
@@ -343,7 +354,8 @@ def cpuConvGrad(np.ndarray[floating, ndim=3] xdata,
                     xdata.shape[1], xdata.shape[2],
                     chiArr.shape[0], radem.shape[2],
                     convWidth, paddedBufferSize,
-                    scalingTerm, scalingType)
+                    scalingTerm, scalingType,
+                    simplex)
 
     else:
         raise ValueError("Unexpected types passed to wrapped C++ function.")

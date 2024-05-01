@@ -47,10 +47,11 @@ class FHTMaxpoolConv1dFeatureExtractor():
             on the current device.
         num_threads (int): Number of threads to use if running on CPU;
             ignored if running on GPU.
+        simplex_rffs (bool): If True, use the simplex modification (Reid et al. 2023).
     """
 
     def __init__(self, seqwidth, num_rffs, random_seed = 123, device = "cpu",
-                    conv_width = 9, num_threads = 2):
+                    conv_width = 9, num_threads = 2, simplex_rffs = False):
         """Constructor for FHT_Conv1d.
 
         Args:
@@ -63,11 +64,14 @@ class FHTMaxpoolConv1dFeatureExtractor():
             conv_width (int): The width of the convolution kernel. Defaults to 9.
             num_threads (int): Number of threads to use if running on CPU;
                 ignored if running on GPU.
+            simplex_rffs (bool): If True, use the simplex modification (Reid et al. 2023).
 
         Raises:
             ValueError: A ValueError is raised if the dimensions of the input are
                 inappropriate given the conv_width.
         """
+        self.simplex_rffs = simplex_rffs
+
         rng = np.random.default_rng(random_seed)
         self.conv_width = conv_width
 
@@ -126,7 +130,7 @@ class FHTMaxpoolConv1dFeatureExtractor():
         x_in = input_x.astype(self.dtype)
         self.conv_func(x_in, sequence_length, self.radem_diag,
                 output_x, self.chi_arr, self.conv_width,
-                self.num_threads)
+                self.num_threads, self.simplex_rffs)
         output_x = output_x[:,:self.num_rffs]
         return output_x
 

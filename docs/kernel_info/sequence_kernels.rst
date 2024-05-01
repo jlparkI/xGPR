@@ -29,6 +29,8 @@ may in some cases be beneficial.
        | "averaging": str One of 'none', 'sqrt',
        | 'full'. See below.
        | "intercept":bool
+       | "simplex_rffs":bool . An experimental feature,
+       | see below.
    * - Conv1dMatern
      - | Compares sequences by averaging over
        | a Matern kernel applied pairwise to
@@ -39,6 +41,8 @@ may in some cases be beneficial.
        | 'full'. See below.
        | "intercept":bool
        | "matern_nu":float
+       | "simplex_rffs":bool . An experimental feature,
+       | see below.
    * - Conv1dCauchy
      - | Compares sequences by averaging over
        | a Cauchy kernel applied pairwise to
@@ -48,6 +52,8 @@ may in some cases be beneficial.
        | "averaging": str One of 'none', 'sqrt',
        | 'full'. See below.
        | "intercept":bool
+       | "simplex_rffs":bool . An experimental feature,
+       | see below.
 
 
 If we have a sequence (or time series) of length N and k = conv_width,
@@ -93,3 +99,10 @@ between ``Conv1dMatern``, ``Conv1dCauchy`` and ``Conv1dRBF`` is
 small; if this is your primary concern, we recommend defaulting
 to ``Conv1dRBF`` and experimenting with the others if desired to
 see if some small further performance achievement can be obtained.
+
+The simplex_rffs argument is an experimental feature which implements the
+simplex rffs modification from Reid et al. 2023. This modification slightly
+increases computational cost but (under some circumstances) slightly
+decreases the number of RFFs required to achieve the same level of kernel
+approximation. We haven't fully decided yet whether this modification is
+worth keeping so it is experimental / not fully tested for now.

@@ -18,6 +18,8 @@ model, set ``kernel_choice = 'kernel name'``, e.g.
      - | Models smooth, infinitely differentiable
        | functions; good default.
      - | "intercept":bool
+       | "simplex_rffs":bool . An experimental feature,
+       | see below.
    * - Matern
      - | Models "rougher" functions than RBF.
        | nu = 5/2 models twice differentiable functions,
@@ -28,18 +30,24 @@ model, set ``kernel_choice = 'kernel name'``, e.g.
        | spaces.
      - | "matern_nu":float
        | "intercept":bool
+       | "simplex_rffs":bool . An experimental feature,
+       | see below.
    * - Cauchy
      - | A scale mixture of RBF kernels; models functions that
        | vary smoothly across multiple lengthscales.
        | This is a rational quadratic kernel with degrees of
        | freedom set to 1.
      - | "intercept":bool
+       | "simplex_rffs":bool . An experimental feature,
+       | see below.
    * - RBFLinear
      - | The sum of a linear kernel and an RBF kernel. Models
        | functions that are close to linear but with some fairly
        | smooth "wiggles". Use "intercept" to indicate if a y-
        | intercept should be fitted.
      - | "intercept":bool
+       | "simplex_rffs":bool . An experimental feature,
+       | see below.
    * - Linear
      - | Equivalent to Bayesian linear regression.
        | Use "intercept" to indicate if a y-
@@ -132,3 +140,10 @@ is your primary concern and you are not sure which kernel makes sense
 for your application, we recommend using the RBF kernel as a default, and
 potentially experimenting with the alternatives to see if they can provide
 some additional small gains.
+
+The simplex_rffs argument is an experimental feature which implements the
+simplex rffs modification from Reid et al. 2023. This modification slightly
+increases computational cost but (under some circumstances) slightly
+decreases the number of RFFs required to achieve the same level of kernel
+approximation. We haven't fully decided yet whether this modification is
+worth keeping so it is experimental / not fully tested for now.

@@ -26,14 +26,16 @@ cdef extern from "rbf_ops/rbf_ops.h" nogil:
                 double rbfNormConstant,
                 int dim0, int dim1, int rademShape2,
                 int numFreqs, int numThreads,
-                int paddedBufferSize)
+                int paddedBufferSize,
+                bool simplex)
     const char *rbfGrad_[T](T cArray[], int8_t *radem,
                 T chiArr[], double *outputArray,
                 double *gradientArray,
                 double rbfNormConstant, T sigma,
                 int dim0, int dim1, int rademShape2,
                 int numFreqs, int numThreads,
-                int paddedBufferSize)
+                int paddedBufferSize,
+                bool simplex)
 
 cdef extern from "rbf_ops/ard_ops.h" nogil:
     const char *ardGrad_[T](T inputX[], double *randomFeatures,
@@ -50,7 +52,8 @@ def cpuRBFFeatureGen(np.ndarray[floating, ndim=2] inputArray,
                 np.ndarray[np.float64_t, ndim=2] outputArray,
                 np.ndarray[np.int8_t, ndim=3] radem,
                 np.ndarray[floating, ndim=1] chiArr,
-                int numThreads, bool fitIntercept = False):
+                int numThreads, bool fitIntercept = False,
+                bool simplex = False):
     """Wraps floatRBFFeatureGen from double_specialized_ops and uses
     it to to generate random features for an RBF kernel (this same routine
     can also be used for Matern, ARD and MiniARD). This wrapper performs all
@@ -66,6 +69,7 @@ def cpuRBFFeatureGen(np.ndarray[floating, ndim=2] inputArray,
         numThreads (int): Number of threads to run.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
             the first random feature generated should be set to 1).
+        simplex (bool): If True, use simplex random features (Reid et al. 2023).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or unacceptable inputs
@@ -112,14 +116,16 @@ def cpuRBFFeatureGen(np.ndarray[floating, ndim=2] inputArray,
                 <float*>addr_chi, &outputArray[0,0], rbfNormConstant,
                 inputArray.shape[0], inputArray.shape[1],
                 radem.shape[2], chiArr.shape[0],
-                numThreads, paddedBufferSize);
+                numThreads, paddedBufferSize,
+                simplex);
     elif inputArray.dtype == "float64" and outputArray.dtype == "float64" \
             and chiArr.dtype == "float64":
         errCode = rbfFeatureGen_[double](<double*>addr_input, &radem[0,0,0],
                 <double*>addr_chi, &outputArray[0,0], rbfNormConstant,
                 inputArray.shape[0], inputArray.shape[1],
                 radem.shape[2], chiArr.shape[0],
-                numThreads, paddedBufferSize);
+                numThreads, paddedBufferSize,
+                simplex);
     else:
         raise ValueError("The input, output and chiArr arrays do not have expected types.")
     if errCode.decode("UTF-8") != "no_error":
@@ -139,7 +145,8 @@ def cpuRBFGrad(np.ndarray[floating, ndim=2] inputArray,
                 np.ndarray[np.int8_t, ndim=3] radem,
                 np.ndarray[floating, ndim=1] chiArr,
                 float sigmaHparam, int numThreads,
-                bool fitIntercept = False):
+                bool fitIntercept = False,
+                bool simplex = False):
     """Wraps floatRBFFeatureGen from double_specialized_ops and uses
     it to to generate random features for an RBF kernel (this same routine
     can also be used for Matern, ARD and MiniARD). This wrapper performs all
@@ -156,6 +163,7 @@ def cpuRBFGrad(np.ndarray[floating, ndim=2] inputArray,
         numThreads (int): Number of threads to run.
         fitIntercept (bool): Whether to fit a y-intercept (in this case,
             the first random feature generated should be set to 1).
+        simplex (bool): If True, use simplex random features (Reid et al. 2023).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or unacceptable inputs
@@ -209,7 +217,8 @@ def cpuRBFGrad(np.ndarray[floating, ndim=2] inputArray,
                 rbfNormConstant, sigmaHparam,
                 inputArray.shape[0], inputArray.shape[1],
                 radem.shape[2], chiArr.shape[0],
-                numThreads, paddedBufferSize)
+                numThreads, paddedBufferSize,
+                simplex)
 
     elif inputArray.dtype == "float64" and outputArray.dtype == "float64" and \
             chiArr.dtype == "float64":
@@ -218,7 +227,8 @@ def cpuRBFGrad(np.ndarray[floating, ndim=2] inputArray,
                 rbfNormConstant, sigmaHparam,
                 inputArray.shape[0], inputArray.shape[1],
                 radem.shape[2], chiArr.shape[0],
-                numThreads, paddedBufferSize)
+                numThreads, paddedBufferSize,
+                simplex)
 
     else:
         raise ValueError("The input, output and chiArr arrays do not have expected types.")

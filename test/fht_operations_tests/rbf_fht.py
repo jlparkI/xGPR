@@ -229,23 +229,24 @@ def generate_rbf_values(test_array, radem, chi_arr, nblocks,
             temp_arr *= radem[j, 0, i*padded_dims:(i+1)*padded_dims] * norm_constant
             cFHT(temp_arr, 1)
 
-        #Incorporate the simplex projection. We use a deliberately
+        #The simplex projection (Reid et al 2023) (disabled for now
+        #since erratic / unclear effect on performance). We use a deliberately
         #clumsy / inefficient approach here to ensure that numpy
         #will use 32-bit float precision if the input is 32-bit
         #(otherwise numpy tends to default to 64-bit and the result
         #may not be np.allclose to the 32-bit c extension calculation)
-        scalar = np.sqrt(padded_dims - 1, dtype=temp_arr.dtype)
-        sum_arr = np.zeros((temp_arr.shape[0]), dtype=temp_arr.dtype)
-        for j in range(temp_arr.shape[1] - 1):
-            sum_arr += temp_arr[:,j]
-        sum_arr /= scalar
-        temp_arr[:,-1] = sum_arr
-        scalar = ((1 + np.sqrt(padded_dims, dtype=temp_arr.dtype)) /
-                (padded_dims - 1)).astype(temp_arr.dtype)
-        sum_arr *= scalar
-        scalar = np.sqrt(padded_dims / (padded_dims - 1),
-                dtype=temp_arr.dtype)
-        temp_arr[:,:-1] = temp_arr[:,:-1] * scalar - sum_arr[:,None]
+        #scalar = np.sqrt(padded_dims - 1, dtype=temp_arr.dtype)
+        #sum_arr = np.zeros((temp_arr.shape[0]), dtype=temp_arr.dtype)
+        #for j in range(temp_arr.shape[1] - 1):
+        #    sum_arr += temp_arr[:,j]
+        #sum_arr /= scalar
+        #temp_arr[:,-1] = sum_arr
+        #scalar = ((1 + np.sqrt(padded_dims, dtype=temp_arr.dtype)) /
+        #        (padded_dims - 1)).astype(temp_arr.dtype)
+        #sum_arr *= scalar
+        #scalar = np.sqrt(padded_dims / (padded_dims - 1),
+        #        dtype=temp_arr.dtype)
+        #temp_arr[:,:-1] = temp_arr[:,:-1] * scalar - sum_arr[:,None]
 
         pretrans_x.append(temp_arr)
 

@@ -32,7 +32,7 @@ feature convolutions are applied followed by global max pooling;
 this essentially measures what is the "best match" for a given
 random filter in the sequence of interest and thereby creates a
 "sequence profile". In the second and third layer, an ``RBF``
-(or potentially ``Matern`` or even ``Linear``, although we've only really used
+(or potentially other kernels, although we've only really used
 ``RBF``) kernel compares the sequence profile of training datapoints.
 The convolutions are performed just once and thus ``FastConv1d`` is often
 faster for hyperparameter tuning (hence the name) than ``Conv1dRBF``.
@@ -40,7 +40,7 @@ faster for hyperparameter tuning (hence the name) than ``Conv1dRBF``.
 
 If using these kernels, choose an ``RBF`` kernel when initializing
 the xGPRegression model (for ``FastConv1d``). (You *could* also use
-Linear or Matern in principle, but we've never found that to be
+Linear or Matern or some other in principle, but we've never found that to be
 terribly useful.)
 
 For each feature extractor, you can supply additional arguments to control
@@ -57,6 +57,8 @@ what kind of features it generates. These are summarized below.
        | array).
    * - ``device``
      - | One of "gpu", "cpu".
+   * - ``random_seed``
+     - | The random seed (for reproducibility).
    * - ``conv_width``
      - | An integer -- the convolution width.
    * - ``num_features``
@@ -64,3 +66,8 @@ what kind of features it generates. These are summarized below.
        | Larger numbers will improve accuracy but increase
        | computational expense. Try 1000 - 2000 to start with
        | and increase if needed.
+   * - ``simplex_rffs``
+     - | Applies the simplex random features modification from
+       | Reid et al. 2023 (an experimental feature that may
+       | sometimes improve performance but slightly increases
+       | computational cost).

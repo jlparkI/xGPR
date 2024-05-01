@@ -21,26 +21,30 @@ cdef extern from "convolution_ops/convolution.h" nogil:
     const char *conv1dMaxpoolFeatureGen[T](const int8_t *radem, const T xdata[],
             const T chiArr[], double *outputArray, const int32_t *seqlengths,
             int xdim0, int xdim1, int xdim2, int numFreqs,
-            int convWidth, int paddedBufferSize, int rademShape2)
+            int convWidth, int paddedBufferSize, int rademShape2,
+            bool simplex)
 
 cdef extern from "convolution_ops/rbf_convolution.h" nogil:
     const char *convRBFFeatureGen[T](const int8_t *radem, const T xdata[],
             const T chiArr[], double *outputArray, int32_t *seqlengths,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType)
+            double scalingTerm, int scalingType,
+            bool simplex)
     const char *convRBFFeatureGrad[T](const int8_t *radem, const T xdata[],
             const T chiArr[], double *outputArray, int32_t *seqlengths,
             double *gradientArray, double sigma,
             int xdim0, int xdim1, int xdim2, int numFreqs,
             int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType)
+            double scalingTerm, int scalingType,
+            bool simplex)
 
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def gpuConv1dMaxpool(xdata, sequence_lengths, radem, outputArray,
-                chiArr, int convWidth, int numThreads):
+                chiArr, int convWidth, int numThreads,
+                bool simplex = False):
     """Uses wrapped C extensions to perform random feature generation
     with ReLU activation and maxpooling.
 
@@ -58,6 +62,7 @@ def gpuConv1dMaxpool(xdata, sequence_lengths, radem, outputArray,
             array of shape m * C drawn from a chi distribution.
         convWidth (int): The width of the convolution. Must be <= D when xdata is (N x D x C).
         num_threads (int): Number of threads to use for FHT.
+        simplex (bool): If True, use simplex random features (Reid et al. 2023).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -125,7 +130,7 @@ def gpuConv1dMaxpool(xdata, sequence_lengths, radem, outputArray,
                     xdata.shape[0], xdata.shape[1],
                     xdata.shape[2], chiArr.shape[0],
                     convWidth, paddedBufferSize,
-                    radem.shape[2])
+                    radem.shape[2], simplex)
 
     elif outputArray.dtype == "float64" and xdata.dtype == "float64" and \
             chiArr.dtype == "float64":
@@ -134,7 +139,7 @@ def gpuConv1dMaxpool(xdata, sequence_lengths, radem, outputArray,
                     xdata.shape[0], xdata.shape[1],
                     xdata.shape[2], chiArr.shape[0],
                     convWidth, paddedBufferSize,
-                    radem.shape[2])
+                    radem.shape[2], simplex)
     else:
         raise ValueError("Incorrect data types supplied.")
 
@@ -148,7 +153,8 @@ def gpuConv1dMaxpool(xdata, sequence_lengths, radem, outputArray,
 @cython.wraparound(False)
 def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
                 chiArr, int convWidth, int numThreads,
-                str averageFeatures = "none"):
+                str averageFeatures = "none",
+                bool simplex = False):
     """Uses wrapped C functions to generate random features for Conv1d RBF-related kernels.
     This function cannot be used to calculate the gradient so is only used for forward pass
     only (during fitting, inference, non-gradient-based optimization). It does not multiply
@@ -171,6 +177,7 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
         averageFeatures (str): Whether to average the features generated along the
             first axis (makes kernel result less dependent on sequence length / graph
             size). Must be one of 'none', 'sqrt', 'full'.
+        simplex (bool): If True, use simplex random features (Reid et al. 2023).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -238,7 +245,7 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
                     xdata.shape[0], xdata.shape[1],
                     xdata.shape[2], chiArr.shape[0], radem.shape[2],
                     convWidth, paddedBufferSize, scalingTerm,
-                    scalingType)
+                    scalingType, simplex)
 
     elif outputArray.dtype == "float64" and xdata.dtype == "float64" and \
             chiArr.dtype == "float64":
@@ -247,7 +254,7 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
                     xdata.shape[0], xdata.shape[1],
                     xdata.shape[2], chiArr.shape[0], radem.shape[2],
                     convWidth, paddedBufferSize, scalingTerm,
-                    scalingType)
+                    scalingType, simplex)
     else:
         raise ValueError("Incorrect data types supplied.")
 
@@ -260,7 +267,8 @@ def gpuConv1dFGen(xdata, sequence_lengths, radem, outputArray,
 @cython.wraparound(False)
 def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
                 int convWidth, int numThreads, float sigma,
-                str averageFeatures = "none"):
+                str averageFeatures = "none",
+                bool simplex = False):
     """Performs feature generation for the GraphRBF kernel while also performing
     gradient calculations.
 
@@ -281,6 +289,7 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
         averageFeatures (str): Whether to average the features generated along the
             first axis (makes kernel result less dependent on sequence length / graph
             size). Must be one of 'none', 'sqrt', 'full'.
+        simplex (bool): If True, use simplex random features (Reid et al. 2023).
 
     Raises:
         ValueError: A ValueError is raised if unexpected or invalid inputs are supplied.
@@ -358,7 +367,8 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
             <double*>addr_gradient, sigma,
             xdata.shape[0], xdata.shape[1], xdata.shape[2],
             chiArr.shape[0], radem.shape[2], convWidth,
-            paddedBufferSize, scalingTerm, scalingType)
+            paddedBufferSize, scalingTerm, scalingType,
+            simplex)
 
     elif outputArray.dtype == "float64" and xdata.dtype == "float64" and \
             chiArr.dtype == "float64":
@@ -367,7 +377,8 @@ def gpuConvGrad(xdata, sequence_lengths, radem, outputArray, chiArr,
             <double*>addr_gradient, sigma,
             xdata.shape[0], xdata.shape[1], xdata.shape[2],
             chiArr.shape[0], radem.shape[2], convWidth,
-            paddedBufferSize, scalingTerm, scalingType)
+            paddedBufferSize, scalingTerm, scalingType,
+            simplex)
     else:
         raise ValueError("Incorrect data types supplied.")
 

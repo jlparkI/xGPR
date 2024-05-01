@@ -73,25 +73,26 @@ def get_reshaped_x(xdata, kernel_width, dim2, radem, num_blocks,
     reshaped_x *= radem[2:3,:,start:end] * norm_constant
     fht_func(reshaped_x, 1)
 
-    #Incorporate the simplex projection. We use a deliberately
+    #The simplex projection (Reid et al 2023) (disabled for now
+    #since erratic / unclear effect on performance). We use a deliberately
     #clumsy / inefficient approach here to ensure that numpy
     #will use 32-bit float precision if the input is 32-bit
     #(otherwise numpy tends to default to 64-bit and the result
     #may not be np.allclose to the 32-bit c extension calculation)
-    scalar = np.sqrt(reshaped_x.shape[2] - 1, dtype=reshaped_x.dtype)
-    sum_arr = np.zeros((reshaped_x.shape[0], reshaped_x.shape[1]),
-            dtype=reshaped_x.dtype)
-    for j in range(reshaped_x.shape[2] - 1):
-        sum_arr += reshaped_x[:,:,j]
+    #scalar = np.sqrt(reshaped_x.shape[2] - 1, dtype=reshaped_x.dtype)
+    #sum_arr = np.zeros((reshaped_x.shape[0], reshaped_x.shape[1]),
+    #        dtype=reshaped_x.dtype)
+    #for j in range(reshaped_x.shape[2] - 1):
+    #    sum_arr += reshaped_x[:,:,j]
 
-    sum_arr /= scalar
-    reshaped_x[:,:,-1] = sum_arr
-    scalar = ((1 + np.sqrt(reshaped_x.shape[2], dtype=reshaped_x.dtype)) /
-                (reshaped_x.shape[2] - 1)).astype(reshaped_x.dtype)
-    sum_arr *= scalar
-    scalar = np.sqrt(reshaped_x.shape[2] / (reshaped_x.shape[2] - 1),
-                dtype=reshaped_x.dtype)
-    reshaped_x[:,:,:-1] = reshaped_x[:,:,:-1] * scalar - sum_arr[:,:,None]
+    #sum_arr /= scalar
+    #reshaped_x[:,:,-1] = sum_arr
+    #scalar = ((1 + np.sqrt(reshaped_x.shape[2], dtype=reshaped_x.dtype)) /
+    #            (reshaped_x.shape[2] - 1)).astype(reshaped_x.dtype)
+    #sum_arr *= scalar
+    #scalar = np.sqrt(reshaped_x.shape[2] / (reshaped_x.shape[2] - 1),
+    #            dtype=reshaped_x.dtype)
+    #reshaped_x[:,:,:-1] = reshaped_x[:,:,:-1] * scalar - sum_arr[:,:,None]
 
     return reshaped_x
 

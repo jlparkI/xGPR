@@ -1,5 +1,5 @@
-#ifndef SPEC_CPU_RBF_OPS_H
-#define SPEC_CPU_RBF_OPS_H
+#ifndef SPEC_CPU_ARD_OPS_H
+#define SPEC_CPU_ARD_OPS_H
 
 #include <stdint.h>
 

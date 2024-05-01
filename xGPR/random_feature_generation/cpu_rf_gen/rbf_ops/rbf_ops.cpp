@@ -39,6 +39,7 @@
  * + `dim2` shape[2] of input array
  * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
  * + `numThreads` The number of threads to use.
+ * + `simplex` If True, apply the simplex modification of Reid et al. 2023.
  */
 template <typename T>
 const char *rbfFeatureGen_(T cArray[], int8_t *radem,
@@ -46,7 +47,8 @@ const char *rbfFeatureGen_(T cArray[], int8_t *radem,
                 double rbfNormConstant,
                 int dim0, int dim1, int rademShape2,
                 int numFreqs, int numThreads,
-                int paddedBufferSize){
+                int paddedBufferSize,
+                bool simplex){
     if (numThreads > dim0)
         numThreads = dim0;
 
@@ -61,10 +63,18 @@ const char *rbfFeatureGen_(T cArray[], int8_t *radem,
         if (endPosition > dim0)
             endPosition = dim0;
         
-        threads[i] = std::thread(&allInOneRBFGen<T>, cArray,
+        if (!simplex){
+            threads[i] = std::thread(&allInOneRBFGen<T>, cArray,
                 radem, chiArr, outputArray, dim1, numFreqs,
                 rademShape2, startPosition, endPosition,
                 paddedBufferSize, rbfNormConstant);
+        }
+        else{
+            threads[i] = std::thread(&allInOneRBFSimplex<T>, cArray,
+                radem, chiArr, outputArray, dim1, numFreqs,
+                rademShape2, startPosition, endPosition,
+                paddedBufferSize, rbfNormConstant);
+        }
     }
 
     for (auto& th : threads)
@@ -77,13 +87,15 @@ template const char *rbfFeatureGen_<double>(double cArray[], int8_t *radem,
                 double rbfNormConstant,
                 int dim0, int dim1, int rademShape2,
                 int numFreqs, int numThreads,
-                int paddedBufferSize);
+                int paddedBufferSize,
+                bool simplex);
 template const char *rbfFeatureGen_<float>(float cArray[], int8_t *radem,
                 float chiArr[], double *outputArray,
                 double rbfNormConstant,
                 int dim0, int dim1, int rademShape2,
                 int numFreqs, int numThreads,
-                int paddedBufferSize);
+                int paddedBufferSize,
+                bool simplex);
 
 
 /*!
@@ -112,6 +124,7 @@ template const char *rbfFeatureGen_<float>(float cArray[], int8_t *radem,
  * + `rademShape2` shape[2] of radem
  * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
  * + `numThreads` The number of threads to use.
+ * + `simplex` If True, apply the simplex modification of Reid et al. 2023.
  */
 template <typename T>
 const char *rbfGrad_(T cArray[], int8_t *radem,
@@ -120,7 +133,8 @@ const char *rbfGrad_(T cArray[], int8_t *radem,
                 double rbfNormConstant, T sigma,
                 int dim0, int dim1, int rademShape2,
                 int numFreqs, int numThreads,
-                int paddedBufferSize){
+                int paddedBufferSize,
+                bool simplex){
     if (numThreads > dim0)
         numThreads = dim0;
 
@@ -133,13 +147,23 @@ const char *rbfGrad_(T cArray[], int8_t *radem,
         endPosition = (i + 1) * chunkSize;
         if (endPosition > dim0)
             endPosition = dim0;
- 
-        threads[i] = std::thread(&allInOneRBFGrad<T>, cArray,
+
+        if (!simplex){ 
+            threads[i] = std::thread(&allInOneRBFGrad<T>, cArray,
                 radem, chiArr, outputArray,
                 gradientArray, dim1, numFreqs,
                 rademShape2, startPosition,
                 endPosition, paddedBufferSize,
                 rbfNormConstant, sigma);
+        }
+        else{
+            threads[i] = std::thread(&allInOneRBFGradSimplex<T>, cArray,
+                radem, chiArr, outputArray,
+                gradientArray, dim1, numFreqs,
+                rademShape2, startPosition,
+                endPosition, paddedBufferSize,
+                rbfNormConstant, sigma);
+        }
     }
 
     for (auto& th : threads)
@@ -153,14 +177,16 @@ template const char *rbfGrad_<double>(double cArray[], int8_t *radem,
                 double rbfNormConstant, double sigma,
                 int dim0, int dim1, int rademShape2,
                 int numFreqs, int numThreads,
-                int paddedBufferSize);
+                int paddedBufferSize,
+                bool simplex);
 template const char *rbfGrad_<float>(float cArray[], int8_t *radem,
                 float chiArr[], double *outputArray,
                 double *gradientArray,
                 double rbfNormConstant, float sigma,
                 int dim0, int dim1, int rademShape2,
                 int numFreqs, int numThreads,
-                int paddedBufferSize);
+                int paddedBufferSize,
+                bool simplex);
 
 
 
@@ -209,6 +235,52 @@ void *allInOneRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
 
 
 /*!
+ * # allInOneRBFSimplex
+ *
+ * Performs the RBF-based kernel feature generation
+ * process for the input, for one thread, but with the
+ * simplex modification of Reid et al. 2023.
+ */
+template <typename T>
+void *allInOneRBFSimplex(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, int dim1, int numFreqs, int rademShape2,
+        int startRow, int endRow, int paddedBufferSize,
+        double scalingTerm){
+
+    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
+    //Notice that we don't have error handling here...very naughty. Out of
+    //memory should be extremely rare since we are only allocating memory
+    //for one row of the convolution. TODO: add error handling here.
+    T *copyBuffer = new T[paddedBufferSize];
+    T *xElement;
+
+    for (int i=startRow; i < endRow; i++){
+
+        int repeatPosition = 0;
+        xElement = xdata + i * dim1;
+
+        for (int k=0; k < numRepeats; k++){
+            for (int m=0; m < dim1; m++)
+                copyBuffer[m] = xElement[m];
+            for (int m=dim1; m < paddedBufferSize; m++)
+                copyBuffer[m] = 0;
+
+            singleVectorSORFSimplex(copyBuffer, rademArray, repeatPosition,
+                        rademShape2, paddedBufferSize);
+            singleVectorRBFPostProcess(copyBuffer, chiArr, outputArray,
+                        paddedBufferSize, numFreqs, i, k, scalingTerm);
+            repeatPosition += paddedBufferSize;
+        }
+    }
+    delete[] copyBuffer;
+
+    return NULL;
+}
+
+
+
+
+/*!
  * # allInOneRBFGrad
  *
  * Performs the RBF-based kernel feature generation
@@ -251,3 +323,50 @@ void *allInOneRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
 
     return NULL;
 }
+
+
+/*!
+ * # allInOneRBFGradSimplex
+ *
+ * Performs the RBF-based kernel feature generation
+ * process for the input, for one thread, and calculates the
+ * gradient, which is stored in a separate array. This function
+ * uses the simplex modification of Reid et al. 2023.
+ */
+template <typename T>
+void *allInOneRBFGradSimplex(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, double *gradientArray,
+        int dim1, int numFreqs, int rademShape2, int startRow,
+        int endRow, int paddedBufferSize,
+        double scalingTerm, T sigma){
+
+    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
+    //Notice that we don't have error handling here...very naughty. Out of
+    //memory should be extremely rare since we are only allocating memory
+    //for one row of the convolution. TODO: add error handling here.
+    T *copyBuffer = new T[paddedBufferSize];
+    T *xElement;
+
+    for (int i=startRow; i < endRow; i++){
+        int repeatPosition = 0;
+        xElement = xdata + i * dim1;
+
+        for (int k=0; k < numRepeats; k++){
+            for (int m=0; m < dim1; m++)
+                copyBuffer[m] = xElement[m];
+            for (int m=dim1; m < paddedBufferSize; m++)
+                copyBuffer[m] = 0;
+
+            singleVectorSORFSimplex(copyBuffer, rademArray, repeatPosition,
+                        rademShape2, paddedBufferSize);
+            singleVectorRBFPostGrad(copyBuffer, chiArr, outputArray,
+                        gradientArray, sigma, paddedBufferSize, numFreqs,
+                        i, k, scalingTerm);
+            repeatPosition += paddedBufferSize;
+        }
+    }
+    delete[] copyBuffer;
+
+    return NULL;
+}
+

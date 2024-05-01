@@ -114,6 +114,10 @@ class MiniARD(KernelBaseclass):
         self.precomputed_weights = None
         self.device = device
 
+        #This kernel does not currently accept the simplex modification.
+        self.simplex_rffs = False
+
+
 
     def check_split_points(self, xdim):
         """Called during initialization to ensure the split points supplied
@@ -240,26 +244,25 @@ class MiniARD(KernelBaseclass):
             dFHT2d(ident_mat, self.num_threads)
 
 
-            #Incorporate the simplex projection. We use a deliberately
-            #clumsy / inefficient approach here because it is easy to
-            #debug / trace.
-            scalar = np.sqrt(self.padded_dims - 1, dtype=ident_mat.dtype)
-            sum_arr = np.zeros((ident_mat.shape[0]), dtype=ident_mat.dtype)
-            for j in range(ident_mat.shape[1] - 1):
-                sum_arr += ident_mat[:,j]
+            #The simplex modification is currently disabled for this
+            #kernel. This code would apply it to gradients.
+            #scalar = np.sqrt(self.padded_dims - 1, dtype=ident_mat.dtype)
+            #sum_arr = np.zeros((ident_mat.shape[0]), dtype=ident_mat.dtype)
+            #for j in range(ident_mat.shape[1] - 1):
+            #    sum_arr += ident_mat[:,j]
 
-            sum_arr /= scalar
-            ident_mat[:,-1] = sum_arr
-            scalar = ((1 + np.sqrt(self.padded_dims, dtype=ident_mat.dtype)) /
-                (self.padded_dims - 1)).astype(ident_mat.dtype)
-            sum_arr *= scalar
-            scalar = np.sqrt(self.padded_dims / (self.padded_dims - 1),
-                dtype=ident_mat.dtype)
-            ident_mat[:,:-1] = ident_mat[:,:-1] * scalar - sum_arr[:,None]
+            #sum_arr /= scalar
+            #ident_mat[:,-1] = sum_arr
+            #scalar = ((1 + np.sqrt(self.padded_dims, dtype=ident_mat.dtype)) /
+            #    (self.padded_dims - 1)).astype(ident_mat.dtype)
+            #sum_arr *= scalar
+            #scalar = np.sqrt(self.padded_dims / (self.padded_dims - 1),
+            #    dtype=ident_mat.dtype)
+            #ident_mat[:,:-1] = ident_mat[:,:-1] * scalar - sum_arr[:,None]
 
             ident_mat *= padded_chi_arr[init_pt:cut_pt]
             precomp_weights.append(ident_mat.T[:,:self._xdim[-1]])
-        
+
 
         self.precomputed_weights = np.vstack(precomp_weights)[:self.num_freqs,:]
         if not self.double_precision:

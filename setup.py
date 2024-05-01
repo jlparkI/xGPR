@@ -79,7 +79,7 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
     os.chdir(cpu_fast_transform_path)
     sources = []
     for target_dir in ["shared_fht_functions", "basic_ops",
-            "convolution_ops", "rbf_ops", "poly_ops"]:
+            "convolution_ops", "rbf_ops"]:
         os.chdir(target_dir)
         for fname in os.listdir():
             if not fname.endswith(".cpp"):

@@ -50,6 +50,7 @@
  * + `scalingTerm` The scaling term to apply for the random feature generation.
  * + `scalingType` An int that is one of 0, 1 or 2 to indicate what type of
  * additional scaling (if any) to perform.
+ * + `simplex` If True, apply the simplex modification of Reid et al. 2023.
  *
  * ## Returns:
  * "error" if an error, "no_error" otherwise.
@@ -62,7 +63,8 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
             int dim1, int dim2,
             int numFreqs, int rademShape2,
             int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType){
+            double scalingTerm, int scalingType,
+            bool simplex){
     if (numThreads > dim0)
         numThreads = dim0;
 
@@ -76,11 +78,20 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
         if (endRow > dim0)
             endRow = dim0;
 
-        threads[i] = std::thread(&allInOneConvRBFGen<T>, xdata,
+        if (!simplex){
+            threads[i] = std::thread(&allInOneConvRBFGen<T>, xdata,
                 radem, chiArr, outputArray,
                 seqlengths, dim1, dim2, numFreqs, rademShape2,
                 startRow, endRow, convWidth, paddedBufferSize,
                 scalingTerm, scalingType);
+        }
+        else{
+            threads[i] = std::thread(&allInOneConvRBFSimplex<T>, xdata,
+                radem, chiArr, outputArray,
+                seqlengths, dim1, dim2, numFreqs, rademShape2,
+                startRow, endRow, convWidth, paddedBufferSize,
+                scalingTerm, scalingType);
+        }
     }
 
     for (auto& th : threads)
@@ -88,6 +99,17 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
 
     return "no_error";
 }
+//Instantiate the templates the wrapper will need to access.
+template const char *convRBFFeatureGen_<float>(int8_t *radem, float xdata[],
+            float chiArr[], double *outputArray, int32_t *seqlengths,
+            int numThreads, int dim0, int dim1, int dim2, int numFreqs,
+            int rademShape2, int convWidth, int paddedBufferSize,
+            double scalingTerm, int scalingType, bool simplex);
+template const char *convRBFFeatureGen_<double>(int8_t *radem, double xdata[],
+            double chiArr[], double *outputArray, int32_t *seqlengths,
+            int numThreads, int dim0, int dim1, int dim2, int numFreqs,
+            int rademShape2, int convWidth, int paddedBufferSize,
+            double scalingTerm, int scalingType, bool simplex);
 
 
 
@@ -132,6 +154,7 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
  * + `scalingTerm` The scaling term to apply for the random feature generation.
  * + `scalingType` An int that is one of 0, 1 or 2 to indicate what type of
  * additional scaling (if any) to perform.
+ * + `simplex` If True, apply the simplex modification of Reid et al. 2023.
  *
  * ## Returns:
  * "error" if an error, "no_error" otherwise.
@@ -145,7 +168,8 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
             int dim1, int dim2, int numFreqs,
             int rademShape2, int convWidth,
             int paddedBufferSize,
-            double scalingTerm, int scalingType){
+            double scalingTerm, int scalingType,
+            bool simplex){
     if (numThreads > dim0)
         numThreads = dim0;
 
@@ -158,11 +182,22 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
         endRow = (i + 1) * chunkSize;
         if (endRow > dim0)
             endRow = dim0;
-        threads[i] = std::thread(&allInOneConvRBFGrad<T>, xdata,
+
+        if (!simplex){
+            threads[i] = std::thread(&allInOneConvRBFGrad<T>, xdata,
                 radem, chiArr, outputArray, seqlengths, gradientArray, dim1,
                 dim2, numFreqs, rademShape2, startRow,
                 endRow, convWidth, paddedBufferSize,
                 scalingTerm, scalingType, sigma);
+        }
+        else{
+            threads[i] = std::thread(&allInOneConvRBFGradSimplex<T>, xdata,
+                radem, chiArr, outputArray, seqlengths, gradientArray, dim1,
+                dim2, numFreqs, rademShape2, startRow,
+                endRow, convWidth, paddedBufferSize,
+                scalingTerm, scalingType, sigma);
+        }
+
     }
 
     for (auto& th : threads)
@@ -170,6 +205,24 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
 
     return "no_error";
 }
+//Instantiate templates for use by wrapper.
+template const char *convRBFGrad_<float>(int8_t *radem, float xdata[],
+            float chiArr[], double *outputArray, int32_t *seqlengths,
+            double *gradientArray, float sigma,
+            int numThreads, int dim0, int dim1, int dim2,
+            int numFreqs, int rademShape2,
+            int convWidth, int paddedBufferSize,
+            double scalingTerm, int scalingType,
+            bool simplex);
+template const char *convRBFGrad_<double>(int8_t *radem, double xdata[],
+            double chiArr[], double *outputArray, int32_t *seqlengths,
+            double *gradientArray, double sigma,
+            int numThreads, int dim0, int dim1, int dim2,
+            int numFreqs, int rademShape2,
+            int convWidth, int paddedBufferSize,
+            double scalingTerm, int scalingType,
+            bool simplex);
+
 
 
 
@@ -228,6 +281,67 @@ void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
 
     return NULL;
 }
+
+
+/*!
+ * # allInOneConvRBFSimplex
+ *
+ * Performs the RBF-based convolution kernel feature generation
+ * process for the input, for one thread, using the simplex
+ * modification (Reid et al. 2023)
+ */
+template <typename T>
+void *allInOneConvRBFSimplex(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, int32_t *seqlengths, int dim1, int dim2,
+        int numFreqs, int rademShape2, int startRow, int endRow,
+        int convWidth, int paddedBufferSize,
+        double scalingTerm, int scalingType){
+
+    int numKmers;
+    int32_t seqlength;
+    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
+    double rowScaler;
+    //Notice that we don't have error handling here...very naughty. Out of
+    //memory should be extremely rare since we are only allocating memory
+    //for one row of the convolution. TODO: add error handling here.
+    T *copyBuffer = new T[paddedBufferSize];
+    T *xElement;
+
+    for (int i=startRow; i < endRow; i++){
+        seqlength = seqlengths[i];
+        numKmers = seqlength - convWidth + 1;
+        if (scalingType == 1)
+            rowScaler = scalingTerm / sqrt( (double)numKmers);
+        else if (scalingType == 2)
+            rowScaler = scalingTerm / (double)numKmers;
+        else
+            rowScaler = scalingTerm;
+
+        for (int j=0; j < numKmers; j++){
+            int repeatPosition = 0;
+            xElement = xdata + i * dim1 * dim2 + j * dim2;
+
+            for (int k=0; k < numRepeats; k++){
+                for (int m=0; m < (convWidth * dim2); m++)
+                    copyBuffer[m] = xElement[m];
+                for (int m=(convWidth * dim2); m < paddedBufferSize; m++)
+                    copyBuffer[m] = 0;
+
+                singleVectorSORFSimplex(copyBuffer, rademArray, repeatPosition,
+                        rademShape2, paddedBufferSize);
+                singleVectorRBFPostProcess(copyBuffer, chiArr, outputArray,
+                        paddedBufferSize, numFreqs, i, k, rowScaler);
+                repeatPosition += paddedBufferSize;
+            }
+        }
+    }
+    delete[] copyBuffer;
+
+    return NULL;
+}
+
+
+
 
 
 /*!
@@ -290,29 +404,61 @@ void *allInOneConvRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
 
 
 
-//Instantiate the templates the wrapper will need to access.
-template const char *convRBFFeatureGen_<float>(int8_t *radem, float xdata[],
-            float chiArr[], double *outputArray, int32_t *seqlengths,
-            int numThreads, int dim0, int dim1, int dim2, int numFreqs,
-            int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType);
-template const char *convRBFFeatureGen_<double>(int8_t *radem, double xdata[],
-            double chiArr[], double *outputArray, int32_t *seqlengths,
-            int numThreads, int dim0, int dim1, int dim2, int numFreqs,
-            int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType);
+/*!
+ * # allInOneConvRBFGradSimplex
+ *
+ * Performs the RBF-based convolution kernel feature generation
+ * process for the input, for one thread, and calculates the
+ * gradient, which is stored in a separate array. Uses the
+ * simplex modification.
+ */
+template <typename T>
+void *allInOneConvRBFGradSimplex(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, int32_t *seqlengths, double *gradientArray,
+        int dim1, int dim2, int numFreqs, int rademShape2, int startRow,
+        int endRow, int convWidth, int paddedBufferSize,
+        double scalingTerm, int scalingType, T sigma){
 
-template const char *convRBFGrad_<float>(int8_t *radem, float xdata[],
-            float chiArr[], double *outputArray, int32_t *seqlengths,
-            double *gradientArray, float sigma,
-            int numThreads, int dim0, int dim1, int dim2,
-            int numFreqs, int rademShape2,
-            int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType);
-template const char *convRBFGrad_<double>(int8_t *radem, double xdata[],
-            double chiArr[], double *outputArray, int32_t *seqlengths,
-            double *gradientArray, double sigma,
-            int numThreads, int dim0, int dim1, int dim2,
-            int numFreqs, int rademShape2,
-            int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType);
+    int numKmers;
+    int32_t seqlength;
+    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
+    double rowScaler;
+    //Notice that we don't have error handling here...very naughty. Out of
+    //memory should be extremely rare since we are only allocating memory
+    //for one row of the convolution. TODO: add error handling here.
+    T *copyBuffer = new T[paddedBufferSize];
+    T *xElement;
+
+    for (int i=startRow; i < endRow; i++){
+        seqlength = seqlengths[i];
+        numKmers = seqlength - convWidth + 1;
+        if (scalingType == 1)
+            rowScaler = scalingTerm / sqrt( (double)numKmers);
+        else if (scalingType == 2)
+            rowScaler = scalingTerm / (double)numKmers;
+        else
+            rowScaler = scalingTerm;
+
+        for (int j=0; j < numKmers; j++){
+            int repeatPosition = 0;
+            xElement = xdata + i * dim1 * dim2 + j * dim2;
+
+            for (int k=0; k < numRepeats; k++){
+                for (int m=0; m < (convWidth * dim2); m++)
+                    copyBuffer[m] = xElement[m];
+                for (int m=(convWidth * dim2); m < paddedBufferSize; m++)
+                    copyBuffer[m] = 0;
+
+                singleVectorSORFSimplex(copyBuffer, rademArray, repeatPosition,
+                        rademShape2, paddedBufferSize);
+                singleVectorRBFPostGrad(copyBuffer, chiArr, outputArray,
+                        gradientArray, sigma, paddedBufferSize, numFreqs,
+                        i, k, rowScaler);
+                repeatPosition += paddedBufferSize;
+            }
+        }
+    }
+    delete[] copyBuffer;
+
+    return NULL;
+}

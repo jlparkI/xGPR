@@ -10,7 +10,7 @@
 #include <math.h>
 #include <vector>
 #include <thread>
-#include "rbf_ops.h"
+#include "ard_ops.h"
 #include "../shared_fht_functions/hadamard_transforms.h"
 #include "../shared_fht_functions/shared_rfgen_ops.h"
 

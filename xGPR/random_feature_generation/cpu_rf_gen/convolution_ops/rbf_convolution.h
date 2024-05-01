@@ -14,7 +14,8 @@ const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
             int dim1, int dim2,
             int numFreqs, int rademShape2,
             int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType);
+            double scalingTerm, int scalingType,
+            bool simplex);
 
 template <typename T>
 const char *convRBFGrad_(int8_t *radem, T xdata[],
@@ -25,10 +26,18 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
             int dim1, int dim2, int numFreqs,
             int rademShape2, int convWidth,
             int paddedBufferSize,
-            double scalingTerm, int scalingType);
+            double scalingTerm, int scalingType,
+            bool simplex);
 
 template <typename T>
 void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, int32_t *seqlengths, int dim1, int dim2,
+        int numFreqs, int rademShape2, int startRow, int endRow,
+        int convWidth, int paddedBufferSize,
+        double scalingTerm, int scalingType);
+
+template <typename T>
+void *allInOneConvRBFSimplex(T xdata[], int8_t *rademArray, T chiArr[],
         double *outputArray, int32_t *seqlengths, int dim1, int dim2,
         int numFreqs, int rademShape2, int startRow, int endRow,
         int convWidth, int paddedBufferSize,
@@ -42,18 +51,10 @@ void *allInOneConvRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
         double scalingTerm, int scalingType, T sigma);
 
 template <typename T>
-void singleVectorRBFPostProcess(const T xdata[],
-        const T chiArr[], double *outputArray,
-        int dim2, int numFreqs,
-        int rowNumber, int repeatNum,
-        double scalingTerm);
-
-template <typename T>
-void singleVectorRBFPostGrad(const T xdata[],
-        const T chiArr[], double *outputArray,
-        double *gradientArray, T sigma,
-        int dim2, int numFreqs,
-        int rowNumber, int repeatNum,
-        double scalingTerm);
+void *allInOneConvRBFGradSimplex(T xdata[], int8_t *rademArray, T chiArr[],
+        double *outputArray, int32_t *seqlengths, double *gradientArray,
+        int dim1, int dim2, int numFreqs, int rademShape2, int startRow,
+        int endRow, int convWidth, int paddedBufferSize,
+        double scalingTerm, int scalingType, T sigma);
 
 #endif

@@ -13,8 +13,7 @@
 //Generates the FastConv kernel features. This single kernel loops over 1) kmers
 //then 2) the number of repeats then inside that loop 3) the three diagonal
 //matrix multiplications and fast Hadamard transforms before
-//applying 4) the simplex projection and 5) diagonal matmul before
-//activation function.
+//applying 4) diagonal matmul before activation function.
 template <typename T>
 __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
         double *outputArray, const T chiArr[], const int8_t *radem,
@@ -32,8 +31,138 @@ __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
     int tempArrPos, chiArrPos = 0, inputCutoff = xDim2 * convWidth;
     int inputArrPos = (blockIdx.x * xDim1 * xDim2);
     int outputArrPos = (blockIdx.x * numFreqs);
-    T y, bufferSum, simplexProjPrefactor;
-    double outputVal;
+    T y, outputVal;
+
+    const int8_t *rademPtr = radem;
+
+    //Loop over the kmers in this stretch.
+    for (int kmer = 0; kmer < colCutoff; kmer++){
+        chiArrPos = 0;
+        outputArrPos = (blockIdx.x * numFreqs);
+        inputArrPos = (blockIdx.x * xDim1 * xDim2) + kmer * xDim2;
+
+        //Run over the number of repeats required to generate the random
+        //features.
+        for (int rep = 0; rep < nRepeats; rep++){
+            tempArrPos = (blockIdx.x << log2N);
+
+            //Copy original data into the temporary array.
+            for (int i = threadIdx.x; i < paddedBufferSize; i += blockDim.x){
+                if (i < inputCutoff)
+                    cArray[i + tempArrPos] = origData[i + inputArrPos];
+                else
+                    cArray[i + tempArrPos] = 0;
+            }
+
+            //Run over three repeats for the SORF procedure.
+            for (int sorfRep = 0; sorfRep < 3; sorfRep++){
+                rademPtr = radem + paddedBufferSize * rep + sorfRep * rademShape2;
+                tempArrPos = (blockIdx.x << log2N);
+
+                for (int hStep = 0; hStep < paddedBufferSize; hStep+=stepSize){
+                    for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
+                        s_data[i] = cArray[i + tempArrPos];
+
+                    __syncthreads();
+
+                    //Multiply by the diagonal array here.
+                    for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
+                        s_data[i] = s_data[i] * rademPtr[i] * normConstant;
+
+                    rademPtr += stepSize;
+
+                    id1 = (pos << 1);
+                    id2 = id1 + 1;
+                    __syncthreads();
+                    y = s_data[id2];
+                    s_data[id2] = s_data[id1] - y;
+                    s_data[id1] += y;
+
+                    for (spacing = 2; spacing < stepSize; spacing <<= 1){
+                        //Equivalent to pos mod spacing if spacing is a power of 2,
+                        //which here is always true.
+                        lo = pos & (spacing - 1);
+                        id1 = ((pos - lo) << 1) + lo;
+                        id2 = id1 + spacing;
+                        __syncthreads();
+                        y = s_data[id2];
+                        s_data[id2] = s_data[id1] - y;
+                        s_data[id1] += y;
+                    }
+                    __syncthreads();
+
+                    for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
+                        cArray[i + tempArrPos] = s_data[i];
+
+                    tempArrPos += stepSize;
+                    __syncthreads();
+                }
+
+                //A less efficient global memory procedure to complete the FHT
+                //for long arrays.
+                if (paddedBufferSize > MAX_BASE_LEVEL_TRANSFORM){
+                    tempArrPos = (blockIdx.x << log2N);
+
+                    for (int spacing = stepSize; spacing < paddedBufferSize; spacing <<= 1){
+
+                        for (int k = 0; k < paddedBufferSize; k += (spacing << 1)){
+                            for (int i = threadIdx.x; i < spacing; i += blockDim.x){
+                                id1 = i + k + tempArrPos;
+                                id2 = id1 + spacing;
+                                y = cArray[id2];
+                                cArray[id2] = cArray[id1] - y;
+                                cArray[id1] += y;
+                            }
+                            __syncthreads();
+                        }
+                    }
+                }
+            }
+            //Now take the results stored in the temporary array, apply the
+            //activation function, and populate the output array. Note that
+            //we multiply by 2 in the output array position since two
+            //features are generated for each frequency sampled.
+            tempArrPos = (blockIdx.x << log2N);
+
+            for (int i = threadIdx.x; i < paddedBufferSize; i += blockDim.x){
+                if ((i + chiArrPos) >= numFreqs)
+                    break;
+                outputVal = chiArr[chiArrPos + i] * cArray[tempArrPos + i];
+                outputArray[outputArrPos + i] = MAX(outputArray[outputArrPos + i], outputVal);
+            }
+
+            chiArrPos += stepSize;
+            outputArrPos += stepSize;
+            __syncthreads();
+        }
+    }
+}
+
+
+
+//Generates the FastConv kernel features but with the simplex modification
+//from Reid et al. 2023. This single kernel loops over 1) kmers
+//then 2) the number of repeats then inside that loop 3) the three diagonal
+//matrix multiplications and fast Hadamard transforms before
+//applying 4) simplex projection and 5) diagonal matmul before activation function.
+template <typename T>
+__global__ void convMaxpoolFeatureSimplexKernel(const T origData[], T cArray[],
+        double *outputArray, const T chiArr[], const int8_t *radem,
+        int paddedBufferSize, int log2N, int numFreqs, int xDim1, int xDim2,
+        int nRepeats, T normConstant, int convWidth,
+        const int32_t *seqlengths, int rademShape2){
+
+    int stepSize = MIN(paddedBufferSize, MAX_BASE_LEVEL_TRANSFORM);
+    int colCutoff = seqlengths[blockIdx.x] - convWidth + 1;
+
+    SharedMemory<T> shared;
+    T *s_data = shared.getPointer();
+    int spacing, pos = threadIdx.x;
+    int lo, id1, id2;
+    int tempArrPos, chiArrPos = 0, inputCutoff = xDim2 * convWidth;
+    int inputArrPos = (blockIdx.x * xDim1 * xDim2);
+    int outputArrPos = (blockIdx.x * numFreqs);
+    T y, outputVal, bufferSum, simplexProjPrefactor;
 
     const int8_t *rademPtr = radem;
 
@@ -173,12 +302,15 @@ __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
 
 
 
+
+
 //This function generates and sums random features for a Conv1d Maxpool-type kernel.
 template <typename T>
 const char *conv1dMaxpoolFeatureGen(const int8_t *radem, const T xdata[],
             const T chiArr[], double *outputArray, const int32_t *seqlengths,
             int xdim0, int xdim1, int xdim2, int numFreqs,
-            int convWidth, int paddedBufferSize, int rademShape2){
+            int convWidth, int paddedBufferSize, int rademShape2,
+            bool simplex){
 
     int numKmers = xdim1 - convWidth + 1;
     int numElements = xdim0 * numKmers * paddedBufferSize;
@@ -197,10 +329,17 @@ const char *conv1dMaxpoolFeatureGen(const int8_t *radem, const T xdata[],
 
     int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
 
-    convMaxpoolFeatureGenKernel<T><<<xdim0, stepSize / 2, stepSize * sizeof(T)>>>(xdata, featureArray,
-        outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, xdim1, xdim2,
-        numRepeats, normConstant, convWidth, seqlengths, rademShape2);
-    
+    if (!simplex){
+        convMaxpoolFeatureGenKernel<T><<<xdim0, stepSize / 2, stepSize * sizeof(T)>>>(xdata, featureArray,
+            outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, xdim1, xdim2,
+            numRepeats, normConstant, convWidth, seqlengths, rademShape2);
+    }
+    else{
+        convMaxpoolFeatureSimplexKernel<T><<<xdim0, stepSize / 2, stepSize * sizeof(T)>>>(xdata, featureArray,
+            outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, xdim1, xdim2,
+            numRepeats, normConstant, convWidth, seqlengths, rademShape2);
+    }
+
     cudaFree(featureArray);
     return "no_error";
 }
@@ -208,8 +347,10 @@ const char *conv1dMaxpoolFeatureGen(const int8_t *radem, const T xdata[],
 template const char *conv1dMaxpoolFeatureGen<float>(const int8_t *radem, const float *xdata,
             const float *chiArr, double *outputArray, const int32_t *seqlengths,
             int xdim0, int xdim1, int xdim2, int numFreqs,
-            int convWidth, int paddedBufferSize, int rademShape2);
+            int convWidth, int paddedBufferSize, int rademShape2,
+            bool simplex);
 template const char *conv1dMaxpoolFeatureGen<double>(const int8_t *radem, const double *xdata,
             const double *chiArr, double *outputArray, const int32_t *seqlengths,
             int xdim0, int xdim1, int xdim2, int numFreqs,
-            int convWidth, int paddedBufferSize, int rademShape2);
+            int convWidth, int paddedBufferSize, int rademShape2,
+            bool simplex);
