@@ -176,7 +176,9 @@ class ModelBaseclass():
             mempool.free_all_blocks()
             x_array = cp.asarray(input_x)
             if sequence_lengths is not None:
-                sequence_lengths = cp.asarray(sequence_lengths)
+                sequence_lengths = cp.asarray(sequence_lengths).astype(cp.int32)
+        elif sequence_lengths is not None:
+            sequence_lengths = sequence_lengths.astype(np.int32)
 
         return x_array, sequence_lengths
 

@@ -180,7 +180,7 @@ def main():
         long_description = long_description,
         long_description_content_type="text/markdown",
         install_requires=["numpy>=1.10", "scipy>=1.7.0",
-                    "cython>=0.10"],
+                    "cython>=0.10", "scikit-learn"],
         ext_modules = ext_modules,
         package_data={"": ["*.h", "*.c", "*.cu", "*.cpp",
                             "*.pyx", "*.sh"]}

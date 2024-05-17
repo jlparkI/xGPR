@@ -138,7 +138,7 @@ change it subsequently as well, at least right up until we fit). ``num_rffs`` co
 how accurately the kernel is approximated. The error in the kernel approximation falls
 off exponentially with larger ``num_rffs`` values, so increasing ``num_rffs`` generally
 makes the model more accurate, but with diminishing returns. It also increases
-computational expense (fitting using ``num_rffs=4096`` will be much faster than fitting
+computational expense (fitting using ``num_rffs=1024`` will be much faster than fitting
 with ``num_rffs=32,768``).
 
 Finally, notice that when calling ``model.predict`` just as when building a dataset,
@@ -214,8 +214,8 @@ Here's an example:::
 Now, we just minimize the value returned by this function -- again, we can use Optuna,
 grid search, Bayesian optimization, what have you.
 
-Notice one funny trick in the function above. ``exact_nmll`` is much faster if the
-number of RFFs is small. On GPU, it can be reasonably fast up to about 8,192 RFFs.
+Notice one thing in the function above. ``exact_nmll`` is much faster if the
+number of RFFs is small. On GPU, it can be reasonably fast up to about 8,000 RFFs or so.
 It has cubic scaling, however, so for large numbers of RFFs it can get very
 slow very quickly. ``approximate_nmll`` has much better scaling and so is your
 friend if you want to tune using a large ``num_rffs``. It does involve an additional
@@ -248,7 +248,7 @@ None (the default) for ``bounds``; if None, xGPR uses some default search bounda
 ``tune_hyperparams_crude`` uses an SVD, which means it doesn't scale well
 -- it can get pretty slow for  ``num_rffs = 3,000`` or above. Fortunately, we've generally
 found that the hyperparameters which give good NMLL with a small number of RFFs
-(a sketchy kernel approximation) are *usually* not too terribly far away from those which give
+(a sketchy kernel approximation) are usually not too terribly far away from those which give
 good NMLL with a larger number of RFFs (a better kernel approximation).
 (This is a rule of thumb, and like all rules of thumb should be used with caution.)
 So, one way to use these two functions together is to use ``tune_hyperparams_crude`` for a
@@ -285,7 +285,7 @@ Remember that when calculating NMLL, we could use ``exact_nmll`` or
 ``approximate_nmll``. The function ``tune_hyperparams`` offers you the same choice:
 you can set ``nmll_method`` to either ``nmll_method=exact`` or ``nmll_method=approximate``,
 and the considerations are the same. Again, ``exact`` is faster if ``num_rffs`` is small,
-maybe < 8,192 or so, while ``approximate_nmll`` has better scaling.
+while ``approximate_nmll`` has better scaling.
 
 Finally, one important thing to keep in mind. Most of these methods run at reasonable
 speed on GPU. On CPU, however, tuning with a large ``num_rffs`` can be a slow slow slog.
@@ -295,7 +295,7 @@ Setting the ``num_threads`` parameter on your model can help a little, e.g.:::
 
 ``num_threads`` is ignored if you're fitting on GPU. But that can only help so much. We strongly
 recommend doing hyperparameter tuning and fitting on GPU whenever possible. Making predictions,
-by contrast, is reasonably fast on CPU (even if not quite as fast as GPU). So fitting on GPU and
+by contrast, is reasonably fast on CPU. So fitting on GPU and
 doing inference on CPU is a perfectly viable way to go if desired.
 
 That's really all you absolutely need to know! For lots of useful TMI, see Advanced Tutorials.

@@ -44,30 +44,8 @@ Linear or Matern or some other in principle, but we've never found that to be
 terribly useful.)
 
 For each feature extractor, you can supply additional arguments to control
-what kind of features it generates. These are summarized below.
+what kind of features it generates. More details are below.
 
-.. list-table:: static layer arguments
-   :header-rows: 1
-
-   * - Argument
-     - Description
-   * - ``seq_width``
-     - | The number of features per sequence element in the
-       | input (i.e. shape[2] when the input is a 3d numpy
-       | array).
-   * - ``device``
-     - | One of "gpu", "cpu".
-   * - ``random_seed``
-     - | The random seed (for reproducibility).
-   * - ``conv_width``
-     - | An integer -- the convolution width.
-   * - ``num_features``
-     - | The number of features ``FastConv1d`` should generate.
-       | Larger numbers will improve accuracy but increase
-       | computational expense. Try 1000 - 2000 to start with
-       | and increase if needed.
-   * - ``simplex_rffs``
-     - | Applies the simplex random features modification from
-       | Reid et al. 2023 (an experimental feature that may
-       | sometimes improve performance but slightly increases
-       | computational cost).
+.. autoclass:: xGPR.FastConv1d
+   :special-members: __init__
+   :members: predict

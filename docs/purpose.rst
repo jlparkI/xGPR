@@ -6,7 +6,8 @@ models and approximate kernel discriminant classifiers to datasets ranging
 in size from hundreds to millions of datapoints.
 It runs on either CPU or GPU, models tabular data, sequence & time series
 data and graph data, and fits datasets too large to load into memory in a
-straightforward way.
+straightforward way. It is primarily designed for regression but also
+supports classification.
 
 
 Limitations of xGPR

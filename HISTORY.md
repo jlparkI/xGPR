@@ -201,3 +201,8 @@ kernels. Memory consumption now scales as O(1) with sequence length
 for both CPU / GPU. Added the simplex random features (Reid et al. 2023)
 modification as an option for most kernels, with the exception of
 MiniARD and (of course) Linear.
+
+### Version 0.3.5.2
+Simplified the FastConv1d API and updated the docs. FastConv1d now double checks
+that the sequence lengths are int32. pre_prediction_checks now also ensures
+sequence lengths are int32.

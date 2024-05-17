@@ -9,8 +9,8 @@ million matrix for a million-datapoint dataset.)
 xGPR approximates the kernel matrix by representing each datapoint using a
 set of "random features", a representation constructed such that the
 dot product between any two representations is approximately equivalent
-to the exact kernel measurement. This converts Gaussian processes and
-kernel discriminant classifiers into ridge regression and LDA.
+to the exact kernel measurement. This converts Gaussian process regression
+into ridge regression.
 
 The more random features you use, the more accurate the approximation
 and the closer to an exact kernel machine. The error decreases exponentially
@@ -31,7 +31,8 @@ xGPR model is performing pretty well but we'd like it to perform
 a little better -- just use more random features. If perforance is dramatically below
 what we need, by contrast, and increasing the number of RFFs isn't helping
 very much, we know we need to switch to a different kernel, feature set or
-modeling technique.
+use another modeling technique instead of a GP.
+
 
 How many random features do I need?
 ------------------------------------

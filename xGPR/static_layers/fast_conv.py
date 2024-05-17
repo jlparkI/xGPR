@@ -8,7 +8,6 @@ layer in an NN and generate a fixed-length vector so that the GP then functions
 like a fully connected layer on top of a convolutional layer.
 """
 import sys
-import os
 
 import numpy as np
 try:
@@ -17,7 +16,7 @@ except:
     pass
 
 from ..kernels.convolution_kernels.conv_feature_extractor import FHTMaxpoolConv1dFeatureExtractor
-from ..data_handling.offline_data_handling import OfflineDataset
+
 
 class FastConv1d:
     """Provides tools for performing convolution-based feature
@@ -72,82 +71,7 @@ class FastConv1d:
         self.device = device
 
 
-
-
-    def conv1d_pretrain_feat_extract(self, input_dataset, output_dir:str):
-        """Performs feature extraction using a 1d convolution kernel,
-        saves the results to a specified location, and returns an
-        OfflineDataset. This function should be used if it is
-        desired to generate features for sequence / timeseries data
-        prior to training. By use of this feature, the GP is essentially
-        turned into a three-layer network with a convolutional layer
-        followed by a fully-connected layer. Note that when
-        making predictions, you should use conv1d_feat_extract,
-        which takes an x-array as input rather than a dataset.
-
-        Args:
-            input_dataset: Object of class OnlineDataset or OfflineDataset.
-                You should generate this object using either the
-                build_online_dataset, build_offline_fixed_vector_dataset
-                or build_offline_sequence_dataset functions under
-                data_handling.dataset_builder.
-            output_dir (str): A valid directory filepath where the output
-                can be saved.
-
-        Returns:
-            conv1d_dataset (OfflineDataset): An OfflineDataset containing
-                the xfiles and yfiles that resulted from the feature
-                extraction operation. You can feed this directly to
-                the hyperparameter tuning and fitting methods.
-
-        Raises:
-            ValueError: If the inputs are not valid a detailed ValueError
-                is raised explaining the issue.
-        """
-        start_dir = os.getcwd()
-        try:
-            os.chdir(output_dir)
-        except:
-            raise ValueError("Invalid output directory supplied to the "
-                    "feature extractor.")
-
-
-        input_dataset.device = self.device
-        xfiles, yfiles = [], []
-        fnum, chunksize, max_class = 0, 0, 0
-
-        for xbatch, ybatch, seqlen in input_dataset.get_chunked_data():
-            xfile, yfile = f"CONV1d_FEATURES_{fnum}_X.npy", f"CONV1d_FEATURES_{fnum}_Y.npy"
-            xtrans = self.conv_kernel.transform_x(xbatch, seqlen)
-            if self.device == "gpu":
-                ybatch = cp.asnumpy(ybatch)
-                xtrans = cp.asnumpy(xtrans)
-
-            np.save(xfile, xtrans)
-            np.save(yfile, ybatch)
-            xfiles.append(xfile)
-            yfiles.append(yfile)
-            if ybatch.shape[0] > chunksize:
-                chunksize = ybatch.shape[0]
-            if ybatch.max() > max_class:
-                max_class = int(ybatch.max())
-            fnum += 1
-
-        xdim = (input_dataset.get_ndatapoints(), self.num_features)
-        updated_dataset = OfflineDataset(xfiles, yfiles, None,
-                            xdim, input_dataset.get_ymean(),
-                            input_dataset.get_ystd(),
-                            max_class = max_class,
-                            chunk_size = chunksize)
-
-        if self.device == "gpu":
-            mempool = cp.get_default_memory_pool()
-            mempool.free_all_blocks()
-        os.chdir(start_dir)
-        return updated_dataset
-
-
-    def conv1d_feat_extract(self, x_array, sequence_lengths, chunk_size:int = 2000):
+    def predict(self, x_array, sequence_lengths, chunk_size:int = 2000):
         """Performs feature extraction using a 1d convolution kernel
         and returns an array containing the result. This function should
         be used if it is desired to generate features for sequence /
@@ -186,10 +110,10 @@ class FastConv1d:
 
             if self.device == "gpu":
                 x_in = cp.asarray(x_array[i:cutoff,:,:]).astype(cp.float32)
-                seqlen_in = cp.asarray(sequence_lengths[i:cutoff])
+                seqlen_in = cp.asarray(sequence_lengths[i:cutoff]).astype(cp.int32)
             else:
                 x_in = x_array[i:cutoff,:,:]
-                seqlen_in = sequence_lengths[i:cutoff]
+                seqlen_in = sequence_lengths[i:cutoff].astype(np.int32)
 
             xtrans = self.conv_kernel.transform_x(x_in, seqlen_in)
 

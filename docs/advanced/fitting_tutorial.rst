@@ -110,7 +110,7 @@ As a side note: SGD is popular in the literature because it works well for
 deep learning. Most papers that recommend some flavor of SGD haven't tried
 to use it for high-dimensional linear problems that may sometimes be
 ill-conditioned and where a tight fit is desired -- SGD does NOT work well
-under this particular set of circumstances, at least Adam, AMSGrad, SVRG,
-and the other usual suspects. The amount of learning rate tuning required
-to get SGD to work well is simply not acceptable for an out of the box
-fitting routine.
+compared to preconditioned CG under this particular set of circumstances,
+at least Adam, AMSGrad, SVRG, and the other usual suspects. The amount of
+learning rate and learning rate schedule tuning required to get SGD to work
+well is simply not acceptable for an out of the box fitting routine.
