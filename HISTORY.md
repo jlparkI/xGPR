@@ -206,3 +206,8 @@ MiniARD and (of course) Linear.
 Simplified the FastConv1d API and updated the docs. FastConv1d now double checks
 that the sequence lengths are int32. pre_prediction_checks now also ensures
 sequence lengths are int32.
+
+### Version 0.4
+Removed classification as an option (since the kernel discriminant is not an optimal
+choice for this problem). Add classification back when / if a better classification
+model can be found.

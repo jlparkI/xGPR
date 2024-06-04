@@ -2,12 +2,12 @@ What is xGPR
 ===============================================
 
 xGPR is a library for fitting approximate Gaussian process regression
-models and approximate kernel discriminant classifiers to datasets ranging
+models to datasets ranging
 in size from hundreds to millions of datapoints.
 It runs on either CPU or GPU, models tabular data, sequence & time series
 data and graph data, and fits datasets too large to load into memory in a
-straightforward way. It is primarily designed for regression but also
-supports classification.
+straightforward way. It is primarily designed for regression (we hope to
+add classification in the future).
 
 
 Limitations of xGPR

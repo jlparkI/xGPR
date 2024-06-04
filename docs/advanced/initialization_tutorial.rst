@@ -31,21 +31,14 @@ For regression datasets, use:
 
 .. autofunction:: xGPR.build_regression_dataset
 
-And for classification datasets, use:
-
-.. autofunction:: xGPR.build_classification_dataset
 
 Now for some more details on model construction.
 
 
-Setting up regression and classification models
+Setting up regression models
 -------------------------------------------------
 
 .. autoclass:: xGPR.xGPRegression
-   :special-members: __init__
-
-
-.. autoclass:: xGPR.xGPDiscriminant
    :special-members: __init__
 
 

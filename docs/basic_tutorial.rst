@@ -4,14 +4,11 @@ xGPR quickstart
 Build your training set
 -------------------------
 
-Start by building a Dataset, which is similar to a DataLoader in PyTorch.
-You can build these for regression or classification:::
+Start by building a Dataset, which is similar to a DataLoader in PyTorch:::
 
-  from xGPR import build_regression_dataset, build_classification_dataset
+  from xGPR import build_regression_dataset
 
   reg_train_set = build_regression_dataset(x, y, sequence_lengths = None,
-                        chunk_size = 2000)
-  class_train_set = build_classification_dataset(x_class, y_class, sequence_lengths = None,
                         chunk_size = 2000)
 
 ``x`` and ``y`` can be *either* numpy arrays OR a list of filepaths
@@ -65,7 +62,7 @@ Fit your model and make predictions
 
 Let's create two models using RBF kernels and fit them:::
 
-  from xGPR import xGPRegression, xGPDiscriminant
+  from xGPR import xGPRegression
 
   #Notice that we set the device to be "gpu". If there are multiple
   #cuda devices, xGPR will use whichever one is currently active. You can control
@@ -81,16 +78,11 @@ Let's create two models using RBF kernels and fit them:::
                         random_seed = 123.
                         kernel_choice = "RBF",
                         device = "gpu", kernel_settings = {})
-  class_model = xGPDiscriminant(num_rffs = 2048,
-                        kernel_choice = "RBF",
-                        random_seed = 123.
-                        device = "gpu", kernel_settings = {})
 
   #Nearly all xGPR kernels have either one or two hyperparameters. We'll
   #talk more about how to optimize hyperparameters shortly.
   my_hyperparams = np.array([-3.1, -1.25])
   reg_model.set_hyperparams(my_hyperparams, reg_train_set)
-  class_model.set_hyperparams(my_hyperparams, class_train_set)
 
   #We can change the number of RFFs at any time up until we fit the model.
   reg_model.num_rffs = 2000
@@ -106,20 +98,16 @@ Let's create two models using RBF kernels and fit them:::
   #usually overkill.
 
   reg_model.fit(reg_train_set, mode="cg", tol=1e-6)
-  class_model.fit(class_train_set, mode="exact")
 
   #To make predictions, just feed in a numpy array.
   #If we want to switch over to CPU for inference now that the model
   #is fitted, we can do that too. For regression, predictions are just
-  #a numpy array of predicted y-values. For classification, we get an N x C
-  #array back where C is the number of possible classes. chunk_size controls
+  #a numpy array of predicted y-values. chunk_size controls
   #how many datapoints xGPR processes at a time in the input array; larger
   #slightly increases speed but increases memory usage. If you're worried
   #about memory usage, set a small chunk_size, otherwise default of 2000 is fine.
 
   reg_preds = reg_model.predict(xtest_reg, sequence_lengths = None, chunk_size = 2000)
-  class_model.device = "cpu"
-  class_probs = class_model.predict(xtest_class)
 
   #For regression, we can also get the variance on the predictions, which
   #is useful as a measure of uncertainty.
@@ -177,8 +165,7 @@ range from -6.907 or so to 3 or so. For sigma, the optimal value is usually some
 range (depending on dataset and kernel).
 
 One simple way to find good hyperparameter values is to fit the model using different 
-hyperparameter settings and look at performance on a validation set. Right now, this is the
-only supported option for classification. So in this scheme, for each set of
+hyperparameter settings and look at performance on a validation set. So in this scheme, for each set of
 hyperparameters you're considering, you would:::
 
    def my_hparam_evalation_function(my_new_hyperparams, my_validation_set_array,

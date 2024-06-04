@@ -4,13 +4,7 @@ In-Depth -- Tuning hyperparameters
 General observations on hyperparameter tuning
 ----------------------------------------------
 
-Currently, for classification, the only supported method is the
-most common one in ML -- fit using different hyperparameters and
-evaluate performance on a validation set. This procedure is
-reasonably straightforward (although, for more details on finer-grained
-control of the fitting procedure, see the In-Depth fitting tutorial).
-
-This In-Depth will focus instead on a tuning procedure which is
+This In-Depth will focus on a tuning procedure which is
 (currently) only available for xGPRegression -- tuning by minimizing
 the negative log marginal likelihood (what xGPR calls NMLL). This
 quantity represents the probability of the training data averaged
