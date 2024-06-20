@@ -37,17 +37,5 @@ class CheckExactFit(unittest.TestCase):
             gpu_mod.fit(online_data, mode = "exact")
 
 
-    def test_exact_discriminant_fit(self):
-        """Test exact fitting for discriminants."""
-        online_data, _ = build_discriminant_traintest_split()
-        cpu_mod, gpu_mod = get_discriminant_models("RBF", online_data,
-                num_rffs = NUM_RFFS)
-
-        cpu_mod.fit(online_data, mode = "exact")
-
-        if gpu_mod is not None:
-            gpu_mod.fit(online_data, mode = "exact")
-
-
 if __name__ == "__main__":
     unittest.main()

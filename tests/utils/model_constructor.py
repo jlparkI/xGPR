@@ -4,7 +4,7 @@ import sys
 import copy
 
 from xGPR import xGPRegression as xGPReg
-from xGPR import xGPDiscriminant
+#from xGPR import xGPDiscriminant
 
 RANDOM_STATE = 123
 
