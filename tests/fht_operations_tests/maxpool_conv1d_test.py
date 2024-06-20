@@ -30,8 +30,8 @@ class TestMaxpoolFeatureGen(unittest.TestCase):
         for outcome in outcomes:
             self.assertTrue(outcome)
 
-        kernel_width, num_aas, aa_dim, num_freqs = 15, 23, 21, 128
-        sigma, ndatapoints = 1, 64
+        kernel_width, num_aas, aa_dim, num_freqs = 15, 23, 1060, 8192
+        sigma, ndatapoints = 1, 5
         outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, mode = "maxpool")
         for outcome in outcomes:
