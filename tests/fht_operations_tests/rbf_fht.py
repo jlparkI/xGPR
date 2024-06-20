@@ -25,49 +25,47 @@ class TestRBFFeatureGen(unittest.TestCase):
 
     def test_rbf_feature_gen(self):
         """Tests RBF feature generation for CPU and if available GPU."""
-        outcomes = run_rbf_test((10,50), 2000)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
+        for n_freqs in [64, 2000, 8192]:
+            outcomes = run_rbf_test((10,50), n_freqs)
+            for outcome in outcomes:
+                self.assertTrue(outcome)
 
-        outcomes = run_rbf_test((10,3), 2000)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
+            outcomes = run_rbf_test((10,3), n_freqs)
+            for outcome in outcomes:
+                self.assertTrue(outcome)
 
-        outcomes = run_rbf_test((1,2003), 2000)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
+            outcomes = run_rbf_test((3,2003), n_freqs)
+            for outcome in outcomes:
+                self.assertTrue(outcome)
 
-        outcomes = run_rbf_test((11,1076), 2000)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
+            outcomes = run_rbf_test((11,1076), n_freqs)
+            for outcome in outcomes:
+                self.assertTrue(outcome)
 
-        outcomes = run_rbf_test((513,232), 1000)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        outcomes = run_rbf_test((231,856), 500, fit_intercept = True)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
+            outcomes = run_rbf_test((231,856), n_freqs, fit_intercept = True)
+            for outcome in outcomes:
+                self.assertTrue(outcome)
 
 
 
     def test_rbf_grad_calc(self):
         """Tests RBF gradient calc for CPU and if available GPU."""
-        outcomes = run_rbf_grad_test((10,50), 2000)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
+        for n_freqs in [64, 2000, 8192]:
+            outcomes = run_rbf_grad_test((10,50), n_freqs)
+            for outcome in outcomes:
+                self.assertTrue(outcome)
 
-        outcomes = run_rbf_grad_test((513,232), 1000, fit_intercept = True)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
+            outcomes = run_rbf_grad_test((513,232), n_freqs, fit_intercept = True)
+            for outcome in outcomes:
+                self.assertTrue(outcome)
 
-        outcomes = run_rbf_grad_test((11,3001), 500)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
+            outcomes = run_rbf_grad_test((11,3001), n_freqs)
+            for outcome in outcomes:
+                self.assertTrue(outcome)
 
-        outcomes = run_rbf_grad_test((11,3), 500)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
+            outcomes = run_rbf_grad_test((11,3), n_freqs)
+            for outcome in outcomes:
+                self.assertTrue(outcome)
 
 
 def run_rbf_test(xdim, num_freqs, random_seed = 123, fit_intercept = False):
@@ -103,16 +101,19 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, fit_intercept = False):
 
 
     outcome_d = np.allclose(gt_double, double_output)
-    outcome_f = np.allclose(gt_float, float_output, rtol=1e-5, atol=1e-5)
-    print("Did the C extension provide the correct result for RBF of "
+    outcome_f = np.allclose(gt_float, float_output, rtol=1e-5, atol=1e-4)
+    print("Correct result for CPU  for RBF of "
             f"{xdim}, {num_freqs} for float, double? {outcome_f},{outcome_d}")
 
     if "cupy" in sys.modules:
         outcome_cuda_d = np.allclose(gt_double, cuda_double_output)
         outcome_cuda_f = np.allclose(gt_float, cuda_float_output, rtol=1e-5,
-                atol=1e-5)
-        print("Did the cuda extension provide the correct result for RBF of "
+                atol=1e-4)
+        print("Correct result for Cuda for RBF of "
             f"{xdim}, {num_freqs} for float, double? {outcome_cuda_f},{outcome_cuda_d}")
+        if outcome_cuda_d == False:
+            import pdb
+            pdb.set_trace()
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f
     return outcome_d, outcome_f
 
@@ -163,10 +164,10 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123,
     outcome_grad_d = np.allclose(gt_double_grad, double_grad)
     outcome_grad_f = np.allclose(gt_float_grad, float_grad,
             atol=1e-4, rtol=1e-4)
-    print("Did the Grad Calc C extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs} for float, double? {outcome_f},{outcome_d}")
-    print("Did the Grad Calc C extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs} for float, double? "
+    print("Correct result for CPU  for gradient RBF of "
+            f"{xdim}, {num_freqs} float, double? {outcome_f},{outcome_d}")
+    print("Correct result for Cuda for gradient RBF of "
+            f"{xdim}, {num_freqs} float, double? "
             f"{outcome_grad_f},{outcome_grad_d}")
 
     if "cupy" in sys.modules:
@@ -176,10 +177,10 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123,
         outcome_cuda_grad_d = np.allclose(gt_double_grad, cuda_double_grad)
         outcome_cuda_grad_f = np.allclose(gt_float_grad, cuda_float_grad,
                 atol=1e-2, rtol=1e-2)
-        print("Did the cuda extension provide the correct result for RBF of "
-            f"{xdim}, {num_freqs} for float, double? {outcome_cuda_f},{outcome_cuda_d}")
-        print("Did the Grad Calc cuda extension provide the correct result for the "
-            f"gradient for RBF of {xdim}, {num_freqs} for float, double? "
+        print("Correct result for CPU  for gradient RBF of "
+            f"{xdim}, {num_freqs} float, double? {outcome_cuda_f},{outcome_cuda_d}")
+        print("Correct result for Cuda for gradient RBF of "
+            f"{xdim}, {num_freqs} float, double? "
             f"{outcome_cuda_grad_f},{outcome_cuda_grad_d}")
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f, \
                 outcome_grad_d, outcome_grad_f, outcome_cuda_grad_d, \

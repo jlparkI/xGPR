@@ -125,8 +125,8 @@ __global__ void rbfFeatureGenKernel(const T origData[], T cArray[],
             outputArray[outputArrPos + 2 * i + 1] = scalingConstant * sin(outputVal);
         }
 
-        chiArrPos += stepSize;
-        outputArrPos += 2 * stepSize;
+        chiArrPos += paddedBufferSize;
+        outputArrPos += 2 * paddedBufferSize;
         __syncthreads();
 
     }
@@ -280,8 +280,8 @@ __global__ void rbfFeatureGenSimplexKernel(const T origData[], T cArray[],
             outputArray[outputArrPos + 2 * i + 1] = scalingConstant * sin(outputVal);
         }
 
-        chiArrPos += stepSize;
-        outputArrPos += 2 * stepSize;
+        chiArrPos += paddedBufferSize;
+        outputArrPos += 2 * paddedBufferSize;
         __syncthreads();
 
     }
@@ -409,8 +409,8 @@ __global__ void rbfFeatureGradKernel(const T origData[], T cArray[],
             gradient[outputArrPos + 2 * i + 1] = scalingConstant * cos(outputVal) * outputVal;
         }
 
-        chiArrPos += stepSize;
-        outputArrPos += 2 * stepSize;
+        chiArrPos += paddedBufferSize;
+        outputArrPos += 2 * paddedBufferSize;
         __syncthreads();
 
     }
@@ -566,8 +566,8 @@ __global__ void rbfFeatureGradSimplexKernel(const T origData[], T cArray[],
             gradient[outputArrPos + 2 * i + 1] = scalingConstant * cos(outputVal) * outputVal;
         }
 
-        chiArrPos += stepSize;
-        outputArrPos += 2 * stepSize;
+        chiArrPos += paddedBufferSize;
+        outputArrPos += 2 * paddedBufferSize;
         __syncthreads();
 
     }

@@ -24,78 +24,29 @@ class TestConv1d(unittest.TestCase):
 
     def test_conv1d(self):
         """Tests the FHT-based Conv1d C / Cuda functions."""
-        kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 1000
-        sigma, ndatapoints = 1, 124
+        # Order: kernel_width, num_aas, aa_dim, num_freqs, sigma, ndatapoints
+        test_settings = [
+                        (9,23,21,1000,1,124),
+                        (5,56,2,62,1,236),
+                        (9,23,21,1000,1,124),
+                        (7,202,105,784,1,38),
+                        (9,10,2000,4096,1,2),
+                        (10,11,200,784,1,38),
+                        (10,256,512,333,1,6)
+                        ]
 
-        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+        for test_setting in test_settings:
+            kernel_width, num_aas, aa_dim, num_freqs, sigma, ndatapoints = test_setting
+            outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-        
-        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, precision = "float")
-        for outcome in outcomes:
-            self.assertTrue(outcome)
+            for outcome in outcomes:
+                self.assertTrue(outcome)
+            outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
+                    num_freqs, sigma, precision="float")
+            for outcome in outcomes:
+                self.assertTrue(outcome)
 
-        kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
-        sigma, ndatapoints = 1, 236
 
-        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, precision = "float")
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        kernel_width, num_aas, aa_dim, num_freqs = 7, 202, 105, 784
-        sigma, ndatapoints = 1, 38
-
-        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, precision = "float")
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        kernel_width, num_aas, aa_dim, num_freqs = 1, 56, 2, 151
-        sigma, ndatapoints = 1, 333
-
-        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        kernel_width, num_aas, aa_dim, num_freqs = 10, 11, 200, 784
-        sigma, ndatapoints = 1, 38
-
-        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, precision = "float")
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        kernel_width, num_aas, aa_dim, num_freqs = 10, 256, 512, 333
-        sigma, ndatapoints = 1, 6
-
-        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, precision = "float")
-        for outcome in outcomes:
-            self.assertTrue(outcome)
 
 
     def test_conv1d_gradients(self):
@@ -127,8 +78,8 @@ class TestConv1d(unittest.TestCase):
         for outcome in outcomes:
             self.assertTrue(outcome)
 
-        kernel_width, num_aas, aa_dim, num_freqs = 10, 56, 531, 512
-        sigma, ndatapoints = 1, 46
+        kernel_width, num_aas, aa_dim, num_freqs = 10, 56, 2000, 4096
+        sigma, ndatapoints = 1, 2
 
         outcomes = run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma)
@@ -183,7 +134,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
         print(f"****Running test with {normalization} normalization.****")
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
-        f"sigma: {sigma}, mode: RBF convolution, precision {precision}\n"
+        f"sigma: {sigma}, mode: RBF convolution, precision {precision} "
         f"Does result match on CPU? {outcome}")
 
     if "cupy" not in sys.modules:
@@ -200,7 +151,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     outcome_cuda = check_results(true_features, features, precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
-        f"sigma: {sigma}, mode: RBF convolution, precision {precision}\n"
+        f"sigma: {sigma}, mode: RBF convolution, precision {precision} "
         f"Does result match on cuda? {outcome_cuda}")
 
     print("\n")
@@ -229,7 +180,7 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     outcome_gradient = check_results(true_gradient, gradient, precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
             f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
-            f"sigma: {sigma}, mode: RBF conv gradient, precision: {precision}\n"
+            f"sigma: {sigma}, mode: RBF conv gradient, precision: {precision} "
             f"Does result match on CPU? {outcome}\n"
             f"Does gradient match on CPU? {outcome_gradient}")
 
@@ -251,7 +202,7 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     outcome_cuda_gradient = check_results(true_gradient, gradient, precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
-        f"sigma: {sigma}, mode: RBF conv gradient, precision {precision}\n"
+        f"sigma: {sigma}, mode: RBF conv gradient, precision {precision} "
         f"Does result match on cuda? {outcome_cuda}\n"
         f"Does gradient match on cuda? {outcome_cuda_gradient}\n")
 

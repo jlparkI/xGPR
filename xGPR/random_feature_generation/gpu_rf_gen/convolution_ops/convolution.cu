@@ -131,8 +131,8 @@ __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
                 outputArray[outputArrPos + i] = MAX(outputArray[outputArrPos + i], outputVal);
             }
 
-            chiArrPos += stepSize;
-            outputArrPos += stepSize;
+            chiArrPos += paddedBufferSize;
+            outputArrPos += paddedBufferSize;
             __syncthreads();
         }
     }
@@ -292,8 +292,8 @@ __global__ void convMaxpoolFeatureSimplexKernel(const T origData[], T cArray[],
                 outputArray[outputArrPos + i] = MAX(outputArray[outputArrPos + i], outputVal);
             }
 
-            chiArrPos += stepSize;
-            outputArrPos += stepSize;
+            chiArrPos += paddedBufferSize;
+            outputArrPos += paddedBufferSize;
             __syncthreads();
         }
     }

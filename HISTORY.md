@@ -211,3 +211,8 @@ sequence lengths are int32.
 Removed classification as an option (since the kernel discriminant is not an optimal
 choice for this problem). Add classification back when / if a better classification
 model can be found.
+
+### Version 0.4.0.1
+Fixed bug in Cuda generation of RFFs for > 1024 input features which caused fewer
+RFFs than expected to be generated. Expanded unit tests to ensure > 1024 input
+features is now tested.

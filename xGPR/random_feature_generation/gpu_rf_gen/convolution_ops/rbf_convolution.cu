@@ -144,8 +144,8 @@ __global__ void convRBFFeatureGenKernel(const T origData[], T cArray[],
                 outputArray[outputArrPos + 2 * i + 1] += modifiedScaling * sin(outputVal);
             }
 
-            chiArrPos += stepSize;
-            outputArrPos += 2 * stepSize;
+            chiArrPos += paddedBufferSize;
+            outputArrPos += 2 * paddedBufferSize;
             __syncthreads();
         }
     }
@@ -318,8 +318,8 @@ __global__ void convRBFFeatureGenSimplexKernel(const T origData[], T cArray[],
                 outputArray[outputArrPos + 2 * i + 1] += modifiedScaling * sin(outputVal);
             }
 
-            chiArrPos += stepSize;
-            outputArrPos += 2 * stepSize;
+            chiArrPos += paddedBufferSize;
+            outputArrPos += 2 * paddedBufferSize;
             __syncthreads();
         }
     }
@@ -470,8 +470,8 @@ __global__ void convRBFFeatureGradKernel(const T origData[], T cArray[],
                 gradient[outputArrPos + 2 * i + 1] += modifiedScaling * cos(outputVal) * outputVal;
             }
 
-            chiArrPos += stepSize;
-            outputArrPos += 2 * stepSize;
+            chiArrPos += paddedBufferSize;
+            outputArrPos += 2 * paddedBufferSize;
             __syncthreads();
         }
     }
