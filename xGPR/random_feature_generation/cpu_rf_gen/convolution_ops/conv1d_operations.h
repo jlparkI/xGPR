@@ -3,17 +3,22 @@
 
 
 #include <stdint.h>
+#include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
+
+namespace nb = nanobind;
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 
 
 template <typename T>
-const char *conv1dMaxpoolFeatureGen_(int8_t *radem, T xdata[],
-            T chiArr[], double *outputArray, int32_t *seqlengths,
-            int xdim0, int xdim1, int xdim2, int numThreads, int numFreqs,
-            int convWidth, int paddedBufferSize,
-            bool simplex);
+int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+        int convWidth, int numThreads, bool simplex);
 
 template <typename T>
 void *allInOneConvMaxpoolGen(T xdata[], int8_t *rademArray, T chiArr[],

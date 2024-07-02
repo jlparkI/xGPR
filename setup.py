@@ -2,6 +2,7 @@
 import os
 import platform
 import subprocess
+import nanobind
 from setuptools import setup, find_packages
 from setuptools.extension import Extension
 import numpy
@@ -87,17 +88,20 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
             sources.append(os.path.abspath(fname))
         os.chdir("..")
 
-    os.chdir(setup_fpath)
+    sources.append("xgpr_cpu_rfgen_cpp_ext.cpp")
 
-    cpu_basic_op_wrapper = os.path.join(cpu_fast_transform_path,
-                    "cpu_rf_gen_module.pyx")
-    sources += [cpu_basic_op_wrapper]
-    cpu_basic_op_ext = Extension("cpu_rf_gen_module",
+    os.chdir(setup_fpath)
+    nanobind_includes_fpath = os.path.join(setup_fpath, "xGPR",
+            "submodules", "nanobind", "include")
+
+    cpu_basic_op_ext = Extension("xgpr_cpu_rfgen_cpp_ext",
                     sources = sources, language="c++",
-                    extra_compile_args=['-fopenmp-simd', '-O3'],
+                    extra_compile_args=['-fopenmp-simd', '-O3',
+                        "-std=c++17", "-fvisibility=hidden"],
                     include_dirs=[numpy.get_include(),
+                            nanobind_includes_fpath,
                             cpu_fast_transform_path])
-    return [cpu_basic_op_ext], [cpu_basic_op_wrapper]
+    return [cpu_basic_op_ext]
 
 
 
@@ -150,7 +154,7 @@ def main():
     setup_fpath, NO_CUDA, CUDA_PATH = initial_checks()
     ext_modules = get_conjugate_grad_extensions(setup_fpath)
 
-    cpu_fht_ext, cpu_fht_files = setup_cpu_fast_hadamard_extensions(setup_fpath)
+    cpu_fht_ext = setup_cpu_fast_hadamard_extensions(setup_fpath)
     fht_cuda_ext, gpu_fht_files = \
             setup_cuda_fast_hadamard_extensions(setup_fpath, CUDA_PATH, NO_CUDA)
 
@@ -205,11 +209,6 @@ def main():
 
     os.chdir(os.path.join(setup_fpath, "xGPR", "random_feature_generation",
                 "cpu_rf_gen"))
-
-    for cpu_fht_file in cpu_fht_files:
-        compiled_cython_fname = os.path.basename(cpu_fht_file.replace(".pyx", ".cpp"))
-        if compiled_cython_fname in os.listdir():
-            os.remove(compiled_cython_fname)
 
     os.chdir(os.path.join(setup_fpath, "xGPR", "random_feature_generation",
                 "gpu_rf_gen"))
