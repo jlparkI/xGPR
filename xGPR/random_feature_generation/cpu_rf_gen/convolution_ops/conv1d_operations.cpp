@@ -46,7 +46,7 @@
  * "error" if an error, "no_error" otherwise.
  */
 template <typename T>
-int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
@@ -133,13 +133,13 @@ int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::
 
     return 0;
 }
-template int convRBFFeatureGen_<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+template int conv1dMaxpoolFeatureGen_<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         int convWidth, int numThreads, bool simplex);
-template int convRBFFeatureGen_<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+template int conv1dMaxpoolFeatureGen_<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,

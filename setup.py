@@ -2,7 +2,6 @@
 import os
 import platform
 import subprocess
-import nanobind
 from setuptools import setup, find_packages
 from setuptools.extension import Extension
 import numpy
@@ -88,11 +87,11 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
             sources.append(os.path.abspath(fname))
         os.chdir("..")
 
-    sources.append("xgpr_cpu_rfgen_cpp_ext.cpp")
+    sources.append(os.path.abspath("xgpr_cpu_rfgen_cpp_ext.cpp"))
 
     os.chdir(setup_fpath)
-    nanobind_includes_fpath = os.path.join(setup_fpath, "xGPR",
-            "submodules", "nanobind", "include")
+    nanobind_includes_fpath = os.path.join(setup_fpath,
+            "ext", "nanobind", "include")
 
     cpu_basic_op_ext = Extension("xgpr_cpu_rfgen_cpp_ext",
                     sources = sources, language="c++",
@@ -100,7 +99,7 @@ def setup_cpu_fast_hadamard_extensions(setup_fpath):
                         "-std=c++17", "-fvisibility=hidden"],
                     include_dirs=[numpy.get_include(),
                             nanobind_includes_fpath,
-                            cpu_fast_transform_path])
+                                        cpu_fast_transform_path])
     return [cpu_basic_op_ext]
 
 
