@@ -10,3 +10,5 @@ from .data_handling.dataset_builder import build_classification_dataset
 from .kernel_fgen import KernelFGen
 
 from .static_layers import FastConv1d
+
+from xgpr_cpu_rfgen_cpp_ext import cpuFastHadamardTransform
