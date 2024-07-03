@@ -23,8 +23,8 @@ class TestConv1d(unittest.TestCase):
         """Tests the FHT-based Conv1d C / Cuda functions."""
         # Order: kernel_width, num_aas, aa_dim, num_freqs, sigma, ndatapoints
         test_settings = [
-                        (9,23,21,1000,1,124),
-                        (5,56,2,62,1,236),
+                        (9,23,21,1000,0.5,124),
+                        (5,56,2,62,0.5,236),
                         (9,23,21,1000,1,124),
                         (7,202,105,784,1,38),
                         (9,10,2000,4096,1,2),
@@ -49,7 +49,7 @@ class TestConv1d(unittest.TestCase):
     def test_conv1d_gradients(self):
         """Tests the gradient calculations for the FHT-based Cuda / C functions."""
         kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 128
-        sigma, ndatapoints = 1, 36
+        sigma, ndatapoints = 0.5, 36
 
         outcomes = run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma)
@@ -63,7 +63,7 @@ class TestConv1d(unittest.TestCase):
 
 
         kernel_width, num_aas, aa_dim, num_freqs = 5, 56, 2, 62
-        sigma, ndatapoints = 1, 53
+        sigma, ndatapoints = 0.5, 53
 
         outcomes = run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma)
@@ -134,7 +134,6 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
         f"sigma: {sigma}, mode: RBF convolution, precision {precision} "
         f"Does result match on CPU? {outcome}")
 
-    return [outcome]
     if "cupy" not in sys.modules:
         return [outcome]
     xd, seqlen = cp.asarray(xd), cp.asarray(seqlen)
@@ -182,7 +181,6 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
             f"Does result match on CPU? {outcome}\n"
             f"Does gradient match on CPU? {outcome_gradient}")
 
-    return outcome, outcome_gradient
     if "cupy" not in sys.modules:
         return outcome, outcome_gradient
 

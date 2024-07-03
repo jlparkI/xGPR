@@ -15,22 +15,78 @@ namespace nb = nanobind;
 using namespace std;
 
 NB_MODULE(xgpr_cuda_rfgen_cpp_ext, m){
-    m.def("cudaFastHadamardTransform2D", &cudaHTransform<float>);
-    m.def("cudaFastHadamardTransform2D", &cudaHTransform<double>);
-    m.def("cudaSRHT", &cudaSRHT2d<float>);
-    m.def("cudaSRHT", &cudaSRHT2d<double>);
+    m.def("cudaFastHadamardTransform2D", &cudaHTransform<float>,
+            nb::arg("inputArr").noconvert());
+    m.def("cudaFastHadamardTransform2D", &cudaHTransform<double>,
+            nb::arg("inputArr").noconvert());
+    m.def("cudaSRHT", &cudaSRHT2d<float>,
+            nb::arg("inputArr").noconvert(), nb::arg("radem").noconvert());
+    m.def("cudaSRHT", &cudaSRHT2d<double>,
+            nb::arg("inputArr").noconvert(), nb::arg("radem").noconvert());
 
-    m.def("cudaRBFFeatureGen", &RBFFeatureGen<float>);
-    m.def("cudaRBFFeatureGen", &RBFFeatureGen<double>);
-    m.def("cudaRBFGrad", &RBFFeatureGrad<float>);
-    m.def("cudaRBFGrad", &RBFFeatureGrad<double>);
-    m.def("cudaMiniARDGrad", &ardCudaGrad<float>);
-    m.def("cudaMiniARDGrad", &ardCudaGrad<double>);
+    m.def("cudaRBFFeatureGen", &RBFFeatureGen<float>,
+            nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),
+            nb::arg("radem").noconvert(), nb::arg("chiArr").noconvert(),
+            nb::arg("fitIntercept"), nb::arg("simplex"));
+    m.def("cudaRBFFeatureGen", &RBFFeatureGen<double>,
+            nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),
+            nb::arg("radem").noconvert(), nb::arg("chiArr").noconvert(),
+            nb::arg("fitIntercept"), nb::arg("simplex"));
 
-    m.def("cudaConv1dMaxpool", &conv1dMaxpoolFeatureGen<float>);
-    m.def("cudaConv1dMaxpool", &conv1dMaxpoolFeatureGen<double>);
-    m.def("cudaConv1dFGen", &convRBFFeatureGen<float>);
-    m.def("cudaConv1dFGen", &convRBFFeatureGen<double>);
-    m.def("cudaConvGrad", &convRBFFeatureGrad<float>);
-    m.def("cudaConvGrad", &convRBFFeatureGrad<double>);
+    m.def("cudaRBFGrad", &RBFFeatureGrad<float>,
+            nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),
+            nb::arg("gradArr").noconvert(), nb::arg("radem").noconvert(),
+            nb::arg("chiArr").noconvert(), nb::arg("sigma"), nb::arg("fitIntercept"),
+            nb::arg("simplex"));
+    m.def("cudaRBFGrad", &RBFFeatureGrad<double>,
+            nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),
+            nb::arg("gradArr").noconvert(), nb::arg("radem").noconvert(),
+            nb::arg("chiArr").noconvert(), nb::arg("sigma"), nb::arg("fitIntercept"),
+            nb::arg("simplex"));
+
+    m.def("cudaMiniARDGrad", &ardCudaGrad<float>,
+            nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),
+            nb::arg("precompWeights").noconvert(), nb::arg("sigmaMap").noconvert(),
+            nb::arg("sigmaVals").noconvert(), nb::arg("gradArr").noconvert(),
+            nb::arg("fitIntercept"));
+    m.def("cudaMiniARDGrad", &ardCudaGrad<double>,
+            nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),
+            nb::arg("precompWeights").noconvert(), nb::arg("sigmaMap").noconvert(),
+            nb::arg("sigmaVals").noconvert(), nb::arg("gradArr").noconvert(),
+            nb::arg("fitIntercept"));
+
+    m.def("cudaConv1dMaxpool", &conv1dMaxpoolFeatureGen<float>,
+            nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),
+            nb::arg("radem").noconvert(), nb::arg("chiArr").noconvert(),
+            nb::arg("seqlengths").noconvert(), nb::arg("convWidth"),
+            nb::arg("simplex"));
+    m.def("cudaConv1dMaxpool", &conv1dMaxpoolFeatureGen<double>,
+            nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),
+            nb::arg("radem").noconvert(), nb::arg("chiArr").noconvert(),
+            nb::arg("seqlengths").noconvert(), nb::arg("convWidth"),
+            nb::arg("simplex"));
+
+    m.def("cudaConv1dFGen", &convRBFFeatureGen<float>,
+            nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),
+            nb::arg("radem").noconvert(), nb::arg("chiArr").noconvert(),
+            nb::arg("seqlengths").noconvert(), nb::arg("convWidth"),
+            nb::arg("scalingType"), nb::arg("simplex"));
+    m.def("cudaConv1dFGen", &convRBFFeatureGen<double>,
+            nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),
+            nb::arg("radem").noconvert(), nb::arg("chiArr").noconvert(),
+            nb::arg("seqlengths").noconvert(), nb::arg("convWidth"),
+            nb::arg("scalingType"), nb::arg("simplex"));
+
+    m.def("cudaConvGrad", &convRBFFeatureGrad<float>,
+            nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),
+            nb::arg("radem").noconvert(), nb::arg("chiArr").noconvert(),
+            nb::arg("seqlengths").noconvert(), nb::arg("gradArr").noconvert(),
+            nb::arg("sigma"), nb::arg("convWidth"),
+            nb::arg("scalingType"), nb::arg("simplex"));
+    m.def("cudaConvGrad", &convRBFFeatureGrad<double>,
+            nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),
+            nb::arg("radem").noconvert(), nb::arg("chiArr").noconvert(),
+            nb::arg("seqlengths").noconvert(), nb::arg("gradArr").noconvert(),
+            nb::arg("sigma"), nb::arg("convWidth"),
+            nb::arg("scalingType"), nb::arg("simplex"));
 }
