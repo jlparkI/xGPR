@@ -14,6 +14,8 @@
 #include "../sharedmem.h"
 
 
+namespace nb = nanobind;
+
 
 //Uses shared memory to perform a reasonably efficient single kernel
 //transform up to MAX_BASE_LEVEL_TRANSFORM, then uses a somewhat
@@ -193,59 +195,93 @@ __global__ void conv1dDiagonalRademMultiply(T cArray[],
 
 
 
-//We perform the transform over the last dimension
-//of cArray which must be 2d; we expect cArray.shape[1] to 
-//be a power of 2 (caller must verify).
+//Performs an unnormalized fast Hadamard transform over the last
+//dimension of the input array.
 template <typename T>
-void cudaHTransform(T cArray[],
-		int dim0, int dim1, int dim2){
+int cudaHTransform(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cuda,
+        nb::c_contig> inputArr){
+
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+    int zDim1 = inputArr.shape(1);
+    T *inputPtr = inputArr.data();
+    
+    if (inputArr.shape(0) == 0)
+        throw std::runtime_error("no datapoints");
+    if (inputArr.shape(2) < 2)
+        throw std::runtime_error("last dim not power of 2 > 1");
+    if ((zDim1 & (zDim1 - 1)) != 0)
+        throw std::runtime_error("last dim not power of 2");
+
 
     int stepSize, log2N;
-    stepSize = MIN(MAX_BASE_LEVEL_TRANSFORM, dim1);
-    log2N = log2(dim1);
+    stepSize = MIN(MAX_BASE_LEVEL_TRANSFORM, zDim1);
+    log2N = log2(zDim1);
 
-    hadamardTransform<T><<<dim0, stepSize / 2,
-                    stepSize * sizeof(T)>>>(cArray, dim1, log2N);
+    hadamardTransform<T><<<zDim0, stepSize / 2,
+                    stepSize * sizeof(T)>>>(inputPtr, zDim1, log2N);
+
+    // Update this to add error code handling.
+    return 0;
 }
 //Instantiate templates explicitly so wrapper can use.
-template void cudaHTransform<float>(float cArray[],
-                int dim0, int dim1, int dim2);
-template void cudaHTransform<double>(double cArray[],
-                int dim0, int dim1, int dim2);
+template int cudaHTransform<double>(nb::ndarray<double, nb::shape<-1, -1>, nb::device::cuda,
+        nb::c_contig> inputArr);
+template int cudaHTransform<float>(nb::ndarray<float, nb::shape<-1, -1>, nb::device::cuda,
+        nb::c_contig> inputArr);
 
 
 
 //Performs the first two steps of SRHT (HD)
-//Note that cArray must have the same size across the
-//last two dimensions as radem and its last dimension must
-//be a power of two -- if those conditions are not met, you may
-//get an unpredictable result! The Cython wrapper checks all
-//of these criteria -- any other caller using this function
-//should do the same.
-//
-//Note that all of these arrays are already expected to "live" on GPU.
 template <typename T>
-const char *cudaSRHT2d(T cArray[], const int8_t *radem,
-                int dim0, int dim1){
+int cudaSRHT2d(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cuda,
+        nb::c_contig> inputArr,
+        nb::ndarray<const int8_t, nb::shape<-1>, nb::device::cuda,
+        nb::c_contig> radem){
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+    int zDim1 = inputArr.shape(1);
+    T *inputPtr = inputArr.data();
+    const int8_t *rademPtr = radem.data();
+    
+    if (inputArr.shape(0) == 0)
+        throw std::runtime_error("no datapoints");
+    if (inputArr.shape(1) != radem.shape(0))
+        throw std::runtime_error("wrong array sizes");
+    if (inputArr.shape(2) < 2)
+        throw std::runtime_error("last dim not power of 2 > 1");
+    if ((zDim1 & (zDim1 - 1)) != 0)
+        throw std::runtime_error("last dim not power of 2");
+
     //This is the Hadamard normalization constant.
-    T normConstant = log2(dim1) / 2;
+    T normConstant = log2(zDim1) / 2;
     normConstant = 1 / pow(2, normConstant);
     int stepSize, log2N;
-    stepSize = MIN(MAX_BASE_LEVEL_TRANSFORM, dim1);
-    log2N = log2(dim1);
+    stepSize = MIN(MAX_BASE_LEVEL_TRANSFORM, zDim1);
+    log2N = log2(zDim1);
 
 
     //cudaProfilerStart();
-    hadamardTransformRadMult<T><<<dim0, stepSize / 2,
-        stepSize * sizeof(T)>>>(cArray, dim1, log2N,
-                    radem, normConstant);
+    hadamardTransformRadMult<T><<<zDim0, stepSize / 2,
+        stepSize * sizeof(T)>>>(inputPtr, zDim1, log2N,
+                    rademPtr, normConstant);
 
 
     //cudaProfilerStop();
-    return "no_error";
+    return 0;
 }
 //Instantiate templates explicitly so wrapper can use.
-template const char *cudaSRHT2d<float>(float cArray[], const int8_t *radem,
-                int dim0, int dim1);
-template const char *cudaSRHT2d<double>(double cArray[], const int8_t *radem,
-                int dim0, int dim1);
+template int cudaSRHT2d<double>(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda,
+        nb::c_contig> inputArr,
+        nb::ndarray<const int8_t, nb::shape<-1>, nb::device::cuda,
+        nb::c_contig> radem);
+template int cudaSRHT2d<float>(nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda,
+        nb::c_contig> inputArr,
+        nb::ndarray<const int8_t, nb::shape<-1>, nb::device::cuda,
+        nb::c_contig> radem);

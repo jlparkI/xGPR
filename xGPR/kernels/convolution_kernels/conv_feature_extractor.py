@@ -9,10 +9,10 @@ from scipy.stats import chi
 try:
     import cupy as cp
     from cuda_rf_gen_module import gpuConv1dMaxpool
+    from cpu_rf_gen_module import cpuConv1dMaxpool
 except:
     pass
 
-from cpu_rf_gen_module import cpuConv1dMaxpool
 
 
 class FHTMaxpoolConv1dFeatureExtractor():

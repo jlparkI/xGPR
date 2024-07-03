@@ -12,6 +12,10 @@
 #include "../sharedmem.h"
 #include "rbf_ops.h"
 
+
+namespace nb = nanobind;
+
+
 //Generates the RBF features. This single kernel loops over 1)
 //the number of repeats then inside that loop 2) the three diagonal
 //matrix multiplications and fast Hadamard transforms before
@@ -578,12 +582,51 @@ __global__ void rbfFeatureGradSimplexKernel(const T origData[], T cArray[],
 //This function generates random features for RBF / ARD kernels, if the
 //input has already been multiplied by the appropriate lengthscale values.
 template <typename T>
-const char *RBFFeatureGen(T origData[], int8_t *radem,
-                T chiArr[], double *outputArray,
-                double rbfNormConstant,
-                int dim0, int dim1, int rademShape2,
-                int numFreqs, int paddedBufferSize,
-                bool simplex){
+int RBFFeatureGen(
+        nb::ndarray<const T, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<const T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        bool fitIntercept, bool simplex
+        ){
+
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+    int zDim1 = inputArr.shape(1);
+    size_t numRffs = outputArr.shape(1);
+    size_t numFreqs = chiArr.shape(0);
+    double numFreqsFlt = numFreqs;
+
+    const T *inputPtr = inputArr.data();
+    double *outputPtr = outputArr.data();
+    const T *chiPtr = chiArr.data();
+    const int8_t *rademPtr = radem.data();
+
+    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("no datapoints");
+    if (numRffs < 2 || (numRffs & 1) != 0)
+        throw std::runtime_error("last dim of output must be even number");
+    if ( (2 * numFreqs) != numRffs || numFreqs > radem.shape(2) )
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+    double expectedNFreq = (zDim1 > 2) ? static_cast<double>(zDim1) : 2.0;
+    double log2Freqs = std::log2(expectedNFreq);
+    log2Freqs = std::ceil(log2Freqs);
+    int paddedBufferSize = std::pow(2, log2Freqs);
+
+    if (radem.shape(2) % paddedBufferSize != 0)
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+    T rbfNormConstant;
+
+    if (fitIntercept)
+        rbfNormConstant = std::sqrt(1.0 / (numFreqsFlt - 0.5));
+    else
+        rbfNormConstant = std::sqrt(1.0 / numFreqsFlt);
+
     //This is the Hadamard normalization constant.
     T normConstant = log2(paddedBufferSize) / 2;
     normConstant = 1 / pow(2, normConstant);
@@ -592,48 +635,95 @@ const char *RBFFeatureGen(T origData[], int8_t *radem,
     int log2N = log2(paddedBufferSize);
 
     T *featureArray;
-    if (cudaMalloc(&featureArray, sizeof(T) * dim0 * paddedBufferSize) != cudaSuccess) {
+    if (cudaMalloc(&featureArray, sizeof(T) * zDim0 * paddedBufferSize) != cudaSuccess) {
         cudaFree(featureArray);
-        return "Fatal malloc error";
+        throw std::runtime_error("out of memory on cuda");
+        return 1;
     };
 
     if (!simplex){
-        rbfFeatureGenKernel<T><<<dim0, stepSize / 2, stepSize * sizeof(T)>>>(origData, featureArray,
-            outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, dim1,
-            numRepeats, rademShape2, normConstant, rbfNormConstant);
+        rbfFeatureGenKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
+            featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1,
+            numRepeats, radem.shape(2), normConstant, rbfNormConstant);
     }
     else{
-        rbfFeatureGenSimplexKernel<T><<<dim0, stepSize / 2, stepSize * sizeof(T)>>>(origData, featureArray,
-            outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, dim1,
-            numRepeats, rademShape2, normConstant, rbfNormConstant);
+        rbfFeatureGenSimplexKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
+            featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1,
+            numRepeats, radem.shape(2), normConstant, rbfNormConstant);
     }
 
     cudaFree(featureArray);
-    return "no_error";
+    return 0;
 }
 //Instantiate templates so Cython / PyBind wrappers can import.
-template const char *RBFFeatureGen<double>(double cArray[], int8_t *radem,
-                double chiArr[], double *outputArray,
-                double rbfNormConstant, int dim0, int dim1, 
-                int rademShape2, int numFreqs, int paddedBufferSize,
-                bool simplex);
-template const char *RBFFeatureGen<float>(float cArray[], int8_t *radem,
-                float chiArr[], double *outputArray,
-                double rbfNormConstant, int dim0, int dim1,
-                int rademShape2, int numFreqs, int paddedBufferSize,
-                bool simplex);
+template int RBFFeatureGen<double>(
+        nb::ndarray<const double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<const double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        bool fitIntercept, bool simplex);
+template int RBFFeatureGen<float>(
+        nb::ndarray<const float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<const float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        bool fitIntercept, bool simplex);
 
 
 //This function generates random features for RBF kernels ONLY
 //(NOT ARD), and simultaneously generates the gradient, storing
 //it in a separate array.
 template <typename T>
-const char *RBFFeatureGrad(T origData[], int8_t *radem,
-                T chiArr[], double *outputArray,
-                double *gradientArray, double rbfNormConstant,
-                T sigma, int dim0, int dim1, int rademShape2,
-                int numFreqs, int paddedBufferSize,
-                bool simplex){
+int RBFFeatureGrad(
+        nb::ndarray<const T, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> gradArr,
+        nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<const T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        bool fitIntercept, bool simplex
+        ){
+
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+    int zDim1 = inputArr.shape(1);
+    size_t numRffs = outputArr.shape(1);
+    size_t numFreqs = chiArr.shape(0);
+    double numFreqsFlt = numFreqs;
+
+    const T *inputPtr = inputArr.data();
+    double *outputPtr = outputArr.data();
+    double *gradientPtr = gradArr.data();
+    const T *chiPtr = chiArr.data();
+    const int8_t *rademPtr = radem.data();
+
+    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("no datapoints");
+    if (numRffs < 2 || (numRffs & 1) != 0)
+        throw std::runtime_error("last dim of output must be even number");
+    if ( (2 * numFreqs) != numRffs || numFreqs > radem.shape(2) )
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+    if (gradArr.shape(0) != outputArr.shape(0) || gradArr.shape(1) != outputArr.shape(1))
+        throw std::runtime_error("Wrong array sizes.");
+
+    double expectedNFreq = (zDim1 > 2) ? static_cast<double>(zDim1) : 2.0;
+    double log2Freqs = std::log2(expectedNFreq);
+    log2Freqs = std::ceil(log2Freqs);
+    int paddedBufferSize = std::pow(2, log2Freqs);
+
+    if (radem.shape(2) % paddedBufferSize != 0)
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+    T rbfNormConstant;
+
+    if (fitIntercept)
+        rbfNormConstant = std::sqrt(1.0 / (numFreqsFlt - 0.5));
+    else
+        rbfNormConstant = std::sqrt(1.0 / numFreqsFlt);
+
+
     //This is the Hadamard normalization constant.
     T normConstant = log2(paddedBufferSize) / 2;
     normConstant = 1 / pow(2, normConstant);
@@ -642,35 +732,38 @@ const char *RBFFeatureGrad(T origData[], int8_t *radem,
     int log2N = log2(paddedBufferSize);
 
     T *featureArray;
-    if (cudaMalloc(&featureArray, sizeof(T) * dim0 * paddedBufferSize) != cudaSuccess) {
+    if (cudaMalloc(&featureArray, sizeof(T) * zDim0 * paddedBufferSize) != cudaSuccess) {
         cudaFree(featureArray);
-        return "Fatal malloc error";
+        throw std::runtime_error("out of memory on cuda");
+        return 1;
     };
 
     if (!simplex){
-        rbfFeatureGradKernel<T><<<dim0, stepSize / 2, stepSize * sizeof(T)>>>(origData, featureArray,
-            outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, dim1,
-            numRepeats, rademShape2, normConstant, rbfNormConstant, gradientArray);
+        rbfFeatureGradKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
+            featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1,
+            numRepeats, radem.shape(2), normConstant, rbfNormConstant, gradientPtr);
     }
     else{
-        rbfFeatureGradSimplexKernel<T><<<dim0, stepSize / 2, stepSize * sizeof(T)>>>(origData, featureArray,
-            outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, dim1,
-            numRepeats, rademShape2, normConstant, rbfNormConstant, gradientArray);
+        rbfFeatureGradSimplexKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
+            featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1,
+            numRepeats, radem.shape(2), normConstant, rbfNormConstant, gradientPtr);
     }
 
     cudaFree(featureArray);
-    return "no_error";
+    return 0;
 }
 //Instantiate templates so Cython / PyBind wrappers can import.
-template const char *RBFFeatureGrad<double>(double origData[], int8_t *radem,
-                double chiArr[], double *outputArray,
-                double *gradientArray, double rbfNormConstant,
-                double sigma, int dim0, int dim1, int rademShape2,
-                int numFreqs, int paddedBufferSize,
-                bool simplex);
-template const char *RBFFeatureGrad<float>(float origData[], int8_t *radem,
-                float chiArr[], double *outputArray,
-                double *gradientArray, double rbfNormConstant,
-                float sigma, int dim0, int dim1, int rademShape2,
-                int numFreqs, int paddedBufferSize,
-                bool simplex);
+template int RBFFeatureGrad<double>(
+        nb::ndarray<const double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> gradArr,
+        nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<const double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        bool fitIntercept, bool simplex);
+template int RBFFeatureGrad<float>(
+        nb::ndarray<const float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> gradArr,
+        nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<const float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        bool fitIntercept, bool simplex);

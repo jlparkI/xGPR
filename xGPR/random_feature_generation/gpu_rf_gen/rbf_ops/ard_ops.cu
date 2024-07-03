@@ -83,39 +83,81 @@ __global__ void ardGradRFMultiply(double *gradientArray, double *randomFeats,
 
 //This function generates the gradient and random features
 //for ARD kernels only, using precomputed weights that take
-//the place of the H-transforms
-//we would otherwise need to perform.
+//the place of the H-transforms we would otherwise need to perform.
 template <typename T>
-const char *ardCudaGrad(T inputX[], double *randomFeats,
-                T precompWeights[], int32_t *sigmaMap,
-                double *sigmaVals, double *gradient, int dim0,
-                int dim1, int numLengthscales, int numFreqs,
-                double rbfNormConstant){
+int ardCudaGrad(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<T, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> precompWeights,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> sigmaMap,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> sigmaVals,
+        nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> gradArr,
+        bool fitIntercept){
 
-    int numRFElements = dim0 * numFreqs;
-    int numSetupElements = dim0 * numFreqs;
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+    int zDim1 = inputArr.shape(1);
+
+    T *inputPtr = static_cast<T*>(inputArr.data());
+    T *precompWeightsPtr = static_cast<T*>(precompWeights.data());
+    double *outputPtr = static_cast<double*>(outputArr.data());
+    double *gradientPtr = static_cast<double*>(gradArr.data());
+    int32_t *sigmaMapPtr = static_cast<int32_t*>(sigmaMap.data());
+    double *sigmaValsPtr = static_cast<double*>(sigmaVals.data());
+
+    size_t numFreqs = precompWeights.shape(0);
+    double numFreqsFlt = numFreqs;
+    size_t numLengthscales = gradArr.shape(2);
+
+    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("no datapoints");
+    if (gradArr.shape(0) != outputArr.shape(0) || gradArr.shape(1) != outputArr.shape(1))
+        throw std::runtime_error("Wrong array sizes.");
+    if (precompWeights.shape(1) != inputArr.shape(1))
+        throw std::runtime_error("Wrong array sizes.");
+    if (outputArr.shape(1) != 2 * precompWeights.shape(0) || sigmaMap.shape(0) != precompWeights.shape(1))
+        throw std::runtime_error("Wrong array sizes.");
+    if (sigmaVals.shape(1) != sigmaMap.shape(0))
+        throw std::runtime_error("Wrong array sizes.");
+
+
+    T rbfNormConstant;
+
+    if (fitIntercept)
+        rbfNormConstant = std::sqrt(1.0 / (numFreqsFlt - 0.5));
+    else
+        rbfNormConstant = std::sqrt(1.0 / numFreqsFlt);
+
+    int numRFElements = zDim0 * numFreqs;
+    int numSetupElements = zDim0 * numFreqs;
     int blocksPerGrid;
 
 
     blocksPerGrid = (numSetupElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
-    ardGradSetup<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(gradient, precompWeights, inputX,
-            sigmaMap, sigmaVals, randomFeats, dim1, numSetupElements,
+    ardGradSetup<T><<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(gradientPtr, precompWeightsPtr,
+            inputPtr, sigmaMapPtr, sigmaValsPtr, outputPtr, zDim1, numSetupElements,
             numFreqs, numLengthscales);
 
     blocksPerGrid = (numRFElements + DEFAULT_THREADS_PER_BLOCK - 1) / DEFAULT_THREADS_PER_BLOCK;
-    ardGradRFMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(gradient, randomFeats,
+    ardGradRFMultiply<<<blocksPerGrid, DEFAULT_THREADS_PER_BLOCK>>>(gradientPtr, outputPtr,
                 numRFElements, numFreqs, numLengthscales, rbfNormConstant);
 
-    return "no_error";
+    return 0;
 }
 //Explicitly instantiate so wrappers can access.
-template const char *ardCudaGrad<double>(double inputX[], double *randomFeats,
-                double precompWeights[], int32_t *sigmaMap,
-                double *sigmaVals, double *gradient, int dim0,
-                int dim1, int numLengthscales, int numFreqs,
-                double rbfNormConstant);
-template const char *ardCudaGrad<float>(float inputX[], double *randomFeats,
-                float precompWeights[], int32_t *sigmaMap,
-                double *sigmaVals, double *gradient, int dim0,
-                int dim1, int numLengthscales, int numFreqs,
-                double rbfNormConstant);
+template int ardCudaGrad<double>(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> precompWeights,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> sigmaMap,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> sigmaVals,
+        nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> gradArr,
+        bool fitIntercept);
+template int ardCudaGrad<float>(nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> precompWeights,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> sigmaMap,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> sigmaVals,
+        nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> gradArr,
+        bool fitIntercept);

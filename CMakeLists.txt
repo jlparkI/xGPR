@@ -1,6 +1,7 @@
-cmake_minimum_required(VERSION 3.15)
-project(${SKBUILD_PROJECT_NAME} LANGUAGES CXX)
+include(CheckLanguage)
 
+cmake_minimum_required(VERSION 3.18)
+set(DEV_MODULE Development.Module)
 if (NOT SKBUILD)
   message(WARNING "\
   This CMake file is meant to be executed using 'scikit-build'. Running
@@ -25,20 +26,27 @@ if (NOT SKBUILD)
 endif()
 
 
-if (CMAKE_VERSION VERSION_LESS 3.18)
-  set(DEV_MODULE Development)
+
+check_language(CUDA)
+if (CMAKE_CUDA_COMPILER)
+    message(STATUS "CUDA is OK")
+    include_directories(${CUDA_INCLUDE_DIRS})
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+    add_compile_definitions(USE_CUDA)
+    project(${SKBUILD_PROJECT_NAME} LANGUAGES CXX CUDA)
 else()
-  set(DEV_MODULE Development.Module)
+    message(STATUS "No CUDA")
+    remove_definitions(USE_CUDA)
+    project(${SKBUILD_PROJECT_NAME} LANGUAGES CXX)
 endif()
+
+set(CMAKE_CXX_FLAGS "-O3 -Wall -Wextra -fopenmp-simd -fvisibility=hidden")
+
 
 find_package(Python 3.8 COMPONENTS Interpreter ${DEV_MODULE} REQUIRED)
 
-if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
-endif()
-
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/ext/nanobind)
@@ -65,5 +73,28 @@ nanobind_add_module(
   xGPR/random_feature_generation/cpu_rf_gen/convolution_ops/rbf_convolution.cpp
 
 )
+
+
+if (CMAKE_CUDA_COMPILER)
+    nanobind_add_module(
+        xgpr_cuda_rfgen_cpp_ext
+
+        # Target the stable ABI for Python 3.12+, which reduces
+        # the number of binary wheels that must be built. This
+        # does nothing on older Python versions
+        STABLE_ABI
+
+        NB_STATIC
+
+    xGPR/random_feature_generation/gpu_rf_gen/xgpr_cuda_rfgen_cpp_ext.cpp
+    xGPR/random_feature_generation/gpu_rf_gen/basic_ops/basic_array_operations.cu
+    xGPR/random_feature_generation/gpu_rf_gen/rbf_ops/rbf_ops.cu
+    xGPR/random_feature_generation/gpu_rf_gen/rbf_ops/ard_ops.cu
+    xGPR/random_feature_generation/gpu_rf_gen/convolution_ops/convolution.cu
+    xGPR/random_feature_generation/gpu_rf_gen/convolution_ops/rbf_convolution.cu
+
+    )
+    install(TARGETS xgpr_cuda_rfgen_cpp_ext LIBRARY DESTINATION ${SKBUILD_PROJECT_NAME})
+endif()
 
 install(TARGETS xgpr_cpu_rfgen_cpp_ext LIBRARY DESTINATION ${SKBUILD_PROJECT_NAME})

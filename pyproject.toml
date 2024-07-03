@@ -26,7 +26,7 @@ Documentation = "https://xgpr.readthedocs.io/en/latest/"
 
 [tool.scikit-build]
 # Protect the configuration against future changes in scikit-build-core
-minimum-version = "0.4"
+minimum-version = "0.8"
 
 # Setuptools-style build caching in a local directory
 build-dir = "build/{wheel_tag}"
@@ -34,3 +34,4 @@ build-dir = "build/{wheel_tag}"
 # Build stable ABI wheels for CPython 3.12+
 wheel.py-api = "cp312"
 cmake.verbose = true
+cmake.version = ">=3.18"

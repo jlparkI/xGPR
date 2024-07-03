@@ -663,12 +663,65 @@ __global__ void convRBFFeatureGradSimplexKernel(const T origData[], T cArray[],
 
 //This function generates and sums random features for a Conv1d RBF-type kernel.
 template <typename T>
-const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
-            const T chiArr[], double *outputArray, const int32_t *seqlengths,
-            int xdim0, int xdim1, int xdim2, int numFreqs,
-            int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType,
-            bool simplex){
+int convRBFFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        int convWidth, int scalingType, int numThreads, bool simplex){
+
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+    int zDim1 = inputArr.shape(1);
+    int zDim2 = inputArr.shape(2);
+    size_t numRffs = outputArr.shape(1);
+    size_t numFreqs = chiArr.shape(0);
+    double scalingTerm = std::sqrt(1.0 / static_cast<double>(numFreqs));
+
+    T *inputPtr = static_cast<T*>(inputArr.data());
+    double *outputPtr = static_cast<double*>(outputArr.data());
+    T *chiPtr = static_cast<T*>(chiArr.data());
+    int8_t *rademPtr = static_cast<int8_t*>(radem.data());
+    int32_t *seqlengthsPtr = static_cast<int32_t*>(seqlengths.data());
+
+    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("no datapoints");
+    if (numRffs < 2 || (numRffs & 1) != 0)
+        throw std::runtime_error("last dim of output must be even number");
+    if ( (2 * numFreqs) != numRffs || numFreqs > radem.shape(2) )
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+    if (seqlengths.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("wrong array sizes");
+    if (static_cast<int>(inputArr.shape(1)) < convWidth || convWidth <= 0)
+        throw std::runtime_error("invalid conv_width");
+
+    double expectedNFreq = (inputArr.shape(2) > 2) ? static_cast<double>(inputArr.shape(2)) : 2.0;
+    double log2Freqs = std::log2(expectedNFreq);
+    log2Freqs = std::ceil(log2Freqs);
+    int paddedBufferSize = std::pow(2, log2Freqs);
+
+    if (radem.shape(2) % paddedBufferSize != 0)
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+
+    int32_t minSeqLength = 2147483647, maxSeqLength = 0;
+    for (size_t i=0; i < seqlengths.shape(0); i++){
+        if (seqlengths(i) > maxSeqLength)
+            maxSeqLength = seqlengths(i);
+        if (seqlengths(i) < minSeqLength)
+            minSeqLength = seqlengths(i);
+    }
+
+    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth){
+        throw std::runtime_error("All sequence lengths must be >= conv width and < "
+                "array size.");
+    }
+
+
 
     //This is the Hadamard normalization constant.
     T normConstant = log2(paddedBufferSize) / 2;
@@ -679,36 +732,41 @@ const char *convRBFFeatureGen(const int8_t *radem, const T xdata[],
     int log2N = log2(paddedBufferSize);
 
     T *featureArray;
-    if (cudaMalloc(&featureArray, sizeof(T) * xdim0 * paddedBufferSize) != cudaSuccess) {
+    if (cudaMalloc(&featureArray, sizeof(T) * zDim0 * paddedBufferSize) != cudaSuccess) {
             cudaFree(featureArray);
-            return "Fatal malloc error";
+            throw std::runtime_error("Cuda is out of memory");
+            return 1;
     };
 
     if (!simplex){
-        convRBFFeatureGenKernel<T><<<xdim0, stepSize / 2, stepSize * sizeof(T)>>>(xdata, featureArray,
-            outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, xdim1, xdim2,
-            numRepeats, rademShape2, normConstant, scalingTerm, scalingType, convWidth, seqlengths);
+        convRBFFeatureGenKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
+            featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1, zDim2,
+            numRepeats, radem.shape(2), normConstant, scalingTerm, scalingType, convWidth,
+            seqlengthsPtr);
     }
     else{
-        convRBFFeatureGenSimplexKernel<T><<<xdim0, stepSize / 2, stepSize * sizeof(T)>>>(xdata, featureArray,
-            outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, xdim1, xdim2,
-            numRepeats, rademShape2, normConstant, scalingTerm, scalingType, convWidth, seqlengths);
+        convRBFFeatureGenSimplexKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
+            featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1, zDim2,
+            numRepeats, radem.shape(2), normConstant, scalingTerm, scalingType, convWidth,
+            seqlengthsPtr);
     }
 
     cudaFree(featureArray);
-    return "no_error";
+    return 0;
 }
 //Explicitly instantiate so wrapper can use.
-template const char *convRBFFeatureGen<float>(const int8_t *radem,
-            const float xdata[], const float chiArr[], double *outputArray,
-            const int32_t *seqlengths, int xdim0, int xdim1, int xdim2, int numFreqs,
-            int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType, bool simplex);
-template const char *convRBFFeatureGen<double>(const int8_t *radem,
-            const double xdata[], const double chiArr[], double *outputArray,
-            const int32_t *seqlengths, int xdim0, int xdim1, int xdim2, int numFreqs,
-            int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType, bool simplex);
+template int convRBFFeatureGen<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        int convWidth, int scalingType, int numThreads, bool simplex);
+template int convRBFFeatureGen<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        int convWidth, int scalingType, int numThreads, bool simplex);
 
 
 
@@ -720,13 +778,70 @@ template const char *convRBFFeatureGen<double>(const int8_t *radem,
 //lengthscale; ARD-type kernels require a more complicated
 //gradient calculation not implemented here.
 template <typename T>
-const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
-            const T chiArr[], double *outputArray, const int32_t *seqlengths,
-            double *gradientArray, double sigma,
-            int xdim0, int xdim1, int xdim2, int numFreqs,
-            int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType,
-            bool simplex){
+int convRBFFeatureGrad(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
+        double sigma, int convWidth, int scalingType, int numThreads, bool simplex){
+
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+    int zDim1 = inputArr.shape(1);
+    int zDim2 = inputArr.shape(2);
+    size_t numRffs = outputArr.shape(1);
+    size_t numFreqs = chiArr.shape(0);
+    double scalingTerm = std::sqrt(1.0 / static_cast<double>(numFreqs));
+
+    T *inputPtr = static_cast<T*>(inputArr.data());
+    double *outputPtr = static_cast<double*>(outputArr.data());
+    T *chiPtr = static_cast<T*>(chiArr.data());
+    int8_t *rademPtr = static_cast<int8_t*>(radem.data());
+    int32_t *seqlengthsPtr = static_cast<int32_t*>(seqlengths.data());
+    double *gradientPtr = static_cast<double*>(gradArr.data());
+
+    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("no datapoints");
+    if (numRffs < 2 || (numRffs & 1) != 0)
+        throw std::runtime_error("last dim of output must be even number");
+    if ( (2 * numFreqs) != numRffs || numFreqs > radem.shape(2) )
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+    if (seqlengths.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("wrong array sizes");
+    if (static_cast<int>(inputArr.shape(1)) < convWidth || convWidth <= 0)
+        throw std::runtime_error("invalid conv_width");
+
+    if (gradArr.shape(0) != outputArr.shape(0) || gradArr.shape(1) != outputArr.shape(1))
+        throw std::runtime_error("wrong array sizes");
+
+    double expectedNFreq = (inputArr.shape(2) > 2) ? static_cast<double>(inputArr.shape(2)) : 2.0;
+    double log2Freqs = std::log2(expectedNFreq);
+    log2Freqs = std::ceil(log2Freqs);
+    int paddedBufferSize = std::pow(2, log2Freqs);
+
+    if (radem.shape(2) % paddedBufferSize != 0)
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+
+    int32_t minSeqLength = 2147483647, maxSeqLength = 0;
+    for (size_t i=0; i < seqlengths.shape(0); i++){
+        if (seqlengths(i) > maxSeqLength)
+            maxSeqLength = seqlengths(i);
+        if (seqlengths(i) < minSeqLength)
+            minSeqLength = seqlengths(i);
+    }
+
+    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth){
+        throw std::runtime_error("All sequence lengths must be >= conv width and < "
+                "array size.");
+    }
+
+
     //This is the Hadamard normalization constant.
     T normConstant = log2(paddedBufferSize) / 2;
     normConstant = 1 / pow(2, normConstant);
@@ -736,37 +851,40 @@ const char *convRBFFeatureGrad(const int8_t *radem, const T xdata[],
     int log2N = log2(paddedBufferSize);
 
     T *featureArray;
-    if (cudaMalloc(&featureArray, sizeof(T) * xdim0 * paddedBufferSize) != cudaSuccess) {
+    if (cudaMalloc(&featureArray, sizeof(T) * zDim0 * paddedBufferSize) != cudaSuccess) {
             cudaFree(featureArray);
-            return "Fatal malloc error";
+            throw std::runtime_error("Cuda is out of memory");
+            return 1;
     };
 
     if (!simplex){
-        convRBFFeatureGradKernel<T><<<xdim0, stepSize / 2, stepSize * sizeof(T)>>>(xdata, featureArray,
-            outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, xdim1, xdim2,
-            numRepeats, rademShape2, normConstant, scalingTerm, scalingType, convWidth, seqlengths,
-            gradientArray);
+        convRBFFeatureGradKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
+            featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1, zDim2,
+            numRepeats, radem.shape(2), normConstant, scalingTerm, scalingType, convWidth,
+            seqlengthsPtr, gradientPtr);
     }
     else{
-        convRBFFeatureGradSimplexKernel<T><<<xdim0, stepSize / 2, stepSize * sizeof(T)>>>(xdata, featureArray,
-            outputArray, chiArr, radem, paddedBufferSize, log2N, numFreqs, xdim1, xdim2,
-            numRepeats, rademShape2, normConstant, scalingTerm, scalingType, convWidth, seqlengths,
-            gradientArray);
+        convRBFFeatureGradSimplexKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
+            featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1, zDim2,
+            numRepeats, radem.shape(2), normConstant, scalingTerm, scalingType, convWidth,
+            seqlengthsPtr, gradientPtr);
     }
 
     cudaFree(featureArray);
-    return "no_error";
+    return 0;
 }
 //Explicitly instantiate so wrapper can use.
-template const char *convRBFFeatureGrad<float>(const int8_t *radem,
-            const float xdata[], const float chiArr[], double *outputArray,
-            const int32_t *seqlengths, double *gradientArray, double sigma,
-            int xdim0, int xdim1, int xdim2, int numFreqs,
-            int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType, bool simplex);
-template const char *convRBFFeatureGrad<double>(const int8_t *radem,
-            const double xdata[], const double chiArr[], double *outputArray,
-            const int32_t *seqlengths, double *gradientArray, double sigma,
-            int xdim0, int xdim1, int xdim2, int numFreqs,
-            int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType, bool simplex);
+template int convRBFFeatureGrad<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
+        double sigma, int convWidth, int scalingType, int numThreads, bool simplex);
+template int convRBFFeatureGrad<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
+        double sigma, int convWidth, int scalingType, int numThreads, bool simplex);

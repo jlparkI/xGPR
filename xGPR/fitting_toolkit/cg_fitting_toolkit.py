@@ -6,6 +6,7 @@ try:
     from cupyx.scipy.sparse.linalg import cg as Cuda_CG
     from ..cg_toolkit.cuda_cg_linear_operators import Cuda_CGLinearOperator
     from cg_tools import GPU_ConjugateGrad
+    from cg_tools import CPU_ConjugateGrad
 except:
     pass
 import numpy as np
@@ -13,7 +14,6 @@ from scipy.sparse.linalg import cg as CPU_CG
 
 from ..scoring_toolkit.exact_nmll_calcs import calc_zty
 
-from cg_tools import CPU_ConjugateGrad
 from ..cg_toolkit.cg_linear_operators import CPU_CGLinearOperator
 
 

@@ -8,12 +8,12 @@ from math import ceil
 
 import numpy as np
 from scipy.stats import chi
-from cpu_rf_gen_module import cpuRBFFeatureGen, cpuRBFGrad
 
 try:
     import cupy as cp
     from cuda_rf_gen_module import cudaRBFFeatureGen as cudaRBF
     from cuda_rf_gen_module import cudaRBFGrad as cudaRBFGrad
+    from cpu_rf_gen_module import cpuRBFFeatureGen, cpuRBFGrad
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass

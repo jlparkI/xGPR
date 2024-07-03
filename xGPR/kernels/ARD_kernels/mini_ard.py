@@ -5,12 +5,12 @@ from math import ceil
 
 import numpy as np
 from scipy.stats import chi
-from cpu_rf_gen_module import cpuFastHadamardTransform2D as dFHT2d
-from cpu_rf_gen_module import cpuRBFFeatureGen, cpuMiniARDGrad
 
 try:
     import cupy as cp
     from cuda_rf_gen_module import cudaRBFFeatureGen, cudaMiniARDGrad
+    from cpu_rf_gen_module import cpuFastHadamardTransform2D as dFHT2d
+    from cpu_rf_gen_module import cpuRBFFeatureGen, cpuMiniARDGrad
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass

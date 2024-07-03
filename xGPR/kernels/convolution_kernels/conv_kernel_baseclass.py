@@ -9,11 +9,11 @@ from scipy.stats import chi
 try:
     import cupy as cp
     from cuda_rf_gen_module import gpuConv1dFGen, gpuConvGrad
+    from cpu_rf_gen_module import cpuConv1dFGen, cpuConvGrad
 except:
     pass
 
 from ..kernel_baseclass import KernelBaseclass
-from cpu_rf_gen_module import cpuConv1dFGen, cpuConvGrad
 
 
 

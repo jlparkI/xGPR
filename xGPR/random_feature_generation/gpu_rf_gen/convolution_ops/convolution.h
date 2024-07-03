@@ -2,13 +2,19 @@
 #define CUDA_CONVOLUTION_H
 
 #include <stdint.h>
+#include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
+
+namespace nb = nanobind;
+
 
 
 template <typename T>
-const char *conv1dMaxpoolFeatureGen(const int8_t *radem, const T xdata[],
-            const T chiArr[], double *outputArray, const int32_t *seqlengths,
-            int xdim0, int xdim1, int xdim2, int numFreqs,
-            int convWidth, int paddedBufferSize, int rademShape2,
-            bool simplex);
+int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        int convWidth, bool simplex);
 
 #endif
