@@ -344,7 +344,7 @@ __global__ void convRBFFeatureGradKernel(const T origData[], T cArray[],
         int nRepeats, int rademShape2, T normConstant,
         double scalingConstant, int scalingType,
         int convWidth, const int32_t *seqlengths,
-        double *gradient){
+        double *gradient, T sigma){
 
     int stepSize = MIN(paddedBufferSize, MAX_BASE_LEVEL_TRANSFORM);
     int colCutoff = seqlengths[blockIdx.x] - convWidth + 1;
@@ -464,10 +464,11 @@ __global__ void convRBFFeatureGradKernel(const T origData[], T cArray[],
                 if ((i + chiArrPos) >= numFreqs)
                     break;
                 outputVal = chiArr[chiArrPos + i] * cArray[tempArrPos + i];
-                outputArray[outputArrPos + 2 * i] += modifiedScaling * cos(outputVal);
-                outputArray[outputArrPos + 2 * i + 1] += modifiedScaling * sin(outputVal);
-                gradient[outputArrPos + 2 * i] -= modifiedScaling * sin(outputVal) * outputVal;
-                gradient[outputArrPos + 2 * i + 1] += modifiedScaling * cos(outputVal) * outputVal;
+                double prodVal = outputVal * sigma;
+                outputArray[outputArrPos + 2 * i] += modifiedScaling * cos(prodVal);
+                outputArray[outputArrPos + 2 * i + 1] += modifiedScaling * sin(prodVal);
+                gradient[outputArrPos + 2 * i] -= modifiedScaling * sin(prodVal) * outputVal;
+                gradient[outputArrPos + 2 * i + 1] += modifiedScaling * cos(prodVal) * outputVal;
             }
 
             chiArrPos += paddedBufferSize;
@@ -493,7 +494,7 @@ __global__ void convRBFFeatureGradSimplexKernel(const T origData[], T cArray[],
         int nRepeats, int rademShape2, T normConstant,
         double scalingConstant, int scalingType,
         int convWidth, const int32_t *seqlengths,
-        double *gradient){
+        double *gradient, T sigma){
 
     int stepSize = MIN(paddedBufferSize, MAX_BASE_LEVEL_TRANSFORM);
     int colCutoff = seqlengths[blockIdx.x] - convWidth + 1;
@@ -643,10 +644,11 @@ __global__ void convRBFFeatureGradSimplexKernel(const T origData[], T cArray[],
                 if ((i + chiArrPos) >= numFreqs)
                     break;
                 outputVal = chiArr[chiArrPos + i] * cArray[tempArrPos + i];
-                outputArray[outputArrPos + 2 * i] += modifiedScaling * cos(outputVal);
-                outputArray[outputArrPos + 2 * i + 1] += modifiedScaling * sin(outputVal);
-                gradient[outputArrPos + 2 * i] -= modifiedScaling * sin(outputVal) * outputVal;
-                gradient[outputArrPos + 2 * i + 1] += modifiedScaling * cos(outputVal) * outputVal;
+                double prodVal = outputVal * sigma;
+                outputArray[outputArrPos + 2 * i] += modifiedScaling * cos(prodVal);
+                outputArray[outputArrPos + 2 * i + 1] += modifiedScaling * sin(prodVal);
+                gradient[outputArrPos + 2 * i] -= modifiedScaling * sin(prodVal) * outputVal;
+                gradient[outputArrPos + 2 * i + 1] += modifiedScaling * cos(prodVal) * outputVal;
             }
 
             chiArrPos += stepSize;
@@ -668,7 +670,7 @@ int convRBFFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
-        int convWidth, int scalingType, int numThreads, bool simplex){
+        int convWidth, int scalingType, bool simplex){
 
     // Perform safety checks. Any exceptions thrown here are handed off to Python
     // by the Nanobind wrapper. We do not expect the user to see these because
@@ -699,7 +701,8 @@ int convRBFFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::
     if (static_cast<int>(inputArr.shape(1)) < convWidth || convWidth <= 0)
         throw std::runtime_error("invalid conv_width");
 
-    double expectedNFreq = (inputArr.shape(2) > 2) ? static_cast<double>(inputArr.shape(2)) : 2.0;
+    double expectedNFreq = static_cast<double>(convWidth * inputArr.shape(2));
+    expectedNFreq = MAX(expectedNFreq, 2);
     double log2Freqs = std::log2(expectedNFreq);
     log2Freqs = std::ceil(log2Freqs);
     int paddedBufferSize = std::pow(2, log2Freqs);
@@ -760,13 +763,13 @@ template int convRBFFeatureGen<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, 
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
-        int convWidth, int scalingType, int numThreads, bool simplex);
+        int convWidth, int scalingType, bool simplex);
 template int convRBFFeatureGen<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
-        int convWidth, int scalingType, int numThreads, bool simplex);
+        int convWidth, int scalingType, bool simplex);
 
 
 
@@ -784,7 +787,7 @@ int convRBFFeatureGrad(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb:
         nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
-        double sigma, int convWidth, int scalingType, int numThreads, bool simplex){
+        double sigma, int convWidth, int scalingType, bool simplex){
 
     // Perform safety checks. Any exceptions thrown here are handed off to Python
     // by the Nanobind wrapper. We do not expect the user to see these because
@@ -819,7 +822,8 @@ int convRBFFeatureGrad(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb:
     if (gradArr.shape(0) != outputArr.shape(0) || gradArr.shape(1) != outputArr.shape(1))
         throw std::runtime_error("wrong array sizes");
 
-    double expectedNFreq = (inputArr.shape(2) > 2) ? static_cast<double>(inputArr.shape(2)) : 2.0;
+    double expectedNFreq = static_cast<double>(convWidth * inputArr.shape(2));
+    expectedNFreq = MAX(expectedNFreq, 2);
     double log2Freqs = std::log2(expectedNFreq);
     log2Freqs = std::ceil(log2Freqs);
     int paddedBufferSize = std::pow(2, log2Freqs);
@@ -861,13 +865,13 @@ int convRBFFeatureGrad(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb:
         convRBFFeatureGradKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
             featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1, zDim2,
             numRepeats, radem.shape(2), normConstant, scalingTerm, scalingType, convWidth,
-            seqlengthsPtr, gradientPtr);
+            seqlengthsPtr, gradientPtr, sigma);
     }
     else{
         convRBFFeatureGradSimplexKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
             featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1, zDim2,
             numRepeats, radem.shape(2), normConstant, scalingTerm, scalingType, convWidth,
-            seqlengthsPtr, gradientPtr);
+            seqlengthsPtr, gradientPtr, sigma);
     }
 
     cudaFree(featureArray);
@@ -880,11 +884,11 @@ template int convRBFFeatureGrad<double>(nb::ndarray<double, nb::shape<-1,-1,-1>,
         nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
-        double sigma, int convWidth, int scalingType, int numThreads, bool simplex);
+        double sigma, int convWidth, int scalingType, bool simplex);
 template int convRBFFeatureGrad<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
-        double sigma, int convWidth, int scalingType, int numThreads, bool simplex);
+        double sigma, int convWidth, int scalingType, bool simplex);

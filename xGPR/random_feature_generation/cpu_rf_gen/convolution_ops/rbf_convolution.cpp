@@ -39,7 +39,7 @@
 template <typename T>
 int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
-        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<int8_t, nb::shape<3,1,-1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         int convWidth, int scalingType, int numThreads, bool simplex){
@@ -71,7 +71,8 @@ int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::
     if (static_cast<int>(inputArr.shape(1)) < convWidth || convWidth <= 0)
         throw std::runtime_error("invalid conv_width");
 
-    double expectedNFreq = (inputArr.shape(2) > 2) ? static_cast<double>(inputArr.shape(2)) : 2.0;
+    double expectedNFreq = static_cast<double>(convWidth * inputArr.shape(2));
+    expectedNFreq = MAX(expectedNFreq, 2);
     double log2Freqs = std::log2(expectedNFreq);
     log2Freqs = std::ceil(log2Freqs);
     int paddedBufferSize = std::pow(2, log2Freqs);
@@ -211,7 +212,8 @@ int convRBFGrad_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_cont
     if (gradArr.shape(0) != outputArr.shape(0) || gradArr.shape(1) != outputArr.shape(1))
         throw std::runtime_error("wrong array sizes");
 
-    double expectedNFreq = (inputArr.shape(2) > 2) ? static_cast<double>(inputArr.shape(2)) : 2.0;
+    double expectedNFreq = static_cast<double>(convWidth * inputArr.shape(2));
+    expectedNFreq = MAX(expectedNFreq, 2);
     double log2Freqs = std::log2(expectedNFreq);
     log2Freqs = std::ceil(log2Freqs);
     int paddedBufferSize = std::pow(2, log2Freqs);
@@ -347,6 +349,7 @@ void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
             }
         }
     }
+
     delete[] copyBuffer;
 
     return NULL;
@@ -388,7 +391,7 @@ void *allInOneConvRBFSimplex(T xdata[], int8_t *rademArray, T chiArr[],
                 rowScaler = scalingTerm / (double)numKmers;
                 break;
             default:
-               rowScaler = scalingTerm;
+                rowScaler = scalingTerm;
               break; 
         }
 
@@ -454,7 +457,7 @@ void *allInOneConvRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
                 rowScaler = scalingTerm / (double)numKmers;
                 break;
             default:
-               rowScaler = scalingTerm;
+                rowScaler = scalingTerm;
               break; 
         }
 

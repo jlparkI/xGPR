@@ -1,7 +1,7 @@
 include(CheckLanguage)
 
+set(CMAKE_VERBOSE_MAKEFILE on)
 cmake_minimum_required(VERSION 3.18)
-set(DEV_MODULE Development.Module)
 if (NOT SKBUILD)
   message(WARNING "\
   This CMake file is meant to be executed using 'scikit-build'. Running
@@ -41,10 +41,10 @@ else()
     project(${SKBUILD_PROJECT_NAME} LANGUAGES CXX)
 endif()
 
-set(CMAKE_CXX_FLAGS "-O3 -Wall -Wextra -fopenmp-simd -fvisibility=hidden")
+#set(CMAKE_CXX_FLAGS "-O3 -Wall -Wextra -fopenmp-simd -fvisibility=hidden")
+#string(APPEND CMAKE_CXX_FLAGS_DEBUG " -Og -g")
 
-
-find_package(Python 3.8 COMPONENTS Interpreter ${DEV_MODULE} REQUIRED)
+find_package(Python 3.8 COMPONENTS Interpreter Development.Module REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)

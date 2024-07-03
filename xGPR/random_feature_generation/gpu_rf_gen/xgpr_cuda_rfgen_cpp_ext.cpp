@@ -17,8 +17,8 @@ using namespace std;
 NB_MODULE(xgpr_cuda_rfgen_cpp_ext, m){
     m.def("cudaFastHadamardTransform2D", &cudaHTransform<float>);
     m.def("cudaFastHadamardTransform2D", &cudaHTransform<double>);
-    m.def("cudaSRHT", &cudaHTransform<float>);
-    m.def("cudaSRHT", &cudaHTransform<double>);
+    m.def("cudaSRHT", &cudaSRHT2d<float>);
+    m.def("cudaSRHT", &cudaSRHT2d<double>);
 
     m.def("cudaRBFFeatureGen", &RBFFeatureGen<float>);
     m.def("cudaRBFFeatureGen", &RBFFeatureGen<double>);

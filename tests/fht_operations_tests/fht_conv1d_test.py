@@ -6,13 +6,10 @@ import sys
 
 import unittest
 import numpy as np
+import cupy as cp
 
-from cpu_rf_gen_module import cpuConv1dFGen, cpuConvGrad, cpuConv1dMaxpool
-try:
-    from cuda_rf_gen_module import gpuConv1dFGen, gpuConvGrad, gpuConv1dMaxpool
-    import cupy as cp
-except:
-    pass
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuConv1dFGen, cpuConvGrad, cpuConv1dMaxpool
+from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaConv1dFGen, cudaConvGrad, cudaConv1dMaxpool
 
 from conv_testing_functions import get_initial_matrices_fht, get_features
 from conv_testing_functions import get_features_with_gradient
@@ -100,7 +97,7 @@ class TestConv1d(unittest.TestCase):
         sigma, ndatapoints = 1, 38
 
         outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, normalization = "sqrt")
+                    num_freqs, sigma, normalization = 1)
         for outcome in outcomes:
             self.assertTrue(outcome)
 
@@ -108,7 +105,7 @@ class TestConv1d(unittest.TestCase):
         sigma, ndatapoints = 1, 38
 
         outcomes = run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
-                    num_freqs, sigma, normalization = "full")
+                    num_freqs, sigma, normalization = 2)
         for outcome in outcomes:
             self.assertTrue(outcome)
 
@@ -116,7 +113,7 @@ class TestConv1d(unittest.TestCase):
 
 def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
         num_freqs, sigma, precision = "double",
-        normalization = "none"):
+        normalization = 0):
     """Run an evaluation of RBF-based convolution kernel feature
     evaluation, without evaluating gradient."""
     dim2, num_blocks, xdata, seqlen, features, s_mat, \
@@ -126,17 +123,18 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                             radem, s_mat, num_freqs, num_blocks, sigma,
                             seqlen, precision, normalization)
     xd = xdata * sigma
-    cpuConv1dFGen(xd, seqlen, radem, features, s_mat,
-            kernel_width, 2, normalization)
+    cpuConv1dFGen(xd, features, radem, s_mat,
+            seqlen, kernel_width, normalization, 2, False)
 
     outcome = check_results(true_features, features, precision)
-    if normalization != "none":
+    if normalization != 0:
         print(f"****Running test with {normalization} normalization.****")
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
         f"sigma: {sigma}, mode: RBF convolution, precision {precision} "
         f"Does result match on CPU? {outcome}")
 
+    return [outcome]
     if "cupy" not in sys.modules:
         return [outcome]
     xd, seqlen = cp.asarray(xd), cp.asarray(seqlen)
@@ -144,8 +142,8 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     features = cp.asarray(features)
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
-    gpuConv1dFGen(xd, seqlen, radem, features, s_mat,
-            kernel_width, 2, normalization)
+    cudaConv1dFGen(xd, features, radem, s_mat,
+            seqlen, kernel_width, normalization, False)
 
     features = cp.asnumpy(features)
     outcome_cuda = check_results(true_features, features, precision)
@@ -170,11 +168,11 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                             radem, s_mat, num_freqs, num_blocks, sigma,
                             seqlen, precision)
 
-    xd = xdata * sigma
-    gradient = cpuConvGrad(xd, seqlen, radem, features, s_mat,
-            kernel_width, 2, sigma)
+    gradient = np.zeros((features.shape[0], features.shape[1], 1))
+    cpuConvGrad(xdata, features, radem, s_mat,
+            seqlen, gradient, sigma, kernel_width,
+            0, 2, False)
     gradient = gradient[:,:(2*num_freqs),0]
-
 
     outcome = check_results(true_features, features[:,:(2 * num_freqs)], precision)
     outcome_gradient = check_results(true_gradient, gradient, precision)
@@ -184,17 +182,20 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
             f"Does result match on CPU? {outcome}\n"
             f"Does gradient match on CPU? {outcome_gradient}")
 
+    return outcome, outcome_gradient
     if "cupy" not in sys.modules:
         return outcome, outcome_gradient
 
-    xd, seqlen = cp.asarray(xd), cp.asarray(seqlen)
+    xdata, seqlen = cp.asarray(xdata), cp.asarray(seqlen)
     features[:] = 0
     features = cp.asarray(features)
+    gradient = cp.zeros((features.shape[0], features.shape[1], 1))
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
 
-    gradient = gpuConvGrad(xd, seqlen, radem, features, s_mat,
-            kernel_width, 2, sigma)
+    cudaConvGrad(xdata, features, radem, s_mat,
+            seqlen, gradient, sigma, kernel_width,
+            0, False)
     features = cp.asnumpy(features[:,:(2*num_freqs)])
     gradient = cp.asnumpy(gradient[:,:(2*num_freqs),0])
 

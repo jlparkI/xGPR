@@ -9,6 +9,7 @@ namespace nb = nanobind;
 
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define NO_CONVOLUTION_SCALING 0
 #define SQRT_CONVOLUTION_SCALING 1
 #define FULL_CONVOLUTION_SCALING 2

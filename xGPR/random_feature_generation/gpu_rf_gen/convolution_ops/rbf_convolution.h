@@ -16,7 +16,7 @@ int convRBFFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
-        int convWidth, int scalingType, int numThreads, bool simplex);
+        int convWidth, int scalingType, bool simplex);
 
 template <typename T>
 int convRBFFeatureGrad(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
@@ -25,6 +25,6 @@ int convRBFFeatureGrad(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb:
         nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
-        double sigma, int convWidth, int scalingType, int numThreads, bool simplex);
+        double sigma, int convWidth, int scalingType, bool simplex);
 
 #endif

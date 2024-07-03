@@ -341,7 +341,8 @@ int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda
     if (static_cast<int>(inputArr.shape(1)) < convWidth || convWidth <= 0)
         throw std::runtime_error("invalid conv_width");
 
-    double expectedNFreq = (inputArr.shape(2) > 2) ? static_cast<double>(inputArr.shape(2)) : 2.0;
+    double expectedNFreq = static_cast<double>(convWidth * inputArr.shape(2));
+    expectedNFreq = MAX(expectedNFreq, 2);
     double log2Freqs = std::log2(expectedNFreq);
     log2Freqs = std::ceil(log2Freqs);
     int paddedBufferSize = std::pow(2, log2Freqs);

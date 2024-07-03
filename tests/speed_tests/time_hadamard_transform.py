@@ -5,9 +5,8 @@ import numpy as np
 import cupy as cp
 import cupyx
 from scipy.fftpack import dct
-from cpu_rf_gen_module import cpuFastHadamardTransform as cFHT
-from cpu_rf_gen_module import cpuSORFTransform as cSORF
-from cuda_rf_gen_module import cudaPySORFTransform as fCudaSORF
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFastHadamardTransform as cFHT
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuSORFTransform as cSORF
 
 
 #Running the CPU numpy test with too many columns is extremely
@@ -79,7 +78,7 @@ from __main__ import sorf_test"""
     print(1e6 * time_taken / ntests)
 
 
-    random_seed = 123
+    '''random_seed = 123
     rng = np.random.default_rng(random_seed)
     marr = rng.uniform(low=-10.0, high=10.0, size=(nrows,nblocks,ncols))
     radem_array = np.asarray([-1, 1])
@@ -89,7 +88,7 @@ from __main__ import sorf_test"""
     diag1 = cp.asarray(diag1)
     print("Time for cuda version:")
     time_taken = cupyx.time.repeat(cuda_test, (marr, diag1), n_repeat = ntests)
-    print(time_taken)
+    print(time_taken)'''
 
 
     dct_setup = f"""
@@ -135,10 +134,6 @@ def sorf_test(marr, diag, nthreads):
     """Generate SORF features using the sorf function of
     the module."""
     cSORF(marr, diag, nthreads)
-
-def cuda_test(marr, diag):
-    """Generate SORF features on CUDA."""
-    fCudaSORF(marr, diag, 2)
 
 
 def matmul_test(marr, qmat):

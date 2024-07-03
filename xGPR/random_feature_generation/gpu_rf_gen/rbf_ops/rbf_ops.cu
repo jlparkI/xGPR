@@ -307,7 +307,7 @@ __global__ void rbfFeatureGradKernel(const T origData[], T cArray[],
         double *outputArray, const T chiArr[], const int8_t *radem,
         int paddedBufferSize, int log2N, int numFreqs, int inputElementsPerRow,
         int nRepeats, int rademShape2, T normConstant,
-        double scalingConstant, double *gradient){
+        double scalingConstant, double *gradient, T sigma){
     int stepSize = MIN(paddedBufferSize, MAX_BASE_LEVEL_TRANSFORM);
 
     SharedMemory<T> shared;
@@ -407,10 +407,11 @@ __global__ void rbfFeatureGradKernel(const T origData[], T cArray[],
             if ((i + chiArrPos) >= numFreqs)
                 break;
             outputVal = chiArr[chiArrPos + i] * cArray[tempArrPos + i];
-            outputArray[outputArrPos + 2 * i] = scalingConstant * cos(outputVal);
-            outputArray[outputArrPos + 2 * i + 1] = scalingConstant * sin(outputVal);
-            gradient[outputArrPos + 2 * i] = -scalingConstant * sin(outputVal) * outputVal;
-            gradient[outputArrPos + 2 * i + 1] = scalingConstant * cos(outputVal) * outputVal;
+            double prodVal = outputVal * sigma;
+            outputArray[outputArrPos + 2 * i] = scalingConstant * cos(prodVal);
+            outputArray[outputArrPos + 2 * i + 1] = scalingConstant * sin(prodVal);
+            gradient[outputArrPos + 2 * i] = -scalingConstant * sin(prodVal) * outputVal;
+            gradient[outputArrPos + 2 * i + 1] = scalingConstant * cos(prodVal) * outputVal;
         }
 
         chiArrPos += paddedBufferSize;
@@ -434,7 +435,7 @@ __global__ void rbfFeatureGradSimplexKernel(const T origData[], T cArray[],
         double *outputArray, const T chiArr[], const int8_t *radem,
         int paddedBufferSize, int log2N, int numFreqs, int inputElementsPerRow,
         int nRepeats, int rademShape2, T normConstant,
-        double scalingConstant, double *gradient){
+        double scalingConstant, double *gradient, T sigma){
     int stepSize = MIN(paddedBufferSize, MAX_BASE_LEVEL_TRANSFORM);
 
     SharedMemory<T> shared;
@@ -564,10 +565,11 @@ __global__ void rbfFeatureGradSimplexKernel(const T origData[], T cArray[],
             if ((i + chiArrPos) >= numFreqs)
                 break;
             outputVal = chiArr[chiArrPos + i] * cArray[tempArrPos + i];
-            outputArray[outputArrPos + 2 * i] = scalingConstant * cos(outputVal);
-            outputArray[outputArrPos + 2 * i + 1] = scalingConstant * sin(outputVal);
-            gradient[outputArrPos + 2 * i] = -scalingConstant * sin(outputVal) * outputVal;
-            gradient[outputArrPos + 2 * i + 1] = scalingConstant * cos(outputVal) * outputVal;
+            double prodVal = outputVal * sigma;
+            outputArray[outputArrPos + 2 * i] = scalingConstant * cos(prodVal);
+            outputArray[outputArrPos + 2 * i + 1] = scalingConstant * sin(prodVal);
+            gradient[outputArrPos + 2 * i] = -scalingConstant * sin(prodVal) * outputVal;
+            gradient[outputArrPos + 2 * i + 1] = scalingConstant * cos(prodVal) * outputVal;
         }
 
         chiArrPos += paddedBufferSize;
@@ -677,10 +679,10 @@ template <typename T>
 int RBFFeatureGrad(
         nb::ndarray<const T, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
-        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> gradArr,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
         nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<const T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        bool fitIntercept, bool simplex
+        float sigma, bool fitIntercept, bool simplex
         ){
 
     // Perform safety checks. Any exceptions thrown here are handed off to Python
@@ -741,12 +743,14 @@ int RBFFeatureGrad(
     if (!simplex){
         rbfFeatureGradKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
             featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1,
-            numRepeats, radem.shape(2), normConstant, rbfNormConstant, gradientPtr);
+            numRepeats, radem.shape(2), normConstant, rbfNormConstant, gradientPtr,
+            sigma);
     }
     else{
         rbfFeatureGradSimplexKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
             featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1,
-            numRepeats, radem.shape(2), normConstant, rbfNormConstant, gradientPtr);
+            numRepeats, radem.shape(2), normConstant, rbfNormConstant, gradientPtr,
+            sigma);
     }
 
     cudaFree(featureArray);
@@ -756,14 +760,14 @@ int RBFFeatureGrad(
 template int RBFFeatureGrad<double>(
         nb::ndarray<const double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
-        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> gradArr,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
         nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<const double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        bool fitIntercept, bool simplex);
+        float sigma, bool fitIntercept, bool simplex);
 template int RBFFeatureGrad<float>(
         nb::ndarray<const float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
-        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> gradArr,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
         nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<const float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        bool fitIntercept, bool simplex);
+        float sigma, bool fitIntercept, bool simplex);
