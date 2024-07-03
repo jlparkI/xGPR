@@ -123,7 +123,7 @@ class KernelBaseclass(ABC):
 
 
     @abc.abstractmethod
-    def transform_x(self, input_x, sequence_length):
+    def kernel_specific_transform(self, input_x, sequence_length):
         """Kernel classes must implement a method that generates
         random features for a given set of inputs."""
 
@@ -286,6 +286,40 @@ class KernelBaseclass(ABC):
         determines the 'noise level' of the data."""
         return self.hyperparams[0]
 
+
+
+    def transform_x(self, input_x, sequence_length = None):
+        """Given a numpy array as input (and sequence_length,
+        which is none for most kernels but must be specified
+        for convolution kernels), generate random features
+        as output."""
+        if self.double_precision:
+            xin = input_x.astype(np.float64)
+        else:
+            xin = input_x.astype(np.float32)
+
+        if self.device == "gpu":
+            xin = cp.asarray(xin)
+
+        slen = None
+        if sequence_length is not None:
+            slen = sequence_length.astype(np.int32)
+
+        return self.kernel_specific_transform(xin, slen)
+
+
+    def transform_x_y(self, input_x, input_y, sequence_length = None):
+        """Given a numpy array as input (and sequence_length,
+        which is none for most kernels but must be specified
+        for convolution kernels), generate random features
+        as output. In addition, convert the input y-values
+        to live on the same device that the kernel is currently
+        on."""
+        y_out = input_y
+        if self.device == "gpu":
+            y_out = cp.asarray(y_out)
+
+        return self.transform_x(input_x, sequence_length), y_out
 
 
     def check_hyperparams(self, hyperparams):

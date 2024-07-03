@@ -16,25 +16,10 @@ class GPU_ConjugateGrad:
     """Performs conjugate gradients to find b in Ab = y.
     Used both for fitting and for NMLL calculations via
     SLQ.
-
-    Attributes:
-        x_mean: Either None or an ndarray of shape (num_rffs).
-            Only used if fitting a discriminant -- not used
-            for regression.
-        matvec_fun: A reference to either _matvec or
-            _discriminant_matvec (the latter if caller specifies
-            fitting a discriminant).
-        discriminant (bool): If True, we are fitting a discriminant
-            classifier.
     """
 
-    def __init__(self, x_mean = None, discriminant = False):
-        self.x_mean = x_mean
-        if discriminant:
-            self.matvec_fun = self._discriminant_matvec
-        else:
-            self.matvec_fun = self._matvec
-        self.discriminant = discriminant
+    def __init__(self):
+        pass
 
 
     def _matvec(self, dataset, kernel, vec, matvec):
@@ -54,29 +39,6 @@ class GPU_ConjugateGrad:
         for x, lengths in dataset.get_chunked_x_data():
             Z = kernel.transform_x(x, lengths)
             matvec += Z.T @ (Z @ vec)
-        matvec += kernel.get_lambda()**2 * vec
-
-
-
-    def _discriminant_matvec(self, dataset, kernel, vec, matvec):
-        """Performs a matvec operation (Z^T Z + lambda**2) vec,
-        where Z is the random features for the raw data
-        from dataset. This matvec function contains modifications
-        specific to classification.
-
-        Args:
-            dataset: An OnlineDataset or OfflineDataset object
-                with the raw data.
-            kernel: A valid kernel object.
-            vec (array): The target array.
-            matvec (array): The product (Z^T Z + lambda**2) vec.
-                This array is modified in-place.
-        """
-        matvec[:] = 0
-        for x, lengths in dataset.get_chunked_x_data():
-            Z = kernel.transform_x(x, lengths) - self.x_mean
-            matvec += Z.T @ (Z @ vec)
-        matvec /= dataset.get_ndatapoints()
         matvec += kernel.get_lambda()**2 * vec
 
 
@@ -133,7 +95,7 @@ class GPU_ConjugateGrad:
 
         next_col, current_col = 1, 0
         for niter in range(maxiter):
-            self.matvec_fun(dataset, kernel, p_k[:,current_col,:], w)
+            self._matvec(dataset, kernel, p_k[:,current_col,:], w)
             alpha[:] = (resid[:,current_col,:] *
                     z_k[:,current_col,:]).sum(axis=0) / \
                     (p_k[:,current_col,:] * w).sum(axis=0)
@@ -175,8 +137,6 @@ class GPU_ConjugateGrad:
                 betas = betas[0].reshape(1, betas[0].shape[0])
             alphas, betas = cp.asnumpy(alphas[:,1:]), cp.asnumpy(betas[:,1:])
             return x_k, alphas, betas
-        if self.discriminant:
-            return x_k, converged, niter + 1, losses
         return x_k[:,0], converged, niter + 1, losses
 
 
@@ -187,25 +147,10 @@ class CPU_ConjugateGrad:
     """Performs conjugate gradients to find b in Ab = y.
     Used both for fitting and for NMLL calculations via
     SLQ.
-
-    Attributes:
-        x_mean: Either None or an ndarray of shape (num_rffs).
-            Only used if fitting a discriminant -- not used
-            for regression.
-        matvec_fun: A reference to either _matvec or
-            _discriminant_matvec (the latter if caller specifies
-            fitting a discriminant).
-        discriminant (bool): If True, we are fitting a discriminant
-            classifier.
     """
 
-    def __init__(self, x_mean = None, discriminant = False):
-        self.x_mean = x_mean
-        if discriminant:
-            self.matvec_fun = self._discriminant_matvec
-        else:
-            self.matvec_fun = self._matvec
-        self.discriminant = discriminant
+    def __init__(self):
+        pass
 
 
     def _matvec(self, dataset, kernel, vec, matvec):
@@ -228,33 +173,10 @@ class CPU_ConjugateGrad:
         matvec += kernel.get_lambda()**2 * vec
 
 
-    def _discriminant_matvec(self, dataset, kernel, vec, matvec):
-        """Performs a matvec operation (Z^T Z + lambda**2) vec,
-        where Z is the random features for the raw data
-        from dataset. This matvec function contains modifications
-        specific to classification.
-
-        Args:
-            dataset: An OnlineDataset or OfflineDataset object
-                with the raw data.
-            kernel: A valid kernel object.
-            vec (array): The target array.
-            matvec (array): The product (Z^T Z + lambda**2) vec.
-                This array is modified in-place.
-        """
-        matvec[:] = 0
-        for x, lengths in dataset.get_chunked_x_data():
-            Z = kernel.transform_x(x, lengths) - self.x_mean
-            matvec += Z.T @ (Z @ vec)
-        matvec /= dataset.get_ndatapoints()
-        matvec += kernel.get_lambda()**2 * vec
-
-
     def fit(self, dataset, kernel, preconditioner,
             resid, maxiter = 200, tol = 1e-4,
             verbose = True,
-            nmll_settings = False,
-            discriminant = False):
+            nmll_settings = False):
         """Performs conjugate gradients to evaluate (Z^T Z + lambda)^-1 Z^T y,
         where Z is the random features generated for the dataset and lambda
         is the shared noise hyperparameter.
@@ -273,8 +195,6 @@ class CPU_ConjugateGrad:
                 return the alpha and beta values (used for NMLL calcs).
                 If False, return the number of iterations and a list of
                 losses (for diagnostic purposes).
-            discriminant (bool): If True, use the discriminant matvec
-                function in place of the 
 
         Returns:
             xk (np.ndarray): The result of (Z^T Z + lambda)^-1 Z^T y.
@@ -306,7 +226,7 @@ class CPU_ConjugateGrad:
 
         next_col, current_col = 1, 0
         for niter in range(maxiter):
-            self.matvec_fun(dataset, kernel, p_k[:,current_col,:], w)
+            self._matvec(dataset, kernel, p_k[:,current_col,:], w)
             alpha[:] = (resid[:,current_col,:] *
                     z_k[:,current_col,:]).sum(axis=0) / \
                     (p_k[:,current_col,:] * w).sum(axis=0)
@@ -348,6 +268,4 @@ class CPU_ConjugateGrad:
                 alphas = alphas[0].reshape(1, alphas[0].shape[0])
                 betas = betas[0].reshape(1, betas[0].shape[0])
             return x_k, alphas[:,1:], betas[:,1:]
-        if self.discriminant:
-            return x_k, converged, niter + 1, losses
         return x_k[:,0], converged, niter + 1, losses

@@ -22,7 +22,6 @@ from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
 from .preconditioners.inter_device_preconditioners import InterDevicePreconditioner
 from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 
-from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext, cg_fit_lib_internal
 from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
 
@@ -109,17 +108,18 @@ class xGPRegression(ModelBaseclass):
                 not match what is expected, or if the model has
                 not yet been fitted, a ValueError is raised.
         """
-        xdata, sequence_lengths = self.pre_prediction_checks(input_x, sequence_lengths, get_var)
+        self.pre_prediction_checks(input_x, sequence_lengths, get_var)
         preds, var = [], []
 
         lambda_ = self.kernel.get_lambda()
 
-        for i in range(0, xdata.shape[0], chunk_size):
-            cutoff = min(i + chunk_size, xdata.shape[0])
+        for i in range(0, input_x.shape[0], chunk_size):
+            cutoff = min(i + chunk_size, input_x.shape[0])
             if sequence_lengths is not None:
-                xfeatures = self.kernel.transform_x(xdata[i:cutoff,...], sequence_lengths[i:cutoff])
+                xfeatures = self.kernel.transform_x(input_x[i:cutoff,...],
+                        sequence_lengths[i:cutoff])
             else:
-                xfeatures = self.kernel.transform_x(xdata[i:cutoff,...])
+                xfeatures = self.kernel.transform_x(input_x[i:cutoff,...])
 
             preds.append((xfeatures * self.weights[None, :]).sum(axis = 1))
 
@@ -183,7 +183,6 @@ class xGPRegression(ModelBaseclass):
         else:
             preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, max_rank,
                         self.verbose, self.random_seed, method)
-        self._run_post_fitting_cleanup(dataset)
         return preconditioner, preconditioner.achieved_ratio
 
 
@@ -242,7 +241,6 @@ class xGPRegression(ModelBaseclass):
 
         if self.verbose:
             print("Evaluated NMLL.")
-        self._run_post_nmll_cleanup(dataset)
         return negloglik
 
 
@@ -298,7 +296,6 @@ class xGPRegression(ModelBaseclass):
         #nan instead of raising an error.
         if np.isnan(negloglik):
             return constants.DEFAULT_SCORE_IF_PROBLEM, hyperparams - init_hparams
-        self._run_post_nmll_cleanup(dataset)
         return float(negloglik), grad
 
 
@@ -328,7 +325,8 @@ class xGPRegression(ModelBaseclass):
                   expense of speed. 512 - 1024 is fine for noisy data, 2048 is
                   better if data is close to noise free.
 
-                * ``"nsamples"``: The number of probes for approximate NMLL estimation. 25 (default) is usually fine.
+                * ``"nsamples"``: The number of probes for approximate NMLL estimation. 25 (default)
+                  is usually fine.
 
                 * ``"niter"``: The maximum number of iterations for approximate NMLL. Should
                   only really become an issue if CG is failing to fit in under 500 iter (the
@@ -416,7 +414,6 @@ class xGPRegression(ModelBaseclass):
         if self.verbose:
             print("NMLL evaluation completed.")
 
-        self._run_post_nmll_cleanup(dataset)
         return negloglik
 
 
@@ -443,7 +440,7 @@ class xGPRegression(ModelBaseclass):
             tol (float): The threshold below which iterative strategies (L-BFGS, CG)
                 are deemed to have converged.
             max_iter (int): The maximum number of epochs for iterative strategies.
-            mode (str): Must be one of "cg", "lbfgs", "exact".
+            mode (str): Must be one of "cg", "exact".
                 Determines the approach used. If 'exact', self.kernel.get_num_rffs
                 must be <= constants.constants.MAX_CLOSED_FORM_RFFS.
             suppress_var (bool): If True, do not calculate variance. Use this when you
@@ -505,14 +502,9 @@ class xGPRegression(ModelBaseclass):
                 self.weights, n_iter, losses = cg_fit_lib_ext(self.kernel, dataset, tol,
                     max_iter, preconditioner, self.verbose)
 
-        elif mode == "lbfgs":
-            model_fitter = lBFGSModelFit(dataset, self.kernel,
-                    self.device, self.verbose)
-            self.weights, n_iter, losses = model_fitter.fit_model_lbfgs(max_iter, tol)
-
         else:
             raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
-                        "'lbfgs', 'cg', 'exact'.")
+                        "'cg', 'exact'.")
 
         if not suppress_var:
             if self.verbose:
@@ -534,7 +526,6 @@ class xGPRegression(ModelBaseclass):
         if self.device == "gpu":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
-        self._run_post_fitting_cleanup(dataset)
 
         if run_diagnostics:
             return n_iter, losses
@@ -611,7 +602,7 @@ class xGPRegression(ModelBaseclass):
             raise ValueError("The crude procedure is only appropriate for "
                     "kernels with 1-3 hyperparameters.")
 
-        self._run_post_nmll_cleanup(dataset, hyperparams)
+        self.kernel.set_hyperparams(hyperparams, logspace=True)
         return hyperparams, n_feval, best_score
 
 
@@ -757,5 +748,5 @@ class xGPRegression(ModelBaseclass):
                     high = optim_bounds[j,1]) for j in range(optim_bounds.shape[0])]
             x0 = np.asarray(x0)
 
-        self._run_post_nmll_cleanup(dataset, hyperparams)
+        self.kernel.set_hyperparams(hyperparams, logspace=True)
         return hyperparams, n_feval, best_score

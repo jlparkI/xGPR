@@ -149,17 +149,16 @@ class ModelBaseclass():
             ValueError: If invalid inputs are supplied,
                 a detailed ValueError is raised to explain.
         """
-        x_array = input_x
         if self.kernel is None or self.weights is None:
             raise ValueError("Model has not yet been successfully fitted.")
         if not self.kernel.validate_new_datapoints(input_x):
             raise ValueError("The input has incorrect dimensionality.")
         if sequence_lengths is None:
-            if len(x_array.shape) != 2:
+            if len(input_x.shape) != 2:
                 raise ValueError("sequence_lengths is required if using a "
                         "convolution kernel.")
         else:
-            if len(x_array.shape) == 2:
+            if len(input_x.shape) == 2:
                 raise ValueError("sequence_lengths must be None if using a "
                     "fixed vector kernel.")
 
@@ -174,13 +173,6 @@ class ModelBaseclass():
         if self.device == "gpu":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
-            x_array = cp.asarray(input_x)
-            if sequence_lengths is not None:
-                sequence_lengths = cp.asarray(sequence_lengths).astype(cp.int32)
-        elif sequence_lengths is not None:
-            sequence_lengths = sequence_lengths.astype(np.int32)
-
-        return x_array, sequence_lengths
 
 
     def set_hyperparams(self, hyperparams = None, dataset = None):
@@ -294,7 +286,6 @@ class ModelBaseclass():
         """Runs key steps / checks needed if about to calculate
         NMLL.
         """
-        dataset.device = self.device
         if self.kernel is None:
             self._initialize_kernel(dataset, bounds = bounds)
         self.weights, self.var = None, None
@@ -305,7 +296,6 @@ class ModelBaseclass():
         """Runs key steps / checks needed if about to calculate
         NMLL at a single point, in which case bounds are not needed.
         """
-        dataset.device = self.device
         if self.kernel is None:
             self._initialize_kernel(dataset)
 
@@ -321,21 +311,11 @@ class ModelBaseclass():
                         "using approximate nmll instead.")
 
 
-    def _run_post_nmll_cleanup(self, dataset, hyperparams = None):
-        """Runs key steps / checks needed if just finished
-        calculating NMLL.
-        """
-        dataset.device = "cpu"
-        if hyperparams is not None:
-            self.kernel.set_hyperparams(hyperparams, logspace=True)
-
-
 
     def _run_pre_fitting_prep(self, dataset, max_rank = None):
         """Runs key steps / checks needed if about to fit the
         model.
         """
-        dataset.device = self.device
         self.trainy_mean = dataset.get_ymean()
         self.trainy_std = dataset.get_ystd()
 
@@ -351,22 +331,10 @@ class ModelBaseclass():
                 raise ValueError("Max rank should be < the number of rffs.")
 
 
-    def _run_post_fitting_cleanup(self, dataset):
-        """Runs key steps / checks needed if just finished
-        fitting the model.
-        """
-        dataset.device = "cpu"
-
-
-    def _get_x_mean(self, dataset):
-        """This default get_x_mean function returns None. Child classes
-        can override this to return the data mean instead if they need /
-        use this."""
-        return None
 
 
     def _check_rank_ratio(self, dataset, sample_frac:float = 0.1,
-            max_rank:int = 512, x_mean = None):
+            max_rank:int = 512):
         """Determines what ratio a particular max_rank would achieve by using a random
         sample of the data. This can be used to determine if a particular max_rank is
         'good enough' to achieve a fast fit, and if so, that max_rank can be used
@@ -385,9 +353,6 @@ class ModelBaseclass():
                 expensive to construct.
             sample_frac (float): The fraction of the data to sample. Must be in
                 [0.01, 1].
-            x_mean (ndarray): Either None or an array of shape (num_rffs). Should
-                always be None for regression (regression does not mean center the
-                data) and should never be None for classification (classification does).
 
         Returns:
             achieved_ratio (float): The min eigval of the preconditioner over
@@ -402,17 +367,15 @@ class ModelBaseclass():
             raise ValueError("sample_frac must be in the range [0.01, 1]")
 
         reset_num_rffs = False
-        x_mean_corr = x_mean
         if self.num_rffs > 8192:
             reset_num_rffs, num_rffs = True, copy.deepcopy(self.num_rffs)
             if self.kernel_choice == "RBFLinear" and self.num_rffs % 2 != 0:
                 self.num_rffs = 8191
             else:
                 self.num_rffs = 8192
-            x_mean_corr = self._get_x_mean(dataset)
 
         s_mat = srht_ratio_check(dataset, max_rank, self.kernel, self.random_seed,
-                self.verbose, sample_frac, x_mean_corr)
+                self.verbose, sample_frac)
         ratio = float(s_mat.min() / self.kernel.get_lambda()**2) / sample_frac
 
         if reset_num_rffs:
@@ -426,8 +389,7 @@ class ModelBaseclass():
     def _autoselect_preconditioner(self, dataset, min_rank:int = 512,
             max_rank:int = 3000, increment_size:int = 512,
             always_use_srht2:bool = False,
-            ratio_target:float = 30., tuning:bool = False,
-            x_mean = None):
+            ratio_target:float = 30., tuning:bool = False):
         """Uses an automated algorithm to choose a preconditioner that
         is up to max_rank in size. For internal use only.
 
@@ -444,9 +406,6 @@ class ModelBaseclass():
             ratio_target (int): The target value for the ratio.
             tuning (bool): If True, preconditioner is intended for tuning,
                 so it also needs to be used for SLQ.
-            x_mean (ndarray): Either None or an array of shape (num_rffs). Should
-                always be None for regression (regression does not mean center the
-                data) and should never be None for classification (classification does).
 
         Returns:
             preconditioner: A preconditioner object.
@@ -463,7 +422,7 @@ class ModelBaseclass():
 
         while ratio > ratio_target and rank < max_rank:
             ratio = self._check_rank_ratio(dataset, sample_frac = sample_frac,
-                    max_rank = rank, x_mean = x_mean)
+                    max_rank = rank)
             if ratio > ratio_target:
                 if (rank + increment_size) < max_rank and \
                         (rank + increment_size) < actual_num_rffs:
@@ -482,19 +441,17 @@ class ModelBaseclass():
             method = "srht_2"
 
         if tuning:
-            #We don't have to pass x_mean here since tuning preconditioners are never
-            #used for classification.
             preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, rank,
                         False, self.random_seed, method)
         else:
             if self.device == "gpu":
                 preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, rank,
-                        self.verbose, self.random_seed, method, x_mean = x_mean)
+                        self.verbose, self.random_seed, method)
                 mempool = cp.get_default_memory_pool()
                 mempool.free_all_blocks()
             else:
                 preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, rank,
-                        self.verbose, self.random_seed, method, x_mean = x_mean)
+                        self.verbose, self.random_seed, method)
 
         return preconditioner
 
@@ -651,7 +608,7 @@ class ModelBaseclass():
             raise ValueError("Device must be in ['cpu', 'gpu'].")
 
         if "cupy" not in sys.modules and value == "gpu":
-            raise ValueError("You have specified the gpu fit mode but CuPy is "
+            raise ValueError("You have specified gpu mode but CuPy is "
                 "not installed. Currently CPU only fitting is available.")
 
         if "cuda_rf_gen_module" not in sys.modules and value == "gpu":

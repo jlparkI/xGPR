@@ -81,19 +81,19 @@ def get_eigvals(kernel, dataset, subsample = 1):
     ndatapoints = 0
 
     if subsample == 1:
-        for xdata, ydata, ldata in dataset.get_chunked_data():
-            xtrans = kernel.transform_x(xdata, ldata)
+        for xin, yin, ldata in dataset.get_chunked_data():
+            xtrans, ydata = kernel.transform_x_y(xin, yin, ldata)
             z_trans_z += xtrans.T @ xtrans
             z_trans_y += xtrans.T @ ydata
             y_trans_y += ydata.T @ ydata
-            ndatapoints += xdata.shape[0]
+            ndatapoints += xin.shape[0]
     else:
         rng = np.random.default_rng(123)
-        for xdata, ydata, ldata in dataset.get_chunked_data():
-            idx_size = max(1, int(subsample * xdata.shape[0]))
-            idx = rng.choice(xdata.shape[0], idx_size, replace=False)
-            xdata, ydata, ldata = xdata[idx,...], ydata[idx], ldata[idx]
-            xdata = kernel.transform_x(xdata, ldata)
+        for xin, yin, ldata in dataset.get_chunked_data():
+            idx_size = max(1, int(subsample * xin.shape[0]))
+            idx = rng.choice(xin.shape[0], idx_size, replace=False)
+            xin, yin, ldata = xin[idx,...], yin[idx], ldata[idx]
+            xdata, ydata = kernel.transform_x(xin, yin, ldata)
 
             z_trans_y += xdata.T @ ydata
             z_trans_z += xdata.T @ xdata

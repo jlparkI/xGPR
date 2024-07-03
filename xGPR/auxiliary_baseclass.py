@@ -27,8 +27,6 @@ class AuxiliaryBaseclass():
             All predict / tune / fit operations are carried out using the
             current device.
         double_precision_fht (bool): Indicates whether we are using double precision.
-        dtype: A convenience reference to np.float32, np.float64, cp.float32 or
-            cp.float64.
         verbose (bool): If True, regular updates are printed during
             hyperparameter tuning and fitting.
     """
@@ -97,7 +95,6 @@ class AuxiliaryBaseclass():
                             kernel_spec_parms = kernel_settings)
 
         self.double_precision_fht = double_precision_fht
-        self.dtype = np.float32
         self.device = device
         full_hparams = self.kernel.get_hyperparams()
         if full_hparams.shape[0] > 1:
@@ -122,27 +119,20 @@ class AuxiliaryBaseclass():
             ValueError: If invalid inputs are supplied,
                 a detailed ValueError is raised to explain.
         """
-        x_array = input_x
         if not self.kernel.validate_new_datapoints(input_x):
             raise ValueError("The input has incorrect dimensionality.")
         if sequence_lengths is None:
-            if len(x_array.shape) != 2:
+            if len(input_x.shape) != 2:
                 raise ValueError("sequence_lengths is required if using a "
                         "convolution kernel.")
         else:
-            if len(x_array.shape) == 2:
+            if len(input_x.shape) == 2:
                 raise ValueError("sequence_lengths must be None if using a "
                     "fixed vector kernel.")
 
         if self.device == "gpu":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
-            x_array = cp.asarray(input_x)
-            if sequence_lengths is not None:
-                sequence_lengths = cp.asarray(sequence_lengths)
-
-        x_array = x_array.astype(self.dtype)
-        return x_array, sequence_lengths
 
 
     ####The remaining functions are all getters / setters.
@@ -173,13 +163,4 @@ class AuxiliaryBaseclass():
         if value == "gpu":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
-            if self.double_precision_fht:
-                self.dtype = cp.float64
-            else:
-                self.dtype = cp.float32
-        else:
-            if self.double_precision_fht:
-                self.dtype = np.float64
-            else:
-                self.dtype = np.float32
         self._device = value

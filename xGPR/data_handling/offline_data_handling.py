@@ -10,10 +10,6 @@ import os
 import copy
 
 import numpy as np
-try:
-    import cupy as cp
-except:
-    pass
 
 from .data_handling_baseclass import DatasetBaseclass
 
@@ -40,7 +36,6 @@ class OfflineDataset(DatasetBaseclass):
                        trainy_mean = 0.,
                        trainy_std = 1.,
                        max_class = 1,
-                       device = "cpu",
                        chunk_size = 2000):
         """The class constructor for an OfflineDataset.
 
@@ -66,7 +61,7 @@ class OfflineDataset(DatasetBaseclass):
             chunk_size (int): The largest allowed file size (in # datapoints)
                 for this dataset. Should be checked and enforced by caller.
         """
-        super().__init__(xdim, device, chunk_size, trainy_mean,
+        super().__init__(xdim, chunk_size, trainy_mean,
                 trainy_std, max_class)
         self._xfiles = [os.path.abspath(f) for f in xfiles]
         self._yfiles = [os.path.abspath(f) for f in yfiles]
@@ -82,17 +77,16 @@ class OfflineDataset(DatasetBaseclass):
         data."""
         if self._sequence_lengths is None:
             for xfile, yfile in zip(self._xfiles, self._yfiles):
-                xchunk = self.array_loader(xfile)
-                ychunk = self.array_loader(yfile).astype(self.dtype)
+                xchunk = np.load(xfile)
+                ychunk = np.load(yfile).astype(np.float64)
                 ychunk -= self._trainy_mean
                 ychunk /= self._trainy_std
                 yield xchunk, ychunk, None
         else:
             for xfile, yfile, lfile in zip(self._xfiles, self._yfiles,
                     self._sequence_lengths):
-                xchunk = self.array_loader(xfile)
-                ychunk = self.array_loader(yfile).astype(self.dtype)
-                lchunk = self.array_loader(lfile).astype(self.ltype)
+                xchunk, lchunk = np.load(xfile), np.load(lfile)
+                ychunk = np.load(yfile).astype(np.float64)
                 ychunk -= self._trainy_mean
                 ychunk /= self._trainy_std
                 yield xchunk, ychunk, lchunk
@@ -105,22 +99,10 @@ class OfflineDataset(DatasetBaseclass):
         and sequence length only."""
         if self._sequence_lengths is None:
             for xfile in self._xfiles:
-                xchunk = self.array_loader(xfile)
-                yield xchunk, None
+                yield np.load(xfile), None
         else:
             for xfile, lfile in zip(self._xfiles, self._sequence_lengths):
-                xchunk = self.array_loader(xfile)
-                lchunk = self.array_loader(lfile).astype(self.ltype)
-                yield xchunk, lchunk
-
-
-    def get_chunked_y_data(self):
-        """A generator that returns the data stored in each
-        file in the data list in order, retrieving y data
-        only."""
-        for yfile in self._yfiles:
-            ydata = self.array_loader(yfile).astype(self.dtype)
-            yield (ydata - self._trainy_mean) / self._trainy_std
+                yield np.load(xfile), np.load(lfile)
 
 
     def get_yfiles(self):
