@@ -669,7 +669,7 @@ int convRBFFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         int convWidth, int scalingType, bool simplex){
 
     // Perform safety checks. Any exceptions thrown here are handed off to Python
@@ -683,11 +683,11 @@ int convRBFFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::
     size_t numFreqs = chiArr.shape(0);
     double scalingTerm = std::sqrt(1.0 / static_cast<double>(numFreqs));
 
-    T *inputPtr = static_cast<T*>(inputArr.data());
-    double *outputPtr = static_cast<double*>(outputArr.data());
-    T *chiPtr = static_cast<T*>(chiArr.data());
-    int8_t *rademPtr = static_cast<int8_t*>(radem.data());
-    int32_t *seqlengthsPtr = static_cast<int32_t*>(seqlengths.data());
+    T *inputPtr = inputArr.data();
+    double *outputPtr = outputArr.data();
+    T *chiPtr = chiArr.data();
+    int8_t *rademPtr = radem.data();
+    int32_t *seqlengthsPtr = seqlengths.data();
 
     if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
         throw std::runtime_error("no datapoints");
@@ -710,7 +710,6 @@ int convRBFFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::
     if (radem.shape(2) % paddedBufferSize != 0)
         throw std::runtime_error("incorrect number of rffs and or freqs.");
 
-
     int32_t minSeqLength = 2147483647, maxSeqLength = 0;
     for (size_t i=0; i < seqlengths.shape(0); i++){
         if (seqlengths(i) > maxSeqLength)
@@ -724,6 +723,18 @@ int convRBFFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::
                 "array size.");
     }
 
+    int32_t *slenCudaPtr;
+    if (cudaMalloc(&slenCudaPtr, sizeof(int32_t) * seqlengths.shape(0)) != cudaSuccess) {
+        cudaFree(slenCudaPtr);
+        throw std::runtime_error("Cuda is out of memory");
+        return 1;
+    };
+    if (cudaMemcpy(slenCudaPtr, seqlengthsPtr, sizeof(int32_t) * seqlengths.shape(0),
+                cudaMemcpyHostToDevice) != cudaSuccess){
+        cudaFree(slenCudaPtr);
+        throw std::runtime_error("Cuda is out of memory");
+        return 1;
+    }
 
 
     //This is the Hadamard normalization constant.
@@ -736,24 +747,26 @@ int convRBFFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::
 
     T *featureArray;
     if (cudaMalloc(&featureArray, sizeof(T) * zDim0 * paddedBufferSize) != cudaSuccess) {
-            cudaFree(featureArray);
-            throw std::runtime_error("Cuda is out of memory");
-            return 1;
+        cudaFree(slenCudaPtr);
+        cudaFree(featureArray);
+        throw std::runtime_error("Cuda is out of memory");
+        return 1;
     };
 
     if (!simplex){
         convRBFFeatureGenKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
             featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1, zDim2,
             numRepeats, radem.shape(2), normConstant, scalingTerm, scalingType, convWidth,
-            seqlengthsPtr);
+            slenCudaPtr);
     }
     else{
         convRBFFeatureGenSimplexKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
             featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1, zDim2,
             numRepeats, radem.shape(2), normConstant, scalingTerm, scalingType, convWidth,
-            seqlengthsPtr);
+            slenCudaPtr);
     }
 
+    cudaFree(slenCudaPtr);
     cudaFree(featureArray);
     return 0;
 }
@@ -762,13 +775,13 @@ template int convRBFFeatureGen<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, 
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         int convWidth, int scalingType, bool simplex);
 template int convRBFFeatureGen<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         int convWidth, int scalingType, bool simplex);
 
 
@@ -785,7 +798,7 @@ int convRBFFeatureGrad(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb:
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
         double sigma, int convWidth, int scalingType, bool simplex){
 
@@ -800,12 +813,12 @@ int convRBFFeatureGrad(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb:
     size_t numFreqs = chiArr.shape(0);
     double scalingTerm = std::sqrt(1.0 / static_cast<double>(numFreqs));
 
-    T *inputPtr = static_cast<T*>(inputArr.data());
-    double *outputPtr = static_cast<double*>(outputArr.data());
-    T *chiPtr = static_cast<T*>(chiArr.data());
-    int8_t *rademPtr = static_cast<int8_t*>(radem.data());
-    int32_t *seqlengthsPtr = static_cast<int32_t*>(seqlengths.data());
-    double *gradientPtr = static_cast<double*>(gradArr.data());
+    T *inputPtr = inputArr.data();
+    double *outputPtr = outputArr.data();
+    T *chiPtr = chiArr.data();
+    int8_t *rademPtr = radem.data();
+    int32_t *seqlengthsPtr = seqlengths.data();
+    double *gradientPtr = gradArr.data();
 
     if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
         throw std::runtime_error("no datapoints");
@@ -831,7 +844,6 @@ int convRBFFeatureGrad(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb:
     if (radem.shape(2) % paddedBufferSize != 0)
         throw std::runtime_error("incorrect number of rffs and or freqs.");
 
-
     int32_t minSeqLength = 2147483647, maxSeqLength = 0;
     for (size_t i=0; i < seqlengths.shape(0); i++){
         if (seqlengths(i) > maxSeqLength)
@@ -845,6 +857,21 @@ int convRBFFeatureGrad(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb:
                 "array size.");
     }
 
+    int32_t *slenCudaPtr;
+    if (cudaMalloc(&slenCudaPtr, sizeof(int32_t) * seqlengths.shape(0)) != cudaSuccess) {
+        cudaFree(slenCudaPtr);
+        throw std::runtime_error("Cuda is out of memory");
+        return 1;
+    };
+    if (cudaMemcpy(slenCudaPtr, seqlengthsPtr, sizeof(int32_t) * seqlengths.shape(0),
+                cudaMemcpyHostToDevice) != cudaSuccess){
+        cudaFree(slenCudaPtr);
+        throw std::runtime_error("Cuda is out of memory");
+        return 1;
+    }
+
+
+
 
     //This is the Hadamard normalization constant.
     T normConstant = log2(paddedBufferSize) / 2;
@@ -856,24 +883,26 @@ int convRBFFeatureGrad(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb:
 
     T *featureArray;
     if (cudaMalloc(&featureArray, sizeof(T) * zDim0 * paddedBufferSize) != cudaSuccess) {
-            cudaFree(featureArray);
-            throw std::runtime_error("Cuda is out of memory");
-            return 1;
+        cudaFree(slenCudaPtr);
+        cudaFree(featureArray);
+        throw std::runtime_error("Cuda is out of memory");
+        return 1;
     };
 
     if (!simplex){
         convRBFFeatureGradKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
             featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1, zDim2,
             numRepeats, radem.shape(2), normConstant, scalingTerm, scalingType, convWidth,
-            seqlengthsPtr, gradientPtr, sigma);
+            slenCudaPtr, gradientPtr, sigma);
     }
     else{
         convRBFFeatureGradSimplexKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
             featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs, zDim1, zDim2,
             numRepeats, radem.shape(2), normConstant, scalingTerm, scalingType, convWidth,
-            seqlengthsPtr, gradientPtr, sigma);
+            slenCudaPtr, gradientPtr, sigma);
     }
 
+    cudaFree(slenCudaPtr);
     cudaFree(featureArray);
     return 0;
 }
@@ -882,13 +911,13 @@ template int convRBFFeatureGrad<double>(nb::ndarray<double, nb::shape<-1,-1,-1>,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
         double sigma, int convWidth, int scalingType, bool simplex);
 template int convRBFFeatureGrad<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
         double sigma, int convWidth, int scalingType, bool simplex);

@@ -41,9 +41,6 @@ else()
     project(${SKBUILD_PROJECT_NAME} LANGUAGES CXX)
 endif()
 
-#set(CMAKE_CXX_FLAGS "-O3 -Wall -Wextra -fopenmp-simd -fvisibility=hidden")
-#string(APPEND CMAKE_CXX_FLAGS_DEBUG " -Og -g")
-
 find_package(Python 3.8 COMPONENTS Interpreter Development.Module REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)

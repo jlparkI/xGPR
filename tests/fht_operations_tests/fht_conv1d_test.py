@@ -136,7 +136,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
 
     if "cupy" not in sys.modules:
         return [outcome]
-    xd, seqlen = cp.asarray(xd), cp.asarray(seqlen)
+    xd = cp.asarray(xd)
     features[:] = 0
     features = cp.asarray(features)
     s_mat = cp.asarray(s_mat)
@@ -184,7 +184,7 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     if "cupy" not in sys.modules:
         return outcome, outcome_gradient
 
-    xdata, seqlen = cp.asarray(xdata), cp.asarray(seqlen)
+    xdata = cp.asarray(xdata)
     features[:] = 0
     features = cp.asarray(features)
     gradient = cp.zeros((features.shape[0], features.shape[1], 1))

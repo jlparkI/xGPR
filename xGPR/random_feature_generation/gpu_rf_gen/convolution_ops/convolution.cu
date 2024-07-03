@@ -310,7 +310,7 @@ int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         int convWidth, bool simplex){
 
     // Perform safety checks. Any exceptions thrown here are handed off to Python
@@ -364,14 +364,31 @@ int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda
                 "array size.");
     }
 
+    int32_t *slenCudaPtr;
+    if (cudaMalloc(&slenCudaPtr, sizeof(int32_t) * seqlengths.shape(0)) != cudaSuccess) {
+        cudaFree(slenCudaPtr);
+        throw std::runtime_error("Cuda is out of memory");
+        return 1;
+    };
+    if (cudaMemcpy(slenCudaPtr, seqlengthsPtr, sizeof(int32_t) * seqlengths.shape(0),
+                cudaMemcpyHostToDevice) != cudaSuccess){
+        cudaFree(slenCudaPtr);
+        throw std::runtime_error("Cuda is out of memory");
+        return 1;
+    }
+
+
+
+
     int numKmers = zDim1 - convWidth + 1;
     int numElements = zDim0 * numKmers * paddedBufferSize;
 
     T *featureArray;
     if (cudaMalloc(&featureArray, sizeof(T) * numElements) != cudaSuccess) {
-            cudaFree(featureArray);
-            throw std::runtime_error("Cuda is out of memory");
-            return 1;
+        cudaFree(slenCudaPtr);
+        cudaFree(featureArray);
+        throw std::runtime_error("Cuda is out of memory");
+        return 1;
     };
 
     //This is the Hadamard normalization constant.
@@ -385,14 +402,15 @@ int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda
     if (!simplex){
         convMaxpoolFeatureGenKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
             featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs,
-            zDim1, zDim2, numRepeats, normConstant, convWidth, seqlengthsPtr, radem.shape(2));
+            zDim1, zDim2, numRepeats, normConstant, convWidth, slenCudaPtr, radem.shape(2));
     }
     else{
         convMaxpoolFeatureSimplexKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
             featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs,
-            zDim1, zDim2, numRepeats, normConstant, convWidth, seqlengthsPtr, radem.shape(2));
+            zDim1, zDim2, numRepeats, normConstant, convWidth, slenCudaPtr, radem.shape(2));
     }
 
+    cudaFree(slenCudaPtr);
     cudaFree(featureArray);
     return 0;
 }
@@ -401,11 +419,11 @@ template int conv1dMaxpoolFeatureGen<double>(nb::ndarray<double, nb::shape<-1,-1
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         int convWidth, bool simplex);
 template int conv1dMaxpoolFeatureGen<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig> seqlengths,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         int convWidth, bool simplex);
