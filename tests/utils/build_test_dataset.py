@@ -29,10 +29,10 @@ def build_test_dataset(conv_kernel = False, xsuffix = "trainxvalues.npy",
     """
     start_path = os.path.abspath(os.path.dirname(__file__))
     if not conv_kernel:
-        os.chdir(os.path.join(start_path, "..", "..", "test_data"))
+        os.chdir(os.path.join(start_path, "..", "test_data"))
         sequence_lengths = None
     else:
-        os.chdir(os.path.join(start_path, "..", "..", "test_data", "conv_test"))
+        os.chdir(os.path.join(start_path, "..", "test_data", "conv_test"))
 
     xtrain_files = [f for f in os.listdir() if f.endswith(xsuffix)]
     xtrain_files.sort()
