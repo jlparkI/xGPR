@@ -1,16 +1,17 @@
 """Implements functions for fitting (once hyperparameters have been
 selected) using CG, either using our internal routine or Scipy / Cupy's."""
 import warnings
+import numpy as np
+from scipy.sparse.linalg import cg as CPU_CG
+from ..cg_toolkit.cg_tools import CPU_ConjugateGrad
+
 try:
     import cupy as cp
     from cupyx.scipy.sparse.linalg import cg as Cuda_CG
     from ..cg_toolkit.cuda_cg_linear_operators import Cuda_CGLinearOperator
-    from cg_tools import GPU_ConjugateGrad
-    from cg_tools import CPU_ConjugateGrad
+    from ..cg_toolkit.cg_tools import GPU_ConjugateGrad
 except:
     pass
-import numpy as np
-from scipy.sparse.linalg import cg as CPU_CG
 
 from ..scoring_toolkit.exact_nmll_calcs import calc_zty
 
