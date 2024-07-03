@@ -5,11 +5,11 @@ model and make predictions for new datapoints. It inherits from
 ModelBaseclass.
 """
 import warnings
+from .cg_toolkit.cg_tools import CPU_ConjugateGrad
 try:
     import cupy as cp
     from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
-    from cg_tools import GPU_ConjugateGrad
-    from cg_tools import CPU_ConjugateGrad
+    from .cg_toolkit.cg_tools import GPU_ConjugateGrad
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
 import numpy as np

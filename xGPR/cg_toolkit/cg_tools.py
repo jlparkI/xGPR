@@ -1,18 +1,14 @@
 """A conjugate gradients implementation, set up to work with
-a batched right-hand side. Unlike
-cupy's / scipy's since it offers us the ability to easily have
-multiple outputs if needed. Implemented in Cython since
-this provides a (very slight) speed gain, especially on
-CPU."""
+a batched right-hand side. Unlike cupy's / scipy's it offers us
+the ability to easily have multiple outputs if needed."""
 import numpy as np
-cimport numpy as np
 try:
     import cupy as cp
 except:
     pass
 
 
-    
+
 
 
 
@@ -85,11 +81,10 @@ class GPU_ConjugateGrad:
 
 
 
-    def fit(self, dataset, kernel, preconditioner, 
-            resid, int maxiter = 200,
-            double tol = 1e-4, 
-            bint verbose = True,
-            bint nmll_settings = False):
+    def fit(self, dataset, kernel, preconditioner,
+            resid, maxiter = 200, tol = 1e-4,
+            verbose = True,
+            nmll_settings = False):
         """Performs conjugate gradients to evaluate (Z^T Z + lambda)^-1 Z^T y,
         where Z is the random features generated for the dataset and lambda
         is the shared noise hyperparameter.
@@ -115,9 +110,7 @@ class GPU_ConjugateGrad:
                 into maxiter.
             niter: The number of iterations.
         """
-        cdef int niter
-        cdef int next_col, current_col
-        cdef bint converged
+        converged = False
 
         target = resid[:,0,:].copy()
         init_norms = cp.linalg.norm(target, axis=0)
@@ -178,8 +171,8 @@ class GPU_ConjugateGrad:
             if len(alphas) > 1:
                 alphas, betas = cp.stack(alphas), cp.stack(betas)
             else:
-                alphas = alphas.reshape(1, alphas.shape[0])
-                betas = betas.reshape(1, betas.shape[0])
+                alphas = alphas[0].reshape(1, alphas[0].shape[0])
+                betas = betas[0].reshape(1, betas[0].shape[0])
             alphas, betas = cp.asnumpy(alphas[:,1:]), cp.asnumpy(betas[:,1:])
             return x_k, alphas, betas
         if self.discriminant:
@@ -257,11 +250,10 @@ class CPU_ConjugateGrad:
         matvec += kernel.get_lambda()**2 * vec
 
 
-    def fit(self, dataset, kernel, preconditioner, 
-            resid, int maxiter = 200,
-            double tol = 1e-4, 
-            bint verbose = True,
-            bint nmll_settings = False,
+    def fit(self, dataset, kernel, preconditioner,
+            resid, maxiter = 200, tol = 1e-4,
+            verbose = True,
+            nmll_settings = False,
             discriminant = False):
         """Performs conjugate gradients to evaluate (Z^T Z + lambda)^-1 Z^T y,
         where Z is the random features generated for the dataset and lambda
@@ -290,17 +282,8 @@ class CPU_ConjugateGrad:
                 into maxiter.
             niter: The number of iterations.
         """
-        cdef int niter
-        cdef int next_col, current_col
-        cdef bint converged
-        cdef np.ndarray[np.float64_t, ndim=3] z_k
-        cdef np.ndarray[np.float64_t, ndim=3] p_k
-        cdef np.ndarray[np.float64_t, ndim=2] x_k
-        cdef np.ndarray[np.float64_t, ndim=2] w
-        cdef np.ndarray[np.float64_t, ndim=2] target
-        cdef np.ndarray[np.float64_t, ndim=1] alpha
-        cdef np.ndarray[np.float64_t, ndim=1] beta
-        
+        converged = False
+
         target = resid[:,0,:].copy()
         init_norms = np.linalg.norm(target, axis=0)
 
@@ -362,8 +345,8 @@ class CPU_ConjugateGrad:
             if len(alphas) > 1:
                 alphas, betas = np.stack(alphas), np.stack(betas)
             else:
-                alphas = alphas.reshape(1, alphas.shape[0])
-                betas = betas.reshape(1, betas.shape[0])
+                alphas = alphas[0].reshape(1, alphas[0].shape[0])
+                betas = betas[0].reshape(1, betas[0].shape[0])
             return x_k, alphas[:,1:], betas[:,1:]
         if self.discriminant:
             return x_k, converged, niter + 1, losses
