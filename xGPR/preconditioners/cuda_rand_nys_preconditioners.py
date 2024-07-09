@@ -29,7 +29,7 @@ class Cuda_RandNysPreconditioner(cpx_LinearOperator):
     """
 
     def __init__(self, kernel, dataset, max_rank, verbose,
-                random_state = 123, method = "srht", x_mean = None):
+                random_state = 123, method = "srht"):
         """Class constructor.
 
         Args:
@@ -42,9 +42,6 @@ class Cuda_RandNysPreconditioner(cpx_LinearOperator):
                 generator.
             method (str): One of "srht", "gauss", "srht_2". Determines the method of
                 preconditioner construction.
-            x_mean (ndarray): Either None or an array of shape (num_rffs). Should
-                always be None for regression (regression does not mean center the
-                data) and should never be None for classification (classification does).
         """
         super().__init__(shape=(kernel.get_num_rffs(),
                             kernel.get_num_rffs()),
@@ -56,12 +53,10 @@ class Cuda_RandNysPreconditioner(cpx_LinearOperator):
         if method.startswith("srht_"):
             n_passes = int(method.split("_")[1])
             self.u_mat, s_mat, _, _ = initialize_srht_multipass(dataset, max_rank,
-                                kernel, random_state, verbose, n_passes,
-                                x_mean = x_mean)
+                                kernel, random_state, verbose, n_passes)
         elif method == "srht":
             self.u_mat, s_mat, _, _ = initialize_srht(dataset, max_rank,
-                                kernel, random_state, verbose,
-                                x_mean = x_mean)
+                                kernel, random_state, verbose)
 
         lambda_ = kernel.get_lambda()
 

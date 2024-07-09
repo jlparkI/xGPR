@@ -123,7 +123,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         to generate random features.
 
         Args:
-            input_x: Either a cupy or numpy array containing the input.
+            xtrans: Either a cupy or numpy array containing the input.
             sequence_length: Accepted for consistency with baseclass and
                 kernels that use this argument but is not used by this
                 class of kernels and is therefore ignored.
@@ -133,11 +133,11 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         """
         xtrans = input_x * self.hyperparams[1]
         if self.device == "cpu":
-            output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+            output_x = np.zeros((xtrans.shape[0], self.num_rffs), np.float64)
             cpuRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
                 self.num_threads, self.fit_intercept, self.simplex_rffs)
         else:
-            output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
+            output_x = cp.zeros((xtrans.shape[0], self.num_rffs), cp.float64)
             cudaRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
                 self.fit_intercept, self.simplex_rffs)
         return output_x

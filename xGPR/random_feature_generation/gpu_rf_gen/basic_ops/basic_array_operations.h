@@ -16,7 +16,8 @@ template <typename T>
 int cudaSRHT2d(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cuda,
         nb::c_contig> inputArr,
         nb::ndarray<const int8_t, nb::shape<-1>, nb::device::cuda,
-        nb::c_contig> radem);
+        nb::c_contig> radem,
+        int numThreads);
 
 
 #endif

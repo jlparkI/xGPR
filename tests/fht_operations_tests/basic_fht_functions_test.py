@@ -207,8 +207,8 @@ def run_srht_test(dim, compression_size, random_seed = 123):
 
     if "cupy" in sys.modules:
         radem = cp.asarray(radem)
-        cudaSRHT(cuda_test_float, radem)
-        cudaSRHT(cuda_test_double, radem)
+        cudaSRHT(cuda_test_float, radem, 2)
+        cudaSRHT(cuda_test_double, radem, 2)
         cuda_test_double = cp.asnumpy(cuda_test_double)
         cuda_test_float = cp.asnumpy(cuda_test_float)
         outcome_cuda_d = np.allclose(marr_gt_double, cuda_test_double)

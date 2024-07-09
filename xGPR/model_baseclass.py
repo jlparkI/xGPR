@@ -360,9 +360,6 @@ class ModelBaseclass():
                 This value has decent predictive value for assessing how
                 well a preconditioner built with this max_rank is likely to perform.
         """
-        original_dataset_device = dataset.device
-        dataset.device = self.device
-
         if sample_frac < 0.01 or sample_frac > 1:
             raise ValueError("sample_frac must be in the range [0.01, 1]")
 
@@ -381,7 +378,6 @@ class ModelBaseclass():
         if reset_num_rffs:
             self.num_rffs = num_rffs
 
-        dataset.device = original_dataset_device
         return ratio
 
 

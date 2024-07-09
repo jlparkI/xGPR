@@ -292,7 +292,7 @@ class KernelBaseclass(ABC):
 
         slen = None
         if sequence_length is not None:
-            slen = sequence_length.astype(np.int32)
+            slen = sequence_length.astype(np.int32, copy=False)
 
         xtrans = self.kernel_specific_transform(xin, slen)
         if self.fit_intercept:
@@ -331,13 +331,13 @@ class KernelBaseclass(ABC):
 
         slen = None
         if sequence_length is not None:
-            slen = sequence_length.astype(np.int32)
+            slen = sequence_length.astype(np.int32, copy=False)
 
         xtrans, xgrad = self.kernel_specific_gradient(xin, slen)
         if self.fit_intercept:
             xtrans[:,0] = 1.
-            xgrad[:,0,:] = 0.
-
+            if xgrad.shape[2] > 0:
+                xgrad[:,0,:] = 0.
         return xtrans, xgrad
 
 

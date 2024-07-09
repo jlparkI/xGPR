@@ -59,7 +59,7 @@ def calc_gradient_terms(dataset, kernel, device, subsample = 1):
 
     if subsample == 1:
         for xin, yin, ldata in dataset.get_chunked_data():
-            xfeatures, ydata, dz_dsigma = kernel.gradient_x_y(xin, yin, ldata)
+            xfeatures, dz_dsigma, ydata = kernel.gradient_x_y(xin, yin, ldata)
             z_trans_y += xfeatures.T @ ydata
             z_trans_z += xfeatures.T @ xfeatures
             y_trans_y += ydata.T @ ydata
@@ -74,7 +74,7 @@ def calc_gradient_terms(dataset, kernel, device, subsample = 1):
             idx_size = max(1, int(subsample * xin.shape[0]))
             idx = rng.choice(xin.shape[0], idx_size, replace=False)
             xin, yin, ldata = xin[idx,...], yin[idx], ldata[idx]
-            xfeatures, ydata, dz_dsigma = kernel.gradient_x_y(xin, yin, ldata)
+            xfeatures, dz_dsigma, ydata = kernel.gradient_x_y(xin, yin, ldata)
 
             z_trans_y += xfeatures.T @ ydata
             z_trans_z += xfeatures.T @ xfeatures

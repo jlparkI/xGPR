@@ -58,11 +58,6 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
 
         sequence_lengths = np.full(block1.shape[0],
                 block1.shape[1]).astype(np.int32)
-        if device == "cuda":
-            block1 = cp.asarray(block1)
-            block2 = cp.asarray(block2)
-            dud_block = cp.asarray(dud_block)
-            sequence_lengths = cp.asarray(sequence_lengths)
         try:
             _ = model.kernel.transform_x(block1, sequence_lengths)
             outcomes.append(True)
@@ -72,8 +67,6 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
         try:
             sequence_lengths = np.full(block2.shape[0],
                     block2.shape[1]).astype(np.int32)
-            if device == "cuda":
-                sequence_lengths = cp.asarray(sequence_lengths)
             _ = model.kernel.transform_x(block2, sequence_lengths)
             outcomes.append(True)
         except:
@@ -82,8 +75,6 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
         try:
             sequence_lengths = np.full(dud_block.shape[0],
                     dud_block.shape[1]).astype(np.int32)
-            if device == "cuda":
-                sequence_lengths = cp.asarray(sequence_lengths)
             _ = model.kernel.transform_x(dud_block, sequence_lengths)
             outcomes.append(False)
         except:
@@ -92,8 +83,6 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
         try:
             sequence_lengths = np.full(dud_block.shape[0],
                     dud_block.shape[1]).astype(np.int32)
-            if device == "cuda":
-                sequence_lengths = cp.asarray(sequence_lengths)
             _ = model.kernel.transform_x(block2, sequence_lengths)
             outcomes.append(False)
         except:
@@ -101,12 +90,11 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
 
         try:
             sequence_lengths = np.full(dud_block.shape[0], 21).astype(np.int32)
-            if device == "cuda":
-                sequence_lengths = cp.asarray(sequence_lengths)
             _ = model.kernel.transform_x(block2, sequence_lengths)
             outcomes.append(False)
         except:
            outcomes.append(True)
+
     return outcomes
 
 

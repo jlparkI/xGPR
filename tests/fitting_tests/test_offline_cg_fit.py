@@ -60,7 +60,7 @@ class CheckCGFit(unittest.TestCase):
         niter, _ = cpu_mod.fit(offline_data,
                 max_iter = 500, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg")
-        print(f"No preconditioning, niter: {niter}")
+        print(f"Autoselect preconditioning, niter: {niter}")
         self.assertTrue(niter < 80)
 
         if gpu_mod is not None:
@@ -70,7 +70,7 @@ class CheckCGFit(unittest.TestCase):
             niter, _ = gpu_mod.fit(offline_data,
                 max_iter = 500, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg")
-            print(f"No preconditioning, niter: {niter}")
+            print(f"Autoselect preconditioning, niter: {niter}")
             self.assertTrue(niter < 80)
 
 

@@ -32,7 +32,7 @@ def run_kernelspecific_test(kernel_choice, conv_kernel = False,
 
     eps = np.sqrt(np.finfo(np.float32).eps)
 
-    params = np.log(np.full(cpu_mod.get_hyperparams().shape, 1))
+    params = np.log(np.full(cpu_mod.get_hyperparams().shape, 0.5))
 
     cpu_cost, cpu_grad = cpu_mod.exact_nmll_gradient(params, online_data)
     singlepoint_cost = cpu_mod.exact_nmll(params, online_data)

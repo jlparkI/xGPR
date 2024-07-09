@@ -132,13 +132,13 @@ class xGPRegression(ModelBaseclass):
                 pred_var = lambda_**2 + lambda_**2 * (xfeatures * pred_var).sum(axis=1)
                 var.append(pred_var)
 
-        if self.device == "gpu":
+        if self.device == "cuda":
             preds = cp.asnumpy(cp.concatenate(preds))
         else:
             preds = np.concatenate(preds)
         if not get_var:
             return preds * self.trainy_std + self.trainy_mean
-        if self.device == "gpu":
+        if self.device == "cuda":
             var = cp.asnumpy(cp.concatenate(var))
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
@@ -175,7 +175,7 @@ class xGPRegression(ModelBaseclass):
                 well the preconditioner is likely to perform.
         """
         self._run_pre_fitting_prep(dataset, max_rank)
-        if self.device == "gpu":
+        if self.device == "cuda":
             preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, max_rank,
                         self.verbose, self.random_seed, method)
             mempool = cp.get_default_memory_pool()
@@ -375,7 +375,7 @@ class xGPRegression(ModelBaseclass):
         if self.verbose:
             print("Now fitting...")
 
-        if self.device == "gpu":
+        if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
             cg_operator = GPU_ConjugateGrad()
@@ -523,7 +523,7 @@ class xGPRegression(ModelBaseclass):
 
         if self.verbose:
             print("Fitting complete.")
-        if self.device == "gpu":
+        if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
 

@@ -34,23 +34,3 @@ def get_models(kernel_choice, dataset, conv_width = 3, num_rffs = 512,
 
     cpu_mod.set_hyperparams(dataset = dataset)
     return cpu_mod, gpu_mod
-
-
-def get_discriminant_models(kernel_choice, dataset, num_rffs = 512):
-    """Generates a discriminant CPU model and a GPU model with generic
-    kernel settings. Fewer options are available than for regression since
-    for the discriminant, we use the RBF kernel only in testing (other kernels
-    are tested more extensively for regression purposes)."""
-    cpu_mod = xGPDiscriminant(num_rffs = num_rffs, kernel_choice = kernel_choice,
-            random_seed = RANDOM_STATE, device = "cpu",
-            kernel_settings = {"intercept":True})
-    if "cupy" not in sys.modules:
-        print("Cupy not installed -- skipping the CUDA test.")
-        gpu_mod = None
-    else:
-        gpu_mod = copy.deepcopy(cpu_mod)
-        gpu_mod.device = "cuda"
-        gpu_mod.set_hyperparams(dataset = dataset)
-
-    cpu_mod.set_hyperparams(dataset = dataset)
-    return cpu_mod, gpu_mod

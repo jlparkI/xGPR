@@ -105,9 +105,8 @@ class FastConv1d:
             if cutoff - i == 0:
                 continue
 
-            x_in = cp.asarray(x_array[i:cutoff,:,:]).astype(cp.float32)
-            seqlen_in = cp.asarray(sequence_lengths[i:cutoff]).astype(cp.int32)
-            xtrans = self.conv_kernel.transform_x(x_in, seqlen_in)
+            xtrans = self.conv_kernel.transform_x(x_array[i:cutoff,...],
+                    sequence_lengths[i:cutoff])
 
             if self.device == "cuda":
                 xtrans = cp.asnumpy(xtrans).astype(np.float64)

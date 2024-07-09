@@ -145,7 +145,7 @@ class RBFLinear(KernelBaseclass, ABC):
 
 
 
-    def transform_x(self, input_x, sequence_length = None):
+    def kernel_specific_transform(self, input_x, sequence_length = None):
         """Combines the two steps involved in random feature generation
         to generate random features.
 

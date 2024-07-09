@@ -4,6 +4,8 @@ methods."""
 try:
     import cupy as cp
     import cupyx
+    from cupyx import scipy
+    from cupyx.scipy import linalg
 except:
     pass
 import numpy as np

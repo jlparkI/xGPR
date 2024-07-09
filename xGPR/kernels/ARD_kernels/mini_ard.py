@@ -194,14 +194,19 @@ class MiniARD(KernelBaseclass):
             xtrans: A cupy or numpy array containing the generated features.
         """
         xtrans = input_x * self.full_ard_weights[None,:]
+
         if self.device == "cpu":
             output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+            if not self.double_precision:
+                xtrans = xtrans.astype(np.float32)
             cpuRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
                     self.num_threads, self.fit_intercept, False)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
+            if not self.double_precision:
+                xtrans = xtrans.astype(cp.float32)
             cudaRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                    self.num_threads, self.fit_intercept, False)
+                    self.fit_intercept, False)
         return output_x
 
 

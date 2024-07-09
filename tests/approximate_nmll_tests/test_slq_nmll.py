@@ -67,7 +67,6 @@ class CheckApproximateNMLL(unittest.TestCase):
 def run_exact_approx_comparison(model, hyperparams, dataset, device):
     """A 'helper' function for generating and comparing exact and
     approximate NMLL."""
-    dataset.device = device
     exact_nmll = model.exact_nmll(hyperparams, dataset)
     approx_nmll = model.approximate_nmll(hyperparams, dataset)
     outcome = 100 * abs(approx_nmll - exact_nmll) / exact_nmll < ERROR_MARGIN

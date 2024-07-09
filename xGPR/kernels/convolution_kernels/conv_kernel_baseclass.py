@@ -63,7 +63,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
                 For sine-cosine kernels (RBF, Matern), this will be saved by the
                 class as num_rffs.
             random_seed (int): The seed to the random number generator.
-            device (str): One of 'cpu', 'gpu'. Indicates the starting device.
+            device (str): One of 'cpu', 'cuda'. Indicates the starting device.
             num_threads (int): The number of threads to use for random feature generation
                 if running on CPU. If running on GPU, this is ignored.
             double_precision (bool): If True, generate random features in double precision.
@@ -123,7 +123,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
         self.grad_func, which are convenience references
         to the numpy / cupy versions of functions required
         for generating features."""
-        if new_device == "gpu":
+        if new_device == "cuda":
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr)
         elif not isinstance(self.radem_diag, np.ndarray):
@@ -132,7 +132,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
 
 
 
-    def transform_x(self, input_x, sequence_length):
+    def kernel_specific_transform(self, input_x, sequence_length):
         """Generates random features.
 
         Args:
@@ -198,14 +198,14 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
         if self.device == "cpu":
             xtrans = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
             dz_dsigma = np.zeros((input_x.shape[0], self.num_rffs, 1), np.float64)
-            cpuConv1dFGen(input_x, xtrans, self.radem_diag, self.chi_arr,
+            cpuConvGrad(input_x, xtrans, self.radem_diag, self.chi_arr,
                     sequence_length, dz_dsigma, self.hyperparams[1],
                     self.conv_width, self.scaling_type,
                     self.num_threads, self.simplex_rffs)
         else:
             xtrans = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             dz_dsigma = cp.zeros((input_x.shape[0], self.num_rffs, 1), cp.float64)
-            cudaConv1dFGen(input_x, xtrans, self.radem_diag, self.chi_arr,
+            cudaConvGrad(input_x, xtrans, self.radem_diag, self.chi_arr,
                     sequence_length, dz_dsigma, self.hyperparams[1],
                     self.conv_width, self.scaling_type,
                     self.simplex_rffs)
