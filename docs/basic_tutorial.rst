@@ -64,7 +64,7 @@ Let's create two models using RBF kernels and fit them:::
 
   from xGPR import xGPRegression
 
-  #Notice that we set the device to be "gpu". If there are multiple
+  #Notice that we set the device to be "cuda". If there are multiple
   #cuda devices, xGPR will use whichever one is currently active. You can control
   #this by setting the environment variable CUDA_VISIBLE_DEVICES,
   #e.g. "export CUDA_VISIBLE_DEVICES". Also note that for regression,
@@ -77,7 +77,7 @@ Let's create two models using RBF kernels and fit them:::
                         variance_rffs = 512, 
                         random_seed = 123.
                         kernel_choice = "RBF",
-                        device = "gpu", kernel_settings = {})
+                        device = "cuda", kernel_settings = {})
 
   #Nearly all xGPR kernels have either one or two hyperparameters. We'll
   #talk more about how to optimize hyperparameters shortly.
@@ -180,7 +180,7 @@ where ``my_new_hyperparams`` is a numpy array. You can easily plug this into Opt
 some other hyperparameter tuning package, do Bayesian optimization or grid search or
 any other procedure you like.
 
-You can tune hyperparameters this way for regression as well, but for regression, there's
+You can tune hyperparameters this way, but for regression, there's
 a much nicer way to evaluate hyperparameters, which uses negative log marginal likelihood
 (what xGPR calls NMLL). In Bayesian inference, the marginal likelihood is the probability
 of the training data averaged over *all possible parameter values*.  A lower NMLL means
@@ -242,7 +242,7 @@ So, one way to use these two functions together is to use ``tune_hyperparams_cru
 fast initial search, then (if desired) further fine-tune the hyperparameters using
 ``tune_hyperparams``. For example:::
 
-  my_model.device = "gpu"
+  my_model.device = "cuda"
   my_model.num_rffs = 1024
   my_model.tune_hyperparams_crude(my_train_dataset)
   rough_hparams = my_model.get_hyperparams()
