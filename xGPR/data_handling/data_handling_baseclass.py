@@ -46,11 +46,6 @@ class DatasetBaseclass(ABC):
         """Abstract method to force child class to implement
         get_chunked_x_data."""
 
-    @abc.abstractmethod
-    def get_chunked_y_data(self):
-        """Abstract method to force child class to implement
-        get_chunked_y_data."""
-
 
     def get_ymean(self):
         """Returns the mean of the training y data.

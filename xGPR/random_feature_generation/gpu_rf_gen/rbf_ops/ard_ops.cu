@@ -119,7 +119,7 @@ int ardCudaGrad(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig>
         throw std::runtime_error("Wrong array sizes.");
     if (outputArr.shape(1) != 2 * precompWeights.shape(0) || sigmaMap.shape(0) != precompWeights.shape(1))
         throw std::runtime_error("Wrong array sizes.");
-    if (sigmaVals.shape(1) != sigmaMap.shape(0))
+    if (sigmaVals.shape(0) != sigmaMap.shape(0))
         throw std::runtime_error("Wrong array sizes.");
 
 

@@ -21,11 +21,11 @@ class TestARDGradCalcs(unittest.TestCase):
 
     def test_mini_ard_calc(self):
         """Tests gradient calculation for the MiniARD kernel."""
-        outcomes = run_mini_ard_grad_test((10,50), 2000, [25])
+        outcomes = run_mini_ard_grad_test((100,50), 2000, [25])
         for outcome in outcomes:
             self.assertTrue(outcome)
 
-        outcomes = run_mini_ard_grad_test((10,50), 2000, [25],
+        outcomes = run_mini_ard_grad_test((100,50), 2000, [25],
                 fit_intercept = True)
         for outcome in outcomes:
             self.assertTrue(outcome)
@@ -34,7 +34,7 @@ class TestARDGradCalcs(unittest.TestCase):
         for outcome in outcomes:
             self.assertTrue(outcome)
 
-        outcomes = run_mini_ard_grad_test((512,856), 500, [30,450],
+        outcomes = run_mini_ard_grad_test((9,2049), 500, [30,450],
                 fit_intercept = True)
         for outcome in outcomes:
             self.assertTrue(outcome)
@@ -96,6 +96,10 @@ def run_mini_ard_grad_test(xdim, num_freqs, split_points, random_seed = 123,
         print("Did the Grad Calc cuda extension provide the correct result for the "
             f"gradient for RBF of {xdim}, {num_freqs} for floats, doubles? "
             f"{outcome_cuda_grad_f},{outcome_cuda_grad_d}")
+        if np.sum([outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f,
+            outcome_grad_d, outcome_cuda_grad_d]) < 6:
+            import pdb
+            pdb.set_trace()
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f, \
                 outcome_grad_d, outcome_cuda_grad_d
     return outcome_d, outcome_f, outcome_grad_d, outcome_grad_f

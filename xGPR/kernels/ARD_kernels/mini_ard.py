@@ -6,13 +6,13 @@ from math import ceil
 import numpy as np
 from scipy.stats import chi
 
-try:
-    import cupy as cp
-    from cuda_rf_gen_module import cudaRBFFeatureGen, cudaMiniARDGrad
-    from cpu_rf_gen_module import cpuFastHadamardTransform2D as dFHT2d
-    from cpu_rf_gen_module import cpuRBFFeatureGen, cpuMiniARDGrad
-except:
-    pass
+#try:
+import cupy as cp
+from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaRBFFeatureGen, cudaMiniARDGrad
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFastHadamardTransform2D as dFHT2d
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuRBFFeatureGen, cpuMiniARDGrad
+#except:
+#    pass
 from ..kernel_baseclass import KernelBaseclass
 
 
@@ -183,7 +183,7 @@ class MiniARD(KernelBaseclass):
             self.ard_position_key[self.split_pts[i-1]:self.split_pts[i]] = i - 1
 
 
-    def transform_x(self, input_x, sequence_length = None):
+    def kernel_specific_transform(self, input_x, sequence_length = None):
         """Generates random features for an input array.
 
         Args:
@@ -194,12 +194,15 @@ class MiniARD(KernelBaseclass):
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
-        xtrans = input_x.astype(self.dtype) * self.full_ard_weights[None,:].astype(self.dtype)
-        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        #import pdb
-        #pdb.set_trace()
+        xtrans = input_x * self.full_ard_weights[None,:]
+        if self.device == "cpu":
+            output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+        else:
+            output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
         self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.num_threads, self.fit_intercept)
+                self.num_threads, self.fit_intercept, False)
+        if self.fit_intercept:
+            output_x[:,0] = 1.
         return output_x
 
 
@@ -295,7 +298,21 @@ class MiniARD(KernelBaseclass):
         x_retyped = self.zero_arr(input_x.shape, dtype = self.dtype)
         x_retyped[:] = input_x
         xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        dz_dsigma = self.grad_fun(x_retyped, xtrans, self.precomputed_weights,
+        max_map_position = int(self.ard_position_key.max())
+
+        if self.device == "cpu":
+            dz_dsigma = np.zeros((input_x.shape[0], self.num_rffs,
+                max_map_position + 1), np.float64)
+            self.grad_fun(x_retyped, xtrans, self.precomputed_weights,
                 self.ard_position_key, self.full_ard_weights,
-                self.num_threads, self.fit_intercept)
+                dz_dsigma, self.num_threads, self.fit_intercept)
+        else:
+            dz_dsigma = cp.zeros((input_x.shape[0], self.num_rffs,
+                max_map_position + 1), cp.float64)
+            self.grad_fun(x_retyped, xtrans, self.precomputed_weights,
+                self.ard_position_key, self.full_ard_weights,
+                dz_dsigma, self.fit_intercept)
+        if self.fit_intercept:
+            xtrans[:,0] = 1.
+            dz_dsigma[:,0,:] = 0.
         return xtrans, dz_dsigma
