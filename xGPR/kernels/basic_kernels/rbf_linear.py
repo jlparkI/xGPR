@@ -6,12 +6,11 @@ from math import ceil
 
 import numpy as np
 from scipy.stats import chi
-from cpu_rf_gen_module import cpuRBFFeatureGen, cpuRBFGrad
 
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuRBFFeatureGen, cpuRBFGrad
 try:
     import cupy as cp
-    from cuda_rf_gen_module import cudaRBFFeatureGen as cudaRBF
-    from cuda_rf_gen_module import cudaRBFGrad as cudaRBFGrad
+    from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaRBFFeatureGen, cudaRBFGrad
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass
@@ -123,8 +122,9 @@ class RBFLinear(KernelBaseclass, ABC):
         self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
 
-        self.feature_gen = cpuRBFFeatureGen
-        self.gradfun = cpuRBFGrad
+        if not self.double_precision:
+            self.chi_arr = self.chi_arr.astype(np.float32)
+
         self.device = device
 
 
@@ -136,21 +136,16 @@ class RBFLinear(KernelBaseclass, ABC):
         convenience references to np.cos / np.sin or cp.cos
         / cp.sin."""
         if new_device == "cpu":
-            self.gradfun = cpuRBFGrad
-            self.feature_gen = cpuRBFFeatureGen
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
                 self.chi_arr = cp.asnumpy(self.chi_arr)
-            self.chi_arr = self.chi_arr.astype(self.dtype)
         else:
-            self.gradfun = cudaRBFGrad
-            self.feature_gen = cudaRBF
             self.radem_diag = cp.asarray(self.radem_diag)
-            self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
+            self.chi_arr = cp.asarray(self.chi_arr)
 
 
 
-    def transform_x(self, input_x, sequence_length = None):
+    def kernel_specific_transform(self, input_x, sequence_length = None):
         """Combines the two steps involved in random feature generation
         to generate random features.
 
@@ -163,15 +158,19 @@ class RBFLinear(KernelBaseclass, ABC):
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
-        xtrans = input_x.astype(self.dtype) * self.hyperparams[1]
-
-        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        random_features = self.zero_arr((input_x.shape[0], self.internal_rffs),
-                        self.out_type)
-        self.feature_gen(xtrans, random_features, self.radem_diag, self.chi_arr,
+        xtrans = input_x * self.hyperparams[1]
+        if self.device == "cpu":
+            output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+            rf_features = np.zeros((input_x.shape[0], self.internal_rffs), np.float64)
+            cpuRBFFeatureGen(xtrans, rf_features, self.radem_diag, self.chi_arr,
                 self.num_threads, self.fit_intercept, self.simplex_rffs)
+        else:
+            output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
+            rf_features = cp.zeros((input_x.shape[0], self.internal_rffs), cp.float64)
+            cudaRBFFeatureGen(xtrans, rf_features, self.radem_diag, self.chi_arr,
+                self.fit_intercept, self.simplex_rffs)
 
-        output_x[:,:self.internal_rffs] = random_features
+        output_x[:,:self.internal_rffs] = rf_features
         output_x[:,self.internal_rffs:] = input_x
         return output_x
 
@@ -199,16 +198,23 @@ class RBFLinear(KernelBaseclass, ABC):
             dz_dsigma: A cupy or numpy array containing the derivative of
                 output_x with respect to the kernel-specific hyperparameters.
         """
-        xtrans = input_x.astype(self.dtype)
-        random_features = self.zero_arr((input_x.shape[0], self.internal_rffs),
-                self.out_type)
-        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        output_grad = self.zero_arr((input_x.shape[0], self.num_rffs, 1), self.out_type)
+        if self.device == "cpu":
+            output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+            output_grad = np.zeros((input_x.shape[0], self.num_rffs, 1), np.float64)
+            rf_features = np.zeros((input_x.shape[0], self.internal_rffs), np.float64)
+            rf_grad = np.zeros((input_x.shape[0], self.internal_rffs, 1), np.float64)
+            cpuRBFGrad(input_x, rf_features, rf_grad, self.radem_diag, self.chi_arr,
+                self.hyperparams[1], self.num_threads, self.fit_intercept, self.simplex_rffs)
+        else:
+            output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
+            output_grad = cp.zeros((input_x.shape[0], self.num_rffs, 1), cp.float64)
+            rf_features = cp.zeros((input_x.shape[0], self.internal_rffs), cp.float64)
+            rf_grad = cp.zeros((input_x.shape[0], self.internal_rffs, 1), cp.float64)
+            cudaRBFGrad(input_x, rf_features, rf_grad, self.radem_diag, self.chi_arr,
+                self.hyperparams[1], self.fit_intercept, self.simplex_rffs)
 
-        output_grad[:,:self.internal_rffs,0:1] = self.gradfun(xtrans, random_features,
-                        self.radem_diag, self.chi_arr, self.hyperparams[1],
-                        self.num_threads, self.fit_intercept, self.simplex_rffs)
 
-        output_x[:,:self.internal_rffs] = random_features
+        output_x[:,:self.internal_rffs] = rf_features
         output_x[:,self.internal_rffs:] = input_x
+        output_grad[:,:self.internal_rffs,0:1] = rf_grad
         return output_x, output_grad

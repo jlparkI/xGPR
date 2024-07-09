@@ -6,13 +6,13 @@ from math import ceil
 import numpy as np
 from scipy.stats import chi
 import cupy as cp
-from cpu_rf_gen_module import cpuRBFFeatureGen as cRBF
-from cpu_rf_gen_module import cpuRBFGrad as cRBFGrad
 
-from cpu_rf_gen_module import cpuFastHadamardTransform2D as cFHT
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuRBFFeatureGen as cRBF
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuRBFGrad as cRBFGrad
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFastHadamardTransform2D as cFHT
 
-from cuda_rf_gen_module import cudaRBFFeatureGen as cudaRBF
-from cuda_rf_gen_module import cudaRBFGrad as cudaRBFGrad
+from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaRBFFeatureGen as cudaRBF
+from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaRBFGrad
 
 
 class TestRBFFeatureGen(unittest.TestCase):
@@ -81,11 +81,11 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, fit_intercept = False):
             chi_arr.astype(np.float32), nblocks, padded_dims, fit_intercept)
 
     double_output = np.zeros((test_array.shape[0], num_freqs * 2))
-    cRBF(test_array, double_output, radem, chi_arr, 2, fit_intercept)
+    cRBF(test_array, double_output, radem, chi_arr, 2, fit_intercept, False)
 
     float_output = np.zeros((test_array.shape[0], num_freqs * 2))
     cRBF(test_array.astype(np.float32), float_output, radem,
-            chi_arr.astype(np.float32), 2, fit_intercept)
+            chi_arr.astype(np.float32), 2, fit_intercept, False)
 
     if "cupy" in sys.modules:
         cuda_test_array = cp.asarray(test_array)
@@ -95,9 +95,9 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, fit_intercept = False):
         cuda_float_output = cp.zeros((test_array.shape[0], num_freqs * 2))
 
         cudaRBF(cuda_test_array, cuda_double_output, radem,
-                chi_arr, 2, fit_intercept)
+                chi_arr, fit_intercept, False)
         cudaRBF(cuda_test_array.astype(cp.float32), cuda_float_output, radem,
-                chi_arr.astype(cp.float32), 2, fit_intercept)
+                chi_arr.astype(cp.float32), fit_intercept, False)
 
 
     outcome_d = np.allclose(gt_double, double_output)
@@ -135,13 +135,15 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123,
             fit_intercept)
 
     double_output = np.zeros((test_array.shape[0], num_freqs * 2))
-    double_grad = cRBFGrad(test_array, double_output, radem, chi_arr,
-            sigmaHparam = 1.0, numThreads = 2, fitIntercept = fit_intercept)
+    double_grad = np.zeros((double_output.shape[0], double_output.shape[1], 1))
+    cRBFGrad(test_array, double_output, double_grad, radem, chi_arr,
+            1.0, 2, fit_intercept, False)
 
     float_output = np.zeros((test_array.shape[0], num_freqs * 2))
-    float_grad = cRBFGrad(test_array.astype(np.float32), float_output,
-            radem, chi_arr.astype(np.float32), sigmaHparam = 1.0,
-            numThreads = 2, fitIntercept = fit_intercept)
+    float_grad = np.zeros((float_output.shape[0], float_output.shape[1], 1))
+    cRBFGrad(test_array.astype(np.float32), float_output,
+            float_grad, radem, chi_arr.astype(np.float32), 1.0,
+            2, fit_intercept, False)
 
     if "cupy" in sys.modules:
         cuda_test_array = cp.asarray(test_array)
@@ -149,14 +151,15 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123,
         chi_arr = cp.asarray(chi_arr)
         cuda_double_output = cp.zeros((test_array.shape[0], num_freqs * 2))
         cuda_float_output = cp.zeros((test_array.shape[0], num_freqs * 2))
+        cuda_double_grad = cp.zeros((test_array.shape[0], num_freqs * 2, 1))
+        cuda_float_grad = cp.zeros((test_array.shape[0], num_freqs * 2, 1))
 
-        cuda_double_grad = cudaRBFGrad(cuda_test_array, cuda_double_output, radem,
-                chi_arr, sigmaHparam = 1.0, numThreads = 2,
-                fitIntercept = fit_intercept)
-        cuda_float_grad = cudaRBFGrad(cuda_test_array.astype(cp.float32),
-                cuda_float_output, radem,
-                chi_arr.astype(cp.float32), sigmaHparam = 1.0, numThreads = 2,
-                fitIntercept = fit_intercept)
+        cudaRBFGrad(cuda_test_array, cuda_double_output, cuda_double_grad, radem,
+                chi_arr, 1.0, fit_intercept, False)
+        cudaRBFGrad(cuda_test_array.astype(cp.float32),
+                cuda_float_output, cuda_float_grad, radem,
+                chi_arr.astype(cp.float32), 1.0,
+                fit_intercept, False)
 
     outcome_d = np.allclose(gt_double, double_output)
     outcome_f = np.allclose(gt_float, float_output, atol=1e-4,
@@ -270,8 +273,6 @@ def generate_rbf_values(test_array, radem, chi_arr, nblocks,
     if fit_intercept:
         xtrans *= np.sqrt(1 / (chi_arr.shape[0]-0.5))
         gradient *= np.sqrt(1 / (chi_arr.shape[0]-0.5))
-        xtrans[:,0] = 1
-        gradient[:,0] = 0
     else:
         xtrans *= np.sqrt(1 / chi_arr.shape[0])
         gradient *= np.sqrt(1 / chi_arr.shape[0])

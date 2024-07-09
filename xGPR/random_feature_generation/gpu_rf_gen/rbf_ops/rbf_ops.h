@@ -2,21 +2,29 @@
 #define CUDA_RBF_SPEC_OPERATIONS_H
 
 #include <stdint.h>
+#include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
+
+namespace nb = nanobind;
+
+
 
 template <typename T>
-const char *RBFFeatureGen(T cArray[], int8_t *radem,
-                T chiArr[], double *outputArray,
-                double rbfNormConstant,
-                int dim0, int dim1, int rademShape2,
-                int numFreqs, int paddedBufferSize,
-                bool simplex);
+int RBFFeatureGen(
+        nb::ndarray<const T, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<const T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        bool fitIntercept, bool simplex);
 
 template <typename T>
-const char *RBFFeatureGrad(T cArray[], int8_t *radem,
-                T chiArr[], double *outputArray,
-                double *gradientArray, double rbfNormConstant,
-                T sigma, int dim0, int dim1, int rademShape2,
-                int numFreqs, int paddedBufferSize,
-                bool simplex);
+int RBFFeatureGrad(
+        nb::ndarray<const T, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
+        nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
+        nb::ndarray<const T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
+        float sigma, bool fitIntercept, bool simplex);
+
 
 #endif

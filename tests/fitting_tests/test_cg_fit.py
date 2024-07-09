@@ -8,7 +8,7 @@ import numpy as np
 sys.path.append("..")
 from utils.build_test_dataset import build_test_dataset
 from utils.build_classification_dataset import build_discriminant_traintest_split
-from utils.model_constructor import get_models, get_discriminant_models
+from utils.model_constructor import get_models
 from utils.evaluate_model import evaluate_model
 
 #Sets of hyperparameters known to work well for our testing dataset
@@ -36,7 +36,7 @@ class CheckCGFit(unittest.TestCase):
         niter, _ = cpu_mod.fit(online_data,  preconditioner = preconditioner,
                 max_iter = 500, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg")
-        print(f"niter: {niter}")
+        print(f"CPU, niter: {niter}")
         self.assertTrue(niter < 10)
 
         if gpu_mod is not None:
@@ -47,7 +47,7 @@ class CheckCGFit(unittest.TestCase):
             niter, _ = gpu_mod.fit(online_data,  preconditioner = preconditioner,
                 max_iter = 500, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg")
-            print(f"niter: {niter}")
+            print(f"Cuda, niter: {niter}")
             self.assertTrue(niter < 10)
 
 
@@ -61,7 +61,7 @@ class CheckCGFit(unittest.TestCase):
         niter, _ = cpu_mod.fit(online_data,
                 max_iter = 500, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg")
-        print(f"Autoselected preconditioning, niter: {niter}")
+        print(f"CPU autoselected preconditioning, niter: {niter}")
         self.assertTrue(niter < 10)
 
         if gpu_mod is not None:
@@ -69,7 +69,7 @@ class CheckCGFit(unittest.TestCase):
             niter, _ = gpu_mod.fit(online_data,
                 max_iter = 500, run_diagnostics = True,
                 tol = 1e-6,  mode = "cg")
-            print(f"Autoselected preconditioning, niter: {niter}")
+            print(f"Cuda autoselected preconditioning, niter: {niter}")
             self.assertTrue(niter < 10)
 
 

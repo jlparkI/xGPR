@@ -4,6 +4,7 @@ methods."""
 try:
     import cupy as cp
     import cupyx
+    from cupyx import scipy
     from cupyx.scipy import linalg
 except:
     pass
@@ -14,8 +15,7 @@ from ..kernels.srht_compressor import SRHTCompressor
 
 
 
-def single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose,
-        x_mean = None):
+def single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose):
     """Runs a single pass over the dataset using matvecs.
 
     Args:
@@ -27,27 +27,15 @@ def single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose,
         acc_results (array): A (num_rffs, rank) array
             in which Z^T Z @ q_mat will be stored.
         verbose (bool): Whether to print updates.
-        x_mean (ndarray): Either None or an array of shape (num_rffs). Should
-            always be None for regression (regression does not mean center the
-            data) and should never be None for classification (classification does).
     """
-    if x_mean is None:
-        for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
-            xdata = kernel.transform_x(xdata, ldata)
-            acc_results += xdata.T @ (xdata @ q_mat)
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
-    else:
-        for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
-            xdata = kernel.transform_x(xdata, ldata) - x_mean[None,:]
-            acc_results += xdata.T @ (xdata @ q_mat)
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
-        acc_results /= float(dataset.get_ndatapoints())
+    for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
+        xdata = kernel.transform_x(xdata, ldata)
+        acc_results += xdata.T @ (xdata @ q_mat)
+        if j % 10 == 0 and verbose:
+            print(f"Chunk {j} complete.")
 
 
-def single_pass_srht(dataset, kernel, compressor, acc_results, verbose,
-        x_mean = None):
+def single_pass_srht(dataset, kernel, compressor, acc_results, verbose):
     """Runs a single pass over the dataset using SRHT.
 
     Args:
@@ -58,28 +46,17 @@ def single_pass_srht(dataset, kernel, compressor, acc_results, verbose,
         acc_results (array): A (num_rffs, rank) array
             in which Z^T Z @ q_mat will be stored.
         verbose (bool): Whether to print updates.
-        x_mean (ndarray): Either None or an array of shape (num_rffs). Should
-            always be None for regression (regression does not mean center the
-            data) and should never be None for classification (classification does).
     """
-    if x_mean is None:
-        for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
-            xdata = kernel.transform_x(xdata, ldata)
-            acc_results += compressor.transform_x(xdata).T @ xdata
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
-    else:
-        for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
-            xdata = kernel.transform_x(xdata, ldata) - x_mean[None,:]
-            acc_results += compressor.transform_x(xdata).T @ xdata
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
-        acc_results /= float(dataset.get_ndatapoints())
+    for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
+        xdata = kernel.transform_x(xdata, ldata)
+        acc_results += compressor.transform_x(xdata).T @ xdata
+        if j % 10 == 0 and verbose:
+            print(f"Chunk {j} complete.")
 
 
 
 def subsampled_srht(dataset, kernel, compressor, acc_results, verbose,
-        sample_frac = 0.1, random_seed = 123, x_mean = None):
+        sample_frac = 0.1, random_seed = 123):
     """Runs a single pass over the dataset using SRHT, but sampling the
     data. The resulting preconditioner will not be useful for fitting
     but the calculated ratio is a good predictor of the number of
@@ -98,35 +75,18 @@ def subsampled_srht(dataset, kernel, compressor, acc_results, verbose,
         sample_frac (float): The fraction of datapoints to
             sample.
         random_seed (int): Seed for the random number generator.
-        x_mean (ndarray): Either None or an array of shape (num_rffs). Should
-            always be None for regression (regression does not mean center the
-            data) and should never be None for classification (classification does).
     """
-    if x_mean is None:
-        rng = np.random.default_rng(random_seed)
-        for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
-            cutoff = max(int(sample_frac * float(xdata.shape[0])), 1)
-            idx = rng.permutation(xdata.shape[0])[:cutoff]
-            if ldata is not None:
-                xdata = kernel.transform_x(xdata[idx,...], ldata[idx])
-            else:
-                xdata = kernel.transform_x(xdata[idx,...])
-            acc_results += compressor.transform_x(xdata).T @ xdata
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
-    else:
-        rng = np.random.default_rng(random_seed)
-        for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
-            cutoff = max(int(sample_frac * float(xdata.shape[0])), 1)
-            idx = rng.permutation(xdata.shape[0])[:cutoff]
-            if ldata is not None:
-                xdata = kernel.transform_x(xdata[idx,...], ldata[idx]) - x_mean[None,:]
-            else:
-                xdata = kernel.transform_x(xdata[idx,...]) - x_mean[None,:]
-            acc_results += compressor.transform_x(xdata).T @ xdata
-            if j % 10 == 0 and verbose:
-                print(f"Chunk {j} complete.")
-        acc_results /= float(dataset.get_ndatapoints())
+    rng = np.random.default_rng(random_seed)
+    for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
+        cutoff = max(int(sample_frac * float(xdata.shape[0])), 1)
+        idx = rng.permutation(xdata.shape[0])[:cutoff]
+        if ldata is not None:
+            xdata = kernel.transform_x(xdata[idx,...], ldata[idx])
+        else:
+            xdata = kernel.transform_x(xdata[idx,...])
+        acc_results += compressor.transform_x(xdata).T @ xdata
+        if j % 10 == 0 and verbose:
+            print(f"Chunk {j} complete.")
 
 
 
@@ -146,8 +106,8 @@ def single_pass_srht_zty(dataset, kernel, compressor, acc_results, z_trans_y,
         verbose (bool): Whether to print updates.
     """
     y_trans_y = 0.0
-    for j, (xdata, ydata, ldata) in enumerate(dataset.get_chunked_data()):
-        xdata = kernel.transform_x(xdata, ldata)
+    for j, (xin, yin, ldata) in enumerate(dataset.get_chunked_data()):
+        xdata, ydata = kernel.transform_x_y(xin, yin, ldata)
         z_trans_y += xdata.T @ ydata
         y_trans_y += ydata.T @ ydata
         acc_results += compressor.transform_x(xdata).T @ xdata
@@ -159,7 +119,7 @@ def single_pass_srht_zty(dataset, kernel, compressor, acc_results, z_trans_y,
 
 
 def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = False,
-                n_passes = 1, get_zty = False, x_mean = None):
+                n_passes = 1, get_zty = False):
     """Builds the randomized Nystrom approximation to the inverse
     of (z^T z + lambda), where z is the random features generated
     for dataset, using SRHT on the first pass with subsequent passes over
@@ -174,9 +134,6 @@ def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = Fal
         verbose (bool): If True, print updates during construction.
         get_zty (bool): If True, return z_trans_y and y_trans_y to caller. This
             is useful for some hyperparameter tuning methods.
-        x_mean (ndarray): Either None or an array of shape (num_rffs). Should
-            always be None for regression (regression does not mean center the
-            data) and should never be None for classification (classification does).
 
     Returns:
         u_mat (np.ndarray): The eigenvectors of the matrix needed to
@@ -208,30 +165,29 @@ def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = Fal
     compressor = SRHTCompressor(rank, kernel.get_num_rffs(),
                 random_seed = random_state, device=kernel.device)
 
-    #There is no situation where we need both z_trans_y AND mean subtraction.
     if get_zty:
         y_trans_y = single_pass_srht_zty(dataset, kernel, compressor, acc_results,
                         z_trans_y, verbose)
     else:
         single_pass_srht(dataset, kernel, compressor, acc_results,
-                verbose, x_mean = x_mean)
+                verbose)
 
     del compressor
     acc_results = acc_results.T
 
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     for _ in range(n_passes - 1):
         q_mat, r_mat = qr_calculator(acc_results)
         acc_results[:] = 0.0
         del r_mat
-        if kernel.device == "gpu":
+        if kernel.device == "cuda":
             mempool.free_all_blocks()
 
-        single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose, x_mean = x_mean)
+        single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose)
 
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     norm = float( np.sqrt((acc_results**2).sum())  )
@@ -242,7 +198,7 @@ def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = Fal
 
     q_mat = cho_calculator(q_mat)
 
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     acc_results = tri_solver(q_mat, acc_results.T,
@@ -255,7 +211,7 @@ def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = Fal
 
 
 def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
-                get_zty = False, x_mean = None):
+                get_zty = False):
     """Builds the randomized Nystrom approximation to the inverse
     of (z^T z + lambda), where z is the random features generated
     for dataset, using SRHT.
@@ -268,9 +224,6 @@ def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
         verbose (bool): If True, print updates during construction.
         get_zty (bool): If True, return z_trans_y and y_trans_y to caller. This
             is useful for some hyperparameter tuning methods.
-        x_mean (ndarray): Either None or an array of shape (num_rffs). Should
-            always be None for regression (regression does not mean center the
-            data) and should never be None for classification (classification does).
 
     Returns:
         u_mat (np.ndarray): The eigenvectors of the matrix needed to
@@ -299,19 +252,17 @@ def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
                 random_seed = random_state, device=kernel.device)
 
 
-    #There is no situation where we need both z_trans_y AND mean subtraction.
     if get_zty:
         y_trans_y = single_pass_srht_zty(dataset, kernel, compressor, acc_results,
                         z_trans_y, verbose)
     else:
-        single_pass_srht(dataset, kernel, compressor, acc_results, verbose,
-                x_mean = x_mean)
+        single_pass_srht(dataset, kernel, compressor, acc_results, verbose)
 
     c_mat = compressor.transform_x(acc_results)
     _, c_s1, c_v1 = svd_calculator(c_mat, full_matrices = False)
 
     del c_mat, compressor
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     mask = c_s1 < 1e-14
@@ -320,7 +271,7 @@ def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
     acc_results = acc_results.T @ c_v1.T @ (c_s1[:,None] * c_v1)
 
     del c_v1, c_s1
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     u_mat, s_mat, _ = svd_calculator(acc_results, full_matrices=False)
@@ -333,7 +284,7 @@ def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
 
 
 def srht_ratio_check(dataset, rank, kernel, random_state, verbose = False,
-                sample_frac = 0.1, x_mean = None):
+                sample_frac = 0.1):
     """Runs a fast 'preconditioner construction' using a random sample of
     the data. The resulting preconditioner will not be useful for fitting,
     so the eigenvectors normally needed for the preconditioner are not
@@ -350,9 +301,6 @@ def srht_ratio_check(dataset, rank, kernel, random_state, verbose = False,
         verbose (bool): If True, print updates during construction.
         sample_frac (float): The fraction of datapoints to
             sample.
-        x_mean (ndarray): Either None or an array of shape (num_rffs). Should
-            always be None for regression (regression does not mean center the
-            data) and should never be None for classification (classification does).
 
     Returns:
         s_mat (np.ndarray): The eigenvalues of the
@@ -370,13 +318,13 @@ def srht_ratio_check(dataset, rank, kernel, random_state, verbose = False,
                 random_seed = random_state, device=kernel.device)
 
     subsampled_srht(dataset, kernel, compressor, acc_results, verbose,
-            sample_frac, random_state, x_mean = x_mean)
+            sample_frac, random_state)
 
     c_mat = compressor.transform_x(acc_results)
     _, c_s1, c_v1 = svd_calculator(c_mat, full_matrices = False)
 
     del c_mat, compressor
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     mask = c_s1 < 1e-14
@@ -385,7 +333,7 @@ def srht_ratio_check(dataset, rank, kernel, random_state, verbose = False,
     acc_results = acc_results.T @ c_v1.T @ (c_s1[:,None] * c_v1)
 
     del c_v1, c_s1
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     _, s_mat, _ = svd_calculator(acc_results, full_matrices=False)

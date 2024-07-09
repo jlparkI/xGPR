@@ -78,7 +78,7 @@ For ``MiniARD``, supply a list under
 
   my_model = xGPRegression(num_rffs = 2048, variance_rffs = 512,
                         kernel_choice = "MiniARD",
-                        device = "gpu", kernel_settings =
+                        device = "cuda", kernel_settings =
                         {"split_points":[21,36])
 
 The features in between two split points all share a lengthscale. In this

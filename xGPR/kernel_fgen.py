@@ -37,7 +37,7 @@ class KernelFGen(AuxiliaryBaseclass):
             kernel_choice (str): The kernel that the model will use.
                 Must be in kernels.kernel_list.KERNEL_NAME_TO_CLASS.
             device (str): Determines whether calculations are performed on
-                'cpu' or 'gpu'. The initial entry can be changed later
+                'cpu' or 'cuda'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).
                 Defaults to 'cpu'.
             kernel_settings (dict): Contains kernel-specific parameters --
@@ -75,17 +75,17 @@ class KernelFGen(AuxiliaryBaseclass):
             ValueError: A ValueError is raised if inappropriate inputs are
                 supplied.
         """
-        xdata, seqlen = self.pre_prediction_checks(input_x, sequence_lengths)
+        self.pre_prediction_checks(input_x, sequence_lengths)
         preds = []
-        for i in range(0, xdata.shape[0], chunk_size):
-            cutoff = min(i + chunk_size, xdata.shape[0])
+        for i in range(0, input_x.shape[0], chunk_size):
+            cutoff = min(i + chunk_size, input_x.shape[0])
             if sequence_lengths is not None:
-                preds.append(self.kernel.transform_x(xdata[i:cutoff, ...],
-                    seqlen[i:cutoff]))
+                preds.append(self.kernel.transform_x(input_x[i:cutoff, ...],
+                    sequence_lengths[i:cutoff]))
             else:
-                preds.append(self.kernel.transform_x(xdata[i:cutoff, ...]))
+                preds.append(self.kernel.transform_x(input_x[i:cutoff, ...]))
 
-        if self.device == "gpu":
+        if self.device == "cuda":
             preds = cp.asnumpy(cp.vstack(preds))
         else:
             preds = np.vstack(preds)

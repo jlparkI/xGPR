@@ -86,7 +86,7 @@ or ``GraphRBF`` for graphs), e.g.:::
   from xGPR import xGPRegression
   my_model = xGPRegression(num_rffs = 2048,
                         variance_rffs = 512, kernel_choice = "Conv1dRBF",
-                        device = "gpu", kernel_settings =
+                        device = "cuda", kernel_settings =
                         {"conv_width":9}, verbose = True)
 
 Everything else remains unchanged, you just need to ensure the dataset

@@ -5,7 +5,6 @@
  * kernels in xGPR, essentially orthogonal random features based
  * convolution, for non-RBF kernels.
  */
-#include <Python.h>
 #include <vector>
 #include <thread>
 #include <math.h>
@@ -47,50 +46,106 @@
  * "error" if an error, "no_error" otherwise.
  */
 template <typename T>
-const char *conv1dMaxpoolFeatureGen_(int8_t *radem, T xdata[],
-            T chiArr[], double *outputArray, int32_t *seqlengths,
-            int xdim0, int xdim1, int xdim2, int numThreads, int numFreqs,
-            int convWidth, int paddedBufferSize,
-            bool simplex){
+int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+        int convWidth, int numThreads, bool simplex){
 
-    if (numThreads > xdim0)
-        numThreads = xdim0;
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+    size_t numRffs = outputArr.shape(1);
+    size_t numFreqs = chiArr.shape(0);
+
+    T *inputPtr = static_cast<T*>(inputArr.data());
+    double *outputPtr = static_cast<double*>(outputArr.data());
+    T *chiPtr = static_cast<T*>(chiArr.data());
+    int8_t *rademPtr = static_cast<int8_t*>(radem.data());
+    int32_t *seqlengthsPtr = static_cast<int32_t*>(seqlengths.data());
+
+    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("no datapoints");
+    if (numRffs < 2 || (numRffs & 1) != 0)
+        throw std::runtime_error("last dim of output must be even number");
+    if ( numFreqs != numRffs || numFreqs > radem.shape(2) )
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+    if (seqlengths.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("wrong array sizes");
+    if (static_cast<int>(inputArr.shape(1)) < convWidth || convWidth <= 0)
+        throw std::runtime_error("invalid conv_width");
+
+    double expectedNFreq = static_cast<double>(convWidth * inputArr.shape(2));
+    expectedNFreq = MAX(expectedNFreq, 2);
+    double log2Freqs = std::log2(expectedNFreq);
+    log2Freqs = std::ceil(log2Freqs);
+    int paddedBufferSize = std::pow(2, log2Freqs);
+
+    if (radem.shape(2) % paddedBufferSize != 0)
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+
+    int32_t minSeqLength = 2147483647, maxSeqLength = 0;
+    for (size_t i=0; i < seqlengths.shape(0); i++){
+        if (seqlengths(i) > maxSeqLength)
+            maxSeqLength = seqlengths(i);
+        if (seqlengths(i) < minSeqLength)
+            minSeqLength = seqlengths(i);
+    }
+
+    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth){
+        throw std::runtime_error("All sequence lengths must be >= conv width and < "
+                "array size.");
+    }
+
+    if (numThreads > zDim0)
+        numThreads = zDim0;
 
     std::vector<std::thread> threads(numThreads);
     int startRow, endRow;
-    int chunkSize = (xdim0 + numThreads - 1) / numThreads;
+    int chunkSize = (zDim0 + numThreads - 1) / numThreads;
     
     for (int i=0; i < numThreads; i++){
         startRow = i * chunkSize;
         endRow = (i + 1) * chunkSize;
-        if (endRow > xdim0)
-            endRow = xdim0;
+        if (endRow > zDim0)
+            endRow = zDim0;
 
         if (!simplex){
-            threads[i] = std::thread(&allInOneConvMaxpoolGen<T>, xdata,
-                radem, chiArr, outputArray, seqlengths, xdim1, xdim2,
-                numFreqs, startRow, endRow, convWidth, paddedBufferSize);
+            threads[i] = std::thread(&allInOneConvMaxpoolGen<T>, inputPtr,
+                rademPtr, chiPtr, outputPtr, seqlengthsPtr, inputArr.shape(1),
+                inputArr.shape(2), numFreqs, startRow, endRow, convWidth,
+                paddedBufferSize);
         }
         else{
-            threads[i] = std::thread(&allInOneConvMaxpoolSimplex<T>, xdata,
-                radem, chiArr, outputArray, seqlengths, xdim1, xdim2,
-                numFreqs, startRow, endRow, convWidth, paddedBufferSize);
+            threads[i] = std::thread(&allInOneConvMaxpoolSimplex<T>, inputPtr,
+                rademPtr, chiPtr, outputPtr, seqlengthsPtr, inputArr.shape(1),
+                inputArr.shape(2), numFreqs, startRow, endRow, convWidth,
+                paddedBufferSize);
         }
     }
 
     for (auto& th : threads)
         th.join();
 
-    return "no_error";
+    return 0;
 }
-template const char *conv1dMaxpoolFeatureGen_<float>(int8_t *radem, float xdata[],
-            float chiArr[], double *outputArray, int32_t *seqlengths,
-            int xdim0, int xdim1, int xdim2, int numThreads, int numFreqs,
-            int convWidth, int paddedBufferSize, bool simplex);
-template const char *conv1dMaxpoolFeatureGen_<double>(int8_t *radem, double xdata[],
-            double chiArr[], double *outputArray, int32_t *seqlengths,
-            int xdim0, int xdim1, int xdim2, int numThreads, int numFreqs,
-            int convWidth, int paddedBufferSize, bool simplex);
+template int conv1dMaxpoolFeatureGen_<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+        int convWidth, int numThreads, bool simplex);
+template int conv1dMaxpoolFeatureGen_<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+        int convWidth, int numThreads, bool simplex);
 
 
 

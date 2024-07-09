@@ -6,12 +6,6 @@ in-memory and on-disk datasets.
 import abc
 from abc import ABC
 
-import numpy as np
-try:
-    import cupy as cp
-except:
-    pass
-
 
 class DatasetBaseclass(ABC):
     """DatasetBaseclass stores methods common to both
@@ -19,18 +13,18 @@ class DatasetBaseclass(ABC):
     that both share a common API.
 
     Attributes:
-        device (str): Must be one of ['cpu', 'gpu']. Indicates
-            the device on which calculations will be
-            performed.
         xdim_ (tuple): A length 3 tuple (for 3d data) or 2
             (for 2d data) indicating the full dimensions of
             the dataset.
         chunk_size (int): Either the chunk_size for online datasets or the
             largest allowed array size for offline datasets.
+        trainy_mean (float): The mean of the training y-data (for regression only).
+        trainy_std (float): The standard deviation of the training y-data (for
+            regression only).
+        max_class (int): The largest class number (for classification only).
     """
-    def __init__(self, xdim, device, chunk_size,
+    def __init__(self, xdim, chunk_size,
             trainy_mean, trainy_std, max_class):
-        self.device = device
         self._xdim = xdim
 
         #Trainy_mean and trainy_std are used
@@ -51,11 +45,6 @@ class DatasetBaseclass(ABC):
     def get_chunked_x_data(self):
         """Abstract method to force child class to implement
         get_chunked_x_data."""
-
-    @abc.abstractmethod
-    def get_chunked_y_data(self):
-        """Abstract method to force child class to implement
-        get_chunked_y_data."""
 
 
     def get_ymean(self):
@@ -87,24 +76,3 @@ class DatasetBaseclass(ABC):
     def get_chunk_size(self):
         """Return the chunk size."""
         return self.chunk_size
-
-    @property
-    def device(self):
-        """Property definition for the device attribute."""
-        return self.device_
-
-    @device.setter
-    def device(self, value):
-        """Setter for the device attribute."""
-        if value == "gpu":
-            self.array_loader = cp.load
-            self.dtype = cp.float64
-            self.ltype = cp.int32
-        elif value == "cpu":
-            self.array_loader = np.load
-            self.dtype = np.float64
-            self.ltype = np.int32
-        else:
-            raise ValueError("Device supplied to Dataset must be "
-                        "in ['cpu', 'gpu'].")
-        self.device_ = value

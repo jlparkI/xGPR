@@ -2,11 +2,8 @@
  * # rbf_ops.cpp
  *
  * This module performs all major steps involved in feature generation for
- * RBF-type kernels, which includes RBF, Matern, ARD and MiniARD (and by extension
- * the static layer kernels).
+ * RBF-type kernels, which includes RBF, Matern, Cauchy, MiniARD.
  */
-#include <Python.h>
-#include <stdint.h>
 #include <math.h>
 #include <vector>
 #include <thread>
@@ -14,153 +11,214 @@
 #include "../shared_fht_functions/hadamard_transforms.h"
 #include "../shared_fht_functions/shared_rfgen_ops.h"
 
+namespace nb = nanobind;
+
 
 
 /*!
  * # rbfFeatureGen_
  *
- * Generates features for the input array and stores them in outputArray.
+ * Generates features for the input array.
  *
  * ## Args:
  *
- * + `cArray` Pointer to the first element of the input array.
- * Must be a 3d array (N x D x C). C must be a power of 2.
- * + `radem` Pointer to first element of int8_t stack of diagonal.
- * arrays. Must be shape (3 x D x C).
- * + `chiArr` Pointer to first element of diagonal array to ensure
- * correct marginals. Must be of shape numFreqs.
- * + `outputArray` Pointer to first element of output array. Must
- * be a 2d array (N x 2 * numFreqs).
- * + `rbfNormConstant` A value by which all outputs are multipled.
- * Should be beta hparam * sqrt(1 / numFreqs). Is calculated by
- * caller.
- * + `dim0` shape[0] of input array
- * + `dim1` shape[1] of input array
- * + `dim2` shape[2] of input array
- * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
+ * + `inputArr` A numpy array of shape (N x C).
+ * + `outputArr` A numpy array of shape (N x R),
+ * where R is the number of RFFs and is 2x numFreqs;
+ * + `radem` A numpy stack of diagonal matrices of type int8_t
+ * of shape (3 x 1 x M) where M is the smallest power of 2 > numFreqs.
+ * + `chiArr` A numpy array of shape (numFreqs)
  * + `numThreads` The number of threads to use.
+ * + `fitIntercept` If True, a y-intercept will be fitted.
  * + `simplex` If True, apply the simplex modification of Reid et al. 2023.
  */
 template <typename T>
-const char *rbfFeatureGen_(T cArray[], int8_t *radem,
-                T chiArr[], double *outputArray,
-                double rbfNormConstant,
-                int dim0, int dim1, int rademShape2,
-                int numFreqs, int numThreads,
-                int paddedBufferSize,
-                bool simplex){
-    if (numThreads > dim0)
-        numThreads = dim0;
+int rbfFeatureGen_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        int numThreads, bool fitIntercept, bool simplex){
+
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+    int zDim1 = inputArr.shape(1);
+    size_t numRffs = outputArr.shape(1);
+    size_t numFreqs = chiArr.shape(0);
+    double numFreqsFlt = numFreqs;
+
+    T *inputPtr = static_cast<T*>(inputArr.data());
+    double *outputPtr = static_cast<double*>(outputArr.data());
+    T *chiPtr = static_cast<T*>(chiArr.data());
+    int8_t *rademPtr = static_cast<int8_t*>(radem.data());
+
+    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("no datapoints");
+    if (numRffs < 2 || (numRffs & 1) != 0)
+        throw std::runtime_error("last dim of output must be even number");
+    if ( (2 * numFreqs) != numRffs || numFreqs > radem.shape(2) )
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+    double expectedNFreq = (zDim1 > 2) ? static_cast<double>(zDim1) : 2.0;
+    double log2Freqs = std::log2(expectedNFreq);
+    log2Freqs = std::ceil(log2Freqs);
+    int paddedBufferSize = std::pow(2, log2Freqs);
+
+    if (radem.shape(2) % paddedBufferSize != 0)
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+    T rbfNormConstant;
+
+    if (fitIntercept)
+        rbfNormConstant = std::sqrt(1.0 / (numFreqsFlt - 0.5));
+    else
+        rbfNormConstant = std::sqrt(1.0 / numFreqsFlt);
+
+
+    if (numThreads > zDim0)
+        numThreads = zDim0;
 
     std::vector<std::thread> threads(numThreads);
     int startPosition, endPosition;
     
-    int chunkSize = (dim0 + numThreads - 1) / numThreads;
+    int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
     for (int i=0; i < numThreads; i++){
         startPosition = i * chunkSize;
         endPosition = (i + 1) * chunkSize;
-        if (endPosition > dim0)
-            endPosition = dim0;
+        if (endPosition > zDim0)
+            endPosition = zDim0;
         
         if (!simplex){
-            threads[i] = std::thread(&allInOneRBFGen<T>, cArray,
-                radem, chiArr, outputArray, dim1, numFreqs,
-                rademShape2, startPosition, endPosition,
+            threads[i] = std::thread(&allInOneRBFGen<T>, inputPtr,
+                rademPtr, chiPtr, outputPtr, inputArr.shape(1), numFreqs,
+                radem.shape(2), startPosition, endPosition,
                 paddedBufferSize, rbfNormConstant);
         }
         else{
-            threads[i] = std::thread(&allInOneRBFSimplex<T>, cArray,
-                radem, chiArr, outputArray, dim1, numFreqs,
-                rademShape2, startPosition, endPosition,
+            threads[i] = std::thread(&allInOneRBFSimplex<T>, inputPtr,
+                rademPtr, chiPtr, outputPtr, inputArr.shape(1), numFreqs,
+                radem.shape(2), startPosition, endPosition,
                 paddedBufferSize, rbfNormConstant);
         }
     }
 
     for (auto& th : threads)
         th.join();
-    return "no_error";
+    return 0;
 }
 //Explicitly instantiate so wrapper can use.
-template const char *rbfFeatureGen_<double>(double cArray[], int8_t *radem,
-                double chiArr[], double *outputArray,
-                double rbfNormConstant,
-                int dim0, int dim1, int rademShape2,
-                int numFreqs, int numThreads,
-                int paddedBufferSize,
-                bool simplex);
-template const char *rbfFeatureGen_<float>(float cArray[], int8_t *radem,
-                float chiArr[], double *outputArray,
-                double rbfNormConstant,
-                int dim0, int dim1, int rademShape2,
-                int numFreqs, int numThreads,
-                int paddedBufferSize,
-                bool simplex);
+template int rbfFeatureGen_<double>(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        int numThreads, bool fitIntercept, bool simplex);
+template int rbfFeatureGen_<float>(nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        int numThreads, bool fitIntercept, bool simplex);
+
+
 
 
 /*!
  * # rbfGrad_
  *
- * Generates features for the input array and stores them in outputArray.
+ * Generates features and the gradient w/r/t sigma.
  *
  * ## Args:
  *
- * + `cArray` Pointer to the first element of the input array.
- * Must be a 3d array (N x D x C). C must be a power of 2.
- * + `radem` Pointer to first element of int8_t stack of diagonal.
- * arrays. Must be shape (3 x D x C).
- * + `chiArr` Pointer to first element of diagonal array to ensure
- * correct marginals. Must be of shape numFreqs.
- * + `outputArray` Pointer to first element of output array. Must
- * be a 2d array (N x 2 * numFreqs).
- * + `gradientArray` Pointer to the first element of gradient array.
- * Must be a 2d array (N x 2 * numFreqs).
- * + `rbfNormConstant` A value by which all outputs are multipled.
- * Should be beta hparam * sqrt(1 / numFreqs). Is calculated by
- * caller.
- * + `sigma` The lengthscale hyperparameter.
- * + `dim0` shape[0] of input array
- * + `dim1` shape[1] of input array
- * + `rademShape2` shape[2] of radem
- * + `numFreqs` (numRFFs / 2) -- the number of frequencies to sample.
+ * + `inputArr` A numpy array of shape (N x C).
+ * + `outputArr` A numpy array of shape (N x R),
+ * where R is the number of RFFs and is 2x numFreqs;
+ * + `gradArr` A numpy array of shape (N x R x 1),
+ * where R is the number of RFFs and is 2x numFreqs;
+ * + `radem` A numpy stack of diagonal matrices of type int8_t
+ * of shape (3 x 1 x M) where M is the smallest power of 2 > numFreqs.
+ * + `chiArr` A numpy array of shape (numFreqs)
+ * + `sigma` The sigma hyperparameter
  * + `numThreads` The number of threads to use.
+ * + `fitIntercept` If True, a y-intercept will be fitted.
  * + `simplex` If True, apply the simplex modification of Reid et al. 2023.
  */
 template <typename T>
-const char *rbfGrad_(T cArray[], int8_t *radem,
-                T chiArr[], double *outputArray,
-                double *gradientArray,
-                double rbfNormConstant, T sigma,
-                int dim0, int dim1, int rademShape2,
-                int numFreqs, int numThreads,
-                int paddedBufferSize,
-                bool simplex){
-    if (numThreads > dim0)
-        numThreads = dim0;
+int rbfGrad_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        float sigma, int numThreads, bool fitIntercept, bool simplex){
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+    int zDim1 = inputArr.shape(1);
+    size_t numRffs = outputArr.shape(1);
+    size_t numFreqs = chiArr.shape(0);
+    double numFreqsFlt = numFreqs;
+
+    T *inputPtr = static_cast<T*>(inputArr.data());
+    double *outputPtr = static_cast<double*>(outputArr.data());
+    double *gradientPtr = static_cast<double*>(gradArr.data());
+    T *chiPtr = static_cast<T*>(chiArr.data());
+    int8_t *rademPtr = static_cast<int8_t*>(radem.data());
+
+    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("no datapoints");
+    if (numRffs < 2 || (numRffs & 1) != 0)
+        throw std::runtime_error("last dim of output must be even number");
+    if ( (2 * numFreqs) != numRffs || numFreqs > radem.shape(2) )
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+    if (gradArr.shape(0) != outputArr.shape(0) || gradArr.shape(1) != outputArr.shape(1))
+        throw std::runtime_error("Wrong array sizes.");
+
+    double expectedNFreq = (zDim1 > 2) ? static_cast<double>(zDim1) : 2.0;
+    double log2Freqs = std::log2(expectedNFreq);
+    log2Freqs = std::ceil(log2Freqs);
+    int paddedBufferSize = std::pow(2, log2Freqs);
+
+    if (radem.shape(2) % paddedBufferSize != 0)
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+    T rbfNormConstant;
+
+    if (fitIntercept)
+        rbfNormConstant = std::sqrt(1.0 / (numFreqsFlt - 0.5));
+    else
+        rbfNormConstant = std::sqrt(1.0 / numFreqsFlt);
+    
+    
+    
+    if (numThreads > zDim0)
+        numThreads = zDim0;
 
     std::vector<std::thread> threads(numThreads);
     int startPosition, endPosition;
-    int chunkSize = (dim0 + numThreads - 1) / numThreads;
+    int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
     for (int i=0; i < numThreads; i++){
         startPosition = i * chunkSize;
         endPosition = (i + 1) * chunkSize;
-        if (endPosition > dim0)
-            endPosition = dim0;
+        if (endPosition > zDim0)
+            endPosition = zDim0;
 
         if (!simplex){ 
-            threads[i] = std::thread(&allInOneRBFGrad<T>, cArray,
-                radem, chiArr, outputArray,
-                gradientArray, dim1, numFreqs,
-                rademShape2, startPosition,
+            threads[i] = std::thread(&allInOneRBFGrad<T>, inputPtr,
+                rademPtr, chiPtr, outputPtr,
+                gradientPtr, inputArr.shape(1),
+                numFreqs, radem.shape(2), startPosition,
                 endPosition, paddedBufferSize,
                 rbfNormConstant, sigma);
         }
         else{
-            threads[i] = std::thread(&allInOneRBFGradSimplex<T>, cArray,
-                radem, chiArr, outputArray,
-                gradientArray, dim1, numFreqs,
-                rademShape2, startPosition,
+            threads[i] = std::thread(&allInOneRBFGradSimplex<T>, inputPtr,
+                rademPtr, chiPtr, outputPtr,
+                gradientPtr, inputArr.shape(1),
+                numFreqs, radem.shape(2), startPosition,
                 endPosition, paddedBufferSize,
                 rbfNormConstant, sigma);
         }
@@ -168,25 +226,21 @@ const char *rbfGrad_(T cArray[], int8_t *radem,
 
     for (auto& th : threads)
         th.join();
-    return "no_error";
+    return 0;
 }
 //Explicitly instantiate for external use.
-template const char *rbfGrad_<double>(double cArray[], int8_t *radem,
-                double chiArr[], double *outputArray,
-                double *gradientArray,
-                double rbfNormConstant, double sigma,
-                int dim0, int dim1, int rademShape2,
-                int numFreqs, int numThreads,
-                int paddedBufferSize,
-                bool simplex);
-template const char *rbfGrad_<float>(float cArray[], int8_t *radem,
-                float chiArr[], double *outputArray,
-                double *gradientArray,
-                double rbfNormConstant, float sigma,
-                int dim0, int dim1, int rademShape2,
-                int numFreqs, int numThreads,
-                int paddedBufferSize,
-                bool simplex);
+template int rbfGrad_<double>(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        float sigma, int numThreads, bool fitIntercept, bool simplex);
+template int rbfGrad_<float>(nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        float sigma, int numThreads, bool fitIntercept, bool simplex);
 
 
 

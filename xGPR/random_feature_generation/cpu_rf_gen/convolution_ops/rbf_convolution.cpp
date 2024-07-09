@@ -1,10 +1,9 @@
 /*!
- * # rbf_convolution.c
+ * # rbf_convolution.cpp
  *
  * This module performs operations unique to the RBF-based convolution
  * kernels in xGPR.
  */
-#include <Python.h>
 #include <thread>
 #include <vector>
 #include <math.h>
@@ -20,96 +19,130 @@
 /*!
  * # convRBFFeatureGen_
  * Performs all steps required to generate random features for RBF-based
- * convolution kernels (FHTConv1d, GraphConv1d, ARD variants of GraphConv1d).
- * It is assumed that caller has checked dimensions and they are all correct.
+ * convolution kernels.
  *
  * ## Args:
  *
- * + `radem` The stacks of diagonal matrices used in
- * the transform. Must be of shape (3 x 1 x m * C) where m is
- * an integer that indicates the number of times we must repeat
- * the operation to generate the requested number of sampled frequencies.
- * + `xdata` Pointer to the first element of the array that will
- * be used for the convolution. A copy of this array is modified
- * rather than the original. Shape is (N x D x C). C must be
- * a power of 2.
- * + `chiArr` A diagonal array that will be multiplied against the output
- * of the SORF operation. Of shape numFreqs.
- * + `outputArray` The output array. Of shape (N, 2 * numFreqs).
- * + `seqlengths` The length of each sequence in the input. Of shape (N).
- * + `numThreads` The number of threads to use
- * + `dim0` The first dimension of xdata
- * + `dim1` The second dimension of xdata
- * + `dim2` The last dimension of xdata
- * + `numFreqs` The number of frequencies to sample. Must be <=
- * radem.shape[2].
- * + `rademShape2` The number of elements in one row of radem.
- * + `convWidth` The width of the convolution.
- * + `paddedBufferSize` dim2 of the copy buffer to create to perform
- * the convolution.
- * + `scalingTerm` The scaling term to apply for the random feature generation.
- * + `scalingType` An int that is one of 0, 1 or 2 to indicate what type of
- * additional scaling (if any) to perform.
- * + `simplex` If True, apply the simplex modification of Reid et al. 2023.
- *
- * ## Returns:
- * "error" if an error, "no_error" otherwise.
+ * + `inputArr` The (N x D x C) array containing the input data.
+ * + `outputArr` The (N x R) output array, where R = 2 * F and F is numFreqs.
+ * + `radem` The (3 x 1 x M) array of int8_t diagonal matrices, where M is
+ * some integer multiple of the smallest power of 2 > C and is > numFreqs.
+ * + `chiArr` The (F) shape numpy diagonal matrix by which the results are scaled.
+ * + `seqlengths` An (N) shape numpy array of sequence lengths (to exclude zero
+ * padding).
+ * + `convWidth` The width of the convolution kernel.
+ * + `scalingType` One of 0, 1 or 2; indicates the type of scaling. These
+ * are defined in the header.
+ * + `numThreads` The number of threads to use.
+ * + `simplex` Whether to use the Reid et al. 2023 modification.
  */
 template <typename T>
-const char *convRBFFeatureGen_(int8_t *radem, T xdata[],
-            T chiArr[], double *outputArray,
-            int32_t *seqlengths,
-            int numThreads, int dim0,
-            int dim1, int dim2,
-            int numFreqs, int rademShape2,
-            int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType,
-            bool simplex){
-    if (numThreads > dim0)
-        numThreads = dim0;
+int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3,1,-1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+        int convWidth, int scalingType, int numThreads, bool simplex){
+
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+    size_t numRffs = outputArr.shape(1);
+    size_t numFreqs = chiArr.shape(0);
+    double scalingTerm = std::sqrt(1.0 / static_cast<double>(numFreqs));
+
+    T *inputPtr = static_cast<T*>(inputArr.data());
+    double *outputPtr = static_cast<double*>(outputArr.data());
+    T *chiPtr = static_cast<T*>(chiArr.data());
+    int8_t *rademPtr = static_cast<int8_t*>(radem.data());
+    int32_t *seqlengthsPtr = static_cast<int32_t*>(seqlengths.data());
+
+    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("no datapoints");
+    if (numRffs < 2 || (numRffs & 1) != 0)
+        throw std::runtime_error("last dim of output must be even number");
+    if ( (2 * numFreqs) != numRffs || numFreqs > radem.shape(2) )
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+    if (seqlengths.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("wrong array sizes");
+    if (static_cast<int>(inputArr.shape(1)) < convWidth || convWidth <= 0)
+        throw std::runtime_error("invalid conv_width");
+
+    double expectedNFreq = static_cast<double>(convWidth * inputArr.shape(2));
+    expectedNFreq = MAX(expectedNFreq, 2);
+    double log2Freqs = std::log2(expectedNFreq);
+    log2Freqs = std::ceil(log2Freqs);
+    int paddedBufferSize = std::pow(2, log2Freqs);
+
+    if (radem.shape(2) % paddedBufferSize != 0)
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+
+    int32_t minSeqLength = 2147483647, maxSeqLength = 0;
+    for (size_t i=0; i < seqlengths.shape(0); i++){
+        if (seqlengths(i) > maxSeqLength)
+            maxSeqLength = seqlengths(i);
+        if (seqlengths(i) < minSeqLength)
+            minSeqLength = seqlengths(i);
+    }
+
+    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth){
+        throw std::runtime_error("All sequence lengths must be >= conv width and < "
+                "array size.");
+    }
+
+
+
+    if (numThreads > zDim0)
+        numThreads = zDim0;
 
     std::vector<std::thread> threads(numThreads);
     int startRow, endRow;
-    int chunkSize = (dim0 + numThreads - 1) / numThreads;
+    int chunkSize = (zDim0 + numThreads - 1) / numThreads;
     
     for (int i=0; i < numThreads; i++){
         startRow = i * chunkSize;
         endRow = (i + 1) * chunkSize;
-        if (endRow > dim0)
-            endRow = dim0;
+        if (endRow > zDim0)
+            endRow = zDim0;
 
         if (!simplex){
-            threads[i] = std::thread(&allInOneConvRBFGen<T>, xdata,
-                radem, chiArr, outputArray,
-                seqlengths, dim1, dim2, numFreqs, rademShape2,
-                startRow, endRow, convWidth, paddedBufferSize,
-                scalingTerm, scalingType);
+            threads[i] = std::thread(&allInOneConvRBFGen<T>, inputPtr,
+                rademPtr, chiPtr, outputPtr,
+                seqlengthsPtr, inputArr.shape(1), inputArr.shape(2),
+                numFreqs, radem.shape(2), startRow, endRow, convWidth,
+                paddedBufferSize, scalingTerm, scalingType);
         }
         else{
-            threads[i] = std::thread(&allInOneConvRBFSimplex<T>, xdata,
-                radem, chiArr, outputArray,
-                seqlengths, dim1, dim2, numFreqs, rademShape2,
-                startRow, endRow, convWidth, paddedBufferSize,
-                scalingTerm, scalingType);
+            threads[i] = std::thread(&allInOneConvRBFSimplex<T>, inputPtr,
+                rademPtr, chiPtr, outputPtr,
+                seqlengthsPtr, inputArr.shape(1), inputArr.shape(2),
+                numFreqs, radem.shape(2), startRow, endRow, convWidth,
+                paddedBufferSize, scalingTerm, scalingType);
         }
     }
 
     for (auto& th : threads)
         th.join();
 
-    return "no_error";
+    return 0;
 }
 //Instantiate the templates the wrapper will need to access.
-template const char *convRBFFeatureGen_<float>(int8_t *radem, float xdata[],
-            float chiArr[], double *outputArray, int32_t *seqlengths,
-            int numThreads, int dim0, int dim1, int dim2, int numFreqs,
-            int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType, bool simplex);
-template const char *convRBFFeatureGen_<double>(int8_t *radem, double xdata[],
-            double chiArr[], double *outputArray, int32_t *seqlengths,
-            int numThreads, int dim0, int dim1, int dim2, int numFreqs,
-            int rademShape2, int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType, bool simplex);
+template int convRBFFeatureGen_<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+        int convWidth, int scalingType, int numThreads, bool simplex);
+template int convRBFFeatureGen_<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+        int convWidth, int scalingType, int numThreads, bool simplex);
 
 
 
@@ -124,76 +157,112 @@ template const char *convRBFFeatureGen_<double>(int8_t *radem, double xdata[],
  *
  * ## Args:
  *
- * + `radem` The stacks of diagonal matrices used in
- * the transform. Must be of shape (3 x 1 x m * C) where m is
- * an integer that indicates the number of times we must repeat
- * the operation to generate the requested number of sampled frequencies.
- * + `xdata` Pointer to the first element of the array that will
- * be used for the convolution. A copy of this array is modified
- * rather than the original. Shape is (N x D x C). C must be
- * a power of 2.
- * + `copyBuffer` An array of the same size and shape as xdata into
- * which xdata can be copied. copyBuffer can then be modified in place
- * to generate the random features.
- * + `chiArr` A diagonal array that will be multiplied against the output
- * of the SORF operation. Must be of shape numFreqs.
- * + `outputArray` The output array. Must be of shape (N, 2 * numFreqs).
- * + `seqlengths` The length of each sequence in the input. Of shape (N).
- * + `gradientArray` The array in which the gradient will be stored.
- * + `sigma` The lengthscale hyperparameter.
- * + `numThreads` The number of threads to use
- * + `dim0` The first dimension of xdata
- * + `dim1` The second dimension of xdata
- * + `dim2` The last dimension of xdata
- * + `numFreqs` The number of frequencies to sample. Must be <=
- * radem.shape[2].
- * + `rademShape2` The number of elements in one row of radem.
- * + `convWidth` The width of the convolution.
- * + `paddedBufferSize` dim2 of the copy buffer to create to perform
- * the convolution.
- * + `scalingTerm` The scaling term to apply for the random feature generation.
- * + `scalingType` An int that is one of 0, 1 or 2 to indicate what type of
- * additional scaling (if any) to perform.
- * + `simplex` If True, apply the simplex modification of Reid et al. 2023.
- *
- * ## Returns:
- * "error" if an error, "no_error" otherwise.
+ * + `inputArr` The (N x D x C) array containing the input data.
+ * + `outputArr` The (N x R) output array, where R = 2 * F and F is numFreqs.
+ * + `radem` The (3 x 1 x M) array of int8_t diagonal matrices, where M is
+ * some integer multiple of the smallest power of 2 > C and is > numFreqs.
+ * + `chiArr` The (F) shape numpy diagonal matrix by which the results are scaled.
+ * + `seqlengths` An (N) shape numpy array of sequence lengths (to exclude zero
+ * padding).
+ * + `gradArr` The (N x R x 1) array containing the gradient.
+ * + `convWidth` The width of the convolution kernel.
+ * + `sigma` The sigma hyperparameter.
+ * + `scalingType` One of 0, 1 or 2; indicates the type of scaling. These
+ * are defined in the header.
+ * + `numThreads` The number of threads to use.
+ * + `simplex` Whether to use the Reid et al. 2023 modification.
  */
 template <typename T>
-const char *convRBFGrad_(int8_t *radem, T xdata[],
-            T chiArr[], double *outputArray,
-            int32_t *seqlengths,
-            double *gradientArray, T sigma,
-            int numThreads, int dim0,
-            int dim1, int dim2, int numFreqs,
-            int rademShape2, int convWidth,
-            int paddedBufferSize,
-            double scalingTerm, int scalingType,
-            bool simplex){
-    if (numThreads > dim0)
-        numThreads = dim0;
+int convRBFGrad_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
+        double sigma, int convWidth, int scalingType, int numThreads, bool simplex){
+
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+    size_t numRffs = outputArr.shape(1);
+    size_t numFreqs = chiArr.shape(0);
+    double scalingTerm = std::sqrt(1.0 / static_cast<double>(numFreqs));
+
+    T *inputPtr = static_cast<T*>(inputArr.data());
+    double *outputPtr = static_cast<double*>(outputArr.data());
+    T *chiPtr = static_cast<T*>(chiArr.data());
+    int8_t *rademPtr = static_cast<int8_t*>(radem.data());
+    int32_t *seqlengthsPtr = static_cast<int32_t*>(seqlengths.data());
+    double *gradientPtr = static_cast<double*>(gradArr.data());
+
+    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("no datapoints");
+    if (numRffs < 2 || (numRffs & 1) != 0)
+        throw std::runtime_error("last dim of output must be even number");
+    if ( (2 * numFreqs) != numRffs || numFreqs > radem.shape(2) )
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+    if (seqlengths.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("wrong array sizes");
+    if (static_cast<int>(inputArr.shape(1)) < convWidth || convWidth <= 0)
+        throw std::runtime_error("invalid conv_width");
+
+    if (gradArr.shape(0) != outputArr.shape(0) || gradArr.shape(1) != outputArr.shape(1))
+        throw std::runtime_error("wrong array sizes");
+
+    double expectedNFreq = static_cast<double>(convWidth * inputArr.shape(2));
+    expectedNFreq = MAX(expectedNFreq, 2);
+    double log2Freqs = std::log2(expectedNFreq);
+    log2Freqs = std::ceil(log2Freqs);
+    int paddedBufferSize = std::pow(2, log2Freqs);
+
+    if (radem.shape(2) % paddedBufferSize != 0)
+        throw std::runtime_error("incorrect number of rffs and or freqs.");
+
+
+    int32_t minSeqLength = 2147483647, maxSeqLength = 0;
+    for (size_t i=0; i < seqlengths.shape(0); i++){
+        if (seqlengths(i) > maxSeqLength)
+            maxSeqLength = seqlengths(i);
+        if (seqlengths(i) < minSeqLength)
+            minSeqLength = seqlengths(i);
+    }
+
+    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth){
+        throw std::runtime_error("All sequence lengths must be >= conv width and < "
+                "array size.");
+    }
+
+
+
+    if (numThreads > zDim0)
+        numThreads = zDim0;
 
     std::vector<std::thread> threads(numThreads);
     int startRow, endRow;
-    int chunkSize = (dim0 + numThreads - 1) / numThreads;
+    int chunkSize = (zDim0 + numThreads - 1) / numThreads;
     
     for (int i=0; i < numThreads; i++){
         startRow = i * chunkSize;
         endRow = (i + 1) * chunkSize;
-        if (endRow > dim0)
-            endRow = dim0;
+        if (endRow > zDim0)
+            endRow = zDim0;
 
         if (!simplex){
-            threads[i] = std::thread(&allInOneConvRBFGrad<T>, xdata,
-                radem, chiArr, outputArray, seqlengths, gradientArray, dim1,
-                dim2, numFreqs, rademShape2, startRow,
+            threads[i] = std::thread(&allInOneConvRBFGrad<T>, inputPtr,
+                rademPtr, chiPtr, outputPtr, seqlengthsPtr, gradientPtr,
+                inputArr.shape(1), inputArr.shape(2),
+                numFreqs, radem.shape(2), startRow,
                 endRow, convWidth, paddedBufferSize,
                 scalingTerm, scalingType, sigma);
         }
         else{
-            threads[i] = std::thread(&allInOneConvRBFGradSimplex<T>, xdata,
-                radem, chiArr, outputArray, seqlengths, gradientArray, dim1,
-                dim2, numFreqs, rademShape2, startRow,
+            threads[i] = std::thread(&allInOneConvRBFGradSimplex<T>, inputPtr,
+                rademPtr, chiPtr, outputPtr, seqlengthsPtr, gradientPtr,
+                inputArr.shape(1), inputArr.shape(2),
+                numFreqs, radem.shape(2), startRow,
                 endRow, convWidth, paddedBufferSize,
                 scalingTerm, scalingType, sigma);
         }
@@ -203,25 +272,23 @@ const char *convRBFGrad_(int8_t *radem, T xdata[],
     for (auto& th : threads)
         th.join();
 
-    return "no_error";
+    return 0;
 }
 //Instantiate templates for use by wrapper.
-template const char *convRBFGrad_<float>(int8_t *radem, float xdata[],
-            float chiArr[], double *outputArray, int32_t *seqlengths,
-            double *gradientArray, float sigma,
-            int numThreads, int dim0, int dim1, int dim2,
-            int numFreqs, int rademShape2,
-            int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType,
-            bool simplex);
-template const char *convRBFGrad_<double>(int8_t *radem, double xdata[],
-            double chiArr[], double *outputArray, int32_t *seqlengths,
-            double *gradientArray, double sigma,
-            int numThreads, int dim0, int dim1, int dim2,
-            int numFreqs, int rademShape2,
-            int convWidth, int paddedBufferSize,
-            double scalingTerm, int scalingType,
-            bool simplex);
+template int convRBFGrad_<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
+        double sigma, int convWidth, int scalingType, int numThreads, bool simplex);
+template int convRBFGrad_<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
+        double sigma, int convWidth, int scalingType, int numThreads, bool simplex);
 
 
 
@@ -252,12 +319,17 @@ void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
     for (int i=startRow; i < endRow; i++){
         seqlength = seqlengths[i];
         numKmers = seqlength - convWidth + 1;
-        if (scalingType == 1)
-            rowScaler = scalingTerm / sqrt( (double)numKmers);
-        else if (scalingType == 2)
-            rowScaler = scalingTerm / (double)numKmers;
-        else
-            rowScaler = scalingTerm;
+        switch (scalingType){
+            case SQRT_CONVOLUTION_SCALING:
+                rowScaler = scalingTerm / std::sqrt( (double)numKmers);
+                break;
+            case FULL_CONVOLUTION_SCALING:
+                rowScaler = scalingTerm / (double)numKmers;
+                break;
+            default:
+               rowScaler = scalingTerm;
+              break; 
+        }
 
         for (int j=0; j < numKmers; j++){
             int repeatPosition = 0;
@@ -277,6 +349,7 @@ void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
             }
         }
     }
+
     delete[] copyBuffer;
 
     return NULL;
@@ -310,12 +383,17 @@ void *allInOneConvRBFSimplex(T xdata[], int8_t *rademArray, T chiArr[],
     for (int i=startRow; i < endRow; i++){
         seqlength = seqlengths[i];
         numKmers = seqlength - convWidth + 1;
-        if (scalingType == 1)
-            rowScaler = scalingTerm / sqrt( (double)numKmers);
-        else if (scalingType == 2)
-            rowScaler = scalingTerm / (double)numKmers;
-        else
-            rowScaler = scalingTerm;
+        switch (scalingType){
+            case SQRT_CONVOLUTION_SCALING:
+                rowScaler = scalingTerm / std::sqrt( (double)numKmers);
+                break;
+            case FULL_CONVOLUTION_SCALING:
+                rowScaler = scalingTerm / (double)numKmers;
+                break;
+            default:
+                rowScaler = scalingTerm;
+              break; 
+        }
 
         for (int j=0; j < numKmers; j++){
             int repeatPosition = 0;
@@ -371,12 +449,17 @@ void *allInOneConvRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
     for (int i=startRow; i < endRow; i++){
         seqlength = seqlengths[i];
         numKmers = seqlength - convWidth + 1;
-        if (scalingType == 1)
-            rowScaler = scalingTerm / sqrt( (double)numKmers);
-        else if (scalingType == 2)
-            rowScaler = scalingTerm / (double)numKmers;
-        else
-            rowScaler = scalingTerm;
+        switch (scalingType){
+            case SQRT_CONVOLUTION_SCALING:
+                rowScaler = scalingTerm / std::sqrt( (double)numKmers);
+                break;
+            case FULL_CONVOLUTION_SCALING:
+                rowScaler = scalingTerm / (double)numKmers;
+                break;
+            default:
+                rowScaler = scalingTerm;
+              break; 
+        }
 
         for (int j=0; j < numKmers; j++){
             int repeatPosition = 0;
@@ -432,12 +515,17 @@ void *allInOneConvRBFGradSimplex(T xdata[], int8_t *rademArray, T chiArr[],
     for (int i=startRow; i < endRow; i++){
         seqlength = seqlengths[i];
         numKmers = seqlength - convWidth + 1;
-        if (scalingType == 1)
-            rowScaler = scalingTerm / sqrt( (double)numKmers);
-        else if (scalingType == 2)
-            rowScaler = scalingTerm / (double)numKmers;
-        else
-            rowScaler = scalingTerm;
+        switch (scalingType){
+            case SQRT_CONVOLUTION_SCALING:
+                rowScaler = scalingTerm / std::sqrt( (double)numKmers);
+                break;
+            case FULL_CONVOLUTION_SCALING:
+                rowScaler = scalingTerm / (double)numKmers;
+                break;
+            default:
+               rowScaler = scalingTerm;
+              break; 
+        }
 
         for (int j=0; j < numKmers; j++){
             int repeatPosition = 0;

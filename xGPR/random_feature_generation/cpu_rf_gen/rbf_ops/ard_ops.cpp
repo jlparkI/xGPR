@@ -14,6 +14,7 @@
 #include "../shared_fht_functions/hadamard_transforms.h"
 #include "../shared_fht_functions/shared_rfgen_ops.h"
 
+namespace nb = nanobind;
 
 
 
@@ -24,63 +25,100 @@
  *
  * ## Args:
  *
- * + `inputX` Pointer to the first element of the raw input data,
- * an (N x D) array.
- * + `randomFeatures` Pointer to first element of the array in which
- * random features will be stored, an (N x 2 * C) array.
- * + `precompWeights` Pointer to first element of the array containing
- * the precomputed weights, a (C x D) array.
- * + `sigmaMap` Pointer to first element of the array containing a mapping
- * from positions to lengthscales, a (D) array.
- * + `sigmaVals` Pointer to first element of shape (D) array containing the
- * per-feature lengthscales.
- * + `gradient` Pointer to first element of the array in which the gradient
- * will be stored, an (N x 2 * C) array.
- * + `dim0` shape[0] of input X
- * + `dim1` shape[1] of input X
- * + `numLengthscales` shape[2] of gradient
- * + `numFreqs` shape[0] of precompWeights
- * + `rbfNormConstant` A value by which all outputs are multipled.
- * Should be beta hparam * sqrt(1 / numFreqs). Is calculated by
- * caller.
+ * + `inputArr` A numpy array of shape (N x C).
+ * + `outputArr` A numpy array of shape (N x R),
+ * where R is the number of RFFs and is 2x numFreqs;
+ * + `precompWeights` Numpy array containing the precomputed
+ * weights, a (C x D) array.
+ * + `sigmaMap` Numpy array containing a mapping from positions
+ * to lengthscales, a (D) array.
+ * + `sigmaVals` A shape (D) numpy array containing the per-feature
+ * lengthscales.
+ * + `gradArr` The (N x R x L) numpy array for the gradient.
  * + `numThreads` The number of threads to use.
+ * + `fitIntercept` Whether an intercept will be fitted.
  */
 template <typename T>
-const char *ardGrad_(T inputX[], double *randomFeatures,
-        T precompWeights[], int32_t *sigmaMap, double *sigmaVals,
-        double *gradient, int dim0, int dim1, int numLengthscales,
-        int numFreqs, double rbfNormConstant, int numThreads){
-    if (numThreads > dim0)
-        numThreads = dim0;
+int ardGrad_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> precompWeights,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> sigmaMap,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> sigmaVals,
+        nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> gradArr,
+        int numThreads, bool fitIntercept){
+    // Perform safety checks. Any exceptions thrown here are handed off to Python
+    // by the Nanobind wrapper. We do not expect the user to see these because
+    // the Python code will always ensure inputs are correct -- these are a failsafe
+    // -- so we do not need to provide detailed exception messages here.
+    int zDim0 = inputArr.shape(0);
+
+    T *inputPtr = static_cast<T*>(inputArr.data());
+    T *precompWeightsPtr = static_cast<T*>(precompWeights.data());
+    double *outputPtr = static_cast<double*>(outputArr.data());
+    double *gradientPtr = static_cast<double*>(gradArr.data());
+    int32_t *sigmaMapPtr = static_cast<int32_t*>(sigmaMap.data());
+    double *sigmaValsPtr = static_cast<double*>(sigmaVals.data());
+
+    size_t numFreqs = precompWeights.shape(0);
+    double numFreqsFlt = numFreqs;
+    size_t numLengthscales = gradArr.shape(2);
+
+    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+        throw std::runtime_error("no datapoints");
+    if (gradArr.shape(0) != outputArr.shape(0) || gradArr.shape(1) != outputArr.shape(1))
+        throw std::runtime_error("Wrong array sizes.");
+    if (precompWeights.shape(1) != inputArr.shape(1))
+        throw std::runtime_error("Wrong array sizes.");
+    if (outputArr.shape(1) != 2 * precompWeights.shape(0) || sigmaMap.shape(0) != precompWeights.shape(1))
+        throw std::runtime_error("Wrong array sizes.");
+    if (sigmaVals.shape(0) != sigmaMap.shape(0))
+        throw std::runtime_error("Wrong array sizes.");
+
+
+    T rbfNormConstant;
+
+    if (fitIntercept)
+        rbfNormConstant = std::sqrt(1.0 / (numFreqsFlt - 0.5));
+    else
+        rbfNormConstant = std::sqrt(1.0 / numFreqsFlt);
+
+    if (numThreads > zDim0)
+        numThreads = zDim0;
 
     std::vector<std::thread> threads(numThreads);
     int startPosition, endPosition;
-    int chunkSize = (dim0 + numThreads - 1) / numThreads;
+    int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
     for (int i=0; i < numThreads; i++){
         startPosition = i * chunkSize;
         endPosition = (i + 1) * chunkSize;
-        if (endPosition > dim0)
-            endPosition = dim0;
+        if (endPosition > zDim0)
+            endPosition = zDim0;
  
-        threads[i] = std::thread(&ThreadARDGrad<T>, inputX, randomFeatures,
-                precompWeights, sigmaMap, sigmaVals, gradient,
-                startPosition, endPosition, dim1,
+        threads[i] = std::thread(&ThreadARDGrad<T>, inputPtr, outputPtr,
+                precompWeightsPtr, sigmaMapPtr, sigmaValsPtr, gradientPtr,
+                startPosition, endPosition, inputArr.shape(1),
                 numLengthscales, numFreqs, rbfNormConstant);
     }
 
     for (auto& th : threads)
         th.join();
-    return "no_error";
+    return 0;
 }
-template const char *ardGrad_<double>(double inputX[], double *randomFeatures,
-        double precompWeights[], int32_t *sigmaMap, double *sigmaVals,
-        double *gradient, int dim0, int dim1, int numLengthscales,
-        int numFreqs, double rbfNormConstant, int numThreads);
-template const char *ardGrad_<float>(float inputX[], double *randomFeatures,
-        float precompWeights[], int32_t *sigmaMap, double *sigmaVals,
-        double *gradient, int dim0, int dim1, int numLengthscales,
-        int numFreqs, double rbfNormConstant, int numThreads);
+template int ardGrad_<double>(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> precompWeights,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> sigmaMap,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> sigmaVals,
+        nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> gradArr,
+        int numThreads, bool fitIntercept);
+template int ardGrad_<float>(nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> precompWeights,
+        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> sigmaMap,
+        nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> sigmaVals,
+        nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> gradArr,
+        int numThreads, bool fitIntercept);
 
 
 

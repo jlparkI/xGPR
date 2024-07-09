@@ -5,12 +5,12 @@ from math import ceil
 
 import numpy as np
 from scipy.stats import chi
-from cpu_rf_gen_module import cpuFastHadamardTransform2D as dFHT2d
-from cpu_rf_gen_module import cpuRBFFeatureGen, cpuMiniARDGrad
 
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFastHadamardTransform2D as dFHT2d
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuRBFFeatureGen, cpuMiniARDGrad
 try:
     import cupy as cp
-    from cuda_rf_gen_module import cudaRBFFeatureGen, cudaMiniARDGrad
+    from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaRBFFeatureGen, cudaMiniARDGrad
 except:
     pass
 from ..kernel_baseclass import KernelBaseclass
@@ -54,7 +54,7 @@ class MiniARD(KernelBaseclass):
             xdim (tuple): The dimensions of the input.
             num_rffs (int): The user-requested number of random Fourier features.
             random_seed (int): The seed to the random number generator.
-            device (str): One of 'cpu', 'gpu'. Indicates the starting device.
+            device (str): One of 'cpu', 'cuda'. Indicates the starting device.
             num_threads (int): The number of threads to use for generating random
                 features if running on CPU. Ignored if running on GPU.
             double_precision (bool): Whether to use double precision for the FHT
@@ -102,15 +102,18 @@ class MiniARD(KernelBaseclass):
         self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
 
+
         #Converts the hyperparameters into a "full" array of the
         #same length as padded dims, just as if this were an ARD.
         #Also, store the positions that map to different hparams.
         self.full_ard_weights = np.zeros((xdim[-1]))
         self.ard_position_key = np.zeros((xdim[-1]), dtype=np.int32)
+
+        if not self.double_precision:
+            self.chi_arr = self.chi_arr.astype(np.float32)
+
         self.kernel_specific_set_hyperparams()
 
-        self.feature_gen = cpuRBFFeatureGen
-        self.grad_fun = cpuMiniARDGrad
         self.precomputed_weights = None
         self.device = device
 
@@ -150,21 +153,17 @@ class MiniARD(KernelBaseclass):
         convenience references to np.cos / np.sin or cp.cos
         / cp.sin."""
         if new_device == "cpu":
-            self.grad_fun = cpuMiniARDGrad
-            self.feature_gen = cpuRBFFeatureGen
             if not isinstance(self.radem_diag, np.ndarray):
                 if self.precomputed_weights is not None:
                     self.precomputed_weights = cp.asnumpy(self.precomputed_weights)
                 self.radem_diag = cp.asnumpy(self.radem_diag)
-                self.full_ard_weights = cp.asnumpy(self.full_ard_weights).astype(self.dtype)
+                self.full_ard_weights = cp.asnumpy(self.full_ard_weights)
                 self.chi_arr = cp.asnumpy(self.chi_arr)
                 self.ard_position_key = cp.asnumpy(self.ard_position_key)
-            self.chi_arr = self.chi_arr.astype(self.dtype)
+                self.chi_arr = cp.asnumpy(self.chi_arr)
         else:
-            self.grad_fun = cudaMiniARDGrad
-            self.feature_gen = cudaRBFFeatureGen
             self.radem_diag = cp.asarray(self.radem_diag)
-            self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
+            self.chi_arr = cp.asarray(self.chi_arr)
             if self.precomputed_weights is not None:
                 self.precomputed_weights = cp.asarray(self.precomputed_weights)
             self.full_ard_weights = cp.asarray(self.full_ard_weights)
@@ -183,7 +182,7 @@ class MiniARD(KernelBaseclass):
             self.ard_position_key[self.split_pts[i-1]:self.split_pts[i]] = i - 1
 
 
-    def transform_x(self, input_x, sequence_length = None):
+    def kernel_specific_transform(self, input_x, sequence_length = None):
         """Generates random features for an input array.
 
         Args:
@@ -194,12 +193,20 @@ class MiniARD(KernelBaseclass):
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
-        xtrans = input_x.astype(self.dtype) * self.full_ard_weights[None,:].astype(self.dtype)
-        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        #import pdb
-        #pdb.set_trace()
-        self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.num_threads, self.fit_intercept)
+        xtrans = input_x * self.full_ard_weights[None,:]
+
+        if self.device == "cpu":
+            output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+            if not self.double_precision:
+                xtrans = xtrans.astype(np.float32)
+            cpuRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
+                    self.num_threads, self.fit_intercept, False)
+        else:
+            output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
+            if not self.double_precision:
+                xtrans = xtrans.astype(cp.float32)
+            cudaRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
+                    self.fit_intercept, False)
         return output_x
 
 
@@ -209,13 +216,10 @@ class MiniARD(KernelBaseclass):
         these are not necessary and would increase model size unnecessarily.
         Only during gradient calculations are they required. The first time
         the kernel is asked to generate a gradient, then, it will precompute
-        and store weights. This is not ideal but was easier to implement
-        than having caller decide whether kernel is ARD and if so whether
-        it should precompute weights on initialization. TODO: Find a
-        better approach.
+        and store weights.
 
         Note that precomputing weights is only helpful for ARD kernels
-        because of the much greater complexity of calculating the gradient
+        because of the greater complexity of calculating the gradient
         using FHT only."""
         precomp_weights = []
         #Currently the FHT-2d only operation is only implemented for
@@ -223,7 +227,7 @@ class MiniARD(KernelBaseclass):
         #once, it has not been a high priority for optimization.
         #TODO: Add this for GPU, and transfer the operations under
         #this function to C / Cuda code.
-        if self.device == "gpu":
+        if self.device == "cuda":
             self.radem_diag = cp.asnumpy(self.radem_diag)
             self.chi_arr = cp.asnumpy(self.chi_arr)
 
@@ -269,7 +273,7 @@ class MiniARD(KernelBaseclass):
             self.precomputed_weights = self.precomputed_weights.astype(np.float32)
 
         self.precomputed_weights = np.ascontiguousarray(self.precomputed_weights)
-        if self.device == "gpu":
+        if self.device == "cuda":
             self.radem_diag = cp.asarray(self.radem_diag)
             self.precomputed_weights = cp.asarray(self.precomputed_weights)
             self.chi_arr = cp.asarray(self.chi_arr)
@@ -292,10 +296,21 @@ class MiniARD(KernelBaseclass):
         """
         if self.precomputed_weights is None:
             self.precompute_weights()
-        x_retyped = self.zero_arr(input_x.shape, dtype = self.dtype)
-        x_retyped[:] = input_x
-        xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        dz_dsigma = self.grad_fun(x_retyped, xtrans, self.precomputed_weights,
+        max_map_position = int(self.ard_position_key.max())
+
+        if self.device == "cpu":
+            xtrans = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+            dz_dsigma = np.zeros((input_x.shape[0], self.num_rffs,
+                max_map_position + 1), np.float64)
+            cpuMiniARDGrad(input_x, xtrans, self.precomputed_weights,
                 self.ard_position_key, self.full_ard_weights,
-                self.num_threads, self.fit_intercept)
+                dz_dsigma, self.num_threads, self.fit_intercept)
+        else:
+            xtrans = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
+            dz_dsigma = cp.zeros((input_x.shape[0], self.num_rffs,
+                max_map_position + 1), cp.float64)
+            cudaMiniARDGrad(input_x, xtrans, self.precomputed_weights,
+                self.ard_position_key, self.full_ard_weights,
+                dz_dsigma, self.fit_intercept)
+
         return xtrans, dz_dsigma

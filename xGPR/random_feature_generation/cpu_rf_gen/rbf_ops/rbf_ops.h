@@ -2,26 +2,25 @@
 #define SPEC_CPU_RBF_OPS_H
 
 #include <stdint.h>
+#include "nanobind/nanobind.h"
+#include <nanobind/ndarray.h>
 
-
-template <typename T>
-const char *rbfFeatureGen_(T cArray[], int8_t *radem,
-                T chiArr[], double *outputArray,
-                double rbfNormConstant,
-                int dim0, int dim1, int rademShape2,
-                int numFreqs, int numThreads,
-                int paddedBufferSize,
-                bool simplex);
+namespace nb = nanobind;
 
 template <typename T>
-const char *rbfGrad_(T cArray[], int8_t *radem,
-                T chiArr[], double *outputArray,
-                double *gradientArray,
-                double rbfNormConstant, T sigma,
-                int dim0, int dim1, int rademShape2,
-                int numFreqs, int numThreads,
-                int paddedBufferSize,
-                bool simplex);
+int rbfFeatureGen_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        int numThreads, bool fitIntercept, bool simplex);
+
+template <typename T>
+int rbfGrad_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
+        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+        nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+        float sigma, int numThreads, bool fitIntercept, bool simplex);
 
 
 template <typename T>

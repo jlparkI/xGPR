@@ -2,18 +2,25 @@
 #define TRANSFORM_FUNCTIONS_H
 
 #include <stdint.h>
+#include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
+
+namespace nb = nanobind;
+
 
 template <typename T>
-const char *fastHadamard3dArray_(T Z[], int zDim0, int zDim1, int zDim2,
+int fastHadamard3dArray_(nb::ndarray<T, nb::shape<-1,-1,-1>,
+                       nb::device::cpu, nb::c_contig> inputArr, int numThreads);
+
+template <typename T>
+int fastHadamard2dArray_(nb::ndarray<T, nb::shape<-1,-1>,
+                        nb::device::cpu, nb::c_contig> inputArr,
                         int numThreads);
 
 template <typename T>
-const char *fastHadamard2dArray_(T Z[], int zDim0, int zDim1,
-                        int numThreads);
-
-template <typename T>
-const char *SRHTBlockTransform_(T Z[], int8_t *radem,
-            int zDim0, int zDim1, int numThreads);
+int SRHTBlockTransform(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+        nb::ndarray<int8_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> radem,
+        int numThreads);
 
 template <typename T>
 void *ThreadSRHTRows2D(T arrayStart[], int8_t* rademArray,

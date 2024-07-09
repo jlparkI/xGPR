@@ -7,10 +7,6 @@ chunk of data from the list provided to it, can serve as a generator
 and return all chunks in succession, or can provide a minibatch.
 """
 import numpy as np
-try:
-    import cupy as cp
-except:
-    pass
 
 from .data_handling_baseclass import DatasetBaseclass
 
@@ -26,8 +22,7 @@ class OnlineDataset(DatasetBaseclass):
         _sequence_lengths: Either None or a cupy / numpy array containing
             the sequence lengths (for graph / sequence kernels).
     """
-    def __init__(self, xdata, ydata, sequence_lengths,
-                       device = "cpu",
+    def __init__(self, xdata, ydata, sequence_lengths = None,
                        chunk_size = 2000,
                        trainy_mean = 0.,
                        trainy_std = 1.,
@@ -49,14 +44,11 @@ class OnlineDataset(DatasetBaseclass):
             max_class (int): The largest category number in the data. Only
                 used for classification.
         """
-        super().__init__(xdata.shape, device, chunk_size, trainy_mean,
+        super().__init__(xdata.shape, chunk_size, trainy_mean,
                 trainy_std, max_class)
         self._xdata = xdata
         self._ydata = ydata
-        if sequence_lengths is None:
-            self._sequence_lengths = None
-        else:
-            self._sequence_lengths = sequence_lengths.astype(np.int32)
+        self._sequence_lengths = sequence_lengths
 
 
     def get_chunked_data(self):
@@ -67,10 +59,7 @@ class OnlineDataset(DatasetBaseclass):
                 cutoff = min(i + self.chunk_size, self._xdim[0])
                 xchunk = self._xdata[i:cutoff,...]
                 ychunk = self._ydata[i:cutoff]
-                if self.device == "gpu":
-                    xchunk = cp.asarray(xchunk)
-                    ychunk = cp.asarray(ychunk)
-                ychunk = ychunk.astype(self.dtype)
+                ychunk = ychunk.astype(np.float64)
                 ychunk -= self._trainy_mean
                 ychunk /= self._trainy_std
                 yield xchunk, ychunk, None
@@ -82,12 +71,7 @@ class OnlineDataset(DatasetBaseclass):
                 ychunk = self._ydata[i:cutoff]
                 lchunk = self._sequence_lengths[i:cutoff]
 
-                if self.device == "gpu":
-                    xchunk = cp.asarray(xchunk)
-                    ychunk = cp.asarray(ychunk)
-                    lchunk = cp.asarray(lchunk)
-
-                ychunk = ychunk.astype(self.dtype)
+                ychunk = ychunk.astype(np.float64)
                 ychunk -= self._trainy_mean
                 ychunk /= self._trainy_std
                 yield xchunk, ychunk, lchunk
@@ -100,34 +84,13 @@ class OnlineDataset(DatasetBaseclass):
         if self._sequence_lengths is None:
             for i in range(0, self._xdim[0], self.chunk_size):
                 cutoff = min(i + self.chunk_size, self._xdim[0])
-                xchunk = self._xdata[i:cutoff,...]
-                if self.device == "gpu":
-                    xchunk = cp.asarray(xchunk)
-                yield xchunk, None
+                yield self._xdata[i:cutoff,...], None
         else:
             for i in range(0, self._xdim[0], self.chunk_size):
                 cutoff = min(i + self.chunk_size, self._xdim[0])
                 xchunk = self._xdata[i:cutoff,...]
                 lchunk = self._sequence_lengths[i:cutoff]
-                if self.device == "gpu":
-                    xchunk = cp.asarray(xchunk)
-                    lchunk = cp.asarray(lchunk)
                 yield xchunk, lchunk
-
-
-
-    def get_chunked_y_data(self):
-        """A generator that loops over the ydata only in chunks
-        of size chunk_size."""
-        for i in range(0, self._xdim[0], self.chunk_size):
-            cutoff = min(i + self.chunk_size, self._xdim[0])
-            ychunk = self._ydata[i:cutoff]
-            if self.device == "gpu":
-                ychunk = cp.asarray(ychunk)
-            ychunk = ychunk.astype(self.dtype)
-            ychunk -= self._trainy_mean
-            ychunk /= self._trainy_std
-            yield ychunk
 
     def get_xdata(self):
         """Returns all xdata as a single array."""

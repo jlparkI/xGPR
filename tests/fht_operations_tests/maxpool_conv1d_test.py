@@ -5,12 +5,9 @@ import sys
 import unittest
 import numpy as np
 
-from cpu_rf_gen_module import cpuConv1dFGen, cpuConvGrad, cpuConv1dMaxpool
-try:
-    from cuda_rf_gen_module import gpuConv1dFGen, gpuConvGrad, gpuConv1dMaxpool
-    import cupy as cp
-except:
-    pass
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuConv1dMaxpool
+from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaConv1dMaxpool
+import cupy as cp
 
 from conv_testing_functions import get_features_maxpool, get_initial_matrices_fht
 
@@ -74,8 +71,8 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                             radem, s_mat, num_freqs, num_blocks,
                             seqlen, precision)
 
-    cpuConv1dMaxpool(xdata, seqlen, radem, features,
-                s_mat, kernel_width, 2)
+    cpuConv1dMaxpool(xdata, features, radem, s_mat, seqlen,
+                kernel_width, 2, False)
 
     outcome = check_results(true_features, features[:,:num_freqs], precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
@@ -86,14 +83,14 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
     if "cupy" not in sys.modules:
         return [outcome]
 
-    xdata, seqlen = cp.asarray(xdata), cp.asarray(seqlen)
+    xdata = cp.asarray(xdata)
     features[:] = 0
     features = cp.asarray(features)
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
 
-    gpuConv1dMaxpool(xdata, seqlen, radem, features,
-                s_mat, kernel_width, 2)
+    cudaConv1dMaxpool(xdata, features, radem, s_mat, seqlen,
+                kernel_width, False)
 
     outcome_cuda = check_results(true_features, features[:,:num_freqs], precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "

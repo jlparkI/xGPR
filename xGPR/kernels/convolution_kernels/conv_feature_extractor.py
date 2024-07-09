@@ -6,13 +6,14 @@ from math import ceil
 
 import numpy as np
 from scipy.stats import chi
+
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuConv1dMaxpool
 try:
     import cupy as cp
-    from cuda_rf_gen_module import gpuConv1dMaxpool
+    from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaConv1dMaxpool
 except:
     pass
 
-from cpu_rf_gen_module import cpuConv1dMaxpool
 
 
 class FHTMaxpoolConv1dFeatureExtractor():
@@ -32,19 +33,10 @@ class FHTMaxpoolConv1dFeatureExtractor():
         padded_dims (int): The size of the expected input data
             once reshaped for convolution, after zero-padding to
             be a power of 2.
-        init_calc_featsize (int): The number of times the transform
-            will need to be performed to generate the requested number
-            of random features.
         radem_diag: The diagonal matrices for the SORF transform. Type is int8.
         chi_arr: A diagonal array whose elements are drawn from the chi
             distribution. Ensures the marginals of the matrix resulting
             from S H D1 H D2 H D3 are correct.
-        conv_func: A reference to either CPUConv1dTransform or
-            GPUConv1dTransform, both Cython functions in compiled
-            code, as appropriate based on the current device.
-        stride_tricks: A reference to cp.lib.stride_tricks.as_strided
-            or np.lib.stride_tricks.as_strided, as appropriate based
-            on the current device.
         num_threads (int): Number of threads to use if running on CPU;
             ignored if running on GPU.
         simplex_rffs (bool): If True, use the simplex modification (Reid et al. 2023).
@@ -60,7 +52,7 @@ class FHTMaxpoolConv1dFeatureExtractor():
                 For sine-cosine kernels (RBF, Matern), this will be saved by the
                 class as num_rffs.
             random_seed (int): The seed to the random number generator.
-            device (str): One of 'cpu', 'gpu'. Indicates the starting device.
+            device (str): One of 'cpu', 'cuda'. Indicates the starting device.
             conv_width (int): The width of the convolution kernel. Defaults to 9.
             num_threads (int): Number of threads to use if running on CPU;
                 ignored if running on GPU.
@@ -79,19 +71,17 @@ class FHTMaxpoolConv1dFeatureExtractor():
         self.seqwidth = seqwidth
         self.dim2_no_padding = conv_width * seqwidth
         self.padded_dims = 2**ceil(np.log2(max(self.dim2_no_padding, 2)))
-        self.init_calc_featsize = ceil(self.num_rffs / self.padded_dims) * \
+        init_calc_featsize = ceil(self.num_rffs / self.padded_dims) * \
                         self.padded_dims
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
 
-        self.radem_diag = rng.choice(radem_array, size=(3, 1, self.init_calc_featsize),
+        self.radem_diag = rng.choice(radem_array, size=(3, 1, init_calc_featsize),
                                 replace=True)
-        self.chi_arr = chi.rvs(df=self.padded_dims, size=self.init_calc_featsize,
-                            random_state = random_seed)
+        self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_rffs,
+                            random_state = random_seed).astype(np.float32)
 
         self.num_threads = num_threads
-        self.conv_func = None
-        self.stride_tricks = None
         self.device = device
 
 
@@ -100,16 +90,12 @@ class FHTMaxpoolConv1dFeatureExtractor():
         some of the object parameters to the appropriate device
         and updates convenience references to numpy / cupy
         functions used for generating features."""
-        if new_device == "gpu":
-            self.conv_func = gpuConv1dMaxpool
+        if new_device == "cuda":
             self.radem_diag = cp.asarray(self.radem_diag)
-            self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
-        else:
-            if not isinstance(self.radem_diag, np.ndarray):
-                self.radem_diag = cp.asnumpy(self.radem_diag)
-                self.chi_arr = cp.asnumpy(self.chi_arr)
-            self.chi_arr = self.chi_arr.astype(self.dtype)
-            self.conv_func = cpuConv1dMaxpool
+            self.chi_arr = cp.asarray(self.chi_arr)
+        elif not isinstance(self.radem_diag, np.ndarray):
+            self.radem_diag = cp.asnumpy(self.radem_diag)
+            self.chi_arr = cp.asnumpy(self.chi_arr)
 
 
     def transform_x(self, input_x, sequence_length):
@@ -117,21 +103,23 @@ class FHTMaxpoolConv1dFeatureExtractor():
         Cython function, referenced as self.conv_func."""
         if sequence_length is None:
             raise ValueError("sequence_length is required for convolution kernels.")
-        if input_x.shape[1] <= self.conv_width:
-            raise ValueError("Input input_x must have shape[1] >= the convolution "
-                    "kernel width.")
-        if len(input_x.shape) != 3:
-            raise ValueError("Input input_x must be a 3d array.")
         if input_x.shape[2] != self.seqwidth:
             raise ValueError("Unexpected number of features per timepoint / sequence element "
                     "on this input.")
 
-        output_x = self.zero_arr((input_x.shape[0], self.init_calc_featsize), self.out_type)
-        x_in = input_x.astype(self.dtype)
-        self.conv_func(x_in, sequence_length, self.radem_diag,
-                output_x, self.chi_arr, self.conv_width,
-                self.num_threads, self.simplex_rffs)
-        output_x = output_x[:,:self.num_rffs]
+        sequence_length = sequence_length.astype(np.int32, copy=False)
+
+        if self.device == "cpu":
+            output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+            x_in = input_x.astype(np.float32, copy=False)
+            cpuConv1dMaxpool(x_in, output_x, self.radem_diag, self.chi_arr,
+                    sequence_length, self.conv_width, self.num_threads, self.simplex_rffs)
+        else:
+            output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
+            x_in = cp.asarray(input_x).astype(cp.float32, copy=False)
+            cudaConv1dMaxpool(x_in, output_x, self.radem_diag, self.chi_arr,
+                    sequence_length, self.conv_width, self.simplex_rffs)
+
         return output_x
 
 
@@ -150,27 +138,14 @@ class FHTMaxpoolConv1dFeatureExtractor():
         that occur when the device is switched.
 
         Args:
-            value (str): Must be one of 'cpu', 'gpu'.
+            value (str): Must be one of 'cpu', 'cuda'.
 
         Raises:
             ValueError: A ValueError is raised if an unrecognized
                 device is passed.
-
-        Note that a number of 'convenience attributes' (e.g. self.dtype,
-        self.zero_arr) are set as references to either cupy or numpy functions.
-        This avoids having to write two sets of functions (one for cupy, one for
-        numpy) for each gradient calculation when the steps involved are the same.
         """
-        if value == "cpu":
-            self.zero_arr = np.zeros
-            self.dtype = np.float32
-            self.out_type = np.float64
-        elif value == "gpu":
-            self.zero_arr = cp.zeros
-            self.dtype = cp.float32
-            self.out_type = cp.float64
-        else:
+        if value not in ('cuda', 'cpu'):
             raise ValueError("Unrecognized device supplied. Must be one "
-                    "of 'cpu', 'gpu'.")
+                    "of 'cpu', 'cuda'.")
         self.device_ = value
         self.kernel_specific_set_device(value)

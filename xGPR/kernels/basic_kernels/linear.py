@@ -1,6 +1,10 @@
 """A linear kernel, which corresponds to Bayesian linear
 regression."""
 import numpy as np
+try:
+    import cupy as cp
+except:
+    pass
 from ..kernel_baseclass import KernelBaseclass
 
 
@@ -62,7 +66,7 @@ class Linear(KernelBaseclass):
         return
 
 
-    def transform_x(self, input_x, sequence_length = None):
+    def kernel_specific_transform(self, input_x, sequence_length = None):
         """Most kernels generate random features. For the LinearKernel,
         we merely return the input, adding an additional column for
         an intercept if specified.
@@ -70,12 +74,13 @@ class Linear(KernelBaseclass):
         baseclass but is not used by this kernel.
         """
         if self.fit_intercept:
-            xtrans = self.empty((input_x.shape[0], input_x.shape[1] + 1), self.out_type)
+            if self.device == "cuda":
+                xtrans = cp.zeros((input_x.shape[0], input_x.shape[1] + 1), cp.float64)
+            else:
+                xtrans = np.zeros((input_x.shape[0], input_x.shape[1] + 1), np.float64)
             xtrans[:,1:] = input_x
-            xtrans[:,0] = 1
-        else:
-            xtrans = input_x.astype(self.out_type)
-        return xtrans
+            return xtrans
+        return input_x
 
 
     def kernel_specific_gradient(self, input_x, sequence_length = None):
@@ -85,4 +90,6 @@ class Linear(KernelBaseclass):
         can return a shape[1] == 0 array for gradient.
         """
         xtrans = self.transform_x(input_x)
+        if self.device == "cuda":
+            return xtrans, cp.zeros((xtrans.shape[0], 0, 0))
         return xtrans, np.zeros((xtrans.shape[0], 0, 0))

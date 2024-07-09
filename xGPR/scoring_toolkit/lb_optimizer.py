@@ -70,7 +70,7 @@ def get_eigvals(kernel, dataset, subsample = 1):
     matrix. Note that this matrix may be ill-conditioned.
     These are required for the NMLL procedure, not for
     multifitting."""
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         z_trans_z = cp.zeros((kernel.get_num_rffs(), kernel.get_num_rffs()))
         z_trans_y = cp.zeros((kernel.get_num_rffs()))
     else:
@@ -81,19 +81,19 @@ def get_eigvals(kernel, dataset, subsample = 1):
     ndatapoints = 0
 
     if subsample == 1:
-        for xdata, ydata, ldata in dataset.get_chunked_data():
-            xtrans = kernel.transform_x(xdata, ldata)
+        for xin, yin, ldata in dataset.get_chunked_data():
+            xtrans, ydata = kernel.transform_x_y(xin, yin, ldata)
             z_trans_z += xtrans.T @ xtrans
             z_trans_y += xtrans.T @ ydata
             y_trans_y += ydata.T @ ydata
-            ndatapoints += xdata.shape[0]
+            ndatapoints += xin.shape[0]
     else:
         rng = np.random.default_rng(123)
-        for xdata, ydata, ldata in dataset.get_chunked_data():
-            idx_size = max(1, int(subsample * xdata.shape[0]))
-            idx = rng.choice(xdata.shape[0], idx_size, replace=False)
-            xdata, ydata, ldata = xdata[idx,...], ydata[idx], ldata[idx]
-            xdata = kernel.transform_x(xdata, ldata)
+        for xin, yin, ldata in dataset.get_chunked_data():
+            idx_size = max(1, int(subsample * xin.shape[0]))
+            idx = rng.choice(xin.shape[0], idx_size, replace=False)
+            xin, yin, ldata = xin[idx,...], yin[idx], ldata[idx]
+            xdata, ydata = kernel.transform_x(xin, yin, ldata)
 
             z_trans_y += xdata.T @ ydata
             z_trans_z += xdata.T @ xdata
@@ -101,7 +101,7 @@ def get_eigvals(kernel, dataset, subsample = 1):
             ndatapoints += xdata.shape[0]
 
     z_trans_z.flat[::z_trans_z.shape[0]+1] += 1e-5
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         eigvecs, eigvals, _ = cp.linalg.svd(z_trans_z, full_matrices = False)
     else:
         eigvecs, eigvals, _ = np.linalg.svd(z_trans_z, full_matrices = False)
@@ -163,7 +163,7 @@ def generate_scoregrid(kernel, eigvals, eigvecs, lambda_,
 
     scoregrid += (ndatapoints - kernel.get_num_rffs()) * logfun(lambda_)
     scoregrid += ndatapoints * 0.5 * np.log(2 * np.pi) + ndatapoints * logfun(beta)
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         scoregrid = cp.asnumpy(scoregrid)
     return scoregrid
 
@@ -177,7 +177,7 @@ def get_grid_pts(bounds, n_pts_per_dim, device = "cpu"):
         bounds (np.ndarray): A 1 x 2 array where [0,:] is the boundaries
             for shared hyperparameter lambda.
         n_pts_per_dim (int): The number of points per grid dimension.
-        device (str): Either "cpu" or "gpu". Indicates where the values should
+        device (str): Either "cpu" or "cuda". Indicates where the values should
             be generated.
 
     Returns:
@@ -187,6 +187,6 @@ def get_grid_pts(bounds, n_pts_per_dim, device = "cpu"):
     lambda_pts = np.exp(np.linspace(bounds[0,0], bounds[0,1], n_pts_per_dim))
 
     spacing = 1.05 * np.abs(bounds[0,0] - bounds[0,1]) / n_pts_per_dim
-    if device == "gpu":
+    if device == "cuda":
         lambda_pts = cp.asarray(lambda_pts)
     return lambda_pts, spacing

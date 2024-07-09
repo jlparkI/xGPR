@@ -5,11 +5,12 @@ more manageable space for hyperparameter tuning purposes."""
 from math import ceil
 
 import numpy as np
-from cpu_rf_gen_module import cpuSRHT
 
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuRBFFeatureGen, cpuRBFGrad
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuSRHT
 try:
     import cupy as cp
-    from cuda_rf_gen_module import cudaSRHT
+    from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaSRHT
 except:
     pass
 
@@ -28,9 +29,9 @@ class SRHTCompressor():
         col_sampler (np.ndarray): A numpy array of shape (compression_size)
             that permutes the columns of the compressed data.
         compressor_func: A reference to an appropriate wrapped C++ function.
-        device: Either "cpu" or "gpu".
+        device: Either "cpu" or "cuda".
         double_precision (bool): If True, input is assumed to be
-                doubles, else floats.
+                doubles, else floats. Right now set to True by default.
         num_threads (int): Max number of threads to use for CPU operations.
     """
 
@@ -87,20 +88,17 @@ class SRHTCompressor():
         if features.shape[1] != self.input_size or len(features.shape) != 2:
             raise ValueError("Input with unexpected size passed to a compressor "
                     "module.")
-        xfeatures = features.astype(self.dtype)
         if features.shape[1] < self.padded_dims:
             xfeatures = self.zero_arr((features.shape[0], self.padded_dims), self.dtype)
             xfeatures[:,:features.shape[1]] = features
         else:
             xfeatures = features.astype(self.dtype)
-        if no_compression:
-            self.compressor_func(xfeatures, self.radem, self.col_sampler,
-                self.padded_dims, self.num_threads)
-            return xfeatures
 
-        self.compressor_func(xfeatures, self.radem, self.truncated_sampler,
-                self.compression_size, self.num_threads)
-        return xfeatures[:,:self.compression_size]
+        self.compressor_func(xfeatures, self.radem, self.num_threads)
+        if no_compression:
+            return xfeatures[:,self.col_sampler]
+
+        return xfeatures[:,self.truncated_sampler]
 
 
     @property
@@ -119,7 +117,7 @@ class SRHTCompressor():
         that occur when the device is switched.
 
         Args:
-            value (str): Must be one of 'cpu', 'gpu'.
+            value (str): Must be one of 'cpu', 'cuda'.
 
         Raises:
             ValueError: A ValueError is raised if an unrecognized
@@ -140,7 +138,7 @@ class SRHTCompressor():
             else:
                 self.dtype = np.float32
 
-        elif value == "gpu":
+        elif value == "cuda":
             self.radem = cp.asarray(self.radem)
             self.zero_arr = cp.zeros
             self.compressor_func = cudaSRHT
@@ -150,5 +148,5 @@ class SRHTCompressor():
                 self.dtype = cp.float32
         else:
             raise ValueError("Unrecognized device supplied. Must be one "
-                    "of 'cpu', 'gpu'.")
+                    "of 'cpu', 'cuda'.")
         self.device_ = value
