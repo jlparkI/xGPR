@@ -37,7 +37,7 @@ class KernelFGen(AuxiliaryBaseclass):
             kernel_choice (str): The kernel that the model will use.
                 Must be in kernels.kernel_list.KERNEL_NAME_TO_CLASS.
             device (str): Determines whether calculations are performed on
-                'cpu' or 'gpu'. The initial entry can be changed later
+                'cpu' or 'cuda'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).
                 Defaults to 'cpu'.
             kernel_settings (dict): Contains kernel-specific parameters --
@@ -85,7 +85,7 @@ class KernelFGen(AuxiliaryBaseclass):
             else:
                 preds.append(self.kernel.transform_x(input_x[i:cutoff, ...]))
 
-        if self.device == "gpu":
+        if self.device == "cuda":
             preds = cp.asnumpy(cp.vstack(preds))
         else:
             preds = np.vstack(preds)

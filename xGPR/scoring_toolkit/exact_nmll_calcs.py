@@ -18,14 +18,14 @@ def calc_zty(dataset, kernel):
             chunked data.
         kernel: A valid kernel object that can generate
             random features.
-        device (str): One of "cpu", "gpu".
+        device (str): One of "cpu", "cuda".
 
     Returns:
         z_trans_y (array): A shape (num_rffs)
             array that contains Z^T y.
         y_trans_y (float): The value y^T y.
     """
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         z_trans_y = cp.zeros((kernel.get_num_rffs()))
     else:
         z_trans_y = np.zeros((kernel.get_num_rffs()))
@@ -71,7 +71,7 @@ def calc_design_mat(dataset, kernel):
         z_trans_z += xfeatures.T @ xfeatures
         y_trans_y += ydata.T @ ydata
         if i % 2 == 0:
-            if kernel.device == "gpu":
+            if kernel.device == "cuda":
                 mempool = cp.get_default_memory_pool()
                 mempool.free_all_blocks()
                 

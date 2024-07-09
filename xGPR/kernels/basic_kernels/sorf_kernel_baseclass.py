@@ -9,14 +9,16 @@ from math import ceil
 import numpy as np
 from scipy.stats import chi
 
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuRBFFeatureGen, cpuRBFGrad
 try:
     import cupy as cp
-    from cuda_rf_gen_module import cudaRBFFeatureGen as cudaRBF
-    from cuda_rf_gen_module import cudaRBFGrad as cudaRBFGrad
-    from cpu_rf_gen_module import cpuRBFFeatureGen, cpuRBFGrad
+    from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaRBFFeatureGen, cudaRBFGrad
 except:
     pass
+
 from ..kernel_baseclass import KernelBaseclass
+
+
 
 class SORFKernelBaseclass(KernelBaseclass, ABC):
     """The baseclass for structured orthogonal random features (SORF)
@@ -95,9 +97,8 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
                 self.nblocks * self.padded_dims), replace=True)
         self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
-
-        self.feature_gen = cpuRBFFeatureGen
-        self.gradfun = cpuRBFGrad
+        if not self.double_precision:
+            self.chi_arr = self.chi_arr.astype(np.float32)
 
 
 
@@ -108,21 +109,16 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         convenience references to np.cos / np.sin or cp.cos
         / cp.sin."""
         if new_device == "cpu":
-            self.gradfun = cpuRBFGrad
-            self.feature_gen = cpuRBFFeatureGen
             if not isinstance(self.radem_diag, np.ndarray):
                 self.radem_diag = cp.asnumpy(self.radem_diag)
                 self.chi_arr = cp.asnumpy(self.chi_arr)
-            self.chi_arr = self.chi_arr.astype(self.dtype)
         else:
-            self.gradfun = cudaRBFGrad
-            self.feature_gen = cudaRBF
             self.radem_diag = cp.asarray(self.radem_diag)
-            self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
+            self.chi_arr = cp.asarray(self.chi_arr)
 
 
 
-    def transform_x(self, input_x, sequence_length = None):
+    def kernel_specific_transform(self, input_x, sequence_length = None):
         """Combines the two steps involved in random feature generation
         to generate random features.
 
@@ -135,10 +131,15 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
-        xtrans = input_x.astype(self.dtype) * self.hyperparams[1]
-        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        self.feature_gen(xtrans, output_x, self.radem_diag, self.chi_arr,
+        xtrans = input_x * self.hyperparams[1]
+        if self.device == "cpu":
+            output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+            cpuRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
                 self.num_threads, self.fit_intercept, self.simplex_rffs)
+        else:
+            output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
+            cudaRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
+                self.fit_intercept, self.simplex_rffs)
         return output_x
 
 
@@ -165,9 +166,14 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             dz_dsigma: A cupy or numpy array containing the derivative of
                 output_x with respect to the kernel-specific hyperparameters.
         """
-        xtrans = input_x.astype(self.dtype) * self.hyperparams[1]
-        output_x = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        dz_dsigma = self.gradfun(xtrans, output_x, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads, self.fit_intercept,
-                self.simplex_rffs)
+        if self.device == "cpu":
+            output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+            dz_dsigma = np.zeros((input_x.shape[0], self.num_rffs, 1), np.float64)
+            cpuRBFGrad(input_x, output_x, dz_dsigma, self.radem_diag, self.chi_arr,
+                self.hyperparams[1], self.num_threads, self.fit_intercept, self.simplex_rffs)
+        else:
+            output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
+            dz_dsigma = cp.zeros((input_x.shape[0], self.num_rffs, 1), cp.float64)
+            cudaRBFGrad(input_x, output_x, dz_dsigma, self.radem_diag, self.chi_arr,
+                self.hyperparams[1], self.fit_intercept, self.simplex_rffs)
         return output_x, dz_dsigma

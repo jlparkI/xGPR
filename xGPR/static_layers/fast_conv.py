@@ -27,15 +27,13 @@ class FastConv1d:
     Attributes:
         conv_kernel: Kernel object of appropriate class
             (depending on the kernel type selected).
-        device (str): One of ['cpu', 'gpu']. Indicates the current device
+        device (str): One of ['cpu', 'cuda']. Indicates the current device
             for the FastConv1d.
         seq_width (int): The anticipated width (number of features) of
                 each input sequence / series.
         num_features (int): The number of random features to generate.
             More = improved performance but slower feature extraction
             and slower model training.
-        zero_arr: A convenience reference to either np.zeros or cp.zeros,
-            depending on device.
     """
 
     def __init__(self, seq_width:int, device:str = "cpu", random_seed:int = 123,
@@ -46,7 +44,7 @@ class FastConv1d:
         Args:
             seq_width (int): The anticipated width (number of features) of
                 each input sequence / series.
-            device (str): Must be one of ['cpu', 'gpu']. Indicates the current
+            device (str): Must be one of ['cpu', 'cuda']. Indicates the current
                 device for the feature extractor.
             random_seed (int): The seed to the random number generator.
                 Defaults to 123.
@@ -61,7 +59,6 @@ class FastConv1d:
             ValueError: If an unrecognized kernel type or other invalid
                 input is supplied.
         """
-        self.zero_arr = np.zeros
         self.seq_width = seq_width
         self.num_features = num_features
 
@@ -108,21 +105,16 @@ class FastConv1d:
             if cutoff - i == 0:
                 continue
 
-            if self.device == "gpu":
-                x_in = cp.asarray(x_array[i:cutoff,:,:]).astype(cp.float32)
-                seqlen_in = cp.asarray(sequence_lengths[i:cutoff]).astype(cp.int32)
-            else:
-                x_in = x_array[i:cutoff,:,:]
-                seqlen_in = sequence_lengths[i:cutoff].astype(np.int32)
-
+            x_in = cp.asarray(x_array[i:cutoff,:,:]).astype(cp.float32)
+            seqlen_in = cp.asarray(sequence_lengths[i:cutoff]).astype(cp.int32)
             xtrans = self.conv_kernel.transform_x(x_in, seqlen_in)
 
-            if self.device == "gpu":
+            if self.device == "cuda":
                 xtrans = cp.asnumpy(xtrans).astype(np.float64)
 
             x_features.append(xtrans)
 
-        if self.device == "gpu":
+        if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
 
@@ -140,16 +132,12 @@ class FastConv1d:
     @device.setter
     def device(self, value):
         """Setter for the device attribute."""
-        if value not in ["cpu", "gpu"]:
-            raise ValueError("Device must be in ['cpu', 'gpu'].")
+        if value not in ["cpu", "cuda"]:
+            raise ValueError("Device must be in ['cpu', 'cuda'].")
 
-        if "cupy" not in sys.modules and value == "gpu":
-            raise ValueError("You have specified the gpu fit mode but CuPy is "
+        if "cupy" not in sys.modules and value == "cuda":
+            raise ValueError("You have specified the cuda fit mode but CuPy is "
                 "not installed. Currently CPU only fitting is available.")
 
-        if value == "cpu":
-            self.zero_arr = np.zeros
-        else:
-            self.zero_arr = cp.zeros
         self.conv_kernel.device = value
         self.device_ = value

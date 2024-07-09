@@ -18,7 +18,7 @@ def calc_gradient_terms(dataset, kernel, device, subsample = 1):
         dataset: An OnlineDataset or OfflineDataset with the
             raw data we need for these calculations.
         kernel: A valid kernel object that can generate random features.
-        device (str): One of "cpu", "gpu".
+        device (str): One of "cpu", "cuda".
         subsample (float): A value in the range [0.01,1] that indicates what
             fraction of the training set to use each time the gradient is
             calculated (the same subset is used every time). In general, 1
@@ -59,7 +59,7 @@ def calc_gradient_terms(dataset, kernel, device, subsample = 1):
 
     if subsample == 1:
         for xin, yin, ldata in dataset.get_chunked_data():
-            xfeatures, ydata, dz_dsigma = kernel.hparam_gradient(xin, yin, ldata)
+            xfeatures, ydata, dz_dsigma = kernel.gradient_x_y(xin, yin, ldata)
             z_trans_y += xfeatures.T @ ydata
             z_trans_z += xfeatures.T @ xfeatures
             y_trans_y += ydata.T @ ydata
@@ -74,7 +74,7 @@ def calc_gradient_terms(dataset, kernel, device, subsample = 1):
             idx_size = max(1, int(subsample * xin.shape[0]))
             idx = rng.choice(xin.shape[0], idx_size, replace=False)
             xin, yin, ldata = xin[idx,...], yin[idx], ldata[idx]
-            xfeatures, ydata, dz_dsigma = kernel.hparam_gradient(xin, yin, ldata)
+            xfeatures, ydata, dz_dsigma = kernel.gradient_x_y(xin, yin, ldata)
 
             z_trans_y += xfeatures.T @ ydata
             z_trans_z += xfeatures.T @ xfeatures
@@ -109,7 +109,7 @@ def exact_nmll_reg_grad(z_trans_z, z_trans_y, y_trans_y,
             Shape is (num_rffs, M) where M is the number of kernel-
             specific hyperparameters.
         ndatapoints (int): The number of datapoints.
-        device (str): Either "cpu" or "gpu".
+        device (str): Either "cpu" or "cuda".
 
     Returns:
         grad (np.ndarray): A numpy array containing the gradient of the
@@ -117,7 +117,7 @@ def exact_nmll_reg_grad(z_trans_z, z_trans_y, y_trans_y,
     """
     z_trans_z.flat[::z_trans_z.shape[0]+1] += hparams[0]**2
 
-    if device == "gpu":
+    if device == "cuda":
         weights, z_trans_z_chol, chol_inv = gpu_cho_calcs(z_trans_z,
                     z_trans_y, hparams[0])
         cho_solver = gpu_cho_solver

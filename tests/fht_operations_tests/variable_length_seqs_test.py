@@ -39,7 +39,7 @@ class TestVariableLengthSeqs(unittest.TestCase):
 
 def run_kernel_specific_test(kernel, block1, block2, dud_block):
     """Checks the specified kernel using both cpu and (if available)
-    gpu on two valid input blocks (block1 and block2) and an invalid
+    cuda on two valid input blocks (block1 and block2) and an invalid
     input block. Returns True for each test that passed and False
     for each that failed. This is a simple does it work or does it
     raise an exception test -- the correctness of the FHT operations
@@ -52,13 +52,13 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
                         num_rffs = 1024,
                         conv_ard_kernel = False)
     outcomes = []
-    for (model, device) in zip(models, ["cpu", "gpu"]):
+    for (model, device) in zip(models, ["cpu", "cuda"]):
         if model is None:
             continue
 
         sequence_lengths = np.full(block1.shape[0],
                 block1.shape[1]).astype(np.int32)
-        if device == "gpu":
+        if device == "cuda":
             block1 = cp.asarray(block1)
             block2 = cp.asarray(block2)
             dud_block = cp.asarray(dud_block)
@@ -72,7 +72,7 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
         try:
             sequence_lengths = np.full(block2.shape[0],
                     block2.shape[1]).astype(np.int32)
-            if device == "gpu":
+            if device == "cuda":
                 sequence_lengths = cp.asarray(sequence_lengths)
             _ = model.kernel.transform_x(block2, sequence_lengths)
             outcomes.append(True)
@@ -82,7 +82,7 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
         try:
             sequence_lengths = np.full(dud_block.shape[0],
                     dud_block.shape[1]).astype(np.int32)
-            if device == "gpu":
+            if device == "cuda":
                 sequence_lengths = cp.asarray(sequence_lengths)
             _ = model.kernel.transform_x(dud_block, sequence_lengths)
             outcomes.append(False)
@@ -92,7 +92,7 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
         try:
             sequence_lengths = np.full(dud_block.shape[0],
                     dud_block.shape[1]).astype(np.int32)
-            if device == "gpu":
+            if device == "cuda":
                 sequence_lengths = cp.asarray(sequence_lengths)
             _ = model.kernel.transform_x(block2, sequence_lengths)
             outcomes.append(False)
@@ -101,7 +101,7 @@ def run_kernel_specific_test(kernel, block1, block2, dud_block):
 
         try:
             sequence_lengths = np.full(dud_block.shape[0], 21).astype(np.int32)
-            if device == "gpu":
+            if device == "cuda":
                 sequence_lengths = cp.asarray(sequence_lengths)
             _ = model.kernel.transform_x(block2, sequence_lengths)
             outcomes.append(False)

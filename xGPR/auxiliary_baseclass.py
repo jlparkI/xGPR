@@ -23,7 +23,7 @@ class AuxiliaryBaseclass():
     Attributes:
         kernel: The kernel object for the posterior predictive mean. The class of
             this object will depend on the kernel specified by the user.
-        device (str): One of "gpu", "cpu". The user can update this as desired.
+        device (str): One of "cuda", "cpu". The user can update this as desired.
             All predict / tune / fit operations are carried out using the
             current device.
         double_precision_fht (bool): Indicates whether we are using double precision.
@@ -56,7 +56,7 @@ class AuxiliaryBaseclass():
                 Defaults to 'RBF'. Must be in kernels.kernel_list.
                 KERNEL_NAME_TO_CLASS.
             device (str): Determines whether calculations are performed on
-                'cpu' or 'gpu'. The initial entry can be changed later
+                'cpu' or 'cuda'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).
                 Defaults to 'cpu'.
             kernel_settings (dict): Contains kernel-specific parameters --
@@ -112,7 +112,7 @@ class AuxiliaryBaseclass():
                 nodes in each graph if you are using a graph or Conv1d kernel.
 
         Returns:
-            x_array: A cupy array (if self.device is gpu) or a reference
+            x_array: A cupy array (if self.device is cuda) or a reference
                 to the unmodified input array otherwise.
 
         Raises:
@@ -130,7 +130,7 @@ class AuxiliaryBaseclass():
                 raise ValueError("sequence_lengths must be None if using a "
                     "fixed vector kernel.")
 
-        if self.device == "gpu":
+        if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
 
@@ -146,21 +146,21 @@ class AuxiliaryBaseclass():
     @device.setter
     def device(self, value):
         """Setter for the device attribute."""
-        if value not in ["cpu", "gpu"]:
-            raise ValueError("Device must be in ['cpu', 'gpu'].")
+        if value not in ["cpu", "cuda"]:
+            raise ValueError("Device must be in ['cpu', 'cuda'].")
 
-        if "cupy" not in sys.modules and value == "gpu":
-            raise ValueError("You have specified the gpu fit mode but CuPy is "
+        if "cupy" not in sys.modules and value == "cuda":
+            raise ValueError("You have specified the cuda fit mode but CuPy is "
                 "not installed. Currently CPU only fitting is available.")
 
-        if "cuda_rf_gen_module" not in sys.modules and value == "gpu":
-            raise ValueError("You have specified the gpu fit mode but the "
+        if "xGPR.xgpr_cuda_rfgen_cpp_ext" not in sys.modules and value == "cuda":
+            raise ValueError("You have specified the cuda fit mode but the "
                 "cudaHadamardTransform module is not installed / "
                 "does not appear to have installed correctly. "
                 "Currently CPU only fitting is available.")
 
         self.kernel.device = value
-        if value == "gpu":
+        if value == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
         self._device = value

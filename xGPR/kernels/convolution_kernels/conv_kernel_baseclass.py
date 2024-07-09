@@ -6,10 +6,11 @@ from math import ceil
 
 import numpy as np
 from scipy.stats import chi
+
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuConv1dFGen, cpuConvGrad
 try:
     import cupy as cp
-    from cuda_rf_gen_module import gpuConv1dFGen, gpuConvGrad
-    from cpu_rf_gen_module import cpuConv1dFGen, cpuConvGrad
+    from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaConv1dFGen, cudaConvGrad
 except:
     pass
 
@@ -72,22 +73,26 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
                 attributes.
 
         Raises:
-            ValueError: A ValueError is raised if the dimensions of the input are
+            RuntimeError: A RuntimeError is raised if the dimensions of the input are
                 inappropriate given the conv_width.
         """
         super().__init__(num_rffs, xdim, num_threads = 2,
                 sine_cosine_kernel = True, double_precision = double_precision,
                 kernel_spec_parms = kernel_spec_parms)
         if len(xdim) != 3:
-            raise ValueError("Tried to initialize the Conv1d kernel with a 2d x-"
+            raise RuntimeError("Tried to initialize the Conv1d kernel with a 2d x-"
                     "array! x should be a 3d array for Conv1d.")
 
-        self.sequence_average = "none"
+        self.scaling_type = 0
         if "averaging" in kernel_spec_parms:
-            if kernel_spec_parms["averaging"] in ["none", "sqrt", "full"]:
-                self.sequence_average = kernel_spec_parms["averaging"]
+            if kernel_spec_parms["averaging"] == "none":
+                self.scaling_type = 0
+            elif kernel_spec_parms["averaging"] == "sqrt":
+                self.scaling_type = 1
+            elif kernel_spec_parms["averaging"] == "full":
+                self.scaling_type = 2
             else:
-                raise ValueError("Unrecognized value for 'averaging' supplied, "
+                raise RuntimeError("Unrecognized value for 'averaging' supplied, "
                         "should be one of 'none', 'sqrt', 'full'.")
 
         rng = np.random.default_rng(random_seed)
@@ -105,10 +110,10 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
                                 replace=True)
         self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
                             random_state = random_seed)
+        if not self.double_precision:
+            self.chi_arr = self.chi_arr.astype(np.float32)
 
-        self.conv_func = None
-        self.grad_func = None
-        self.int_type = None
+
 
 
     def kernel_specific_set_device(self, new_device):
@@ -119,21 +124,11 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
         to the numpy / cupy versions of functions required
         for generating features."""
         if new_device == "gpu":
-            self.conv_func = gpuConv1dFGen
-            self.grad_func = gpuConvGrad
             self.radem_diag = cp.asarray(self.radem_diag)
-            self.chi_arr = cp.asarray(self.chi_arr).astype(self.dtype)
-            self.int_type = cp.int32
-        else:
-            if not isinstance(self.radem_diag, np.ndarray):
-                self.radem_diag = cp.asnumpy(self.radem_diag)
-                self.chi_arr = cp.asnumpy(self.chi_arr)
-            else:
-                self.chi_arr = self.chi_arr.astype(self.dtype)
-            self.conv_func = cpuConv1dFGen
-            self.grad_func = cpuConvGrad
-            self.chi_arr = self.chi_arr.astype(self.dtype)
-            self.int_type = np.int32
+            self.chi_arr = cp.asarray(self.chi_arr)
+        elif not isinstance(self.radem_diag, np.ndarray):
+            self.radem_diag = cp.asnumpy(self.radem_diag)
+            self.chi_arr = cp.asnumpy(self.chi_arr)
 
 
 
@@ -149,29 +144,27 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
                 elements in each sequence -- so that zero padding can be masked.
 
         Raises:
-            ValueError: A value error is raised if the dimensionality of the
+            RuntimeError: A value error is raised if the dimensionality of the
                 input does not meet validity criteria.
         """
         if sequence_length is None:
-            raise ValueError("sequence_length is required for convolution kernels.")
-
-        if input_x.shape[1] <= self.conv_width:
-            raise ValueError("Input X must have shape[1] >= the convolution "
-                    "kernel width.")
-        if len(input_x.shape) != 3:
-            raise ValueError("Input X must be a 3d array.")
+            raise RuntimeError("sequence_length is required for convolution kernels.")
         if input_x.shape[2] != self._xdim[2]:
-            raise ValueError("Unexpected input shape supplied.")
+            raise RuntimeError("Unexpected input shape supplied.")
 
-        xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        slen = sequence_length.astype(self.int_type)
+        x_in = input_x * self.hyperparams[1]
 
-        x_in = input_x.astype(self.dtype) * self.hyperparams[1]
-        self.conv_func(x_in, slen, self.radem_diag, xtrans,
-                self.chi_arr, self.conv_width, self.num_threads,
-                self.sequence_average, self.simplex_rffs)
-        if self.fit_intercept:
-            xtrans[:,0] = 1
+        if self.device == "cpu":
+            xtrans = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+            cpuConv1dFGen(x_in, xtrans, self.radem_diag, self.chi_arr,
+                    sequence_length, self.conv_width, self.scaling_type,
+                    self.num_threads, self.simplex_rffs)
+        else:
+            xtrans = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
+            cudaConv1dFGen(x_in, xtrans, self.radem_diag, self.chi_arr,
+                    sequence_length, self.conv_width, self.scaling_type,
+                    self.simplex_rffs)
+
         return xtrans
 
 
@@ -198,25 +191,23 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
                 output_x with respect to the kernel-specific hyperparameters.
         """
         if sequence_length is None:
-            raise ValueError("sequence_length is required for convolution kernels.")
-
-        if input_x.shape[1] <= self.conv_width:
-            raise ValueError("Input X must have shape[1] >= the convolution "
-                    "kernel width.")
-        if len(input_x.shape) != 3:
-            raise ValueError("Input X must be a 3d array.")
+            raise RuntimeError("sequence_length is required for convolution kernels.")
         if input_x.shape[2] != self._xdim[2]:
-            raise ValueError("Unexpected input shape supplied.")
+            raise RuntimeError("Unexpected input shape supplied.")
 
-        xtrans = self.zero_arr((input_x.shape[0], self.num_rffs), self.out_type)
-        x_in = input_x.astype(self.dtype)
-        slen = sequence_length.astype(self.int_type)
+        if self.device == "cpu":
+            xtrans = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+            dz_dsigma = np.zeros((input_x.shape[0], self.num_rffs, 1), np.float64)
+            cpuConv1dFGen(input_x, xtrans, self.radem_diag, self.chi_arr,
+                    sequence_length, dz_dsigma, self.hyperparams[1],
+                    self.conv_width, self.scaling_type,
+                    self.num_threads, self.simplex_rffs)
+        else:
+            xtrans = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
+            dz_dsigma = cp.zeros((input_x.shape[0], self.num_rffs, 1), cp.float64)
+            cudaConv1dFGen(input_x, xtrans, self.radem_diag, self.chi_arr,
+                    sequence_length, dz_dsigma, self.hyperparams[1],
+                    self.conv_width, self.scaling_type,
+                    self.simplex_rffs)
 
-        dz_dsigma = self.grad_func(x_in, slen, self.radem_diag,
-                xtrans, self.chi_arr, self.conv_width, self.num_threads,
-                self.hyperparams[1], self.sequence_average,
-                self.simplex_rffs)
-        if self.fit_intercept:
-            xtrans[:,0] = 1
-            dz_dsigma[:,0,0] = 0
         return xtrans, dz_dsigma

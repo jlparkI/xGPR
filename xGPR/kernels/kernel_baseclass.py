@@ -31,7 +31,7 @@ class KernelBaseclass(ABC):
             1 and onwards are used -- element 0 is the number of datapoints
             and is not used by the kernel, so any value for element 0
             is acceptable.
-        device (str): Must be one of 'cpu', 'gpu'. Determines where
+        device (str): Must be one of 'cpu', 'cuda'. Determines where
             calculations are performed.
         hyperparams (np.ndarray): An array of shape (N) for N hyperparameters.
             Initialized here to None, each child class will set to its
@@ -40,17 +40,6 @@ class KernelBaseclass(ABC):
             that determines the optimization bounds for hyperparameter tuning.
             Each kernel has its own defaults. The parent class initializes to
             None, child classes must set this value.
-        zero_arr: A reference to either np.zeros or cp.zeros, depending on
-            self.device. This is for convenience and ensures that child
-            classes can call self.zero_arr and get an array appropriate
-            for the current device.
-        dtype: A reference to either np.float64, np.float32, cp.float32, cp.float64
-            depending on self.device and precision (by default, float32 -- we have not
-            found using float64 for FHT to provide any significant improvement on
-            benchmark problems).
-        out_type: A reference to either np.float64 or cp.float64 depending on
-            device.
-        empty: A reference to either np.emtpy or cp.empty depending on self.device.
         double_precision (bool): If True, generate random features in double precision.
             Otherwise, generate as single precision.
         fit_intercept (bool): Whether to fit a y-intercept. Defaults to True but can
@@ -298,14 +287,19 @@ class KernelBaseclass(ABC):
         else:
             xin = input_x.astype(np.float32)
 
-        if self.device == "gpu":
+        if self.device == "cuda":
             xin = cp.asarray(xin)
 
         slen = None
         if sequence_length is not None:
             slen = sequence_length.astype(np.int32)
 
-        return self.kernel_specific_transform(xin, slen)
+        xtrans = self.kernel_specific_transform(xin, slen)
+        if self.fit_intercept:
+            xtrans[:,0] = 1.
+
+        return xtrans
+
 
 
     def transform_x_y(self, input_x, input_y, sequence_length = None):
@@ -316,10 +310,53 @@ class KernelBaseclass(ABC):
         to live on the same device that the kernel is currently
         on."""
         y_out = input_y
-        if self.device == "gpu":
+        if self.device == "cuda":
             y_out = cp.asarray(y_out)
 
         return self.transform_x(input_x, sequence_length), y_out
+
+
+    def gradient_x(self, input_x, sequence_length = None):
+        """Given a numpy array as input (and sequence_length,
+        which is none for most kernels but must be specified
+        for convolution kernels), generate random features
+        and gradient as output."""
+        if self.double_precision:
+            xin = input_x.astype(np.float64)
+        else:
+            xin = input_x.astype(np.float32)
+
+        if self.device == "cuda":
+            xin = cp.asarray(xin)
+
+        slen = None
+        if sequence_length is not None:
+            slen = sequence_length.astype(np.int32)
+
+        xtrans, xgrad = self.kernel_specific_gradient(xin, slen)
+        if self.fit_intercept:
+            xtrans[:,0] = 1.
+            xgrad[:,0,:] = 0.
+
+        return xtrans, xgrad
+
+
+
+    def gradient_x_y(self, input_x, input_y, sequence_length = None):
+        """Given a numpy array as input (and sequence_length,
+        which is none for most kernels but must be specified
+        for convolution kernels), generate random features
+        and gradient as output. In addition, convert the input y-values
+        to live on the same device that the kernel is currently
+        on."""
+        y_out = input_y
+        if self.device == "cuda":
+            y_out = cp.asarray(y_out)
+
+        xtrans, dz_dsigma = self.gradient_x(input_x, sequence_length)
+        return xtrans, dz_dsigma, y_out
+
+
 
 
     def check_hyperparams(self, hyperparams):
@@ -374,38 +411,14 @@ class KernelBaseclass(ABC):
         that occur when the device is switched.
 
         Args:
-            value (str): Must be one of 'cpu', 'gpu'.
+            value (str): Must be one of 'cpu', 'cuda'.
 
         Raises:
             ValueError: A ValueError is raised if an unrecognized
                 device is passed.
-
-        Note that a number of 'convenience attributes' (e.g. self.dtype,
-        self.zero_arr) are set as references to either cupy or numpy functions.
-        This avoids having to write two sets of functions (one for cupy, one for
-        numpy) for each gradient calculation when the steps involved are the same.
-        Also note that cupy uses float32, which is 5-10x faster on GPU; on CPU,
-        float32 provides a much more modest benefit and float64 is used instead.
         """
-        if value == "cpu":
-            self.empty = np.empty
-            self.zero_arr = np.zeros
-            self.out_type = np.float64
-            if self.double_precision:
-                self.dtype = np.float64
-            else:
-                self.dtype = np.float32
-
-        elif value == "gpu":
-            self.empty = cp.empty
-            self.zero_arr = cp.zeros
-            self.out_type = cp.float64
-            if self.double_precision:
-                self.dtype = cp.float64
-            else:
-                self.dtype = cp.float32
-        else:
+        if value not in ('cpu', 'cuda'):
             raise ValueError("Unrecognized device supplied. Must be one "
-                    "of 'cpu', 'gpu'.")
+                    "of 'cpu', 'cuda'.")
         self.device_ = value
         self.kernel_specific_set_device(value)

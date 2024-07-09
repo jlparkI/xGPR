@@ -101,7 +101,7 @@ def calc_discriminant_weights_exact(dataset, kernel, x_mean,
         xfeatures = kernel.transform_x(xdata, ldata) - x_mean[None,:]
         z_trans_z += xfeatures.T @ xfeatures
         if i % 2 == 0:
-            if kernel.device == "gpu":
+            if kernel.device == "cuda":
                 mempool = cp.get_default_memory_pool()
                 mempool.free_all_blocks()
 

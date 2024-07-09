@@ -6,10 +6,10 @@ from math import ceil
 
 import numpy as np
 
+from cpu_rf_gen_module import cpuSRHT
 try:
     import cupy as cp
     from cuda_rf_gen_module import cudaSRHT
-    from cpu_rf_gen_module import cpuSRHT
 except:
     pass
 
@@ -28,9 +28,9 @@ class SRHTCompressor():
         col_sampler (np.ndarray): A numpy array of shape (compression_size)
             that permutes the columns of the compressed data.
         compressor_func: A reference to an appropriate wrapped C++ function.
-        device: Either "cpu" or "gpu".
+        device: Either "cpu" or "cuda".
         double_precision (bool): If True, input is assumed to be
-                doubles, else floats.
+                doubles, else floats. Right now set to True by default.
         num_threads (int): Max number of threads to use for CPU operations.
     """
 
@@ -94,13 +94,11 @@ class SRHTCompressor():
         else:
             xfeatures = features.astype(self.dtype)
         if no_compression:
-            self.compressor_func(xfeatures, self.radem, self.col_sampler,
-                self.padded_dims, self.num_threads)
-            return xfeatures
+            self.compressor_func(xfeatures, self.radem, self.num_threads)
+            return xfeatures[self.col_sampler]
 
-        self.compressor_func(xfeatures, self.radem, self.truncated_sampler,
-                self.compression_size, self.num_threads)
-        return xfeatures[:,:self.compression_size]
+        self.compressor_func(xfeatures, self.radem, self.num_threads)
+        return xfeatures[:,self.truncated_sampler]
 
 
     @property
@@ -119,7 +117,7 @@ class SRHTCompressor():
         that occur when the device is switched.
 
         Args:
-            value (str): Must be one of 'cpu', 'gpu'.
+            value (str): Must be one of 'cpu', 'cuda'.
 
         Raises:
             ValueError: A ValueError is raised if an unrecognized
@@ -140,7 +138,7 @@ class SRHTCompressor():
             else:
                 self.dtype = np.float32
 
-        elif value == "gpu":
+        elif value == "cuda":
             self.radem = cp.asarray(self.radem)
             self.zero_arr = cp.zeros
             self.compressor_func = cudaSRHT
@@ -150,5 +148,5 @@ class SRHTCompressor():
                 self.dtype = cp.float32
         else:
             raise ValueError("Unrecognized device supplied. Must be one "
-                    "of 'cpu', 'gpu'.")
+                    "of 'cpu', 'cuda'.")
         self.device_ = value

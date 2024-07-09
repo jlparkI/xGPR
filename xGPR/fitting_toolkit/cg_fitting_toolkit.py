@@ -47,7 +47,7 @@ def cg_fit_lib_internal(kernel, dataset, cg_tol = 1e-4, max_iter = 500,
         losses (list): The loss on each iteration; for diagnostic
             purposes.
     """
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         cg_operator = GPU_ConjugateGrad()
         resid = cp.zeros((kernel.get_num_rffs(), 2, 1))
     else:
@@ -105,7 +105,7 @@ def cg_fit_lib_ext(kernel, dataset, cg_tol = 1e-5, max_iter = 500,
             purposes.
     """
     z_trans_y, _ = calc_zty(dataset, kernel)
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         cg_operator = Cuda_CGLinearOperator(dataset, kernel,
                 verbose)
         weights, convergence = Cuda_CG(A = cg_operator, b = z_trans_y,
@@ -155,11 +155,11 @@ def cg_fit_lib_discriminant(kernel, dataset, x_mean, targets, cg_tol = 1e-5,
         losses (list): The loss on each iteration; for diagnostic
             purposes.
     """
-    if kernel.device == "gpu":
-        cg_operator = GPU_ConjugateGrad(x_mean, discriminant = True)
+    if kernel.device == "cuda":
+        cg_operator = GPU_ConjugateGrad()
         resid = cp.zeros((kernel.get_num_rffs(), 2, targets.shape[1]))
     else:
-        cg_operator = CPU_ConjugateGrad(x_mean, discriminant = True)
+        cg_operator = CPU_ConjugateGrad()
         resid = np.zeros((kernel.get_num_rffs(), 2, targets.shape[1]))
 
     resid[:,0,:] = targets

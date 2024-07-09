@@ -29,7 +29,7 @@ def get_models(kernel_choice, dataset, conv_width = 3, num_rffs = 512,
         gpu_mod = None
     else:
         gpu_mod = copy.deepcopy(cpu_mod)
-        gpu_mod.device = "gpu"
+        gpu_mod.device = "cuda"
         gpu_mod.set_hyperparams(dataset = dataset)
 
     cpu_mod.set_hyperparams(dataset = dataset)
@@ -49,7 +49,7 @@ def get_discriminant_models(kernel_choice, dataset, num_rffs = 512):
         gpu_mod = None
     else:
         gpu_mod = copy.deepcopy(cpu_mod)
-        gpu_mod.device = "gpu"
+        gpu_mod.device = "cuda"
         gpu_mod.set_hyperparams(dataset = dataset)
 
     cpu_mod.set_hyperparams(dataset = dataset)

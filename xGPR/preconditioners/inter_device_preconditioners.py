@@ -95,7 +95,7 @@ class InterDevicePreconditioner():
         are on CPU or GPU.
 
         Args:
-            value (str): Must be one of 'cpu', 'gpu'.
+            value (str): Must be one of 'cpu', 'cuda'.
 
         Raises:
             ValueError: A ValueError is raised if an unrecognized
@@ -106,12 +106,12 @@ class InterDevicePreconditioner():
                 self.u_mat = cp.asnumpy(self.u_mat)
                 self.inv_eig = cp.asnumpy(self.inv_eig)
 
-        elif value == "gpu":
+        elif value == "cuda":
             self.u_mat = cp.asarray(self.u_mat)
             self.inv_eig = cp.asarray(self.inv_eig)
 
         else:
             raise ValueError("Unrecognized device supplied. Must be one "
-                    "of 'cpu', 'gpu'.")
+                    "of 'cpu', 'cuda'.")
 
         self.device_ = value

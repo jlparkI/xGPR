@@ -173,19 +173,19 @@ def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = Fal
     del compressor
     acc_results = acc_results.T
 
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     for _ in range(n_passes - 1):
         q_mat, r_mat = qr_calculator(acc_results)
         acc_results[:] = 0.0
         del r_mat
-        if kernel.device == "gpu":
+        if kernel.device == "cuda":
             mempool.free_all_blocks()
 
         single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose)
 
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     norm = float( np.sqrt((acc_results**2).sum())  )
@@ -196,7 +196,7 @@ def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = Fal
 
     q_mat = cho_calculator(q_mat)
 
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     acc_results = tri_solver(q_mat, acc_results.T,
@@ -260,7 +260,7 @@ def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
     _, c_s1, c_v1 = svd_calculator(c_mat, full_matrices = False)
 
     del c_mat, compressor
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     mask = c_s1 < 1e-14
@@ -269,7 +269,7 @@ def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
     acc_results = acc_results.T @ c_v1.T @ (c_s1[:,None] * c_v1)
 
     del c_v1, c_s1
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     u_mat, s_mat, _ = svd_calculator(acc_results, full_matrices=False)
@@ -322,7 +322,7 @@ def srht_ratio_check(dataset, rank, kernel, random_state, verbose = False,
     _, c_s1, c_v1 = svd_calculator(c_mat, full_matrices = False)
 
     del c_mat, compressor
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     mask = c_s1 < 1e-14
@@ -331,7 +331,7 @@ def srht_ratio_check(dataset, rank, kernel, random_state, verbose = False,
     acc_results = acc_results.T @ c_v1.T @ (c_s1[:,None] * c_v1)
 
     del c_v1, c_s1
-    if kernel.device == "gpu":
+    if kernel.device == "cuda":
         mempool.free_all_blocks()
 
     _, s_mat, _ = svd_calculator(acc_results, full_matrices=False)

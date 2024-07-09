@@ -29,7 +29,7 @@ def estimate_logdet(alphas, betas, num_rffs, preconditioner = None,
     mat_diag = 1 / alphas
     mat_diag[1:,:] += betas[:-1,:] / alphas[:-1,:]
     upper_diag = np.sqrt(betas) / alphas
-    if device == "gpu":
+    if device == "cuda":
         logdets = cp.zeros((mat_diag.shape[1]))
         tr_estim = cp.zeros((mat_diag.shape[1]))
     else:
