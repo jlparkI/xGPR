@@ -216,3 +216,7 @@ model can be found.
 Fixed bug in Cuda generation of RFFs for > 1024 input features which caused fewer
 RFFs than expected to be generated. Expanded unit tests to ensure > 1024 input
 features is now tested.
+
+### Version 0.4.5
+Updated all C++ code wrapping to nanobind; removed Cython routines;
+switched to a CMake-based build workflow.
