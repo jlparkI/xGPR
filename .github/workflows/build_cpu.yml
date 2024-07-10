@@ -1,4 +1,4 @@
-name: Build
+name: "Build cpu-only wheel and sdist"
 
 on: workflow_dispatch
 
@@ -14,8 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build and test wheels
+      - name: Build cpu wheels
         env:
+          CIBW_ARCHS_LINUX: "x86_64"
           CIBW_SKIP: "pp* *-manylinux_i686 *-musllinux_*"
         uses: pypa/cibuildwheel@v2.19.1
       

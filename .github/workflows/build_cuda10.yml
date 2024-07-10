@@ -1,0 +1,36 @@
+name: "Build wheel for cuda 10+"
+
+on: workflow_dispatch
+
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build cuda wheels
+        env:
+          CIBW_ARCHS_LINUX: "x86_64"
+          CIBW_SKIP: "pp* *-manylinux_i686 *-musllinux_*"
+          CIBW_BEFORE_ALL: >
+            wget https://developer.nvidia.com/compute/cuda/10.0/Prod/local_installers/cuda-repo-ubuntu1804-10-0-local-10.0.130-410.48_1.0-1_amd64 &&
+            apt-key add /var/cuda-repo-<version>/7fa2af80.pub &&
+            apt-get update &&
+            apt-get install cuda &&
+            ls -al /usr/local &&
+            export PATH=$PATH:/usr/local/cuda/bin &&
+            nvcc --version
+        uses: pypa/cibuildwheel@v2.19.1
+      
+      - uses: actions/upload-artifact@v4
+        env:
+          CIBW_SKIP: "pp* *-manylinux_i686"
+        with:
+          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          path: ./wheelhouse/*.whl
