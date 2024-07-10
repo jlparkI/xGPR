@@ -4,12 +4,14 @@ on: workflow_dispatch
 
 
 jobs:
-  build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+  build_wheels_sdist:
+    name: Build wheels and sdist on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -19,26 +21,9 @@ jobs:
           CIBW_ARCHS_LINUX: "x86_64"
           CIBW_SKIP: "pp* *-manylinux_i686 *-musllinux_*"
         uses: pypa/cibuildwheel@v2.19.1
-
-      - uses: actions/upload-artifact@v4
-        env:
-          CIBW_SKIP: "pp* *-manylinux_i686"
-          CIBW_BEFORE_ALL: >
-            git submodule update --init --recursive
-        with:
-          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
-          path: ./wheelhouse/*.whl
-
-  build_sdist:
-    name: Build source distribution
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build sdist
-        run: python -m build --sdist
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cibw-sdist
-          path: dist/*.tar.gz
+        run: |
+          git submodule update --init --recursive
+          python -m pip install --upgrade pip numpy nanobind scipy scikit-build-core scikit-learn build
+          python -m build --wheel
+          python -m build --sdist
+          mv dist/* wheelhouse/
