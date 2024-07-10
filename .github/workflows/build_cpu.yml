@@ -19,7 +19,6 @@ jobs:
           CIBW_ARCHS_LINUX: "x86_64"
           CIBW_SKIP: "pp* *-manylinux_i686 *-musllinux_*"
         uses: pypa/cibuildwheel@v2.19.1
-        run: python -m build --wheel
 
       - uses: actions/upload-artifact@v4
         env:
