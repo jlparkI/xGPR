@@ -19,6 +19,7 @@ jobs:
           CIBW_ARCHS_LINUX: "x86_64"
           CIBW_SKIP: "pp* *-manylinux_i686 *-musllinux_*"
           CIBW_BEFORE_ALL: >
+            git submodule update --init --recursive &&
             wget https://developer.nvidia.com/compute/cuda/10.0/Prod/local_installers/cuda-repo-ubuntu1804-10-0-local-10.0.130-410.48_1.0-1_amd64 &&
             apt-key add /var/cuda-repo-<version>/7fa2af80.pub &&
             apt-get update &&
