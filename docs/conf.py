@@ -58,5 +58,5 @@ html_static_path = []
 # IMPORTANT: Some build systems such as ReadTheDocs will not be able
 # to install the C extensions on which the package depends. These
 # should therefore be 'mocked'.
-autodoc_mock_imports = ["cpu_rf_gen_module", "cg_tools",
-        "cuda_rf_gen_module"]
+autodoc_mock_imports = ["xGPR.xgpr_cpu_rfgen_cpp_ext",
+        "xGPR.xgpr_cuda_rfgen_cpp_ext"]
