@@ -1,6 +1,5 @@
 [build-system]
-requires = ["scikit-build-core >=0.4.3", "scipy", "numpy",
-                "scikit-learn"]
+requires = ["scikit-build-core >=0.4.3", "scipy", "numpy", "scikit-learn"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -42,7 +41,6 @@ cmake.version = ">=3.18"
 # set to false, so that even if build-type is set to debug,
 # the symbols will be stripped.
 #cmake.build-type = "Debug"
-#$install.strip = false
-
+#install.strip = false
 
 cmake.build-type = "Release"

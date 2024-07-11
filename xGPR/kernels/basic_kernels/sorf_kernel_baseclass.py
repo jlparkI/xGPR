@@ -131,14 +131,14 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
-        xtrans = input_x * self.hyperparams[1]
+        input_x *= self.hyperparams[1]
         if self.device == "cpu":
-            output_x = np.zeros((xtrans.shape[0], self.num_rffs), np.float64)
-            cpuRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
+            output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
+            cpuRBFFeatureGen(input_x, output_x, self.radem_diag, self.chi_arr,
                 self.num_threads, self.fit_intercept, self.simplex_rffs)
         else:
-            output_x = cp.zeros((xtrans.shape[0], self.num_rffs), cp.float64)
-            cudaRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
+            output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
+            cudaRBFFeatureGen(input_x, output_x, self.radem_diag, self.chi_arr,
                 self.fit_intercept, self.simplex_rffs)
         return output_x
 

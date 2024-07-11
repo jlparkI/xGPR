@@ -158,20 +158,21 @@ class RBFLinear(KernelBaseclass, ABC):
         Returns:
             xtrans: A cupy or numpy array containing the generated features.
         """
-        xtrans = input_x * self.hyperparams[1]
+        xcopy = input_x.copy()
+        input_x *= self.hyperparams[1]
         if self.device == "cpu":
             output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
             rf_features = np.zeros((input_x.shape[0], self.internal_rffs), np.float64)
-            cpuRBFFeatureGen(xtrans, rf_features, self.radem_diag, self.chi_arr,
+            cpuRBFFeatureGen(input_x, rf_features, self.radem_diag, self.chi_arr,
                 self.num_threads, self.fit_intercept, self.simplex_rffs)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             rf_features = cp.zeros((input_x.shape[0], self.internal_rffs), cp.float64)
-            cudaRBFFeatureGen(xtrans, rf_features, self.radem_diag, self.chi_arr,
+            cudaRBFFeatureGen(input_x, rf_features, self.radem_diag, self.chi_arr,
                 self.fit_intercept, self.simplex_rffs)
 
         output_x[:,:self.internal_rffs] = rf_features
-        output_x[:,self.internal_rffs:] = input_x
+        output_x[:,self.internal_rffs:] = xcopy
         return output_x
 
 

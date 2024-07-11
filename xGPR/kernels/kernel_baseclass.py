@@ -282,10 +282,13 @@ class KernelBaseclass(ABC):
         which is none for most kernels but must be specified
         for convolution kernels), generate random features
         as output."""
+        # This always generates a copy, which means that we
+        # are never working on the input data, only on a copy,
+        # and can therefore modify it with impunity.
         if self.double_precision:
-            xin = input_x.astype(np.float64)
+            xin = input_x.astype(np.float64, copy=True)
         else:
-            xin = input_x.astype(np.float32)
+            xin = input_x.astype(np.float32, copy=True)
 
         if self.device == "cuda":
             xin = cp.asarray(xin)
@@ -321,10 +324,13 @@ class KernelBaseclass(ABC):
         which is none for most kernels but must be specified
         for convolution kernels), generate random features
         and gradient as output."""
+        # This always generates a copy, which means that we
+        # are never working on the input data, only on a copy,
+        # and can therefore modify it with impunity.
         if self.double_precision:
-            xin = input_x.astype(np.float64)
+            xin = input_x.astype(np.float64, copy=True)
         else:
-            xin = input_x.astype(np.float32)
+            xin = input_x.astype(np.float32, copy=True)
 
         if self.device == "cuda":
             xin = cp.asarray(xin)

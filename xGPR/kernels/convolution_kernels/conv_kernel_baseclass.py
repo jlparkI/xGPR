@@ -152,16 +152,16 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
         if input_x.shape[2] != self._xdim[2]:
             raise RuntimeError("Unexpected input shape supplied.")
 
-        x_in = input_x * self.hyperparams[1]
+        input_x *= self.hyperparams[1]
 
         if self.device == "cpu":
             xtrans = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
-            cpuConv1dFGen(x_in, xtrans, self.radem_diag, self.chi_arr,
+            cpuConv1dFGen(input_x, xtrans, self.radem_diag, self.chi_arr,
                     sequence_length, self.conv_width, self.scaling_type,
                     self.num_threads, self.simplex_rffs)
         else:
             xtrans = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
-            cudaConv1dFGen(x_in, xtrans, self.radem_diag, self.chi_arr,
+            cudaConv1dFGen(input_x, xtrans, self.radem_diag, self.chi_arr,
                     sequence_length, self.conv_width, self.scaling_type,
                     self.simplex_rffs)
 
