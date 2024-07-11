@@ -22,7 +22,7 @@ from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
 from .preconditioners.inter_device_preconditioners import InterDevicePreconditioner
 from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 
-from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_ext, cg_fit_lib_internal
+from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_internal
 from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
 
 from .scoring_toolkit.approximate_nmll_calcs import estimate_logdet
@@ -495,11 +495,7 @@ class xGPRegression(ModelBaseclass):
                         min_rank = min_rank, max_rank = max_rank,
                         ratio_target = autoselect_target_ratio,
                         always_use_srht2 = always_use_srht2)
-            if run_diagnostics:
-                self.weights, n_iter, losses = cg_fit_lib_internal(self.kernel, dataset, tol,
-                    max_iter, preconditioner, self.verbose)
-            else:
-                self.weights, n_iter, losses = cg_fit_lib_ext(self.kernel, dataset, tol,
+            self.weights, n_iter, losses = cg_fit_lib_internal(self.kernel, dataset, tol,
                     max_iter, preconditioner, self.verbose)
 
         else:

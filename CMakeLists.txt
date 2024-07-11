@@ -34,7 +34,7 @@ if (CMAKE_CUDA_COMPILER)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
     add_compile_definitions(USE_CUDA)
     
-    # set(CMAKE_CUDA_ARCHITECTURES 52)
+    #set(CMAKE_CUDA_ARCHITECTURES 52)
     project(${SKBUILD_PROJECT_NAME} LANGUAGES CXX CUDA)
 else()
     message(STATUS "No CUDA")
