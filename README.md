@@ -18,15 +18,15 @@ which only provide kernels for fixed-vector data (tabular data),
 xGPR provides powerful convolution kernels for variable-length time series,
 sequences and graphs.
 
-### What's new in v0.3.5
-In v0.3.5, we've improved speed (close to 3x) and memory consumption for
-random feature generation on both CPU and GPU. Starting from v0.3.2,
-sequence length masking has been introduceds, so that (if desired)
-any zero-padding you use is masked for convolution kernels. The
-amount of memory used to generate RFFs is now the same regardless of
-sequence length on both CPU and GPU. The simplex random features
-modification of Reid et al. 2023 is also now provided as an (experimental)
-option for most kernels (see docs).
+### What's new in v0.4.5
+Starting with version 0.4.5, xGPR is available as a precompiled binary / wheel
+for 64 bit Linux and as a source distribution for other platforms, so that
+in most cases, installation should typically be as simple as:
+```
+pip install xGPR
+```
+See [the documentation](https://xgpr.readthedocs.io/en/latest/) for important
+information about installation and requirements.
 
 
 ### Documentation
@@ -44,7 +44,7 @@ Jonathan Parkinson and Wei Wang
 Journal of Chemical Information and Modeling 2023 63 (15), 4589-4601
 DOI: 10.1021/acs.jcim.3c00601 
 
-OR the preprint at:
+or the preprint at:
 
 Jonathan Parkinson, & Wei Wang. (2023). Linear Scaling Kernels for Protein Sequences and Small Molecules Outperform
 Deep Learning while Providing Uncertainty Quantitation and Improved Interpretability

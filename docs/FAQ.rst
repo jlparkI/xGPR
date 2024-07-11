@@ -1,11 +1,6 @@
 FAQ
 ====
 
-#. **Why doesn't xGPR run on Windows (yet)?**
-   
-   We need to update the setup file so the CUDA code is compiled in a non-Linux-
-   specific way (it's a near-term priority).
-
 #. **xGPR uses random features. How much does performance fluctuate if I
    choose a different random seed?**
 
@@ -19,7 +14,7 @@ FAQ
    The xGPR algorithm can be easily parallelized, and this feature
    is planned for a near-future version of xGPR.
 
-#. **I have multiple GPUs. When I set "model.device = 'gpu'", which
+#. **I have multiple GPUs. When I set "model.device = 'cuda'", which
    gpu is used?**
    Whichever one is currently active. You can determine the currently
    active cuda device by setting the environment variable,
@@ -30,9 +25,6 @@ FAQ
 
 #. **Why doesn't xGPR have (insert my favorite kernel here)**
    
-   Currently we're planning to add a Tanimoto kernel and a random walk
-   graph kernel in the near future.
-
    We might be interested in adding other kernels to xGPR, but with a few
    caveats.
    

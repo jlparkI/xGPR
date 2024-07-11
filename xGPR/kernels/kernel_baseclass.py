@@ -285,7 +285,12 @@ class KernelBaseclass(ABC):
         # This always generates a copy, which means that we
         # are never working on the input data, only on a copy,
         # and can therefore modify it with impunity.
-        if self.double_precision:
+        if not input_x.flags["C_CONTIGUOUS"]:
+            if self.double_precision:
+                xin = np.ascontiguousarray(input_x, np.float64)
+            else:
+                xin = np.ascontiguousarray(input_x, np.float32)
+        elif self.double_precision:
             xin = input_x.astype(np.float64, copy=True)
         else:
             xin = input_x.astype(np.float32, copy=True)
@@ -327,7 +332,12 @@ class KernelBaseclass(ABC):
         # This always generates a copy, which means that we
         # are never working on the input data, only on a copy,
         # and can therefore modify it with impunity.
-        if self.double_precision:
+        if not input_x.flags["C_CONTIGUOUS"]:
+            if self.double_precision:
+                xin = np.ascontiguousarray(input_x, np.float64)
+            else:
+                xin = np.ascontiguousarray(input_x, np.float32)
+        elif self.double_precision:
             xin = input_x.astype(np.float64, copy=True)
         else:
             xin = input_x.astype(np.float32, copy=True)
