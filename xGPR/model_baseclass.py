@@ -4,11 +4,10 @@ import sys
 import copy
 try:
     import cupy as cp
-    from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
 except:
     pass
 import numpy as np
-from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
+from .preconditioners.inter_device_preconditioners import InterDevicePreconditioner
 from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
 from .preconditioners.rand_nys_constructors import srht_ratio_check
 
@@ -440,14 +439,11 @@ class ModelBaseclass():
             preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, rank,
                         False, self.random_seed, method)
         else:
-            if self.device == "cuda":
-                preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, rank,
+            preconditioner = InterDevicePreconditioner(self.kernel, dataset, rank,
                         self.verbose, self.random_seed, method)
+            if self.device == "cuda":
                 mempool = cp.get_default_memory_pool()
                 mempool.free_all_blocks()
-            else:
-                preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, rank,
-                        self.verbose, self.random_seed, method)
 
         return preconditioner
 

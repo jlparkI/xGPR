@@ -11,7 +11,6 @@ from .cg_toolkit.cg_tools import CPU_ConjugateGrad
 
 try:
     import cupy as cp
-    from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
     from .cg_toolkit.cg_tools import GPU_ConjugateGrad
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
@@ -20,7 +19,6 @@ from .constants import constants
 from .model_baseclass import ModelBaseclass
 from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
 from .preconditioners.inter_device_preconditioners import InterDevicePreconditioner
-from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
 
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_internal
 from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
@@ -175,14 +173,11 @@ class xGPRegression(ModelBaseclass):
                 well the preconditioner is likely to perform.
         """
         self._run_pre_fitting_prep(dataset, max_rank)
-        if self.device == "cuda":
-            preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, max_rank,
+        preconditioner = InterDevicePreconditioner(self.kernel, dataset, max_rank,
                         self.verbose, self.random_seed, method)
+        if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
-        else:
-            preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, max_rank,
-                        self.verbose, self.random_seed, method)
         return preconditioner, preconditioner.achieved_ratio
 
 
