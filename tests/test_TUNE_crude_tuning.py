@@ -1,10 +1,7 @@
 """Tests the crude tuning algorithm to ensure
 we get performance on par with expectations."""
-import sys
 import unittest
 
-#TODO: Get rid of this path alteration
-sys.path.append("..")
 from utils.build_test_dataset import build_test_dataset
 from utils.model_constructor import get_models
 

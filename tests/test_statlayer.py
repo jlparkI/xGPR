@@ -1,14 +1,8 @@
 """Tests the static layer construction to ensure they
 initialize and can transform data."""
-import sys
 import unittest
-import os
-
-from xGPR.static_layers import FastConv1d
-
-#TODO: Get rid of this path alteration
-sys.path.append("..")
 from utils.build_test_dataset import build_test_dataset
+from xGPR.static_layers import FastConv1d
 
 
 RANDOM_SEED = 123

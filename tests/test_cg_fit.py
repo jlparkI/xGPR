@@ -1,15 +1,10 @@
 """Tests cg fitting for both regression and discriminants."""
-import sys
 import unittest
 
 import numpy as np
 
-#TODO: Get rid of this path alteration
-sys.path.append("..")
 from utils.build_test_dataset import build_test_dataset
-from utils.build_classification_dataset import build_discriminant_traintest_split
 from utils.model_constructor import get_models
-from utils.evaluate_model import evaluate_model
 
 #Sets of hyperparameters known to work well for our testing dataset
 #that we can use as a default. HPARAM is for regression only.

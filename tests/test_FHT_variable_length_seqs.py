@@ -1,7 +1,5 @@
 """Checks that non-zero-padded variable length sequences can
 be input to an FHTConv1d kernel with no errors."""
-import sys
-
 import unittest
 import numpy as np
 
@@ -10,8 +8,6 @@ try:
 except:
     pass
 
-#TODO: Get rid of this path modification
-sys.path.append("..")
 from utils.model_constructor import get_models
 from xGPR import build_regression_dataset
 

@@ -1,12 +1,9 @@
 """Tests dataset construction and ensures that y_mean, y_std
 are calculated correctly."""
-import sys
 import unittest
 
 import numpy as np
 
-#TODO: Get rid of this path alteration
-sys.path.append("..")
 from utils.build_test_dataset import build_test_dataset
 
 

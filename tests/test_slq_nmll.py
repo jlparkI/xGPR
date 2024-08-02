@@ -1,15 +1,11 @@
 """Tests cg fitting to ensure success both with and without
 preconditioning."""
-import sys
 import unittest
 
 import numpy as np
 
-#TODO: Get rid of this path alteration
-sys.path.append("..")
 from utils.build_test_dataset import build_test_dataset
 from utils.model_constructor import get_models
-from utils.evaluate_model import evaluate_model
 
 #A set of hyperparameters known to work well for our testing dataset
 #that we can use as a default.

@@ -1,8 +1,6 @@
 """Provides a function for comparing an exact gradient with a
 numerical gradient shared and used by all the kernel-specific
 tests."""
-import sys
-
 import numpy as np
 try:
     import cupy as cp
@@ -10,8 +8,6 @@ except:
     pass
 from scipy.optimize import approx_fprime
 
-#TODO: Get rid of this path modification
-sys.path.append("..")
 from utils.build_test_dataset import build_test_dataset
 from utils.model_constructor import get_models
 

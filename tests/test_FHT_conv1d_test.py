@@ -11,8 +11,8 @@ import cupy as cp
 from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuConv1dFGen, cpuConvGrad, cpuConv1dMaxpool
 from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaConv1dFGen, cudaConvGrad, cudaConv1dMaxpool
 
-from conv_testing_functions import get_initial_matrices_fht, get_features
-from conv_testing_functions import get_features_with_gradient
+from helper_FHT_conv_functions import get_initial_matrices_fht, get_features
+from helper_FHT_conv_functions import get_features_with_gradient
 
 
 

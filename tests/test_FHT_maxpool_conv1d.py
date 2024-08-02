@@ -9,7 +9,7 @@ from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuConv1dMaxpool
 from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaConv1dMaxpool
 import cupy as cp
 
-from conv_testing_functions import get_features_maxpool, get_initial_matrices_fht
+from helper_FHT_conv_functions import get_features_maxpool, get_initial_matrices_fht
 
 
 

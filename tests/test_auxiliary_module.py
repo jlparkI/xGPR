@@ -3,18 +3,13 @@ for obvious failures. This doesn't do any performance tests since
 both are just wrappers on functionality used elsewhere; it
 just ensures that they are functional. (If we do implement
 k-means, add performance tests for k-means here)."""
-import sys
 import unittest
 
 import numpy as np
+from utils.build_test_dataset import build_test_dataset
 
 from xGPR import KernelFGen
 
-#TODO: Get rid of this path alteration
-sys.path.append("..")
-from utils.build_test_dataset import build_test_dataset
-from utils.model_constructor import get_models
-from utils.evaluate_model import evaluate_model
 
 
 class CheckAuxiliaryFunctions(unittest.TestCase):
