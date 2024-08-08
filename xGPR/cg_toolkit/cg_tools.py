@@ -46,7 +46,8 @@ class GPU_ConjugateGrad:
     def fit(self, dataset, kernel, preconditioner,
             resid, maxiter = 200, tol = 1e-4,
             verbose = True,
-            nmll_settings = False):
+            nmll_settings = False,
+            classification = False):
         """Performs conjugate gradients to evaluate (Z^T Z + lambda)^-1 Z^T y,
         where Z is the random features generated for the dataset and lambda
         is the shared noise hyperparameter.
@@ -65,6 +66,8 @@ class GPU_ConjugateGrad:
                 return the alpha and beta values (used for NMLL calcs).
                 If False, return the number of iterations and a list of
                 losses (for diagnostic purposes).
+            classification (bool): If True, the fit is assumed to be for
+                classification rather than regression.
 
         Returns:
             xk (cp.ndarray): The result of (Z^T Z + lambda)^-1 Z^T y.
@@ -137,6 +140,8 @@ class GPU_ConjugateGrad:
                 betas = betas[0].reshape(1, betas[0].shape[0])
             alphas, betas = cp.asnumpy(alphas[:,1:]), cp.asnumpy(betas[:,1:])
             return x_k, alphas, betas
+        elif classification:
+            return x_k, converged, niter + 1, losses
         return x_k[:,0], converged, niter + 1, losses
 
 
@@ -176,7 +181,8 @@ class CPU_ConjugateGrad:
     def fit(self, dataset, kernel, preconditioner,
             resid, maxiter = 200, tol = 1e-4,
             verbose = True,
-            nmll_settings = False):
+            nmll_settings = False,
+            classification = False):
         """Performs conjugate gradients to evaluate (Z^T Z + lambda)^-1 Z^T y,
         where Z is the random features generated for the dataset and lambda
         is the shared noise hyperparameter.
@@ -195,6 +201,8 @@ class CPU_ConjugateGrad:
                 return the alpha and beta values (used for NMLL calcs).
                 If False, return the number of iterations and a list of
                 losses (for diagnostic purposes).
+            classification (bool): If True, the fit is assumed to be for
+                classification rather than regression.
 
         Returns:
             xk (np.ndarray): The result of (Z^T Z + lambda)^-1 Z^T y.
@@ -268,4 +276,6 @@ class CPU_ConjugateGrad:
                 alphas = alphas[0].reshape(1, alphas[0].shape[0])
                 betas = betas[0].reshape(1, betas[0].shape[0])
             return x_k, alphas[:,1:], betas[:,1:]
+        elif classification:
+            return x_k, converged, niter + 1, losses
         return x_k[:,0], converged, niter + 1, losses

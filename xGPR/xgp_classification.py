@@ -37,7 +37,7 @@ class xGPClassifier(ModelBaseclass):
                 to use.
             kernel_choice (str): The kernel that the model will use.
             device (str): Determines whether calculations are performed on
-                'cpu' or 'gpu'. The initial entry can be changed later
+                'cpu' or 'cuda'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).
                 Defaults to 'cpu'.
             kernel_settings (dict): Contains kernel-specific parameters --
@@ -107,7 +107,7 @@ class xGPClassifier(ModelBaseclass):
 
             preds.append(pred)
 
-        if self.device == "gpu":
+        if self.device == "cuda":
             return cp.asnumpy(cp.vstack(preds))
         return np.vstack(preds)
 
@@ -132,11 +132,11 @@ class xGPClassifier(ModelBaseclass):
                 datapoints.
         """
         self.n_classes = dataset.get_n_classes()
-        ndatapoints = dataset.get_n_datapoints()
+        ndatapoints = dataset.get_ndatapoints()
 
         #This procedure is a little clunky. TODO: Replace this with a
         #wrapped CUDA & CPU function to speed up this calculation.
-        if self.device == "gpu":
+        if self.device == "cuda":
             x_mean = cp.zeros((self.kernel.get_num_rffs()))
             targets = cp.zeros((self.kernel.get_num_rffs(), self.n_classes))
             n_pts_per_class = cp.zeros((self.n_classes))
@@ -151,9 +151,9 @@ class xGPClassifier(ModelBaseclass):
 
         neg_class_means = targets.copy()
 
-        for (xdata, ydata, ldata) in dataset.get_chunked_data():
+        for (xin, yin, lin) in dataset.get_chunked_data():
+            xfeatures, ydata = self.kernel.transform_x_y(xin, yin, lin)
             ydata = ydata.astype(ytype)
-            xfeatures = self.kernel.transform_x(xdata, ldata)
             x_mean += xfeatures.sum(axis=0)
             if ydata.max() > self.n_classes or ydata.min() < 0:
                 raise ValueError("Unexpected y-values encountered.")
@@ -208,7 +208,7 @@ class xGPClassifier(ModelBaseclass):
         self._run_pre_fitting_prep(dataset, max_rank)
         preconditioner = InterDevicePreconditioner(self.kernel, dataset, max_rank,
                         self.verbose, self.random_seed, method)
-        if self.device == "gpu":
+        if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
         return preconditioner, preconditioner.achieved_ratio
@@ -289,7 +289,11 @@ class xGPClassifier(ModelBaseclass):
                         always_use_srht2 = always_use_srht2)
 
             self.weights, n_iter, losses = cg_fit_lib_internal(self.kernel, dataset, tol,
-                    max_iter, preconditioner, self.verbose, input_resid = targets)
+                    max_iter, preconditioner, self.verbose, input_resid = targets,
+                    classification = True)
+
+            self.gamma = bfactor - x_mean.T @ self.weights
+
             if self.verbose:
                 print(f"{n_iter} iterations.")
 
@@ -299,7 +303,7 @@ class xGPClassifier(ModelBaseclass):
 
         if self.verbose:
             print("Fitting complete.")
-        if self.device == "gpu":
+        if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
 

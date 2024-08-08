@@ -64,7 +64,7 @@ class ModelBaseclass():
         n_classes (int): The number of classes expected in the
             data. This is initialized when fit is called. Used for classification
             only.
-        _gamma (ndarray): Either None (if model has not been fitted or is regression)
+        gamma (ndarray): Either None (if model has not been fitted or is regression)
             or an array of shape (n_classes). Used for classification only.
     """
 
@@ -124,6 +124,9 @@ class ModelBaseclass():
         # Classification classes don't use exact_var
         self.exact_var_calculation = True
         self.random_seed = random_seed
+
+        #Y-intercepts.
+        self.gamma = None
 
         #Regression classes don't use n_classes or gamma.
         self.n_classes = 1
