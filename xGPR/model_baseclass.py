@@ -127,7 +127,6 @@ class ModelBaseclass():
 
         #Regression classes don't use n_classes or gamma.
         self.n_classes = 1
-        self._gamma = None
 
 
     def pre_prediction_checks(self, input_x, sequence_lengths, get_var:bool):

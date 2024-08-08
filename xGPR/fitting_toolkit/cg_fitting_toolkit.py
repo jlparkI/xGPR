@@ -16,7 +16,8 @@ from ..scoring_toolkit.exact_nmll_calcs import calc_zty
 
 
 def cg_fit_lib_internal(kernel, dataset, cg_tol = 1e-4, max_iter = 500,
-                        preconditioner = None, verbose = True):
+                        preconditioner = None, verbose = True,
+                        input_resid = None):
     """Calculates the weights when fitting the model using
     preconditioned CG. Good scaling but slower for small
     numbers of random features.
@@ -34,6 +35,9 @@ def cg_fit_lib_internal(kernel, dataset, cg_tol = 1e-4, max_iter = 500,
             the preconditioner is used for CG. The preconditioner
             can be built by calling self.build_preconditioner
             with appropriate arguments.
+        input_resid: Either None or a specified RHS target for CG.
+            If None, the RHS target is calculated based on the
+            assumption that we are doing regression.
     verbose (bool): If True, print regular updates.
 
     Returns:
@@ -51,7 +55,10 @@ def cg_fit_lib_internal(kernel, dataset, cg_tol = 1e-4, max_iter = 500,
         resid = np.zeros((kernel.get_num_rffs(), 2, 1))
 
     z_trans_y, _ = calc_zty(dataset, kernel)
-    resid[:,0,:] = z_trans_y[:,None] / dataset.get_ndatapoints()
+    if input_resid is None:
+        resid[:,0,:] = z_trans_y[:,None] / dataset.get_ndatapoints()
+    else:
+        resid = input_resid
 
     weights, converged, n_iter, losses = cg_operator.fit(dataset, kernel,
                 preconditioner, resid, max_iter, cg_tol, verbose,
