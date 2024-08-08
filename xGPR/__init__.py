@@ -4,6 +4,7 @@ __version__ = "0.4.5"
 
 #Key imports.
 from .xgp_regression import xGPRegression
+from .xgp_classification import xGPClassifier
 from .data_handling.dataset_builder import build_regression_dataset
 from .data_handling.dataset_builder import build_classification_dataset
 
