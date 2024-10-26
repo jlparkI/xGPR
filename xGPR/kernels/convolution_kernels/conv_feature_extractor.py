@@ -111,12 +111,12 @@ class FHTMaxpoolConv1dFeatureExtractor():
 
         if self.device == "cpu":
             output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
-            x_in = input_x.astype(np.float32, copy=False)
+            x_in = np.ascontiguousarray(input_x.astype(np.float32, copy=False))
             cpuConv1dMaxpool(x_in, output_x, self.radem_diag, self.chi_arr,
                     sequence_length, self.conv_width, self.num_threads, self.simplex_rffs)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
-            x_in = cp.asarray(input_x).astype(cp.float32, copy=False)
+            x_in = cp.ascontiguousarray(cp.asarray(input_x).astype(cp.float32, copy=False))
             cudaConv1dMaxpool(x_in, output_x, self.radem_diag, self.chi_arr,
                     sequence_length, self.conv_width, self.simplex_rffs)
 
