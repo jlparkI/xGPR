@@ -32,7 +32,7 @@ def run_kernelspecific_test(kernel_choice, conv_kernel = False,
 
     eps = np.sqrt(np.finfo(np.float32).eps)
 
-    params = np.log(np.full(cpu_mod.get_hyperparams().shape, 0.25))
+    params = np.log(np.full(cpu_mod.get_hyperparams().shape, 0.1))
 
     cpu_cost, cpu_grad = cpu_mod.exact_nmll_gradient(params, online_data)
     singlepoint_cost = cpu_mod.exact_nmll(params, online_data)
@@ -45,9 +45,9 @@ def run_kernelspecific_test(kernel_choice, conv_kernel = False,
     print(f"Numerical gradient, cpu: {num_grad}")
     print(f"Singlepoint cost, cpu:   {singlepoint_cost}")
 
-    cpu_gradcomp = 100 * np.max(np.abs(cpu_grad - num_grad) / np.abs(num_grad))
+    cpu_gradcomp = 100 * np.max(np.abs(cpu_grad - num_grad) / np.abs(cpu_grad))
     cpu_gradcomp = cpu_gradcomp < 0.5 or np.max(np.abs(cpu_grad - num_grad)) < 0.1
-    cpu_costcomp = 100 * np.abs(cpu_cost - singlepoint_cost) / singlepoint_cost
+    cpu_costcomp = 100 * np.abs(cpu_cost - singlepoint_cost) / np.abs(singlepoint_cost)
     cpu_costcomp = cpu_costcomp < 0.25
 
     if gpu_mod is not None:
@@ -58,9 +58,9 @@ def run_kernelspecific_test(kernel_choice, conv_kernel = False,
         print(f"Analytic gradient, gpu:  {gpu_grad}")
         print(f"Singlepoint cost, gpu:   {singlepoint_cost}")
 
-        gpu_gradcomp = 100 * np.max(np.abs(gpu_grad - cpu_grad) / cpu_grad)
+        gpu_gradcomp = 100 * np.max(np.abs(gpu_grad - cpu_grad) / np.abs(cpu_grad))
         gpu_gradcomp = gpu_gradcomp < 0.5 or np.max(np.abs(gpu_grad - num_grad)) < 0.1
-        gpu_costcomp = 100 * np.abs(gpu_cost - singlepoint_cost) / singlepoint_cost
+        gpu_costcomp = 100 * np.abs(gpu_cost - singlepoint_cost) / np.abs(singlepoint_cost)
         gpu_costcomp = gpu_costcomp < 0.25
     else:
         gpu_gradcomp, gpu_costcomp = True, True

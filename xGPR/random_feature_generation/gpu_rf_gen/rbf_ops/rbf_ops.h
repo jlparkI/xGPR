@@ -15,7 +15,7 @@ int RBFFeatureGen(
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<const T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        bool fitIntercept, bool simplex);
+        bool fitIntercept);
 
 template <typename T>
 int RBFFeatureGrad(
@@ -24,7 +24,7 @@ int RBFFeatureGrad(
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> gradArr,
         nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<const T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        float sigma, bool fitIntercept, bool simplex);
+        float sigma, bool fitIntercept);
 
 
 #endif

@@ -33,22 +33,20 @@ NB_MODULE(xgpr_cpu_rfgen_cpp_ext, m){
     m.def("cpuRBFFeatureGen", &rbfFeatureGen_<float>, nb::arg("inputArr").noconvert(),
             nb::arg("outputArr").noconvert(), nb::arg("radem").noconvert(),
             nb::arg("chiArr").noconvert(), nb::arg("numThreads"),
-            nb::arg("fitIntercept"), nb::arg("simplex"));
+            nb::arg("fitIntercept"));
     m.def("cpuRBFFeatureGen", &rbfFeatureGen_<double>, nb::arg("inputArr").noconvert(),
             nb::arg("outputArr").noconvert(), nb::arg("radem").noconvert(),
             nb::arg("chiArr").noconvert(), nb::arg("numThreads"),
-            nb::arg("fitIntercept"), nb::arg("simplex"));
+            nb::arg("fitIntercept"));
 
     m.def("cpuRBFGrad", &rbfGrad_<float>, nb::arg("inputArr").noconvert(),
             nb::arg("outputArr").noconvert(), nb::arg("gradArr").noconvert(),
             nb::arg("radem").noconvert(), nb::arg("chiArr").noconvert(),
-            nb::arg("sigma"), nb::arg("numThreads"), nb::arg("fitIntercept"),
-            nb::arg("simplex"));
+            nb::arg("sigma"), nb::arg("numThreads"), nb::arg("fitIntercept"));
     m.def("cpuRBFGrad", &rbfGrad_<double>, nb::arg("inputArr").noconvert(),
             nb::arg("outputArr").noconvert(), nb::arg("gradArr").noconvert(),
             nb::arg("radem").noconvert(), nb::arg("chiArr").noconvert(),
-            nb::arg("sigma"), nb::arg("numThreads"), nb::arg("fitIntercept"),
-            nb::arg("simplex"));
+            nb::arg("sigma"), nb::arg("numThreads"), nb::arg("fitIntercept"));
     m.def("cpuMiniARDGrad", &ardGrad_<float>, nb::arg("inputArr").noconvert(),
             nb::arg("outputArr").noconvert(), nb::arg("precompWeights").noconvert(),
             nb::arg("sigmaMap").noconvert(), nb::arg("sigmaVals").noconvert(),
@@ -63,33 +61,31 @@ NB_MODULE(xgpr_cpu_rfgen_cpp_ext, m){
     m.def("cpuConv1dMaxpool", &conv1dMaxpoolFeatureGen_<float>, nb::arg("inputArr").noconvert(),
             nb::arg("outputArr").noconvert(), nb::arg("radem").noconvert(),
             nb::arg("chiArr").noconvert(), nb::arg("seqlengths").noconvert(),
-            nb::arg("convWidth"), nb::arg("numThreads"), nb::arg("simplex"));
+            nb::arg("convWidth"), nb::arg("numThreads"));
     m.def("cpuConv1dMaxpool", &conv1dMaxpoolFeatureGen_<double>, nb::arg("inputArr").noconvert(),
             nb::arg("outputArr").noconvert(), nb::arg("radem").noconvert(),
             nb::arg("chiArr").noconvert(), nb::arg("seqlengths").noconvert(),
-            nb::arg("convWidth"), nb::arg("numThreads"), nb::arg("simplex"));
+            nb::arg("convWidth"), nb::arg("numThreads"));
 
     m.def("cpuConv1dFGen", &convRBFFeatureGen_<float>, nb::arg("inputArr").noconvert(),
             nb::arg("outputArr").noconvert(), nb::arg("radem").noconvert(),
             nb::arg("chiArr").noconvert(), nb::arg("seqlengths").noconvert(),
             nb::arg("convWidth"), nb::arg("scalingType"),
-            nb::arg("numThreads"), nb::arg("simplex"));
+            nb::arg("numThreads"));
     m.def("cpuConv1dFGen", &convRBFFeatureGen_<double>, nb::arg("inputArr").noconvert(),
             nb::arg("outputArr").noconvert(), nb::arg("radem").noconvert(),
             nb::arg("chiArr").noconvert(), nb::arg("seqlengths").noconvert(),
             nb::arg("convWidth"), nb::arg("scalingType"),
-            nb::arg("numThreads"), nb::arg("simplex"));
+            nb::arg("numThreads"));
 
     m.def("cpuConvGrad", &convRBFGrad_<float>, nb::arg("inputArr").noconvert(),
             nb::arg("outputArr").noconvert(), nb::arg("radem").noconvert(),
             nb::arg("chiArr").noconvert(), nb::arg("seqlengths").noconvert(),
             nb::arg("gradArr").noconvert(), nb::arg("sigma"),
-            nb::arg("convWidth"), nb::arg("scalingType"), nb::arg("numThreads"),
-            nb::arg("simplex"));
+            nb::arg("convWidth"), nb::arg("scalingType"), nb::arg("numThreads"));
     m.def("cpuConvGrad", &convRBFGrad_<double>, nb::arg("inputArr").noconvert(),
             nb::arg("outputArr").noconvert(), nb::arg("radem").noconvert(),
             nb::arg("chiArr").noconvert(), nb::arg("seqlengths").noconvert(),
             nb::arg("gradArr").noconvert(), nb::arg("sigma"),
-            nb::arg("convWidth"), nb::arg("scalingType"), nb::arg("numThreads"),
-            nb::arg("simplex"));
+            nb::arg("convWidth"), nb::arg("scalingType"), nb::arg("numThreads"));
 }

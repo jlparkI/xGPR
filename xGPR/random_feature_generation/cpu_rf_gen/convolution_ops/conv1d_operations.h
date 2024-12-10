@@ -14,27 +14,21 @@ namespace nb = nanobind;
 
 template <typename T>
 int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
-        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, int numThreads, bool simplex);
+        int convWidth, int numThreads);
 
 template <typename T>
 void *allInOneConvMaxpoolGen(T xdata[], int8_t *rademArray, T chiArr[],
-        double *outputArray, int32_t *seqlengths, int dim1, int dim2,
-        int numFreqs, int startRow, int endRow,
-        int convWidth, int paddedBufferSize);
-
-template <typename T>
-void *allInOneConvMaxpoolSimplex(T xdata[], int8_t *rademArray, T chiArr[],
-        double *outputArray, int32_t *seqlengths, int dim1, int dim2,
+        float *outputArray, int32_t *seqlengths, int dim1, int dim2,
         int numFreqs, int startRow, int endRow,
         int convWidth, int paddedBufferSize);
 
 template <typename T>
 void singleVectorMaxpoolPostProcess(const T xdata[],
-        const T chiArr[], double *outputArray,
+        const T chiArr[], float *outputArray,
         int dim2, int numFreqs,
         int rowNumber, int repeatNum);
 

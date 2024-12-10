@@ -28,8 +28,7 @@
  * the operation to generate the requested number of sampled frequencies.
  * + `xdata` The raw input 3d array, of shape (N x D x K).
  * + `chiArr` The diagonal array by which to multiply the SORF products.
- * + `outputArray` The double-precision array in which the results are
- * stored.
+ * + `outputArray` The array in which the results are stored.
  * + `seqlengths` The length of each sequence in the input. Of shape (N).
  * + `dim0` The first dimension of xdata
  * + `dim1` The second dimension of xdata
@@ -40,18 +39,17 @@
  * + `convWidth` The width of the convolution to perform.
  * + `paddedBufferSize` dim2 of the copy buffer to create to perform
  * the convolution.
- * + `simplex` If True, apply the simplex modification of Reid et al. 2023.
  *
  * ## Returns:
  * "error" if an error, "no_error" otherwise.
  */
 template <typename T>
 int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
-        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, int numThreads, bool simplex){
+        int convWidth, int numThreads) {
 
     // Perform safety checks. Any exceptions thrown here are handed off to Python
     // by the Nanobind wrapper. We do not expect the user to see these because
@@ -62,7 +60,7 @@ int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu
     size_t numFreqs = chiArr.shape(0);
 
     T *inputPtr = static_cast<T*>(inputArr.data());
-    double *outputPtr = static_cast<double*>(outputArr.data());
+    float *outputPtr = static_cast<float*>(outputArr.data());
     T *chiPtr = static_cast<T*>(chiArr.data());
     int8_t *rademPtr = static_cast<int8_t*>(radem.data());
     int32_t *seqlengthsPtr = static_cast<int32_t*>(seqlengths.data());
@@ -84,20 +82,23 @@ int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu
     double log2Freqs = std::log2(expectedNFreq);
     log2Freqs = std::ceil(log2Freqs);
     int paddedBufferSize = std::pow(2, log2Freqs);
+    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
 
-    if (radem.shape(2) % paddedBufferSize != 0)
+    if (radem.shape(2) % paddedBufferSize != 0 ||
+            radem.shape(2) != numRepeats * paddedBufferSize) {
         throw std::runtime_error("incorrect number of rffs and or freqs.");
+    }
 
 
     int32_t minSeqLength = 2147483647, maxSeqLength = 0;
-    for (size_t i=0; i < seqlengths.shape(0); i++){
+    for (size_t i=0; i < seqlengths.shape(0); i++) {
         if (seqlengths(i) > maxSeqLength)
             maxSeqLength = seqlengths(i);
         if (seqlengths(i) < minSeqLength)
             minSeqLength = seqlengths(i);
     }
 
-    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth){
+    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth) {
         throw std::runtime_error("All sequence lengths must be >= conv width and < "
                 "array size.");
     }
@@ -109,24 +110,16 @@ int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu
     int startRow, endRow;
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
     
-    for (int i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++) {
         startRow = i * chunkSize;
         endRow = (i + 1) * chunkSize;
         if (endRow > zDim0)
             endRow = zDim0;
 
-        if (!simplex){
-            threads[i] = std::thread(&allInOneConvMaxpoolGen<T>, inputPtr,
+        threads[i] = std::thread(&allInOneConvMaxpoolGen<T>, inputPtr,
                 rademPtr, chiPtr, outputPtr, seqlengthsPtr, inputArr.shape(1),
                 inputArr.shape(2), numFreqs, startRow, endRow, convWidth,
                 paddedBufferSize);
-        }
-        else{
-            threads[i] = std::thread(&allInOneConvMaxpoolSimplex<T>, inputPtr,
-                rademPtr, chiPtr, outputPtr, seqlengthsPtr, inputArr.shape(1),
-                inputArr.shape(2), numFreqs, startRow, endRow, convWidth,
-                paddedBufferSize);
-        }
     }
 
     for (auto& th : threads)
@@ -135,17 +128,17 @@ int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu
     return 0;
 }
 template int conv1dMaxpoolFeatureGen_<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
-        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, int numThreads, bool simplex);
+        int convWidth, int numThreads);
 template int conv1dMaxpoolFeatureGen_<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
-        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, int numThreads, bool simplex);
+        int convWidth, int numThreads);
 
 
 
@@ -157,35 +150,33 @@ template int conv1dMaxpoolFeatureGen_<float>(nb::ndarray<float, nb::shape<-1,-1,
  */
 template <typename T>
 void *allInOneConvMaxpoolGen(T xdata[], int8_t *rademArray, T chiArr[],
-        double *outputArray, int32_t *seqlengths, int dim1, int dim2,
+        float *outputArray, int32_t *seqlengths, int dim1, int dim2,
         int numFreqs, int startRow, int endRow,
-        int convWidth, int paddedBufferSize){
-
-    int numKmers;
-    int32_t seqlength;
+        int convWidth, int paddedBufferSize) {
     int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
+    int rademShape2 = numRepeats * paddedBufferSize;
     //Notice that we don't have error handling here...very naughty. Out of
     //memory should be extremely rare since we are only allocating memory
     //for one row of the convolution. TODO: add error handling here.
     T *copyBuffer = new T[paddedBufferSize];
     T *xElement;
 
-    for (int i=startRow; i < endRow; i++){
-        seqlength = seqlengths[i];
-        numKmers = seqlength - convWidth + 1;
+    for (int i=startRow; i < endRow; i++) {
+        int seqlength = seqlengths[i];
+        int numKmers = seqlength - convWidth + 1;
 
-        for (int j=0; j < numKmers; j++){
+        for (int j=0; j < numKmers; j++) {
             int repeatPosition = 0;
             xElement = xdata + i * dim1 * dim2 + j * dim2;
 
-            for (int k=0; k < numRepeats; k++){
+            for (int k=0; k < numRepeats; k++) {
                 for (int m=0; m < (convWidth * dim2); m++)
                     copyBuffer[m] = xElement[m];
                 for (int m=(convWidth * dim2); m < paddedBufferSize; m++)
                     copyBuffer[m] = 0;
 
                 singleVectorSORF(copyBuffer, rademArray, repeatPosition,
-                        numFreqs, paddedBufferSize);
+                        rademShape2, paddedBufferSize);
                 singleVectorMaxpoolPostProcess(copyBuffer, chiArr, outputArray,
                         paddedBufferSize, numFreqs, i, k);
                 repeatPosition += paddedBufferSize;
@@ -198,55 +189,6 @@ void *allInOneConvMaxpoolGen(T xdata[], int8_t *rademArray, T chiArr[],
 }
 
 
-
-/*!
- * # allInOneConvMaxpoolSimplex
- *
- * Performs the maxpool-based convolution kernel feature generation
- * process for the input, for one thread, using the simplex
- * modification.
- */
-template <typename T>
-void *allInOneConvMaxpoolSimplex(T xdata[], int8_t *rademArray, T chiArr[],
-        double *outputArray, int32_t *seqlengths, int dim1, int dim2,
-        int numFreqs, int startRow, int endRow,
-        int convWidth, int paddedBufferSize){
-
-    int numKmers;
-    int32_t seqlength;
-    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
-    //Notice that we don't have error handling here...very naughty. Out of
-    //memory should be extremely rare since we are only allocating memory
-    //for one row of the convolution. TODO: add error handling here.
-    T *copyBuffer = new T[paddedBufferSize];
-    T *xElement;
-
-    for (int i=startRow; i < endRow; i++){
-        seqlength = seqlengths[i];
-        numKmers = seqlength - convWidth + 1;
-
-        for (int j=0; j < numKmers; j++){
-            int repeatPosition = 0;
-            xElement = xdata + i * dim1 * dim2 + j * dim2;
-
-            for (int k=0; k < numRepeats; k++){
-                for (int m=0; m < (convWidth * dim2); m++)
-                    copyBuffer[m] = xElement[m];
-                for (int m=(convWidth * dim2); m < paddedBufferSize; m++)
-                    copyBuffer[m] = 0;
-
-                singleVectorSORFSimplex(copyBuffer, rademArray, repeatPosition,
-                        numFreqs, paddedBufferSize);
-                singleVectorMaxpoolPostProcess(copyBuffer, chiArr, outputArray,
-                        paddedBufferSize, numFreqs, i, k);
-                repeatPosition += paddedBufferSize;
-            }
-        }
-    }
-    delete[] copyBuffer;
-
-    return NULL;
-}
 
 
 
@@ -274,15 +216,13 @@ void *allInOneConvMaxpoolSimplex(T xdata[], int8_t *rademArray, T chiArr[],
  */
 template <typename T>
 void singleVectorMaxpoolPostProcess(const T xdata[],
-        const T chiArr[], double *outputArray,
+        const T chiArr[], float *outputArray,
         int dim2, int numFreqs,
-        int rowNumber, int repeatNum){
-
+        int rowNumber, int repeatNum) {
     int outputStart = repeatNum * dim2;
-    T prodVal;
-    double *__restrict xOut;
+    float *__restrict xOut;
     const T *chiIn;
-    //NOTE: MIN is defined in the header.
+    // NOTE: MIN is defined in the header.
     int endPosition = MIN(numFreqs, (repeatNum + 1) * dim2);
     endPosition -= outputStart;
 
@@ -290,9 +230,9 @@ void singleVectorMaxpoolPostProcess(const T xdata[],
     xOut = outputArray + outputStart + rowNumber * numFreqs;
 
     #pragma omp simd
-    for (int i=0; i < endPosition; i++){
-        prodVal = xdata[i] * chiIn[i];
-        //NOTE: MAX is defined in the header.
+    for (int i=0; i < endPosition; i++) {
+        T prodVal = xdata[i] * chiIn[i];
+        // NOTE: MAX is defined in the header.
         *xOut = MAX(*xOut, prodVal);
         xOut++;
     }

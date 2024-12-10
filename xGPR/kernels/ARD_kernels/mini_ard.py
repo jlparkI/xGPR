@@ -117,9 +117,6 @@ class MiniARD(KernelBaseclass):
         self.precomputed_weights = None
         self.device = device
 
-        #This kernel does not currently accept the simplex modification.
-        self.simplex_rffs = False
-
 
 
     def check_split_points(self, xdim):
@@ -200,13 +197,13 @@ class MiniARD(KernelBaseclass):
             if not self.double_precision:
                 xtrans = xtrans.astype(np.float32)
             cpuRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                    self.num_threads, self.fit_intercept, False)
+                    self.num_threads, self.fit_intercept)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             if not self.double_precision:
                 xtrans = xtrans.astype(cp.float32)
             cudaRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                    self.fit_intercept, False)
+                    self.fit_intercept)
         return output_x
 
 
@@ -247,22 +244,6 @@ class MiniARD(KernelBaseclass):
             ident_mat *= self.radem_diag[2:3,0,init_pt:cut_pt] * norm_constant
             dFHT2d(ident_mat, self.num_threads)
 
-
-            #The simplex modification is currently disabled for this
-            #kernel. This code would apply it to gradients.
-            #scalar = np.sqrt(self.padded_dims - 1, dtype=ident_mat.dtype)
-            #sum_arr = np.zeros((ident_mat.shape[0]), dtype=ident_mat.dtype)
-            #for j in range(ident_mat.shape[1] - 1):
-            #    sum_arr += ident_mat[:,j]
-
-            #sum_arr /= scalar
-            #ident_mat[:,-1] = sum_arr
-            #scalar = ((1 + np.sqrt(self.padded_dims, dtype=ident_mat.dtype)) /
-            #    (self.padded_dims - 1)).astype(ident_mat.dtype)
-            #sum_arr *= scalar
-            #scalar = np.sqrt(self.padded_dims / (self.padded_dims - 1),
-            #    dtype=ident_mat.dtype)
-            #ident_mat[:,:-1] = ident_mat[:,:-1] * scalar - sum_arr[:,None]
 
             ident_mat *= padded_chi_arr[init_pt:cut_pt]
             precomp_weights.append(ident_mat.T[:,:self._xdim[-1]])

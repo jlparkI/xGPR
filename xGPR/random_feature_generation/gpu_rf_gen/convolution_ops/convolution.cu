@@ -16,7 +16,7 @@
 //applying 4) diagonal matmul before activation function.
 template <typename T>
 __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
-        double *outputArray, const T chiArr[], const int8_t *radem,
+        float *outputArray, const T chiArr[], const int8_t *radem,
         int paddedBufferSize, int log2N, int numFreqs, int xDim1, int xDim2,
         int nRepeats, T normConstant, int convWidth,
         const int32_t *seqlengths, int rademShape2){
@@ -119,9 +119,7 @@ __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
                 }
             }
             //Now take the results stored in the temporary array, apply the
-            //activation function, and populate the output array. Note that
-            //we multiply by 2 in the output array position since two
-            //features are generated for each frequency sampled.
+            //activation function, and populate the output array.
             tempArrPos = (blockIdx.x << log2N);
 
             for (int i = threadIdx.x; i < paddedBufferSize; i += blockDim.x){
@@ -137,181 +135,17 @@ __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
         }
     }
 }
-
-
-
-//Generates the FastConv kernel features but with the simplex modification
-//from Reid et al. 2023. This single kernel loops over 1) kmers
-//then 2) the number of repeats then inside that loop 3) the three diagonal
-//matrix multiplications and fast Hadamard transforms before
-//applying 4) simplex projection and 5) diagonal matmul before activation function.
-template <typename T>
-__global__ void convMaxpoolFeatureSimplexKernel(const T origData[], T cArray[],
-        double *outputArray, const T chiArr[], const int8_t *radem,
-        int paddedBufferSize, int log2N, int numFreqs, int xDim1, int xDim2,
-        int nRepeats, T normConstant, int convWidth,
-        const int32_t *seqlengths, int rademShape2){
-
-    int stepSize = MIN(paddedBufferSize, MAX_BASE_LEVEL_TRANSFORM);
-    int colCutoff = seqlengths[blockIdx.x] - convWidth + 1;
-
-    SharedMemory<T> shared;
-    T *s_data = shared.getPointer();
-    int spacing, pos = threadIdx.x;
-    int lo, id1, id2;
-    int tempArrPos, chiArrPos = 0, inputCutoff = xDim2 * convWidth;
-    int inputArrPos = (blockIdx.x * xDim1 * xDim2);
-    int outputArrPos = (blockIdx.x * numFreqs);
-    T y, outputVal, bufferSum, simplexProjPrefactor;
-
-    const int8_t *rademPtr = radem;
-
-    //Loop over the kmers in this stretch.
-    for (int kmer = 0; kmer < colCutoff; kmer++){
-        chiArrPos = 0;
-        outputArrPos = (blockIdx.x * numFreqs);
-        inputArrPos = (blockIdx.x * xDim1 * xDim2) + kmer * xDim2;
-
-        //Run over the number of repeats required to generate the random
-        //features.
-        for (int rep = 0; rep < nRepeats; rep++){
-            tempArrPos = (blockIdx.x << log2N);
-
-            //Copy original data into the temporary array.
-            for (int i = threadIdx.x; i < paddedBufferSize; i += blockDim.x){
-                if (i < inputCutoff)
-                    cArray[i + tempArrPos] = origData[i + inputArrPos];
-                else
-                    cArray[i + tempArrPos] = 0;
-            }
-
-            //Run over three repeats for the SORF procedure.
-            for (int sorfRep = 0; sorfRep < 3; sorfRep++){
-                rademPtr = radem + paddedBufferSize * rep + sorfRep * rademShape2;
-                tempArrPos = (blockIdx.x << log2N);
-
-                for (int hStep = 0; hStep < paddedBufferSize; hStep+=stepSize){
-                    for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
-                        s_data[i] = cArray[i + tempArrPos];
-
-                    __syncthreads();
-
-                    //Multiply by the diagonal array here.
-                    for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
-                        s_data[i] = s_data[i] * rademPtr[i] * normConstant;
-
-                    rademPtr += stepSize;
-
-                    id1 = (pos << 1);
-                    id2 = id1 + 1;
-                    __syncthreads();
-                    y = s_data[id2];
-                    s_data[id2] = s_data[id1] - y;
-                    s_data[id1] += y;
-
-                    for (spacing = 2; spacing < stepSize; spacing <<= 1){
-                        //Equivalent to pos mod spacing if spacing is a power of 2,
-                        //which here is always true.
-                        lo = pos & (spacing - 1);
-                        id1 = ((pos - lo) << 1) + lo;
-                        id2 = id1 + spacing;
-                        __syncthreads();
-                        y = s_data[id2];
-                        s_data[id2] = s_data[id1] - y;
-                        s_data[id1] += y;
-                    }
-                    __syncthreads();
-
-                    for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
-                        cArray[i + tempArrPos] = s_data[i];
-
-                    tempArrPos += stepSize;
-                    __syncthreads();
-                }
-
-                //A less efficient global memory procedure to complete the FHT
-                //for long arrays.
-                if (paddedBufferSize > MAX_BASE_LEVEL_TRANSFORM){
-                    tempArrPos = (blockIdx.x << log2N);
-
-                    for (int spacing = stepSize; spacing < paddedBufferSize; spacing <<= 1){
-
-                        for (int k = 0; k < paddedBufferSize; k += (spacing << 1)){
-                            for (int i = threadIdx.x; i < spacing; i += blockDim.x){
-                                id1 = i + k + tempArrPos;
-                                id2 = id1 + spacing;
-                                y = cArray[id2];
-                                cArray[id2] = cArray[id1] - y;
-                                cArray[id1] += y;
-                            }
-                            __syncthreads();
-                        }
-                    }
-                }
-            }
-            //Now apply the simplex projection to the temporary array. We
-            //first have to sum the elements of the temporary array and
-            //use the existing shared memory as storage to help with this.
-            s_data[threadIdx.x] = 0;
-            tempArrPos = (blockIdx.x << log2N);
-            simplexProjPrefactor = sqrt( (T)paddedBufferSize - 1.);
-
-            for (int i = threadIdx.x; i < (paddedBufferSize - 1); i += blockDim.x)
-                s_data[threadIdx.x] += cArray[i + tempArrPos];
-
-            __syncthreads();
-            for (int i = blockDim.x/2; i > 0; i >>=1){
-                if (threadIdx.x < i)
-                    s_data[threadIdx.x] += s_data[threadIdx.x + i];
-                __syncthreads();
-            }
-
-            if (threadIdx.x == 0)
-                cArray[tempArrPos + paddedBufferSize - 1] = s_data[0] / simplexProjPrefactor;
-
-            __syncthreads();
-            bufferSum = s_data[0] / simplexProjPrefactor;
-            bufferSum *= ( (sqrt( (T)paddedBufferSize) + 1) / ((T)paddedBufferSize - 1.) );
-            simplexProjPrefactor = sqrt( (T)paddedBufferSize / ((T)paddedBufferSize - 1.) );
-
-            for (int i=threadIdx.x; i < (paddedBufferSize - 1); i+=blockDim.x)
-                cArray[i + tempArrPos] = (cArray[i + tempArrPos] * simplexProjPrefactor - bufferSum);
-
-            __syncthreads();
-
-            //Now take the results stored in the temporary array, apply the
-            //activation function, and populate the output array. Note that
-            //we multiply by 2 in the output array position since two
-            //features are generated for each frequency sampled.
-            tempArrPos = (blockIdx.x << log2N);
-
-            for (int i = threadIdx.x; i < paddedBufferSize; i += blockDim.x){
-                if ((i + chiArrPos) >= numFreqs)
-                    break;
-                outputVal = chiArr[chiArrPos + i] * cArray[tempArrPos + i];
-                outputArray[outputArrPos + i] = MAX(outputArray[outputArrPos + i], outputVal);
-            }
-
-            chiArrPos += paddedBufferSize;
-            outputArrPos += paddedBufferSize;
-            __syncthreads();
-        }
-    }
-}
-
-
-
 
 
 
 //This function generates and sums random features for a Conv1d Maxpool-type kernel.
 template <typename T>
 int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
-        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, bool simplex){
+        int convWidth) {
 
     // Perform safety checks. Any exceptions thrown here are handed off to Python
     // by the Nanobind wrapper. We do not expect the user to see these because
@@ -324,7 +158,7 @@ int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda
     size_t numFreqs = chiArr.shape(0);
 
     T *inputPtr = static_cast<T*>(inputArr.data());
-    double *outputPtr = static_cast<double*>(outputArr.data());
+    float *outputPtr = static_cast<float*>(outputArr.data());
     T *chiPtr = static_cast<T*>(chiArr.data());
     int8_t *rademPtr = static_cast<int8_t*>(radem.data());
     int32_t *seqlengthsPtr = static_cast<int32_t*>(seqlengths.data());
@@ -399,16 +233,9 @@ int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda
 
     int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
 
-    if (!simplex){
-        convMaxpoolFeatureGenKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
+    convMaxpoolFeatureGenKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
             featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs,
             zDim1, zDim2, numRepeats, normConstant, convWidth, slenCudaPtr, radem.shape(2));
-    }
-    else{
-        convMaxpoolFeatureSimplexKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
-            featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs,
-            zDim1, zDim2, numRepeats, normConstant, convWidth, slenCudaPtr, radem.shape(2));
-    }
 
     cudaFree(slenCudaPtr);
     cudaFree(featureArray);
@@ -416,14 +243,14 @@ int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda
 }
 //Explicitly instantiate so wrapper can use.
 template int conv1dMaxpoolFeatureGen<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
-        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, bool simplex);
+        int convWidth);
 template int conv1dMaxpoolFeatureGen<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
-        nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
+        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
         nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, bool simplex);
+        int convWidth);

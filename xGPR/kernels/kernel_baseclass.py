@@ -44,9 +44,6 @@ class KernelBaseclass(ABC):
             Otherwise, generate as single precision.
         fit_intercept (bool): Whether to fit a y-intercept. Defaults to True but can
             be set to False by adding "intercept":False to kernel_spec_parms.
-        simplex_rffs (bool): If True, use simplex random features (Reid et al. 2023)
-            for any kernel where this is an option. If not supplied, defaults to
-            False.
     """
 
     def __init__(self, num_rffs, xdim, num_threads = 2,
@@ -78,11 +75,6 @@ class KernelBaseclass(ABC):
             ValueError: Raises a ValueError if a sine-cosine kernel is requested
                 but num_rffs is not an integer multiple of 2.
         """
-        if "simplex_rffs" in kernel_spec_parms:
-            self.simplex_rffs = kernel_spec_parms["simplex_rffs"]
-        else:
-            self.simplex_rffs = False
-
         self.double_precision = double_precision
         if num_rffs < 2:
             raise ValueError("num_rffs should always be >= 2.")

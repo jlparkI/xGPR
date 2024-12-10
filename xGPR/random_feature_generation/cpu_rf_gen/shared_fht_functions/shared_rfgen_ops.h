@@ -22,11 +22,6 @@ void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
         int cbufferDim2);
 
 template <typename T>
-void singleVectorSORFSimplex(T cbuffer[], const int8_t *rademArray,
-        int repeatPosition, int rademShape2,
-        int cbufferDim2);
-
-template <typename T>
 void singleVectorRBFPostProcess(const T xdata[],
         const T chiArr[], double *outputArray,
         int dim2, int numFreqs,

@@ -1,12 +1,11 @@
 """Magic numbers for use by model classes."""
-#The following are used by model classes.
 MAX_VARIANCE_RFFS = 4096
 MAX_CLOSED_FORM_RFFS = 8192
 
 #The following are default settings for kernels that have
 #special parameters.
 DEFAULT_KERNEL_SPEC_PARMS = {"matern_nu":5/2, "intercept":True,
-        "averaging":"none", "simplex_rffs":False}
+        "averaging":"none"}
 
 #The following is used if an error is encountered during
 #matrix decomposition.

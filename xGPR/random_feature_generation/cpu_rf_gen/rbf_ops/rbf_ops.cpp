@@ -30,15 +30,13 @@ namespace nb = nanobind;
  * + `chiArr` A numpy array of shape (numFreqs)
  * + `numThreads` The number of threads to use.
  * + `fitIntercept` If True, a y-intercept will be fitted.
- * + `simplex` If True, apply the simplex modification of Reid et al. 2023.
  */
 template <typename T>
 int rbfFeatureGen_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
-        int numThreads, bool fitIntercept, bool simplex){
-
+        int numThreads, bool fitIntercept) {
     // Perform safety checks. Any exceptions thrown here are handed off to Python
     // by the Nanobind wrapper. We do not expect the user to see these because
     // the Python code will always ensure inputs are correct -- these are a failsafe
@@ -82,27 +80,19 @@ int rbfFeatureGen_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_conti
 
     std::vector<std::thread> threads(numThreads);
     int startPosition, endPosition;
-    
+
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
-    for (int i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++) {
         startPosition = i * chunkSize;
         endPosition = (i + 1) * chunkSize;
         if (endPosition > zDim0)
             endPosition = zDim0;
-        
-        if (!simplex){
-            threads[i] = std::thread(&allInOneRBFGen<T>, inputPtr,
+
+        threads[i] = std::thread(&allInOneRBFGen<T>, inputPtr,
                 rademPtr, chiPtr, outputPtr, inputArr.shape(1), numFreqs,
                 radem.shape(2), startPosition, endPosition,
                 paddedBufferSize, rbfNormConstant);
-        }
-        else{
-            threads[i] = std::thread(&allInOneRBFSimplex<T>, inputPtr,
-                rademPtr, chiPtr, outputPtr, inputArr.shape(1), numFreqs,
-                radem.shape(2), startPosition, endPosition,
-                paddedBufferSize, rbfNormConstant);
-        }
     }
 
     for (auto& th : threads)
@@ -114,12 +104,12 @@ template int rbfFeatureGen_<double>(nb::ndarray<double, nb::shape<-1,-1>, nb::de
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
-        int numThreads, bool fitIntercept, bool simplex);
+        int numThreads, bool fitIntercept);
 template int rbfFeatureGen_<float>(nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
-        int numThreads, bool fitIntercept, bool simplex);
+        int numThreads, bool fitIntercept);
 
 
 
@@ -142,7 +132,6 @@ template int rbfFeatureGen_<float>(nb::ndarray<float, nb::shape<-1,-1>, nb::devi
  * + `sigma` The sigma hyperparameter
  * + `numThreads` The number of threads to use.
  * + `fitIntercept` If True, a y-intercept will be fitted.
- * + `simplex` If True, apply the simplex modification of Reid et al. 2023.
  */
 template <typename T>
 int rbfGrad_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
@@ -150,7 +139,7 @@ int rbfGrad_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inp
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
-        float sigma, int numThreads, bool fitIntercept, bool simplex){
+        float sigma, int numThreads, bool fitIntercept) {
     // Perform safety checks. Any exceptions thrown here are handed off to Python
     // by the Nanobind wrapper. We do not expect the user to see these because
     // the Python code will always ensure inputs are correct -- these are a failsafe
@@ -200,28 +189,18 @@ int rbfGrad_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inp
     int startPosition, endPosition;
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
-    for (int i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++) {
         startPosition = i * chunkSize;
         endPosition = (i + 1) * chunkSize;
         if (endPosition > zDim0)
             endPosition = zDim0;
 
-        if (!simplex){ 
-            threads[i] = std::thread(&allInOneRBFGrad<T>, inputPtr,
+        threads[i] = std::thread(&allInOneRBFGrad<T>, inputPtr,
                 rademPtr, chiPtr, outputPtr,
                 gradientPtr, inputArr.shape(1),
                 numFreqs, radem.shape(2), startPosition,
                 endPosition, paddedBufferSize,
                 rbfNormConstant, sigma);
-        }
-        else{
-            threads[i] = std::thread(&allInOneRBFGradSimplex<T>, inputPtr,
-                rademPtr, chiPtr, outputPtr,
-                gradientPtr, inputArr.shape(1),
-                numFreqs, radem.shape(2), startPosition,
-                endPosition, paddedBufferSize,
-                rbfNormConstant, sigma);
-        }
     }
 
     for (auto& th : threads)
@@ -234,13 +213,13 @@ template int rbfGrad_<double>(nb::ndarray<double, nb::shape<-1,-1>, nb::device::
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
-        float sigma, int numThreads, bool fitIntercept, bool simplex);
+        float sigma, int numThreads, bool fitIntercept);
 template int rbfGrad_<float>(nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
-        float sigma, int numThreads, bool fitIntercept, bool simplex);
+        float sigma, int numThreads, bool fitIntercept);
 
 
 
@@ -255,8 +234,7 @@ template <typename T>
 void *allInOneRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
         double *outputArray, int dim1, int numFreqs, int rademShape2,
         int startRow, int endRow, int paddedBufferSize,
-        double scalingTerm){
-
+        double scalingTerm) {
     int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
     //Notice that we don't have error handling here...very naughty. Out of
     //memory should be extremely rare since we are only allocating memory
@@ -264,12 +242,12 @@ void *allInOneRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
     T *copyBuffer = new T[paddedBufferSize];
     T *xElement;
 
-    for (int i=startRow; i < endRow; i++){
+    for (int i=startRow; i < endRow; i++) {
 
         int repeatPosition = 0;
         xElement = xdata + i * dim1;
 
-        for (int k=0; k < numRepeats; k++){
+        for (int k=0; k < numRepeats; k++) {
             for (int m=0; m < dim1; m++)
                 copyBuffer[m] = xElement[m];
             for (int m=dim1; m < paddedBufferSize; m++)
@@ -287,49 +265,6 @@ void *allInOneRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
     return NULL;
 }
 
-
-/*!
- * # allInOneRBFSimplex
- *
- * Performs the RBF-based kernel feature generation
- * process for the input, for one thread, but with the
- * simplex modification of Reid et al. 2023.
- */
-template <typename T>
-void *allInOneRBFSimplex(T xdata[], int8_t *rademArray, T chiArr[],
-        double *outputArray, int dim1, int numFreqs, int rademShape2,
-        int startRow, int endRow, int paddedBufferSize,
-        double scalingTerm){
-
-    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
-    //Notice that we don't have error handling here...very naughty. Out of
-    //memory should be extremely rare since we are only allocating memory
-    //for one row of the convolution. TODO: add error handling here.
-    T *copyBuffer = new T[paddedBufferSize];
-    T *xElement;
-
-    for (int i=startRow; i < endRow; i++){
-
-        int repeatPosition = 0;
-        xElement = xdata + i * dim1;
-
-        for (int k=0; k < numRepeats; k++){
-            for (int m=0; m < dim1; m++)
-                copyBuffer[m] = xElement[m];
-            for (int m=dim1; m < paddedBufferSize; m++)
-                copyBuffer[m] = 0;
-
-            singleVectorSORFSimplex(copyBuffer, rademArray, repeatPosition,
-                        rademShape2, paddedBufferSize);
-            singleVectorRBFPostProcess(copyBuffer, chiArr, outputArray,
-                        paddedBufferSize, numFreqs, i, k, scalingTerm);
-            repeatPosition += paddedBufferSize;
-        }
-    }
-    delete[] copyBuffer;
-
-    return NULL;
-}
 
 
 
@@ -346,8 +281,7 @@ void *allInOneRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
         double *outputArray, double *gradientArray,
         int dim1, int numFreqs, int rademShape2, int startRow,
         int endRow, int paddedBufferSize,
-        double scalingTerm, T sigma){
-
+        double scalingTerm, T sigma) {
     int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
     //Notice that we don't have error handling here...very naughty. Out of
     //memory should be extremely rare since we are only allocating memory
@@ -355,11 +289,11 @@ void *allInOneRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
     T *copyBuffer = new T[paddedBufferSize];
     T *xElement;
 
-    for (int i=startRow; i < endRow; i++){
+    for (int i=startRow; i < endRow; i++) {
         int repeatPosition = 0;
         xElement = xdata + i * dim1;
 
-        for (int k=0; k < numRepeats; k++){
+        for (int k=0; k < numRepeats; k++) {
             for (int m=0; m < dim1; m++)
                 copyBuffer[m] = xElement[m];
             for (int m=dim1; m < paddedBufferSize; m++)
@@ -377,50 +311,3 @@ void *allInOneRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
 
     return NULL;
 }
-
-
-/*!
- * # allInOneRBFGradSimplex
- *
- * Performs the RBF-based kernel feature generation
- * process for the input, for one thread, and calculates the
- * gradient, which is stored in a separate array. This function
- * uses the simplex modification of Reid et al. 2023.
- */
-template <typename T>
-void *allInOneRBFGradSimplex(T xdata[], int8_t *rademArray, T chiArr[],
-        double *outputArray, double *gradientArray,
-        int dim1, int numFreqs, int rademShape2, int startRow,
-        int endRow, int paddedBufferSize,
-        double scalingTerm, T sigma){
-
-    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
-    //Notice that we don't have error handling here...very naughty. Out of
-    //memory should be extremely rare since we are only allocating memory
-    //for one row of the convolution. TODO: add error handling here.
-    T *copyBuffer = new T[paddedBufferSize];
-    T *xElement;
-
-    for (int i=startRow; i < endRow; i++){
-        int repeatPosition = 0;
-        xElement = xdata + i * dim1;
-
-        for (int k=0; k < numRepeats; k++){
-            for (int m=0; m < dim1; m++)
-                copyBuffer[m] = xElement[m];
-            for (int m=dim1; m < paddedBufferSize; m++)
-                copyBuffer[m] = 0;
-
-            singleVectorSORFSimplex(copyBuffer, rademArray, repeatPosition,
-                        rademShape2, paddedBufferSize);
-            singleVectorRBFPostGrad(copyBuffer, chiArr, outputArray,
-                        gradientArray, sigma, paddedBufferSize, numFreqs,
-                        i, k, scalingTerm);
-            repeatPosition += paddedBufferSize;
-        }
-    }
-    delete[] copyBuffer;
-
-    return NULL;
-}
-

@@ -1,8 +1,7 @@
 """Tests the auxiliary tools (kernel pca, rf gen for kernel kmeans)
 for obvious failures. This doesn't do any performance tests since
 both are just wrappers on functionality used elsewhere; it
-just ensures that they are functional. (If we do implement
-k-means, add performance tests for k-means here)."""
+just ensures that they are functional."""
 import sys
 import unittest
 
