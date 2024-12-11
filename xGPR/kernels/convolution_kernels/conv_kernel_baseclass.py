@@ -28,21 +28,10 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
         conv_width (int): The width of the convolution kernel.
             This hyperparameter can be set based on experimentation
             or domain knowledge.
-        dim2_no_padding (int): The size of the expected input data
-            once reshaped for convolution, before zero padding.
-        padded_dims (int): The size of the expected input data
-            once reshaped for convolution, after zero-padding to
-            be a power of 2.
-        init_calc_featsize (int): The number of features generated initially
-            (before discarding excess).
         radem_diag: The diagonal matrices for the SORF transform. Type is int8.
         chi_arr: A diagonal array whose elements are drawn from the chi
             distribution. Ensures the marginals of the matrix resulting
             from S H D1 H D2 H D3 are correct.
-        conv_func: A reference to the random feature generation function
-            appropriate for the current device.
-        grad_func: A reference to the random feature generation & gradient
-            calculation function appropriate for the current device.
         sequence_average (bool): If True, the features are averaged over the sequence
             when summing. Can be set to True by passing "averaging":True under
             kernel_spec_parms, otherwise defaults to False. This is useful if
@@ -80,7 +69,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
                 sine_cosine_kernel = True, double_precision = double_precision,
                 kernel_spec_parms = kernel_spec_parms)
         if len(xdim) != 3:
-            raise RuntimeError("Tried to initialize the Conv1d kernel with a 2d x-"
+            raise RuntimeError("Tried to initialize a Conv1d kernel with a 2d x-"
                     "array! x should be a 3d array for Conv1d.")
 
         self.scaling_type = 0
@@ -98,17 +87,15 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
         rng = np.random.default_rng(random_seed)
         self.conv_width = conv_width
 
-        self.dim2_no_padding = self.conv_width * xdim[2]
-        self.padded_dims = 2**ceil(np.log2(max(self.dim2_no_padding, 2)))
-        init_calc_freqsize = ceil(self.num_freqs / self.padded_dims) * \
-                        self.padded_dims
-
-        self.init_calc_featsize = 2 * init_calc_freqsize
+        dim2_no_padding = self.conv_width * xdim[2]
+        padded_dims = 2**ceil(np.log2(max(dim2_no_padding, 2)))
+        init_calc_freqsize = ceil(self.num_freqs / padded_dims) * \
+                        padded_dims
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
         self.radem_diag = rng.choice(radem_array, size=(3, 1, init_calc_freqsize),
                                 replace=True)
-        self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
+        self.chi_arr = chi.rvs(df=padded_dims, size=self.num_freqs,
                             random_state = random_seed)
         if not self.double_precision:
             self.chi_arr = self.chi_arr.astype(np.float32)
@@ -118,11 +105,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
 
     def kernel_specific_set_device(self, new_device):
         """Called by parent class when device is changed. Moves
-        some of the object parameters to the appropriate device
-        and updates self.conv_func, self.stride_tricks and
-        self.grad_func, which are convenience references
-        to the numpy / cupy versions of functions required
-        for generating features."""
+        some of the object parameters to the appropriate device."""
         if new_device == "cuda":
             self.radem_diag = cp.asarray(self.radem_diag)
             self.chi_arr = cp.asarray(self.chi_arr)
@@ -158,12 +141,11 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
             xtrans = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
             cpuConv1dFGen(input_x, xtrans, self.radem_diag, self.chi_arr,
                     sequence_length, self.conv_width, self.scaling_type,
-                    self.num_threads, self.simplex_rffs)
+                    self.num_threads)
         else:
             xtrans = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             cudaConv1dFGen(input_x, xtrans, self.radem_diag, self.chi_arr,
-                    sequence_length, self.conv_width, self.scaling_type,
-                    self.simplex_rffs)
+                    sequence_length, self.conv_width, self.scaling_type)
 
         return xtrans
 
@@ -201,13 +183,12 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
             cpuConvGrad(input_x, xtrans, self.radem_diag, self.chi_arr,
                     sequence_length, dz_dsigma, self.hyperparams[1],
                     self.conv_width, self.scaling_type,
-                    self.num_threads, self.simplex_rffs)
+                    self.num_threads)
         else:
             xtrans = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             dz_dsigma = cp.zeros((input_x.shape[0], self.num_rffs, 1), cp.float64)
             cudaConvGrad(input_x, xtrans, self.radem_diag, self.chi_arr,
                     sequence_length, dz_dsigma, self.hyperparams[1],
-                    self.conv_width, self.scaling_type,
-                    self.simplex_rffs)
+                    self.conv_width, self.scaling_type)
 
         return xtrans, dz_dsigma

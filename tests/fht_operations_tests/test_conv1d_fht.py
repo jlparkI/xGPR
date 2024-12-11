@@ -124,7 +124,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                             seqlen, precision, normalization)
     xd = xdata * sigma
     cpuConv1dFGen(xd, features, radem, s_mat,
-            seqlen, kernel_width, normalization, 2, False)
+            seqlen, kernel_width, normalization, 2)
 
     outcome = check_results(true_features, features, precision)
     if normalization != 0:
@@ -142,7 +142,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     s_mat = cp.asarray(s_mat)
     radem = cp.asarray(radem)
     cudaConv1dFGen(xd, features, radem, s_mat,
-            seqlen, kernel_width, normalization, False)
+            seqlen, kernel_width, normalization)
 
     features = cp.asnumpy(features)
     outcome_cuda = check_results(true_features, features, precision)
@@ -170,7 +170,7 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     gradient = np.zeros((features.shape[0], features.shape[1], 1))
     cpuConvGrad(xdata, features, radem, s_mat,
             seqlen, gradient, sigma, kernel_width,
-            0, 2, False)
+            0, 2)
     gradient = gradient[:,:(2*num_freqs),0]
 
     outcome = check_results(true_features, features[:,:(2 * num_freqs)], precision)
@@ -192,8 +192,7 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
     radem = cp.asarray(radem)
 
     cudaConvGrad(xdata, features, radem, s_mat,
-            seqlen, gradient, sigma, kernel_width,
-            0, False)
+            seqlen, gradient, sigma, kernel_width, 0)
     features = cp.asnumpy(features[:,:(2*num_freqs)])
     gradient = cp.asnumpy(gradient[:,:(2*num_freqs),0])
 

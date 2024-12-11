@@ -24,10 +24,9 @@ The ``x`` array(s) can be either 2d for tabular data or 3d for sequences
 and graphs. If they are 2d, they should have shape (N, M) for N datapoints
 and M features. If they are 3d, they should have shape (N, D, M) for N
 datapoints, D sequence elements / timepoints / nodes and M features.
-If they are arrays saved on disk, they don't have to be float64 -- you can
-save the data as float32 or even uint8, and xGPR will convert it to
-float32 when loading (this can often save considerable disk space
-and also make model fitting faster).
+If they are arrays saved on disk, you can save the data as float32 or
+even uint8, and xGPR will convert it to float32 when loading (this can
+often save considerable disk space and also make model fitting faster).
 
 If your data is 3d (i.e. sequences or graphs), you have to also supply
 ``sequence_lengths``. If ``x`` is an array with ``shape[0]=N``,
@@ -91,7 +90,7 @@ Let's create two models using RBF kernels and fit them:::
 
   #We can fit using "exact" mode or "cg" mode. "cg" mode is much faster
   #if num_rffs is very large. "exact" is much faster if "num_rffs" is small,
-  #e.g. < 5000. We'll use both here just for illustrative purposes.
+  #e.g. < 3000. We'll use both here just for illustrative purposes.
   #tol controls how tight the fit is; 1e-6 (the default) is usually fine;
   #1e-7 (tighter fit) will improve performance slightly, especially if
   #data is close to noise-free, but is not usually necessary; 1e-8 is
@@ -101,7 +100,11 @@ Let's create two models using RBF kernels and fit them:::
 
   #To make predictions, just feed in a numpy array.
   #If we want to switch over to CPU for inference now that the model
-  #is fitted, we can do that too. For regression, predictions are just
+  #is fitted, we can do that too, e.g.:
+
+  model.device = "cpu"
+
+  #For regression, predictions are just
   #a numpy array of predicted y-values. chunk_size controls
   #how many datapoints xGPR processes at a time in the input array; larger
   #slightly increases speed but increases memory usage. If you're worried

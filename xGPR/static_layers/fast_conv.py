@@ -37,8 +37,7 @@ class FastConv1d:
     """
 
     def __init__(self, seq_width:int, device:str = "cpu", random_seed:int = 123,
-            conv_width:int = 9, num_features:int = 512,
-            simplex_rffs:bool = False):
+            conv_width:int = 9, num_features:int = 512):
         """Constructor for the FastConv1d class.
 
         Args:
@@ -52,8 +51,6 @@ class FastConv1d:
             num_features (int): The number of random features to generate.
                 More = improved performance but slower feature extraction
                 and slower model training.
-            simplex_rffs (bool): If True, use the simplex rffs modification
-                from Reid et al. 2023 (an experimental feature).
 
         Raises:
             ValueError: If an unrecognized kernel type or other invalid
@@ -64,7 +61,7 @@ class FastConv1d:
 
         self.conv_kernel = FHTMaxpoolConv1dFeatureExtractor(seq_width,
                             self.num_features, random_seed, device = device,
-                            conv_width = conv_width, simplex_rffs = simplex_rffs)
+                            conv_width = conv_width)
         self.device = device
 
 
@@ -109,7 +106,7 @@ class FastConv1d:
                     sequence_lengths[i:cutoff])
 
             if self.device == "cuda":
-                xtrans = cp.asnumpy(xtrans).astype(np.float64)
+                xtrans = cp.asnumpy(xtrans)
 
             x_features.append(xtrans)
 

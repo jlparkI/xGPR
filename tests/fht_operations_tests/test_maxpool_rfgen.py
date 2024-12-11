@@ -20,14 +20,14 @@ class TestMaxpoolFeatureGen(unittest.TestCase):
     def test_conv1d_maxpool(self):
         """Tests the C / Cuda FHT-based convolution with global max pooling
         functions."""
-        kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 128
-        sigma, ndatapoints = 1, 124
+        kernel_width, num_aas, aa_dim, num_freqs = 9, 23, 21, 130
+        sigma, ndatapoints = 1, 120
         outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, mode = "maxpool")
         for outcome in outcomes:
             self.assertTrue(outcome)
 
-        kernel_width, num_aas, aa_dim, num_freqs = 15, 23, 1060, 8192
+        kernel_width, num_aas, aa_dim, num_freqs = 15, 23, 1060, 8194
         sigma, ndatapoints = 1, 5
         outcomes = run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                     num_freqs, sigma, mode = "maxpool")
@@ -71,10 +71,11 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
                             radem, s_mat, num_freqs, num_blocks,
                             seqlen, precision)
 
+    features = features.astype(np.float32)
     cpuConv1dMaxpool(xdata, features, radem, s_mat, seqlen,
-                kernel_width, 2, False)
+                kernel_width, 2)
 
-    outcome = check_results(true_features, features[:,:num_freqs], precision)
+    outcome = check_results(true_features, features, precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
         f"sigma: {sigma}, mode: {mode}, precision {precision}\n"
@@ -90,9 +91,8 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
     radem = cp.asarray(radem)
 
     cudaConv1dMaxpool(xdata, features, radem, s_mat, seqlen,
-                kernel_width, False)
-
-    outcome_cuda = check_results(true_features, features[:,:num_freqs], precision)
+                kernel_width)
+    outcome_cuda = check_results(true_features, features, precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "
         f"aa_dim: {aa_dim}, num_aas: {num_aas}, num_freqs: {num_freqs}, "
         f"sigma: {sigma}, mode: {mode}, precision {precision}\n"

@@ -1,8 +1,9 @@
 Feature extractors for sequences and graphs
 ---------------------------------------------
 
-Some kernels in xGPR are implemented as feature extractors or ``static_layers``.
-A ``static_layer`` is a feature extractor applied to the input data that
+The ``Conv1dTwoLayer`` kernel in xGPR can also be set up as a feature
+extractor or "static layer". A ``static_layer`` is a feature extractor
+applied to the input data that
 converts it to a form that an xGPR model with a ``Linear``, ``RBF`` or
 ``Matern`` kernel can use as input. These are called 
 ``static_layers`` because they do not contain any tunable 
@@ -34,14 +35,19 @@ random filter in the sequence of interest and thereby creates a
 "sequence profile". In the second and third layer, an ``RBF``
 (or potentially other kernels, although we've only really used
 ``RBF``) kernel compares the sequence profile of training datapoints.
-The convolutions are performed just once and thus ``FastConv1d`` is often
-faster for hyperparameter tuning (hence the name) than ``Conv1dRBF``.
-(It can be slower for inference however since it incorporates an extra step.)
 
 If using these kernels, choose an ``RBF`` kernel when initializing
 the xGPRegression model (for ``FastConv1d``). (You *could* also use
 Linear or Matern or some other in principle, but we've never found that to be
 terribly useful.)
+
+Using the output of a ``FastConv1d`` feature extractor as input to an RBF
+kernel is equivalent to using the ``Conv1dTwoLayer`` kernel. Why would you
+prefer the static layer? There are some situations where it can be more
+convenient. For example, if you are supplying pairs of sequences as input,
+or if the sequence for each datapoint has some associated non-sequence
+features, you could concatenate those to the output of the ``FastConv1d``
+feature extractor.
 
 For each feature extractor, you can supply additional arguments to control
 what kind of features it generates. More details are below.

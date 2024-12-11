@@ -27,24 +27,10 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
     additional attributes unique to this class are described here.
 
     Attributes:
-        nblocks (int): The SORF transform is performed in blocks
-            that result from H D1 H D2 H D3, where H is the
-            normalized Hadamard matrix and D1, D2, D3 are diagonal
-            matrices whose elements are drawn from a Rademacher
-            distribution. nblocks is the number of such operations
-            required given the input size and number of random
-            features requested.
-        padded_dims (int): The next largest power of two greater than
-            xdim[-1], since the Hadamard transform only operates on
-            vectors whose length is a power of two.
         radem_diag: The diagonal matrices for the SORF transform. Type is int8.
         chi_arr: A diagonal array whose elements are drawn from the chi
             distribution. Ensures the marginals of the matrix resulting
             from S H D1 H D2 H D3 are correct.
-        feature_gen: A reference to the wrapped C function that generates
-            features.
-        gradfun: A reference to the wrapped C function that calculates
-            gradients.
     """
 
     def __init__(self, num_rffs, xdim, num_threads = 2,
@@ -85,17 +71,17 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             raise ValueError("The dimensionality of the input is inappropriate for "
                         "the kernel you have selected.")
 
-        self.padded_dims = 2**ceil(np.log2(max(xdim[-1], 2)))
+        padded_dims = 2**ceil(np.log2(max(xdim[-1], 2)))
 
         radem_array = np.asarray([-1,1], dtype=np.int8)
         rng = np.random.default_rng(random_seed)
-        if self.padded_dims < self.num_freqs:
-            self.nblocks = ceil(self.num_freqs / self.padded_dims)
+        if padded_dims < self.num_freqs:
+            nblocks = ceil(self.num_freqs / padded_dims)
         else:
-            self.nblocks = 1
+            nblocks = 1
         self.radem_diag = rng.choice(radem_array, size=(3, 1,
-                self.nblocks * self.padded_dims), replace=True)
-        self.chi_arr = chi.rvs(df=self.padded_dims, size=self.num_freqs,
+                nblocks * padded_dims), replace=True)
+        self.chi_arr = chi.rvs(df=padded_dims, size=self.num_freqs,
                             random_state = random_seed)
         if not self.double_precision:
             self.chi_arr = self.chi_arr.astype(np.float32)
@@ -135,11 +121,11 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         if self.device == "cpu":
             output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
             cpuRBFFeatureGen(input_x, output_x, self.radem_diag, self.chi_arr,
-                self.num_threads, self.fit_intercept, self.simplex_rffs)
+                self.num_threads, self.fit_intercept)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             cudaRBFFeatureGen(input_x, output_x, self.radem_diag, self.chi_arr,
-                self.fit_intercept, self.simplex_rffs)
+                self.fit_intercept)
         return output_x
 
 
@@ -170,10 +156,10 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
             dz_dsigma = np.zeros((input_x.shape[0], self.num_rffs, 1), np.float64)
             cpuRBFGrad(input_x, output_x, dz_dsigma, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads, self.fit_intercept, self.simplex_rffs)
+                self.hyperparams[1], self.num_threads, self.fit_intercept)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             dz_dsigma = cp.zeros((input_x.shape[0], self.num_rffs, 1), cp.float64)
             cudaRBFGrad(input_x, output_x, dz_dsigma, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.fit_intercept, self.simplex_rffs)
+                self.hyperparams[1], self.fit_intercept)
         return output_x, dz_dsigma

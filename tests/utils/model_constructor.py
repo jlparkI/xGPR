@@ -23,7 +23,8 @@ def get_models(kernel_choice, dataset, conv_width = 3, num_rffs = 512,
             kernel_settings = {"matern_nu":5/2,
                             "conv_width":conv_width, "polydegree":2,
                             "split_points":split_pts, "order":2,
-                            "intercept":True, "averaging":averaging})
+                            "intercept":True, "averaging":averaging,
+                            "init_rffs":514})
     if "cupy" not in sys.modules:
         print("Cupy not installed -- skipping the CUDA test.")
         gpu_mod = None

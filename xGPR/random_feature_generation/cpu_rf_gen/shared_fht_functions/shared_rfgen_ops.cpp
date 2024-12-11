@@ -9,7 +9,6 @@
 #include <cstring>
 #include "shared_rfgen_ops.h"
 #include "hadamard_transforms.h"
-#include "simplex_rff_projections.h"
 
 
 /*!
@@ -187,65 +186,6 @@ template void singleVectorSORF<double>(double cbuffer[], const int8_t *rademArra
         int repeatPosition, int rademShape2,
         int cbufferDim2);
 template void singleVectorSORF<float>(float cbuffer[], const int8_t *rademArray,
-        int repeatPosition, int rademShape2,
-        int cbufferDim2);
-
-
-
-/*!
- * # singleVectorSORFSimplex
- *
- * Performs all the steps involved in the SORF convolution
- * operation on a 1d array, WITH the simplex modification
- * of Reid et al. 2023.
- *
- * ## Args:
- *
- * + `cbuffer` Pointer to the first element of the 1d array. Size must
- * be a power of 2.
- * + `rademArray` Pointer to the first element of the diagonal rademacher
- * array (size (3,1,F) where F is a multiple of C).
- * + `repeatPosition` A multiple of C that indicates how far along dim2 of
- * rademArray to start.
- * + `rademShape2` dim2 of radem (i.e. F from above).
- * + `cbufferDim2` The size of cbuffer. Must be a power of 2.
- */
-template <typename T>
-void singleVectorSORFSimplex(T cbuffer[], const int8_t *rademArray,
-        int repeatPosition, int rademShape2,
-        int cbufferDim2){
-    T normConstant = log2(cbufferDim2) / 2;
-    normConstant = 1 / pow(2, normConstant);
-    const int8_t *rademElement = rademArray + repeatPosition;
-
-    #pragma omp simd
-    for (int i = 0; i < cbufferDim2; i++)
-        cbuffer[i] *= rademElement[i] * normConstant;
-
-    rademElement += rademShape2;
-    singleVectorTransform<T>(cbuffer, cbufferDim2);
-
-    #pragma omp simd
-    for (int i = 0; i < cbufferDim2; i++)
-        cbuffer[i] *= rademElement[i] * normConstant;
-
-    rademElement += rademShape2;
-    singleVectorTransform<T>(cbuffer, cbufferDim2);
-
-
-    #pragma omp simd
-    for (int i = 0; i < cbufferDim2; i++)
-        cbuffer[i] *= rademElement[i] * normConstant;
-
-    singleVectorTransform<T>(cbuffer, cbufferDim2);
-
-    singleVectorSimplexProj(cbuffer, cbufferDim2);
-}
-//Explicitly instantiate for external use.
-template void singleVectorSORFSimplex<double>(double cbuffer[], const int8_t *rademArray,
-        int repeatPosition, int rademShape2,
-        int cbufferDim2);
-template void singleVectorSORFSimplex<float>(float cbuffer[], const int8_t *rademArray,
         int repeatPosition, int rademShape2,
         int cbufferDim2);
 

@@ -10,6 +10,7 @@ from .basic_kernels.rbf_linear import RBFLinear
 from .convolution_kernels.conv1d_rbf import Conv1dRBF
 from .convolution_kernels.conv1d_matern import Conv1dMatern
 from .convolution_kernels.conv1d_cauchy import Conv1dCauchy
+from .convolution_kernels.l2_conv1d import Conv1dTwoLayer
 
 from .convolution_kernels.graph_rbf import GraphRBF
 from .convolution_kernels.graph_matern import GraphMatern
@@ -24,6 +25,7 @@ KERNEL_NAME_TO_CLASS = {"RBF":RBF,
         "Conv1dRBF":Conv1dRBF,
         "Conv1dMatern":Conv1dMatern,
         "Conv1dCauchy":Conv1dCauchy,
+        "Conv1dTwoLayer":Conv1dTwoLayer,
         "GraphRBF":GraphRBF,
         "GraphMatern":GraphMatern,
         "GraphCauchy":GraphCauchy,
@@ -35,4 +37,5 @@ KERNEL_NAME_TO_CLASS = {"RBF":RBF,
 # is used by kernel_fgen for generating random features
 # outside of a regressor / classifier.
 ARR_3D_KERNELS = {"GraphRBF", "Conv1dRBF", "Conv1dMatern",
-        "GraphMatern", "GraphCauchy", "Conv1dCauchy"}
+        "GraphMatern", "GraphCauchy", "Conv1dCauchy",
+        "Conv1dTwoLayer"}

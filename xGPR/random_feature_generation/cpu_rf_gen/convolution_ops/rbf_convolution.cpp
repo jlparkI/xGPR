@@ -34,7 +34,6 @@
  * + `scalingType` One of 0, 1 or 2; indicates the type of scaling. These
  * are defined in the header.
  * + `numThreads` The number of threads to use.
- * + `simplex` Whether to use the Reid et al. 2023 modification.
  */
 template <typename T>
 int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
@@ -42,7 +41,7 @@ int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::
         nb::ndarray<int8_t, nb::shape<3,1,-1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, int scalingType, int numThreads, bool simplex){
+        int convWidth, int scalingType, int numThreads) {
 
     // Perform safety checks. Any exceptions thrown here are handed off to Python
     // by the Nanobind wrapper. We do not expect the user to see these because
@@ -82,14 +81,14 @@ int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::
 
 
     int32_t minSeqLength = 2147483647, maxSeqLength = 0;
-    for (size_t i=0; i < seqlengths.shape(0); i++){
+    for (size_t i=0; i < seqlengths.shape(0); i++) {
         if (seqlengths(i) > maxSeqLength)
             maxSeqLength = seqlengths(i);
         if (seqlengths(i) < minSeqLength)
             minSeqLength = seqlengths(i);
     }
 
-    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth){
+    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth) {
         throw std::runtime_error("All sequence lengths must be >= conv width and < "
                 "array size.");
     }
@@ -103,26 +102,17 @@ int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::
     int startRow, endRow;
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
     
-    for (int i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++) {
         startRow = i * chunkSize;
         endRow = (i + 1) * chunkSize;
         if (endRow > zDim0)
             endRow = zDim0;
 
-        if (!simplex){
-            threads[i] = std::thread(&allInOneConvRBFGen<T>, inputPtr,
+        threads[i] = std::thread(&allInOneConvRBFGen<T>, inputPtr,
                 rademPtr, chiPtr, outputPtr,
                 seqlengthsPtr, inputArr.shape(1), inputArr.shape(2),
                 numFreqs, radem.shape(2), startRow, endRow, convWidth,
                 paddedBufferSize, scalingTerm, scalingType);
-        }
-        else{
-            threads[i] = std::thread(&allInOneConvRBFSimplex<T>, inputPtr,
-                rademPtr, chiPtr, outputPtr,
-                seqlengthsPtr, inputArr.shape(1), inputArr.shape(2),
-                numFreqs, radem.shape(2), startRow, endRow, convWidth,
-                paddedBufferSize, scalingTerm, scalingType);
-        }
     }
 
     for (auto& th : threads)
@@ -136,13 +126,13 @@ template int convRBFFeatureGen_<double>(nb::ndarray<double, nb::shape<-1,-1,-1>,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, int scalingType, int numThreads, bool simplex);
+        int convWidth, int scalingType, int numThreads);
 template int convRBFFeatureGen_<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, int scalingType, int numThreads, bool simplex);
+        int convWidth, int scalingType, int numThreads);
 
 
 
@@ -170,7 +160,6 @@ template int convRBFFeatureGen_<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, n
  * + `scalingType` One of 0, 1 or 2; indicates the type of scaling. These
  * are defined in the header.
  * + `numThreads` The number of threads to use.
- * + `simplex` Whether to use the Reid et al. 2023 modification.
  */
 template <typename T>
 int convRBFGrad_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
@@ -179,7 +168,7 @@ int convRBFGrad_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_cont
         nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
-        double sigma, int convWidth, int scalingType, int numThreads, bool simplex){
+        double sigma, int convWidth, int scalingType, int numThreads) {
 
     // Perform safety checks. Any exceptions thrown here are handed off to Python
     // by the Nanobind wrapper. We do not expect the user to see these because
@@ -223,14 +212,14 @@ int convRBFGrad_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_cont
 
 
     int32_t minSeqLength = 2147483647, maxSeqLength = 0;
-    for (size_t i=0; i < seqlengths.shape(0); i++){
+    for (size_t i=0; i < seqlengths.shape(0); i++) {
         if (seqlengths(i) > maxSeqLength)
             maxSeqLength = seqlengths(i);
         if (seqlengths(i) < minSeqLength)
             minSeqLength = seqlengths(i);
     }
 
-    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth){
+    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth) {
         throw std::runtime_error("All sequence lengths must be >= conv width and < "
                 "array size.");
     }
@@ -244,28 +233,18 @@ int convRBFGrad_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_cont
     int startRow, endRow;
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
     
-    for (int i=0; i < numThreads; i++){
+    for (int i=0; i < numThreads; i++) {
         startRow = i * chunkSize;
         endRow = (i + 1) * chunkSize;
         if (endRow > zDim0)
             endRow = zDim0;
 
-        if (!simplex){
-            threads[i] = std::thread(&allInOneConvRBFGrad<T>, inputPtr,
+        threads[i] = std::thread(&allInOneConvRBFGrad<T>, inputPtr,
                 rademPtr, chiPtr, outputPtr, seqlengthsPtr, gradientPtr,
                 inputArr.shape(1), inputArr.shape(2),
                 numFreqs, radem.shape(2), startRow,
                 endRow, convWidth, paddedBufferSize,
                 scalingTerm, scalingType, sigma);
-        }
-        else{
-            threads[i] = std::thread(&allInOneConvRBFGradSimplex<T>, inputPtr,
-                rademPtr, chiPtr, outputPtr, seqlengthsPtr, gradientPtr,
-                inputArr.shape(1), inputArr.shape(2),
-                numFreqs, radem.shape(2), startRow,
-                endRow, convWidth, paddedBufferSize,
-                scalingTerm, scalingType, sigma);
-        }
 
     }
 
@@ -281,14 +260,14 @@ template int convRBFGrad_<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, nb::d
         nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
-        double sigma, int convWidth, int scalingType, int numThreads, bool simplex);
+        double sigma, int convWidth, int scalingType, int numThreads);
 template int convRBFGrad_<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
-        double sigma, int convWidth, int scalingType, int numThreads, bool simplex);
+        double sigma, int convWidth, int scalingType, int numThreads);
 
 
 
@@ -304,7 +283,7 @@ void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
         double *outputArray, int32_t *seqlengths, int dim1, int dim2,
         int numFreqs, int rademShape2, int startRow, int endRow,
         int convWidth, int paddedBufferSize,
-        double scalingTerm, int scalingType){
+        double scalingTerm, int scalingType) {
 
     int numKmers;
     int32_t seqlength;
@@ -316,10 +295,10 @@ void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
     T *copyBuffer = new T[paddedBufferSize];
     T *xElement;
 
-    for (int i=startRow; i < endRow; i++){
+    for (int i=startRow; i < endRow; i++) {
         seqlength = seqlengths[i];
         numKmers = seqlength - convWidth + 1;
-        switch (scalingType){
+        switch (scalingType) {
             case SQRT_CONVOLUTION_SCALING:
                 rowScaler = scalingTerm / std::sqrt( (double)numKmers);
                 break;
@@ -331,11 +310,11 @@ void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
               break; 
         }
 
-        for (int j=0; j < numKmers; j++){
+        for (int j=0; j < numKmers; j++) {
             int repeatPosition = 0;
             xElement = xdata + i * dim1 * dim2 + j * dim2;
 
-            for (int k=0; k < numRepeats; k++){
+            for (int k=0; k < numRepeats; k++) {
                 for (int m=0; m < (convWidth * dim2); m++)
                     copyBuffer[m] = xElement[m];
                 for (int m=(convWidth * dim2); m < paddedBufferSize; m++)
@@ -356,67 +335,6 @@ void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
 }
 
 
-/*!
- * # allInOneConvRBFSimplex
- *
- * Performs the RBF-based convolution kernel feature generation
- * process for the input, for one thread, using the simplex
- * modification (Reid et al. 2023)
- */
-template <typename T>
-void *allInOneConvRBFSimplex(T xdata[], int8_t *rademArray, T chiArr[],
-        double *outputArray, int32_t *seqlengths, int dim1, int dim2,
-        int numFreqs, int rademShape2, int startRow, int endRow,
-        int convWidth, int paddedBufferSize,
-        double scalingTerm, int scalingType){
-
-    int numKmers;
-    int32_t seqlength;
-    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
-    double rowScaler;
-    //Notice that we don't have error handling here...very naughty. Out of
-    //memory should be extremely rare since we are only allocating memory
-    //for one row of the convolution. TODO: add error handling here.
-    T *copyBuffer = new T[paddedBufferSize];
-    T *xElement;
-
-    for (int i=startRow; i < endRow; i++){
-        seqlength = seqlengths[i];
-        numKmers = seqlength - convWidth + 1;
-        switch (scalingType){
-            case SQRT_CONVOLUTION_SCALING:
-                rowScaler = scalingTerm / std::sqrt( (double)numKmers);
-                break;
-            case FULL_CONVOLUTION_SCALING:
-                rowScaler = scalingTerm / (double)numKmers;
-                break;
-            default:
-                rowScaler = scalingTerm;
-              break; 
-        }
-
-        for (int j=0; j < numKmers; j++){
-            int repeatPosition = 0;
-            xElement = xdata + i * dim1 * dim2 + j * dim2;
-
-            for (int k=0; k < numRepeats; k++){
-                for (int m=0; m < (convWidth * dim2); m++)
-                    copyBuffer[m] = xElement[m];
-                for (int m=(convWidth * dim2); m < paddedBufferSize; m++)
-                    copyBuffer[m] = 0;
-
-                singleVectorSORFSimplex(copyBuffer, rademArray, repeatPosition,
-                        rademShape2, paddedBufferSize);
-                singleVectorRBFPostProcess(copyBuffer, chiArr, outputArray,
-                        paddedBufferSize, numFreqs, i, k, rowScaler);
-                repeatPosition += paddedBufferSize;
-            }
-        }
-    }
-    delete[] copyBuffer;
-
-    return NULL;
-}
 
 
 
@@ -434,7 +352,7 @@ void *allInOneConvRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
         double *outputArray, int32_t *seqlengths, double *gradientArray,
         int dim1, int dim2, int numFreqs, int rademShape2, int startRow,
         int endRow, int convWidth, int paddedBufferSize,
-        double scalingTerm, int scalingType, T sigma){
+        double scalingTerm, int scalingType, T sigma) {
 
     int numKmers;
     int32_t seqlength;
@@ -446,98 +364,33 @@ void *allInOneConvRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
     T *copyBuffer = new T[paddedBufferSize];
     T *xElement;
 
-    for (int i=startRow; i < endRow; i++){
+    for (int i=startRow; i < endRow; i++) {
         seqlength = seqlengths[i];
         numKmers = seqlength - convWidth + 1;
-        switch (scalingType){
+        switch (scalingType) {
             case SQRT_CONVOLUTION_SCALING:
-                rowScaler = scalingTerm / std::sqrt( (double)numKmers);
+                rowScaler = scalingTerm / std::sqrt(
+                        static_cast<double>(numKmers));
                 break;
             case FULL_CONVOLUTION_SCALING:
-                rowScaler = scalingTerm / (double)numKmers;
+                rowScaler = scalingTerm / static_cast<double>(numKmers);
                 break;
             default:
                 rowScaler = scalingTerm;
-              break; 
+              break;
         }
 
-        for (int j=0; j < numKmers; j++){
+        for (int j=0; j < numKmers; j++) {
             int repeatPosition = 0;
             xElement = xdata + i * dim1 * dim2 + j * dim2;
 
-            for (int k=0; k < numRepeats; k++){
+            for (int k=0; k < numRepeats; k++) {
                 for (int m=0; m < (convWidth * dim2); m++)
                     copyBuffer[m] = xElement[m];
                 for (int m=(convWidth * dim2); m < paddedBufferSize; m++)
                     copyBuffer[m] = 0;
 
                 singleVectorSORF(copyBuffer, rademArray, repeatPosition,
-                        rademShape2, paddedBufferSize);
-                singleVectorRBFPostGrad(copyBuffer, chiArr, outputArray,
-                        gradientArray, sigma, paddedBufferSize, numFreqs,
-                        i, k, rowScaler);
-                repeatPosition += paddedBufferSize;
-            }
-        }
-    }
-    delete[] copyBuffer;
-
-    return NULL;
-}
-
-
-
-/*!
- * # allInOneConvRBFGradSimplex
- *
- * Performs the RBF-based convolution kernel feature generation
- * process for the input, for one thread, and calculates the
- * gradient, which is stored in a separate array. Uses the
- * simplex modification.
- */
-template <typename T>
-void *allInOneConvRBFGradSimplex(T xdata[], int8_t *rademArray, T chiArr[],
-        double *outputArray, int32_t *seqlengths, double *gradientArray,
-        int dim1, int dim2, int numFreqs, int rademShape2, int startRow,
-        int endRow, int convWidth, int paddedBufferSize,
-        double scalingTerm, int scalingType, T sigma){
-
-    int numKmers;
-    int32_t seqlength;
-    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
-    double rowScaler;
-    //Notice that we don't have error handling here...very naughty. Out of
-    //memory should be extremely rare since we are only allocating memory
-    //for one row of the convolution. TODO: add error handling here.
-    T *copyBuffer = new T[paddedBufferSize];
-    T *xElement;
-
-    for (int i=startRow; i < endRow; i++){
-        seqlength = seqlengths[i];
-        numKmers = seqlength - convWidth + 1;
-        switch (scalingType){
-            case SQRT_CONVOLUTION_SCALING:
-                rowScaler = scalingTerm / std::sqrt( (double)numKmers);
-                break;
-            case FULL_CONVOLUTION_SCALING:
-                rowScaler = scalingTerm / (double)numKmers;
-                break;
-            default:
-               rowScaler = scalingTerm;
-              break; 
-        }
-
-        for (int j=0; j < numKmers; j++){
-            int repeatPosition = 0;
-            xElement = xdata + i * dim1 * dim2 + j * dim2;
-
-            for (int k=0; k < numRepeats; k++){
-                for (int m=0; m < (convWidth * dim2); m++)
-                    copyBuffer[m] = xElement[m];
-                for (int m=(convWidth * dim2); m < paddedBufferSize; m++)
-                    copyBuffer[m] = 0;
-
-                singleVectorSORFSimplex(copyBuffer, rademArray, repeatPosition,
                         rademShape2, paddedBufferSize);
                 singleVectorRBFPostGrad(copyBuffer, chiArr, outputArray,
                         gradientArray, sigma, paddedBufferSize, numFreqs,

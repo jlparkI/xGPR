@@ -164,12 +164,12 @@ class RBFLinear(KernelBaseclass, ABC):
             output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
             rf_features = np.zeros((input_x.shape[0], self.internal_rffs), np.float64)
             cpuRBFFeatureGen(input_x, rf_features, self.radem_diag, self.chi_arr,
-                self.num_threads, self.fit_intercept, self.simplex_rffs)
+                self.num_threads, self.fit_intercept)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             rf_features = cp.zeros((input_x.shape[0], self.internal_rffs), cp.float64)
             cudaRBFFeatureGen(input_x, rf_features, self.radem_diag, self.chi_arr,
-                self.fit_intercept, self.simplex_rffs)
+                self.fit_intercept)
 
         output_x[:,:self.internal_rffs] = rf_features
         output_x[:,self.internal_rffs:] = xcopy
@@ -205,14 +205,14 @@ class RBFLinear(KernelBaseclass, ABC):
             rf_features = np.zeros((input_x.shape[0], self.internal_rffs), np.float64)
             rf_grad = np.zeros((input_x.shape[0], self.internal_rffs, 1), np.float64)
             cpuRBFGrad(input_x, rf_features, rf_grad, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads, self.fit_intercept, self.simplex_rffs)
+                self.hyperparams[1], self.num_threads, self.fit_intercept)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             output_grad = cp.zeros((input_x.shape[0], self.num_rffs, 1), cp.float64)
             rf_features = cp.zeros((input_x.shape[0], self.internal_rffs), cp.float64)
             rf_grad = cp.zeros((input_x.shape[0], self.internal_rffs, 1), cp.float64)
             cudaRBFGrad(input_x, rf_features, rf_grad, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.fit_intercept, self.simplex_rffs)
+                self.hyperparams[1], self.fit_intercept)
 
 
         output_x[:,:self.internal_rffs] = rf_features

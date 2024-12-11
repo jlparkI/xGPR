@@ -22,8 +22,6 @@ model, set ``kernel_choice = 'kernel name'``, e.g.
        | One of 'none', 'sqrt', 'full'. See
        | below.
        | "intercept":bool
-       | "simplex_rffs":bool . An experimental feature,
-       | see below.
    * - GraphMatern
      - | Compares graphs by averaging over
        | a Matern kernel applied pairwise to
@@ -34,8 +32,6 @@ model, set ``kernel_choice = 'kernel name'``, e.g.
        | below.
        | "matern_nu":float
        | "intercept":bool
-       | "simplex_rffs":bool . An experimental feature,
-       | see below.
    * - GraphCauchy
      - | Compares graphs by averaging over
        | a Cauchy kernel applied pairwise to
@@ -45,8 +41,6 @@ model, set ``kernel_choice = 'kernel name'``, e.g.
        | One of 'none', 'sqrt', 'full'. See
        | below.
        | "intercept":bool
-       | "simplex_rffs":bool . An experimental feature,
-       | see below.
 
 Consider a graph where each node has an associated 
 set of features. GraphRBF compares two graphs A and B by
@@ -89,10 +83,3 @@ between ``GraphMatern``, ``GraphCauchy`` and ``GraphRBF`` is
 small; if this is your primary concern, we recommend defaulting
 to ``GraphRBF`` and experimenting with the others if desired to
 see if some small further performance achievement can be obtained.
-
-The simplex_rffs argument is an experimental feature which implements the
-simplex rffs modification from Reid et al. 2023. This modification slightly
-increases computational cost but (under some circumstances) slightly
-decreases the number of RFFs required to achieve the same level of kernel
-approximation. We haven't fully decided yet whether this modification is
-worth keeping so it is experimental / not fully tested for now.

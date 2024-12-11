@@ -48,7 +48,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/ext/nanobind)
-find_package(nanobind CONFIG REQUIRED)
+#find_package(nanobind CONFIG REQUIRED)
 
 nanobind_add_module(
   xgpr_cpu_rfgen_cpp_ext
@@ -63,7 +63,6 @@ nanobind_add_module(
   xGPR/random_feature_generation/cpu_rf_gen/xgpr_cpu_rfgen_cpp_ext.cpp
   xGPR/random_feature_generation/cpu_rf_gen/shared_fht_functions/hadamard_transforms.cpp
   xGPR/random_feature_generation/cpu_rf_gen/shared_fht_functions/shared_rfgen_ops.cpp
-  xGPR/random_feature_generation/cpu_rf_gen/shared_fht_functions/simplex_rff_projections.cpp
   xGPR/random_feature_generation/cpu_rf_gen/basic_ops/transform_functions.cpp
   xGPR/random_feature_generation/cpu_rf_gen/rbf_ops/rbf_ops.cpp
   xGPR/random_feature_generation/cpu_rf_gen/rbf_ops/ard_ops.cpp

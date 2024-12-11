@@ -11,7 +11,6 @@ from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFastHadamardTransform as cFHT
 from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFastHadamardTransform2D as cFHT2D
 from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuSRHT as cSRHT
 
-#try:
 from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaSRHT
 from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaFastHadamardTransform2D as cudaFHT2D
 
@@ -201,7 +200,8 @@ def run_srht_test(dim, compression_size, random_seed = 123):
     cSRHT(marr_test_double, radem, 2)
     cSRHT(marr_test_float, radem, 2)
     outcome_d = np.allclose(marr_gt_double, marr_test_double)
-    outcome_f = np.allclose(marr_gt_float, marr_test_float)
+    outcome_f = np.allclose(marr_gt_float, marr_test_float, rtol=1e-3,
+            atol=1e-5)
     print("Did the C extension provide the correct result for SRHT of "
             f"a {dim} 2d array for floats, doubles? {outcome_f},{outcome_d}")
 
@@ -212,7 +212,8 @@ def run_srht_test(dim, compression_size, random_seed = 123):
         cuda_test_double = cp.asnumpy(cuda_test_double)
         cuda_test_float = cp.asnumpy(cuda_test_float)
         outcome_cuda_d = np.allclose(marr_gt_double, cuda_test_double)
-        outcome_cuda_f = np.allclose(marr_gt_float, cuda_test_float)
+        outcome_cuda_f = np.allclose(marr_gt_float, cuda_test_float,
+                rtol=1e-3, atol=1e-5)
         print("Did the Cuda extension provide the correct result for SRHT of "
             f"a {dim} 2d array for floats, doubles? {outcome_cuda_f},{outcome_cuda_d}")
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f

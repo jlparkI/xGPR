@@ -22,7 +22,7 @@ int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, int scalingType, int numThreads, bool simplex);
+        int convWidth, int scalingType, int numThreads);
 
 template <typename T>
 int convRBFGrad_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
@@ -31,7 +31,7 @@ int convRBFGrad_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_cont
         nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
         nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cpu, nb::c_contig> gradArr,
-        double sigma, int convWidth, int scalingType, int numThreads, bool simplex);
+        double sigma, int convWidth, int scalingType, int numThreads);
 
 template <typename T>
 void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
@@ -41,21 +41,7 @@ void *allInOneConvRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
         double scalingTerm, int scalingType);
 
 template <typename T>
-void *allInOneConvRBFSimplex(T xdata[], int8_t *rademArray, T chiArr[],
-        double *outputArray, int32_t *seqlengths, int dim1, int dim2,
-        int numFreqs, int rademShape2, int startRow, int endRow,
-        int convWidth, int paddedBufferSize,
-        double scalingTerm, int scalingType);
-
-template <typename T>
 void *allInOneConvRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
-        double *outputArray, int32_t *seqlengths, double *gradientArray,
-        int dim1, int dim2, int numFreqs, int rademShape2, int startRow,
-        int endRow, int convWidth, int paddedBufferSize,
-        double scalingTerm, int scalingType, T sigma);
-
-template <typename T>
-void *allInOneConvRBFGradSimplex(T xdata[], int8_t *rademArray, T chiArr[],
         double *outputArray, int32_t *seqlengths, double *gradientArray,
         int dim1, int dim2, int numFreqs, int rademShape2, int startRow,
         int endRow, int convWidth, int paddedBufferSize,
