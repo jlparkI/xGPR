@@ -10,7 +10,9 @@ xGPR approximates the kernel matrix by representing each datapoint using a
 set of "random features", a representation constructed such that the
 dot product between any two representations is approximately equivalent
 to the exact kernel measurement. This converts Gaussian process regression
-into ridge regression.
+into ridge regression. xGPR uses an efficient fast Hadamard transform
+based procedure to do this, and incorporates a variety of "tricks" that
+dramatically speed up fitting for the resulting model.
 
 The more random features you use, the more accurate the approximation
 and the closer to an exact kernel machine. The error decreases exponentially
