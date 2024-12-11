@@ -1,3 +1,8 @@
+### Version 0.4.6
+Added the Conv1dTwoLayer kernel. Removed the experimental simplex
+rffs feature which is of uncertain usefulness. Fixed a bug occuring
+when non-contiguous arrays are passed to the static layer.
+
 ### Version 0.4.5
 Updated all C++ code wrapping to nanobind; removed Cython routines;
 switched to a CMake-based build workflow.
