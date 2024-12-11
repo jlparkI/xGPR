@@ -11,7 +11,6 @@ from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFastHadamardTransform as cFHT
 from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFastHadamardTransform2D as cFHT2D
 from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuSRHT as cSRHT
 
-#try:
 from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaSRHT
 from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaFastHadamardTransform2D as cudaFHT2D
 

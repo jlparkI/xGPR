@@ -3,7 +3,7 @@ all currently available kernels."""
 import unittest
 #All currently available kernels are listed as keys in this dict.
 from xGPR.kernels import KERNEL_NAME_TO_CLASS
-from kernel_specific_gradient_test import run_kernelspecific_test
+from .kernel_specific_gradient_test import run_kernelspecific_test
 
 class CheckKernelGradients(unittest.TestCase):
     """Checks the NMLL gradients for all currently implemented

@@ -1,12 +1,12 @@
 """Tests fitting with an offline dataset (to ensure results
 are the same)."""
 import sys
+import os
 import unittest
 
 import numpy as np
 
-#TODO: Get rid of this path alteration
-sys.path.append("..")
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from utils.build_test_dataset import build_test_dataset
 from utils.model_constructor import get_models
 from utils.evaluate_model import evaluate_model

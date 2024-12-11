@@ -6,8 +6,7 @@ import os
 
 from xGPR.static_layers import FastConv1d
 
-#TODO: Get rid of this path alteration
-sys.path.append("..")
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from utils.build_test_dataset import build_test_dataset
 
 
