@@ -1,3 +1,7 @@
+To run any set of tests, using approximate_nmll_tests as an example, type:
+
+pytest approximate_nmll_tests
+
 Many modules in xGPR rely on the fast Hadamard transform based operations --
 for generating random features and for building preconditioners. The
 fht_operations_tests check these core modules.

@@ -4,7 +4,14 @@ xGPR quickstart
 Build your training set
 -------------------------
 
-Start by building a Dataset, which is similar to a DataLoader in PyTorch:::
+Start by building a Dataset, which is similar to a DataLoader in PyTorch. If
+your data is organized in one of a couple fairly common ways, you can
+use a built-in xGPR function to build this dataset. If your data is in
+some other form(e.g. a fasta file, an SQLite db or an HDF5 file) and you
+don't want to make a copy of it, you can instead
+subclass xGPR's ``DatasetBaseclass`` and build a
+custom ``Dataset`` object. We'll look at the more common
+situations first:::
 
   from xGPR import build_regression_dataset
 
@@ -55,6 +62,11 @@ and graph data. For fixed-vector 2d data, of course, sequence lengths are not re
 When you create the dataset, xGPR will do some checks to make sure that
 what you fed it makes sense. If the dataset is very large, these may take a
 second.
+
+Finally, let's say your data is a fasta file, a csv file, an HDF5 file or some
+other format. You can create your own Dataset that loads the data in minibatches
+during training and does any preprocessing you want to do on each minibatch.
+To see how to do this, check out :doc:`notebooks/custom_dataset_example`.
 
 Fit your model and make predictions
 -------------------------------------

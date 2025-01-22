@@ -91,16 +91,3 @@ class OnlineDataset(DatasetBaseclass):
                 xchunk = self._xdata[i:cutoff,...]
                 lchunk = self._sequence_lengths[i:cutoff]
                 yield xchunk, lchunk
-
-    def get_xdata(self):
-        """Returns all xdata as a single array."""
-        return self._xdata
-
-    def get_ydata(self):
-        """Returns all ydata as a single array."""
-        return self._ydata
-
-    def get_sequence_lengths(self):
-        """Returns all sequence length data as a single
-        array."""
-        return self._sequence_lengths

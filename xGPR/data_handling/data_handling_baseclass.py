@@ -24,7 +24,7 @@ class DatasetBaseclass(ABC):
         max_class (int): The largest class number (for classification only).
     """
     def __init__(self, xdim, chunk_size,
-            trainy_mean, trainy_std, max_class):
+            trainy_mean, trainy_std, max_class=0):
         self._xdim = xdim
 
         #Trainy_mean and trainy_std are used

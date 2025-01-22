@@ -1,3 +1,8 @@
+### Version 0.4.7
+Minor updates to Dataset classes that simplify them so that
+end users can create custom datasets and wrap e.g. csv files
+or databases when setting up their training dataset.
+
 ### Version 0.4.6
 Added the Conv1dTwoLayer kernel. Removed the experimental simplex
 rffs feature which is of uncertain usefulness. Fixed a bug occuring
