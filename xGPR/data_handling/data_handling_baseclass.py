@@ -33,7 +33,7 @@ class DatasetBaseclass(ABC):
         self._trainy_mean = trainy_mean
         self._trainy_std = trainy_std
         self._max_class = max_class
-        self.chunk_size = chunk_size
+        self._chunk_size = chunk_size
 
 
     @abc.abstractmethod
@@ -75,4 +75,4 @@ class DatasetBaseclass(ABC):
 
     def get_chunk_size(self):
         """Return the chunk size."""
-        return self.chunk_size
+        return self._chunk_size
