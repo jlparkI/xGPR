@@ -18,7 +18,11 @@ which only provide kernels for fixed-vector data (tabular data),
 xGPR provides powerful convolution kernels for variable-length time series,
 sequences and graphs.
 
-### What's new in v0.4.5
+### What's new in v0.4.7
+You can now build custom Datasets (similar to the Dataloader in PyTorch)
+so that you can use any kind of data (SQLite db, HDF5 etc.) as input
+when training with minor tweaks.
+
 Starting with version 0.4.5, xGPR is available as a precompiled binary / wheel
 for 64 bit Linux and as a source distribution for other platforms, so that
 in most cases, installation should typically be as simple as:

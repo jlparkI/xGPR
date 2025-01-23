@@ -29,14 +29,11 @@ class CheckAuxiliaryFunctions(unittest.TestCase):
         #Ensure no exception if building the tool for standard datasets with standard
         #kernels and doing the usual things.
         raised = False
-        #try:
         kpca = KernelFGen(num_rffs = 500,
                             kernel_choice = "RBF", hyperparams = np.array([1.0]),
                             num_features = online_sdata.get_xdim()[-1],
                             random_seed = 123)
-        xtrans = kpca.predict(online_sdata.get_xdata())
-        #except:
-        #    raised = True
+        xtrans = kpca.predict(online_sdata._xdata)
         self.assertFalse(raised, 'Does not work with RBF kernel.')
         self.assertTrue(xtrans.shape[1] == 500)
 
@@ -46,7 +43,7 @@ class CheckAuxiliaryFunctions(unittest.TestCase):
                             kernel_choice = "GraphRBF", hyperparams = np.array([1.0]),
                             num_features = online_cdata.get_xdim()[-1],
                             random_seed = 123)
-            xtrans = kpca.predict(online_cdata.get_xdata(), online_cdata.get_sequence_lengths())
+            xtrans = kpca.predict(online_cdata._xdata, online_cdata._sequence_lengths)
         except:
             raised = True
         self.assertFalse(raised, 'Does not work with graph kernel.')

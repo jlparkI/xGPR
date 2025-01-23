@@ -55,8 +55,8 @@ class OnlineDataset(DatasetBaseclass):
         """A generator that returns the stored data in chunks
         of size chunk_size."""
         if self._sequence_lengths is None:
-            for i in range(0, self._xdim[0], self.chunk_size):
-                cutoff = min(i + self.chunk_size, self._xdim[0])
+            for i in range(0, self._xdim[0], self.get_chunk_size()):
+                cutoff = min(i + self.get_chunk_size(), self._xdim[0])
                 xchunk = self._xdata[i:cutoff,...]
                 ychunk = self._ydata[i:cutoff]
                 ychunk = ychunk.astype(np.float64)
@@ -65,8 +65,8 @@ class OnlineDataset(DatasetBaseclass):
                 yield xchunk, ychunk, None
 
         else:
-            for i in range(0, self._xdim[0], self.chunk_size):
-                cutoff = min(i + self.chunk_size, self._xdim[0])
+            for i in range(0, self._xdim[0], self.get_chunk_size()):
+                cutoff = min(i + self.get_chunk_size(), self._xdim[0])
                 xchunk = self._xdata[i:cutoff,...]
                 ychunk = self._ydata[i:cutoff]
                 lchunk = self._sequence_lengths[i:cutoff]
@@ -82,25 +82,12 @@ class OnlineDataset(DatasetBaseclass):
         """A generator that loops over the xdata only in chunks
         of size chunk_size."""
         if self._sequence_lengths is None:
-            for i in range(0, self._xdim[0], self.chunk_size):
-                cutoff = min(i + self.chunk_size, self._xdim[0])
+            for i in range(0, self._xdim[0], self.get_chunk_size()):
+                cutoff = min(i + self.get_chunk_size(), self._xdim[0])
                 yield self._xdata[i:cutoff,...], None
         else:
-            for i in range(0, self._xdim[0], self.chunk_size):
-                cutoff = min(i + self.chunk_size, self._xdim[0])
+            for i in range(0, self._xdim[0], self.get_chunk_size()):
+                cutoff = min(i + self.get_chunk_size(), self._xdim[0])
                 xchunk = self._xdata[i:cutoff,...]
                 lchunk = self._sequence_lengths[i:cutoff]
                 yield xchunk, lchunk
-
-    def get_xdata(self):
-        """Returns all xdata as a single array."""
-        return self._xdata
-
-    def get_ydata(self):
-        """Returns all ydata as a single array."""
-        return self._ydata
-
-    def get_sequence_lengths(self):
-        """Returns all sequence length data as a single
-        array."""
-        return self._sequence_lengths

@@ -103,14 +103,3 @@ class OfflineDataset(DatasetBaseclass):
         else:
             for xfile, lfile in zip(self._xfiles, self._sequence_lengths):
                 yield np.load(xfile), np.load(lfile)
-
-
-    def get_yfiles(self):
-        """Returns a copy of the list of yfiles stored by the
-        dataset."""
-        return copy.copy(self._yfiles)
-
-    def get_xfiles(self):
-        """Returns a copy of the list of xfiles stored by the
-        dataset."""
-        return copy.copy(self._xfiles)
