@@ -53,7 +53,7 @@ class FastConv1d:
                 and slower model training.
 
         Raises:
-            ValueError: If an unrecognized kernel type or other invalid
+            RuntimeError: If an unrecognized kernel type or other invalid
                 input is supplied.
         """
         self.seq_width = seq_width
@@ -89,11 +89,11 @@ class FastConv1d:
                 the feature extraction operation to the input.
 
         Raises:
-            ValueError: If the inputs are not valid a detailed ValueError
+            RuntimeError: If the inputs are not valid a detailed RuntimeError
                 is raised explaining the issue.
         """
         if sequence_lengths.shape[0] != x_array.shape[0]:
-            raise ValueError("The shape[0] of sequence_lengths must match the shape[0] "
+            raise RuntimeError("The shape[0] of sequence_lengths must match the shape[0] "
                     "of x_array.")
 
         x_features = []
@@ -129,10 +129,10 @@ class FastConv1d:
     def device(self, value):
         """Setter for the device attribute."""
         if value not in ["cpu", "cuda"]:
-            raise ValueError("Device must be in ['cpu', 'cuda'].")
+            raise RuntimeError("Device must be in ['cpu', 'cuda'].")
 
         if "cupy" not in sys.modules and value == "cuda":
-            raise ValueError("You have specified the cuda fit mode but CuPy is "
+            raise RuntimeError("You have specified the cuda fit mode but CuPy is "
                 "not installed. Currently CPU only fitting is available.")
 
         self.conv_kernel.device = value

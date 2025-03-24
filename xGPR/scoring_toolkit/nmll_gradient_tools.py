@@ -35,7 +35,7 @@ def calc_gradient_terms(dataset, kernel, device, subsample = 1):
         ndatapoints (int): The number of datapoints.
     """
     if subsample > 1 or subsample < 0.01:
-        raise ValueError("Subsample must be in the range [0.01, 1].")
+        raise RuntimeError("Subsample must be in the range [0.01, 1].")
 
     num_rffs = kernel.get_num_rffs()
     hparams = kernel.get_hyperparams()

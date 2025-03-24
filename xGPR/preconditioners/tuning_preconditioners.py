@@ -35,7 +35,7 @@ class RandNysTuningPreconditioner():
 
 
         if method not in ["srht_2", "srht_3", "srht"]:
-            raise ValueError("Unknown method supplied for tuning preconditioner "
+            raise RuntimeError("Unknown method supplied for tuning preconditioner "
                     "construction.")
 
         if method.startswith("srht_"):

@@ -52,7 +52,7 @@ def build_regression_dataset(xdata, ydata, sequence_lengths = None,
             and fitting routines of the model classes.
 
     Raises:
-        ValueError: A ValueError is raised if inappropriate argument
+        RuntimeError: A RuntimeError is raised if inappropriate argument
             types are supplied.
     """
     if isinstance(xdata, list) and isinstance(ydata, list):
@@ -61,7 +61,7 @@ def build_regression_dataset(xdata, ydata, sequence_lengths = None,
     if isinstance(xdata, np.ndarray) and isinstance(ydata, np.ndarray):
         return build_online_dataset(xdata, ydata, sequence_lengths,
                 chunk_size, normalize_y, task_type = "regression")
-    raise ValueError("Unexpected argument types to build_regression_dataset.")
+    raise RuntimeError("Unexpected argument types to build_regression_dataset.")
 
 
 
@@ -106,7 +106,7 @@ def build_classification_dataset(xdata, ydata,
             and fitting routines of the model classes.
 
     Raises:
-        ValueError: A ValueError is raised if inappropriate argument
+        RuntimeError: A RuntimeError is raised if inappropriate argument
             types are supplied.
     """
     if isinstance(xdata, list) and isinstance(ydata, list):
@@ -115,7 +115,7 @@ def build_classification_dataset(xdata, ydata,
     if isinstance(xdata, np.ndarray) and isinstance(ydata, np.ndarray):
         return build_online_dataset(xdata, ydata, sequence_lengths,
                 chunk_size, normalize_y = False, task_type = "classification")
-    raise ValueError("Unexpected argument types to build_regression_dataset.")
+    raise RuntimeError("Unexpected argument types to build_regression_dataset.")
 
 
 
@@ -149,30 +149,30 @@ def build_online_dataset(xdata, ydata, sequence_lengths = None,
             and fitting routines of the model classes.
 
     Raises:
-        ValueError: If the data passed is not valid, the function
-            will raise a detailed ValueError explaining the issue.
+        RuntimeError: If the data passed is not valid, the function
+            will raise a detailed RuntimeError explaining the issue.
     """
     if not isinstance(xdata, np.ndarray) or not isinstance(ydata, np.ndarray):
-        raise ValueError("X and y must be numpy arrays!")
+        raise RuntimeError("X and y must be numpy arrays!")
 
     __check_sequence_length(sequence_lengths, xdata, ydata)
 
     if len(ydata.shape) != 1:
-        raise ValueError("Y must be a 1d numpy array.")
+        raise RuntimeError("Y must be a 1d numpy array.")
     if xdata.dtype not in ("float64", "float32"):
-        raise ValueError("x must be an array of type float32 or type float64.")
+        raise RuntimeError("x must be an array of type float32 or type float64.")
     if ydata.dtype != "float64" and task_type == "regression":
-        raise ValueError("For regression, ydata must be an array of type float64.")
+        raise RuntimeError("For regression, ydata must be an array of type float64.")
     if task_type == "classification" and not issubclass(ydata.dtype.type,
                 np.integer):
-        raise ValueError("For classification, ydata must be an array of integers.")
+        raise RuntimeError("For classification, ydata must be an array of integers.")
 
     if ydata.shape[0] != xdata.shape[0]:
-        raise ValueError("Different number of datapoints in x and y.")
+        raise RuntimeError("Different number of datapoints in x and y.")
     if np.isnan(xdata).any():
-        raise ValueError("One or more elements in x is nan!")
+        raise RuntimeError("One or more elements in x is nan!")
     if np.max(xdata) > 1e15 or np.min(xdata) < -1e15:
-        raise ValueError("Values > 1e15 or < -1e15 encountered. "
+        raise RuntimeError("Values > 1e15 or < -1e15 encountered. "
                     "Please rescale your data and check for np.inf.")
 
     if task_type == "regression":
@@ -188,7 +188,7 @@ def build_online_dataset(xdata, ydata, sequence_lengths = None,
         dataset = OnlineDataset(xdata, ydata, sequence_lengths,
                 chunk_size = chunk_size, max_class = ydata.max())
         if ydata.min() != 0:
-            raise ValueError("For classification, there must be a zero category.")
+            raise RuntimeError("For classification, there must be a zero category.")
 
     return dataset
 
@@ -239,22 +239,22 @@ def build_offline_np_dataset(xlist:list, ylist:list, sequence_lengths,
             and fitting routines of the model classes.
 
     Raises:
-        ValueError: If the data passed is not valid, the function
-            will raise a detailed ValueError explaining the issue.
+        RuntimeError: If the data passed is not valid, the function
+            will raise a detailed RuntimeError explaining the issue.
     """
     if len(xlist) == 0:
-        raise ValueError("At least one datafile must be supplied.")
+        raise RuntimeError("At least one datafile must be supplied.")
     if len(xlist) != len(ylist):
-        raise ValueError("xlist and ylist must have the same length.")
+        raise RuntimeError("xlist and ylist must have the same length.")
     if not isinstance(xlist, list) or not isinstance(ylist, list):
-        raise ValueError("Both xlist and ylist should be lists.")
+        raise RuntimeError("Both xlist and ylist should be lists.")
 
     if sequence_lengths is None:
         length_files = [None for y in ylist]
     else:
         length_files = sequence_lengths
         if len(sequence_lengths) != len(ylist):
-            raise ValueError("sequence_lengths must either be None or "
+            raise RuntimeError("sequence_lengths must either be None or "
                     "have the same length as ylist.")
 
     xshape = _get_array_file_shape(xlist[0])
@@ -264,21 +264,21 @@ def build_offline_np_dataset(xlist:list, ylist:list, sequence_lengths,
     elif expected_arrlen == 3:
         xdim = [0,-1,-1]
     else:
-        raise ValueError("Arrays should be either 2d or 3d.")
+        raise RuntimeError("Arrays should be either 2d or 3d.")
 
     if not skip_safety_checks:
         for xfile, yfile, length_file in zip(xlist, ylist, length_files):
             x_data = np.load(xfile)
             if x_data.shape[0] == 0:
-                raise ValueError(f"File {xfile} has no datapoints.")
+                raise RuntimeError(f"File {xfile} has no datapoints.")
             if np.isnan(x_data).any():
-                raise ValueError(f"One or more elements in file {xfile} is nan.")
+                raise RuntimeError(f"One or more elements in file {xfile} is nan.")
             if np.max(x_data) > 1e15 or np.min(x_data) < -1e15:
-                raise ValueError(f"One or more values in {xfile} is "
+                raise RuntimeError(f"One or more values in {xfile} is "
                         "> 1e15 or < -1e15. Please check for inf values "
                         "and / or rescale your data.")
             if len(x_data.shape) != expected_arrlen:
-                raise ValueError(f"File {xfile} is not a {expected_arrlen}d "
+                raise RuntimeError(f"File {xfile} is not a {expected_arrlen}d "
                     "array, unlike some other arrays in xlist.")
 
             xdim[0] += x_data.shape[0]
@@ -286,24 +286,24 @@ def build_offline_np_dataset(xlist:list, ylist:list, sequence_lengths,
                 xdim[1] = x_data.shape[1]
             if expected_arrlen == 2:
                 if x_data.shape[1] != xdim[1]:
-                    raise ValueError("All x arrays must have the same dimensionality.")
+                    raise RuntimeError("All x arrays must have the same dimensionality.")
             elif expected_arrlen == 3:
                 if xdim[2] == -1:
                     xdim[2] = x_data.shape[2]
                 elif x_data.shape[2] != xdim[2]:
-                    raise ValueError("All x arrays must have the same dimensionality.")
+                    raise RuntimeError("All x arrays must have the same dimensionality.")
 
             ydata = np.load(yfile)
             if x_data.shape[0] != ydata.shape[0]:
-                raise ValueError(f"File {xfile} has a different number of datapoints "
+                raise RuntimeError(f"File {xfile} has a different number of datapoints "
                     f"than file {yfile}.")
             if x_data.shape[0] > chunk_size:
-                raise ValueError(f"Xfile {xfile} has more datapoints than allowed "
+                raise RuntimeError(f"Xfile {xfile} has more datapoints than allowed "
                     "based on specified chunk_size. Either increase chunk_size "
                     "or divide your data into np.ndarrays saved on disk that each "
                     "contain < chunk_size datapoints.")
             if len(ydata.shape) > 1:
-                raise ValueError(f"The y file {yfile} is not a 1d array.")
+                raise RuntimeError(f"The y file {yfile} is not a 1d array.")
 
             if length_file is None:
                 __check_sequence_length(length_file, x_data, ydata)
@@ -328,7 +328,7 @@ def build_offline_np_dataset(xlist:list, ylist:list, sequence_lengths,
     if task_type == "classification":
         max_class, class_data_err = _get_offline_ymax(ylist)
         if class_data_err:
-            raise ValueError("For classification, there must be a zero category, "
+            raise RuntimeError("For classification, there must be a zero category, "
                 "and all yfiles must be integers.")
 
     dataset = OfflineDataset(xlist, ylist, sequence_lengths, tuple(xdim),
@@ -348,32 +348,32 @@ def __check_sequence_length(seqlength, xdata, ydata):
         xdata (np.ndarray): A numpy array.
 
     Raises:
-        ValueError: A ValueError is raised if requirements are
+        RuntimeError: A RuntimeError is raised if requirements are
             not met. Otherwise if nothing is returned everything is ok.
     """
     if seqlength is not None:
         if len(xdata.shape) != 3:
-            raise ValueError("sequence_length must be None if using "
+            raise RuntimeError("sequence_length must be None if using "
                     "fixed vector input.")
         if not isinstance(seqlength, np.ndarray):
-            raise ValueError("sequence_length must either be None or "
+            raise RuntimeError("sequence_length must either be None or "
                     "a numpy array.")
         if not len(seqlength.shape) == 1:
-            raise ValueError("sequence_length, if not None, must be a "
+            raise RuntimeError("sequence_length, if not None, must be a "
                     "1d numpy array.")
         if seqlength.shape[0] != ydata.shape[0]:
-            raise ValueError("sequence_length, if not None, must have "
+            raise RuntimeError("sequence_length, if not None, must have "
                     "the same length as ydata.")
         if not issubclass(seqlength.dtype.type, np.integer):
-            raise ValueError("sequence_length, if not None, must be all "
+            raise RuntimeError("sequence_length, if not None, must be all "
                     "integers.")
         if seqlength.min() <= 0 or seqlength.max() > xdata.shape[1]:
-            raise ValueError("sequence_length values must be in the range "
+            raise RuntimeError("sequence_length values must be in the range "
                     "(1, num_elements) where num_elements is the number of "
                     "sequence elements / graph nodes in the corresponding "
                     "input array.")
     elif len(xdata.shape) == 3:
-        raise ValueError("sequence_lengths cannot be None if supplying "
+        raise RuntimeError("sequence_lengths cannot be None if supplying "
                 "sequences / time series / graphs as input.")
 
 

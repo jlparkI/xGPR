@@ -48,7 +48,7 @@ class InterDevicePreconditioner():
                 preconditioner construction.
         """
         if method not in ["srht_2", "srht_3", "srht"]:
-            raise ValueError("Unknown method supplied for preconditioner "
+            raise RuntimeError("Unknown method supplied for preconditioner "
                     "construction.")
 
         if method.startswith("srht_"):
@@ -98,7 +98,7 @@ class InterDevicePreconditioner():
             value (str): Must be one of 'cpu', 'cuda'.
 
         Raises:
-            ValueError: A ValueError is raised if an unrecognized
+            RuntimeError: A RuntimeError is raised if an unrecognized
                 device is passed.
         """
         if value == "cpu":
@@ -111,7 +111,7 @@ class InterDevicePreconditioner():
             self.inv_eig = cp.asarray(self.inv_eig)
 
         else:
-            raise ValueError("Unrecognized device supplied. Must be one "
+            raise RuntimeError("Unrecognized device supplied. Must be one "
                     "of 'cpu', 'cuda'.")
 
         self.device_ = value

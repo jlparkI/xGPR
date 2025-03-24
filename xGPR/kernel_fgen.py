@@ -72,7 +72,7 @@ class KernelFGen(AuxiliaryBaseclass):
                 the number of rffs.
 
         Raises:
-            ValueError: A ValueError is raised if inappropriate inputs are
+            RuntimeError: A RuntimeError is raised if inappropriate inputs are
                 supplied.
         """
         self.pre_prediction_checks(input_x, sequence_lengths)

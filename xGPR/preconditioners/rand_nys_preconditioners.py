@@ -43,7 +43,7 @@ class CPU_RandNysPreconditioner(LinearOperator):
                             kernel.get_num_rffs()),
                             dtype=np.float64)
         if method not in ["srht_2", "srht_3", "srht"]:
-            raise ValueError("Unknown method supplied for preconditioner "
+            raise RuntimeError("Unknown method supplied for preconditioner "
                     "construction.")
 
         if method.startswith("srht_"):

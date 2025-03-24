@@ -41,12 +41,12 @@ def bayes_grid_tuning(kernel, dataset, bounds, random_seed,
             hyperparameter set.
 
     Raises:
-        ValueError: A ValueError is raised if this is run with a kernel with >
+        RuntimeError: A RuntimeError is raised if this is run with a kernel with >
             5 or <= 2 hyperparameters.
     """
 
     if bounds.shape[0] >= 4 or bounds.shape[0] < 2:
-        raise ValueError("Bayesian optimization is only allowed for kernels with "
+        raise RuntimeError("Bayesian optimization is only allowed for kernels with "
                 "2 - 3 hyperparameters.")
 
     if bounds.shape[0] == 2:
@@ -208,7 +208,7 @@ def get_grid_pts(num_pts_per_sigma, bounds):
         sigma1, sigma2 = np.meshgrid(sigma1, sigma2)
         sigma_pts = np.array((sigma1.ravel(), sigma2.ravel())).T
     else:
-        raise ValueError("This routine is only applicable for "
+        raise RuntimeError("This routine is only applicable for "
                     "kernels with < 4 hyperparameters.")
     scoregrid = np.zeros((len(sigma_pts)))
     return sigma_pts, scoregrid

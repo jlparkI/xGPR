@@ -50,12 +50,12 @@ class SRHTCompressor():
                 operations.
 
         Raises:
-            ValueError: Raises a ValueError if the inputs are inappropriate.
+            RuntimeError: Raises a RuntimeError if the inputs are inappropriate.
         """
         self.compression_size = compression_size
         self.input_size = input_size
         if compression_size >= input_size or compression_size <= 1:
-            raise ValueError("The compression size should be < "
+            raise RuntimeError("The compression size should be < "
                     "the number of rffs and > 1.")
         self.padded_dims = 2**ceil(np.log2(max(input_size, 2)))
         self.double_precision = double_precision
@@ -86,7 +86,7 @@ class SRHTCompressor():
                 feature information.
         """
         if features.shape[1] != self.input_size or len(features.shape) != 2:
-            raise ValueError("Input with unexpected size passed to a compressor "
+            raise RuntimeError("Input with unexpected size passed to a compressor "
                     "module.")
         if features.shape[1] < self.padded_dims:
             xfeatures = self.zero_arr((features.shape[0], self.padded_dims), self.dtype)
@@ -120,7 +120,7 @@ class SRHTCompressor():
             value (str): Must be one of 'cpu', 'cuda'.
 
         Raises:
-            ValueError: A ValueError is raised if an unrecognized
+            RuntimeError: A RuntimeError is raised if an unrecognized
                 device is passed.
 
         Note that a number of 'convenience attributes' (e.g. self.dtype,
@@ -147,6 +147,6 @@ class SRHTCompressor():
             else:
                 self.dtype = cp.float32
         else:
-            raise ValueError("Unrecognized device supplied. Must be one "
+            raise RuntimeError("Unrecognized device supplied. Must be one "
                     "of 'cpu', 'cuda'.")
         self.device_ = value

@@ -72,16 +72,16 @@ class KernelBaseclass(ABC):
                 parameters.
 
         Raises:
-            ValueError: Raises a ValueError if a sine-cosine kernel is requested
+            RuntimeError: Raises a RuntimeError if a sine-cosine kernel is requested
                 but num_rffs is not an integer multiple of 2.
         """
         self.double_precision = double_precision
         if num_rffs < 2:
-            raise ValueError("num_rffs should always be >= 2.")
+            raise RuntimeError("num_rffs should always be >= 2.")
 
         if sine_cosine_kernel:
             if not (num_rffs / 2).is_integer():
-                raise ValueError("For sine-cosine kernels (e.g. matern, rbf) "
+                raise RuntimeError("For sine-cosine kernels (e.g. matern, rbf) "
                         "the number of random fourier features must be an integer "
                         "multiple of two.")
             self.num_freqs = int(num_rffs / 2)
@@ -136,11 +136,11 @@ class KernelBaseclass(ABC):
                 (low, high).
 
         Raises:
-            ValueError: A ValueError is raised if the bounds array
+            RuntimeError: A RuntimeError is raised if the bounds array
                 passed is not valid for this kernel.
         """
         if bounds.shape != self.bounds.shape:
-            raise ValueError("You have tried to supply a set of bounds "
+            raise RuntimeError("You have tried to supply a set of bounds "
                 "for hyperparameter tuning that do not match the shape "
                 "of the bounds for the kernel you have chosen. The bounds "
                 "should be a numpy array of shape [n_hyperparams, 2] "
@@ -181,7 +181,7 @@ class KernelBaseclass(ABC):
                 of the actual bounds.
 
         Raises:
-            ValueError: A ValueError is raised if the bounds array
+            RuntimeError: A RuntimeError is raised if the bounds array
                 passed by caller is invalid for the chosen kernel.
         """
         self.check_bounds(bounds)
@@ -380,13 +380,13 @@ class KernelBaseclass(ABC):
                 N is the number of hyperparameters.
 
         Raises:
-            ValueError: Raises a ValueError if invalid hyperparameters are
+            RuntimeError: Raises a RuntimeError if invalid hyperparameters are
                 passed.
         """
         if not isinstance(hyperparams, np.ndarray):
-            raise ValueError("The starting hyperparameters must be a numpy array.")
+            raise RuntimeError("The starting hyperparameters must be a numpy array.")
         if hyperparams.shape != self.hyperparams.shape:
-            raise ValueError(f"The kernel you selected uses {self.hyperparams.shape[0]} "
+            raise RuntimeError(f"The kernel you selected uses {self.hyperparams.shape[0]} "
                 "hyperparameters. A hyperparameter array of the incorrect shape was passed.")
 
 
@@ -422,11 +422,11 @@ class KernelBaseclass(ABC):
             value (str): Must be one of 'cpu', 'cuda'.
 
         Raises:
-            ValueError: A ValueError is raised if an unrecognized
+            RuntimeError: A RuntimeError is raised if an unrecognized
                 device is passed.
         """
         if value not in ('cpu', 'cuda'):
-            raise ValueError("Unrecognized device supplied. Must be one "
+            raise RuntimeError("Unrecognized device supplied. Must be one "
                     "of 'cpu', 'cuda'.")
         self.device_ = value
         self.kernel_specific_set_device(value)

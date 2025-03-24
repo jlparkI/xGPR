@@ -146,28 +146,28 @@ class ModelBaseclass():
                 to the unmodified input array otherwise.
 
         Raises:
-            ValueError: If invalid inputs are supplied,
-                a detailed ValueError is raised to explain.
+            RuntimeError: If invalid inputs are supplied,
+                a detailed RuntimeError is raised to explain.
         """
         if self.kernel is None or self.weights is None:
-            raise ValueError("Model has not yet been successfully fitted.")
+            raise RuntimeError("Model has not yet been successfully fitted.")
         if not self.kernel.validate_new_datapoints(input_x):
-            raise ValueError("The input has incorrect dimensionality.")
+            raise RuntimeError("The input has incorrect dimensionality.")
         if sequence_lengths is None:
             if len(input_x.shape) != 2:
-                raise ValueError("sequence_lengths is required if using a "
+                raise RuntimeError("sequence_lengths is required if using a "
                         "convolution kernel.")
         else:
             if len(input_x.shape) == 2:
-                raise ValueError("sequence_lengths must be None if using a "
+                raise RuntimeError("sequence_lengths must be None if using a "
                     "fixed vector kernel.")
 
         #This should never happen, but just in case.
         if self.weights.shape[0] != self.kernel.get_num_rffs():
-            raise ValueError("The size of the weight vector does not "
+            raise RuntimeError("The size of the weight vector does not "
                     "match the number of random features that are generated.")
         if self.var is None and get_var:
-            raise ValueError("Variance was requested but suppress_var "
+            raise RuntimeError("Variance was requested but suppress_var "
                     "was selected when fitting, meaning that variance "
                     "has not been generated.")
         if self.device == "cuda":
@@ -193,15 +193,15 @@ class ModelBaseclass():
                 this argument is required.
 
         Raises:
-            ValueError: A ValueError is raised if the kernel does not exist but
+            RuntimeError: A RuntimeError is raised if the kernel does not exist but
                 a dataset was not supplied.
         """
         if self.kernel is None and dataset is None:
-            raise ValueError("A dataset is required if the kernel has not already "
+            raise RuntimeError("A dataset is required if the kernel has not already "
                     "been initialized. The kernel is initialized by calling set_hyperparams "
                     "or fit or any of the hyperparameter tuning / scoring routines.")
         if hyperparams is None and dataset is None:
-            raise ValueError("Should supply hyperparams and/or a dataset.")
+            raise RuntimeError("Should supply hyperparams and/or a dataset.")
         if self.kernel is None:
             self._initialize_kernel(dataset, hyperparams = hyperparams)
         else:
@@ -247,18 +247,18 @@ class ModelBaseclass():
             kernel: An object of the appropriate kernel class.
 
         Raises:
-            ValueError: Raises a value error if an unrecognized kernel
+            RuntimeError: Raises a value error if an unrecognized kernel
                 is supplied.
         """
         if self.kernel_choice not in KERNEL_NAME_TO_CLASS:
-            raise ValueError("An unrecognized kernel choice was supplied.")
+            raise RuntimeError("An unrecognized kernel choice was supplied.")
 
         if dataset is None and xdim is not None:
             input_xdim = xdim
         elif dataset is not None:
             input_xdim = dataset.get_xdim()
         else:
-            raise ValueError("Either a dataset or xdim must be supplied.")
+            raise RuntimeError("Either a dataset or xdim must be supplied.")
 
         self.kernel = KERNEL_NAME_TO_CLASS[self.kernel_choice](input_xdim,
                             self.num_rffs, self.random_seed, self.device,
@@ -272,7 +272,7 @@ class ModelBaseclass():
         #the kernel under some circumstances.
         self._num_rffs = self.kernel.get_num_rffs()
         if self.variance_rffs >= self.num_rffs:
-            raise ValueError("The number of variance rffs must be < num_rffs.")
+            raise RuntimeError("The number of variance rffs must be < num_rffs.")
 
         if bounds is not None:
             self.kernel.set_bounds(bounds)
@@ -302,11 +302,11 @@ class ModelBaseclass():
         self.weights, self.var = None, None
 
         if self.num_rffs <= 2:
-            raise ValueError("num_rffs should be > 2 to use any tuning method.")
+            raise RuntimeError("num_rffs should be > 2 to use any tuning method.")
 
         if exact_method:
             if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
-                raise ValueError(f"At most {constants.MAX_CLOSED_FORM_RFFS} can be used "
+                raise RuntimeError(f"At most {constants.MAX_CLOSED_FORM_RFFS} can be used "
                         "for tuning hyperparameters using this method. Try tuning "
                         "using approximate nmll instead.")
 
@@ -322,13 +322,13 @@ class ModelBaseclass():
         if self.kernel is None:
             self._initialize_kernel(dataset)
         if self.variance_rffs > self.kernel.get_num_rffs():
-            raise ValueError("The number of variance rffs should be <= the number "
+            raise RuntimeError("The number of variance rffs should be <= the number "
                     "of random features for the kernel.")
         if max_rank is not None:
             if max_rank < 1:
-                raise ValueError("Invalid value for max_rank.")
+                raise RuntimeError("Invalid value for max_rank.")
             if max_rank >= self.kernel.get_num_rffs():
-                raise ValueError("Max rank should be < the number of rffs.")
+                raise RuntimeError("Max rank should be < the number of rffs.")
 
 
 
@@ -361,7 +361,7 @@ class ModelBaseclass():
                 well a preconditioner built with this max_rank is likely to perform.
         """
         if sample_frac < 0.01 or sample_frac > 1:
-            raise ValueError("sample_frac must be in the range [0.01, 1]")
+            raise RuntimeError("sample_frac must be in the range [0.01, 1]")
 
         reset_num_rffs = False
         if self.num_rffs > 8192:
@@ -467,7 +467,7 @@ class ModelBaseclass():
         user is changing this, the kernel needs to be
         re-initialized."""
         if not isinstance(value, dict):
-            raise ValueError("Tried to set kernel_spec_parms to something that "
+            raise RuntimeError("Tried to set kernel_spec_parms to something that "
                     "was not a dict!")
         self._kernel_spec_parms = value
         self.kernel = None
@@ -487,9 +487,9 @@ class ModelBaseclass():
         the user is changing this, the kernel needs to
         be re-initialized."""
         if not isinstance(value, str):
-            raise ValueError("You supplied a kernel_choice that is not a string.")
+            raise RuntimeError("You supplied a kernel_choice that is not a string.")
         if value not in KERNEL_NAME_TO_CLASS:
-            raise ValueError("You supplied an unrecognized kernel.")
+            raise RuntimeError("You supplied an unrecognized kernel.")
         self._kernel_choice = value
         self.kernel = None
         self.weights = None
@@ -529,10 +529,10 @@ class ModelBaseclass():
         for certain fitting procedures, the fit() routine
         does reset variance_rffs."""
         if value > constants.MAX_VARIANCE_RFFS:
-            raise ValueError("Currently to keep computational expense at acceptable "
+            raise RuntimeError("Currently to keep computational expense at acceptable "
                     f"levels variance rffs is capped at {constants.MAX_VARIANCE_RFFS}.")
         if value > self.num_rffs and self.kernel_choice not in ["Linear", "ExactQuadratic"]:
-            raise ValueError("variance_rffs must be <= num_rffs.")
+            raise RuntimeError("variance_rffs must be <= num_rffs.")
         self._variance_rffs = value
         if self.var is not None:
             if self.kernel is not None:
@@ -554,7 +554,7 @@ class ModelBaseclass():
         """Setter for the num_threads attribute."""
         if value < 1:
             self._num_threads = 1
-            raise ValueError("Num threads if supplied must be an integer > 1.")
+            raise RuntimeError("Num threads if supplied must be an integer > 1.")
         self._num_threads = value
         if self.kernel is not None:
             self.kernel.num_threads = value
@@ -601,14 +601,14 @@ class ModelBaseclass():
     def device(self, value):
         """Setter for the device attribute."""
         if value not in ["cpu", "cuda"]:
-            raise ValueError("Device must be in ['cpu', 'cuda'].")
+            raise RuntimeError("Device must be in ['cpu', 'cuda'].")
 
         if "cupy" not in sys.modules and value == "cuda":
-            raise ValueError("You have specified cuda mode but CuPy is "
+            raise RuntimeError("You have specified cuda mode but CuPy is "
                 "not installed. Currently CPU only fitting is available.")
 
         if "xGPR.xgpr_cuda_rfgen_cpp_ext" not in sys.modules and value == "cuda":
-            raise ValueError("You have specified the cuda fit mode but the "
+            raise RuntimeError("You have specified the cuda fit mode but the "
                 "rfgen cuda module is not installed / "
                 "does not appear to have installed correctly. "
                 "Currently CPU only fitting is available.")
