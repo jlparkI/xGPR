@@ -385,7 +385,8 @@ class ModelBaseclass():
     def _autoselect_preconditioner(self, dataset, min_rank:int = 512,
             max_rank:int = 3000, increment_size:int = 512,
             always_use_srht2:bool = False,
-            ratio_target:float = 30., tuning:bool = False):
+            ratio_target:float = 30., tuning:bool = False,
+            x_mean = None):
         """Uses an automated algorithm to choose a preconditioner that
         is up to max_rank in size. For internal use only.
 
@@ -402,6 +403,9 @@ class ModelBaseclass():
             ratio_target (int): The target value for the ratio.
             tuning (bool): If True, preconditioner is intended for tuning,
                 so it also needs to be used for SLQ.
+            x_mean (ndarray): Either None or an array of shape (num_rffs). Should
+                always be None for regression (regression does not mean center the
+                data) and should never be None for classification (classification does).
 
         Returns:
             preconditioner: A preconditioner object.
@@ -437,6 +441,8 @@ class ModelBaseclass():
             method = "srht_2"
 
         if tuning:
+            #We don't have to pass x_mean here since tuning preconditioners are never
+            #used for classification.
             preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, rank,
                         False, self.random_seed, method)
         else:
