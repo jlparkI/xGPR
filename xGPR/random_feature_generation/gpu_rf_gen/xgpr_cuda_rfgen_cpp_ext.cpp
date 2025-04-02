@@ -1,8 +1,16 @@
-/* Contains the wrapper code for the C++ extension for Cuda.
- */
+/* Copyright (C) 2025 Jonathan Parkinson
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+*/
+// C++ headers
 
+// Library headers
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
+
+// Project headers
 #include "basic_ops/basic_array_operations.h"
 #include "rbf_ops/rbf_ops.h"
 #include "rbf_ops/ard_ops.h"
@@ -86,4 +94,16 @@ NB_MODULE(xgpr_cuda_rfgen_cpp_ext, m){
             nb::arg("seqlengths").noconvert(), nb::arg("gradArr").noconvert(),
             nb::arg("sigma"), nb::arg("convWidth"),
             nb::arg("scalingType"));
+
+    m.def("cudaFindClassMeans", &cudaFindClassMeans,
+            nb::arg("input_arr").noconvert(),
+            nb::arg("class_means").noconvert(),
+            nb::arg("class_labels").noconvert(),
+            nb::arg("class_counts").noconvert());
+
+    m.def("cudaPrepPooledCovCalc", &cudaPrepPooledCovCalc,
+            nb::arg("input_arr").noconvert(),
+            nb::arg("class_means").noconvert(),
+            nb::arg("class_labels").noconvert(),
+            nb::arg("class_counts").noconvert());
 }
