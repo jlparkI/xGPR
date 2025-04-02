@@ -6,7 +6,7 @@ import cupy as cp
 import cupyx
 from scipy.fftpack import dct
 from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFastHadamardTransform as cFHT
-from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuSORFTransform as cSORF
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuSRHT as cSRHT
 
 
 #Running the CPU numpy test with too many columns is extremely
@@ -46,8 +46,8 @@ nthreads = {nthreads}
 import math
 import numpy as np
 from scipy.linalg import hadamard
-from cpu_rf_gen_module import cpuFastHadamardTransform as cFHT
-from cpu_rf_gen_module import cpuSORFTransform as cSORF
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFastHadamardTransform as cFHT
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuSRHT as cSORF
 random_seed = 123
 rng = np.random.default_rng(random_seed)
 marr = rng.uniform(low=-10.0, high=10.0, size=({nrows},{nblocks},{ncols}))
@@ -64,18 +64,18 @@ from __main__ import fh3d_test"""
 nthreads = {nthreads}
 import numpy as np
 from scipy.linalg import hadamard
-from cpu_rf_gen_module import cpuFastHadamardTransform as cFHT
-from cpu_rf_gen_module import cpuSORFTransform as cSORF
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFastHadamardTransform as cFHT
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuSRHT as cSORF
 random_seed = 123
 rng = np.random.default_rng(random_seed)
 marr = rng.uniform(low=-10.0, high=10.0, size=({nrows},{nblocks},{ncols}))
 radem_array = np.asarray([-1, 1])
 D1 = rng.choice(radem_array, size=(3,{nblocks},{ncols}), replace=True).astype(np.int8)
 from __main__ import sorf_test"""
-    print(f"Time(us) for block version with {nthreads} threads::")
-    time_taken = timeit.timeit("sorf_test(marr, D1, nthreads)", setup=block_setup,
-                number=ntests)
-    print(1e6 * time_taken / ntests)
+    #print(f"Time(us) for block version with {nthreads} threads::")
+    #time_taken = timeit.timeit("sorf_test(marr, D1, nthreads)", setup=block_setup,
+    #            number=ntests)
+    #print(1e6 * time_taken / ntests)
 
 
     '''random_seed = 123
