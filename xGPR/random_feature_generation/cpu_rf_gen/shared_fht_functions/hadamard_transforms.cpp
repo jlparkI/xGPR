@@ -135,6 +135,7 @@ void generalTransform(T xArray[], int startRow, int endRow,
             for (int i = 0; i < rowStride; i += (h << 1)){
                 xElement = xArray + idx1 * rowStride + i;
                 yElement = xElement + h;
+                #pragma omp simd
                 for (int j=0; j < h; j++){
                     y = *yElement;
                     *yElement = *xElement - y;

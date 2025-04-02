@@ -1,0 +1,175 @@
+	.file	"TEMP_TESTING.cpp"
+	.text
+	.p2align 4
+	.globl	_Z16generalTransformPdiiii
+	.type	_Z16generalTransformPdiiii, @function
+_Z16generalTransformPdiiii:
+.LFB0:
+	.cfi_startproc
+	endbr64
+	pushq	%r15
+	.cfi_def_cfa_offset 16
+	.cfi_offset 15, -16
+	imull	%r8d, %ecx
+	pushq	%r14
+	.cfi_def_cfa_offset 24
+	.cfi_offset 14, -24
+	pushq	%r13
+	.cfi_def_cfa_offset 32
+	.cfi_offset 13, -32
+	pushq	%r12
+	.cfi_def_cfa_offset 40
+	.cfi_offset 12, -40
+	pushq	%rbp
+	.cfi_def_cfa_offset 48
+	.cfi_offset 6, -48
+	pushq	%rbx
+	.cfi_def_cfa_offset 56
+	.cfi_offset 3, -56
+	movq	%rdi, -64(%rsp)
+	movl	%esi, -20(%rsp)
+	movl	%edx, -12(%rsp)
+	movl	%r8d, -24(%rsp)
+	cmpl	%edx, %esi
+	jge	.L1
+	cmpl	$8, %r8d
+	jle	.L1
+	movl	%ecx, %r15d
+	testl	%ecx, %ecx
+	jle	.L1
+	imull	%ecx, %esi
+	leaq	-16(%rdi), %rax
+	movq	%rax, -32(%rsp)
+	movl	%esi, -16(%rsp)
+.L4:
+	movslq	-16(%rsp), %rax
+	movl	$8, %r12d
+	leaq	16(,%rax,8), %rbx
+	movq	%rax, -56(%rsp)
+	movq	%rbx, -48(%rsp)
+	movq	-64(%rsp), %rbx
+	leaq	(%rbx,%rax,8), %rax
+	movq	%rax, -40(%rsp)
+	.p2align 4,,10
+	.p2align 3
+.L14:
+	movslq	%r12d, %rdx
+	addl	%r12d, %r12d
+	movq	%rdx, %rax
+	leaq	0(,%rdx,8), %r13
+	testl	%edx, %edx
+	jle	.L9
+	addq	-56(%rsp), %rdx
+	movq	-64(%rsp), %rbx
+	movslq	%r12d, %r10
+	xorl	%r11d, %r11d
+	movq	-48(%rsp), %r8
+	salq	$3, %r10
+	addq	-32(%rsp), %r13
+	leaq	0(,%rdx,8), %r9
+	movl	%eax, %edx
+	leaq	(%rbx,%r9), %rcx
+	shrl	%edx
+	leal	-1(%rdx), %edi
+	leal	-1(%rax), %edx
+	movq	-40(%rsp), %rax
+	addq	$1, %rdi
+	leaq	-8(%rbx,%rdx,8), %r14
+	salq	$4, %rdi
+	.p2align 4,,10
+	.p2align 3
+.L8:
+	leaq	-16(%r8), %rbp
+	leaq	16(%r9), %rbx
+	movq	%rax, %rdx
+	leaq	0(%r13,%r8), %rsi
+	cmpq	%rbx, %rbp
+	jge	.L15
+	cmpq	%r8, %r9
+	jl	.L5
+.L15:
+	xorl	%edx, %edx
+	.p2align 4,,10
+	.p2align 3
+.L7:
+	movupd	(%rcx,%rdx), %xmm1
+	movupd	(%rax,%rdx), %xmm0
+	subpd	%xmm1, %xmm0
+	movups	%xmm0, (%rcx,%rdx)
+	movupd	(%rax,%rdx), %xmm0
+	addpd	%xmm1, %xmm0
+	movups	%xmm0, (%rax,%rdx)
+	addq	$16, %rdx
+	cmpq	%rdi, %rdx
+	jne	.L7
+.L11:
+	addl	%r12d, %r11d
+	addq	%r10, %r9
+	addq	%r10, %r8
+	addq	%r10, %rcx
+	addq	%r10, %rax
+	cmpl	%r11d, %r15d
+	jg	.L8
+.L9:
+	cmpl	%r12d, -24(%rsp)
+	jg	.L14
+	addl	$1, -20(%rsp)
+	movl	-20(%rsp), %eax
+	addl	%r15d, -16(%rsp)
+	cmpl	%eax, -12(%rsp)
+	jne	.L4
+.L1:
+	popq	%rbx
+	.cfi_remember_state
+	.cfi_def_cfa_offset 48
+	popq	%rbp
+	.cfi_def_cfa_offset 40
+	popq	%r12
+	.cfi_def_cfa_offset 32
+	popq	%r13
+	.cfi_def_cfa_offset 24
+	popq	%r14
+	.cfi_def_cfa_offset 16
+	popq	%r15
+	.cfi_def_cfa_offset 8
+	ret
+	.p2align 4,,10
+	.p2align 3
+.L5:
+	.cfi_restore_state
+	leaq	(%r14,%r8), %rbx
+	.p2align 4,,10
+	.p2align 3
+.L10:
+	movsd	(%rsi), %xmm0
+	movsd	(%rdx), %xmm1
+	addq	$8, %rdx
+	addq	$8, %rsi
+	subsd	%xmm0, %xmm1
+	movsd	%xmm1, -8(%rsi)
+	addsd	-8(%rdx), %xmm0
+	movsd	%xmm0, -8(%rdx)
+	cmpq	%rbx, %rdx
+	jne	.L10
+	jmp	.L11
+	.cfi_endproc
+.LFE0:
+	.size	_Z16generalTransformPdiiii, .-_Z16generalTransformPdiiii
+	.ident	"GCC: (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0"
+	.section	.note.GNU-stack,"",@progbits
+	.section	.note.gnu.property,"a"
+	.align 8
+	.long	1f - 0f
+	.long	4f - 1f
+	.long	5
+0:
+	.string	"GNU"
+1:
+	.align 8
+	.long	0xc0000002
+	.long	3f - 2f
+2:
+	.long	0x3
+3:
+	.align 8
+4:

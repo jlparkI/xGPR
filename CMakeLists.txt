@@ -48,7 +48,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/ext/nanobind)
-#find_package(nanobind CONFIG REQUIRED)
 
 nanobind_add_module(
   xgpr_cpu_rfgen_cpp_ext
@@ -94,4 +93,10 @@ if (CMAKE_CUDA_COMPILER)
     install(TARGETS xgpr_cuda_rfgen_cpp_ext LIBRARY DESTINATION ${SKBUILD_PROJECT_NAME})
 endif()
 
-install(TARGETS xgpr_cpu_rfgen_cpp_ext LIBRARY DESTINATION ${SKBUILD_PROJECT_NAME})
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(xgpr_cpu_rfgen_cpp_ext PUBLIC OpenMP::OpenMP_CXX)
+endif()
+
+install(TARGETS xgpr_cpu_rfgen_cpp_ext LIBRARY DESTINATION
+    ${SKBUILD_PROJECT_NAME})

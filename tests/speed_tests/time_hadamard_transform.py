@@ -17,7 +17,7 @@ MAX_COLS_MATMUL = 124#2048
 def timetest():
     """Run a series of timeit tests and print the results."""
     #Change these lines depending on what dims you want to test.
-    nthreads = 2
+    nthreads = 1
     nrows, ncols, nfeats = 2000, 1024, 2048
     if nfeats % ncols != 0:
         raise ValueError("nfeats must be an integer multiple of ncols.")

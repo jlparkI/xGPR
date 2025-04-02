@@ -52,7 +52,6 @@ void multiplyByDiagonalRademacherMat2D(T __restrict xArray[],
     
     for(i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
-        #pragma omp simd
         for (j = 0; j < rowStride; j++){
             *xElement *= rademArray[j] * normConstant;
             xElement++;
@@ -116,7 +115,6 @@ void multiplyByDiagonalRademacherMat(T __restrict xArray[],
     
     for(i = startRow; i < endRow; i++){
         xElement = xArray + i * rowStride;
-        #pragma omp simd
         for (j = 0; j < rowStride; j++){
             *xElement *= rademArray[j] * normConstant;
             xElement++;
@@ -160,14 +158,12 @@ void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
     normConstant = 1 / pow(2, normConstant);
     const int8_t *rademElement = rademArray + repeatPosition;
 
-    #pragma omp simd
     for (int i = 0; i < cbufferDim2; i++)
         cbuffer[i] *= rademElement[i] * normConstant;
 
     rademElement += rademShape2;
     singleVectorTransform<T>(cbuffer, cbufferDim2);
 
-    #pragma omp simd
     for (int i = 0; i < cbufferDim2; i++)
         cbuffer[i] *= rademElement[i] * normConstant;
 
@@ -175,7 +171,6 @@ void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
     singleVectorTransform<T>(cbuffer, cbufferDim2);
 
 
-    #pragma omp simd
     for (int i = 0; i < cbufferDim2; i++)
         cbuffer[i] *= rademElement[i] * normConstant;
 
@@ -233,7 +228,6 @@ void singleVectorRBFPostProcess(const T xdata[],
     chiIn = chiArr + outputStart;
     xOut = outputArray + 2 * outputStart + rowNumber * 2 * numFreqs;
 
-    #pragma omp simd
     for (int i=0; i < endPosition; i++){
         prodVal = xdata[i] * chiIn[i];
         *xOut += cos(prodVal) * scalingTerm;

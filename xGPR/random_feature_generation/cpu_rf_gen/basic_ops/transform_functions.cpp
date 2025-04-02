@@ -54,17 +54,19 @@ int fastHadamard3dArray_(nb::ndarray<T, nb::shape<-1,-1,-1>,
     int startPosition, endPosition;
     int chunkSize = (zDim0 + numThreads - 1) / numThreads;
 
-    for (int i=0; i < numThreads; i++){
-        startPosition = i * chunkSize;
-        endPosition = (i + 1) * chunkSize;
-        if (endPosition > zDim0)
-            endPosition = zDim0;
-        threads[i] = std::thread(&ThreadTransformRows3D<T>, inputPtr, startPosition,
-                                endPosition, zDim1, zDim2);
-    }
+    void *wow = ThreadTransformRows3D(inputPtr, 0, zDim0,
+            zDim1, zDim2);
+    //for (int i=0; i < numThreads; i++){
+    //    startPosition = i * chunkSize;
+    //    endPosition = (i + 1) * chunkSize;
+    //    if (endPosition > zDim0)
+    //        endPosition = zDim0;
+    //    threads[i] = std::thread(&ThreadTransformRows3D<T>, inputPtr, startPosition,
+    //                            endPosition, zDim1, zDim2);
+    //}
 
-    for (auto& th : threads)
-        th.join();
+    //for (auto& th : threads)
+    //    th.join();
     return 0;
 }
 template int fastHadamard3dArray_<double>(nb::ndarray<double, nb::shape<-1,-1,-1>,
