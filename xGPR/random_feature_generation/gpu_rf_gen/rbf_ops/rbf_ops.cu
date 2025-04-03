@@ -1,13 +1,19 @@
-/*
-* Contains specialized functions for generating random features for
-* the RBF and related kernels (non-convolution).
+/* Copyright (C) 2025 Jonathan Parkinson
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 */
-
+// C++ headers
 #include <stdio.h>
-#include <cuda.h>
-#include <cuda_runtime.h>
 #include <stdint.h>
 #include <math.h>
+
+// Library headers
+#include <cuda.h>
+#include <cuda_runtime.h>
+
+// Project headers
 #include "../shared_constants.h"
 #include "../sharedmem.h"
 #include "rbf_ops.h"
@@ -424,7 +430,7 @@ int RBFFeatureGrad(
     cudaFree(featureArray);
     return 0;
 }
-//Instantiate templates so Cython / PyBind wrappers can import.
+// Instantiate templates so Cython / PyBind wrappers can import.
 template int RBFFeatureGrad<double>(
         nb::ndarray<const double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
         nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,

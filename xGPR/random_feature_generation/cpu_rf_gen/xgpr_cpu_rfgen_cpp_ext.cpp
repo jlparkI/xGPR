@@ -109,5 +109,5 @@ NB_MODULE(xgpr_cpu_rfgen_cpp_ext, m) {
             nb::arg("input_arr").noconvert(),
             nb::arg("class_means").noconvert(),
             nb::arg("class_labels").noconvert(),
-            nb::arg("class_priors").noconvert());
+            nb::arg("class_prior_sqrts").noconvert());
 }
