@@ -11,16 +11,13 @@ from .cg_toolkit.cg_tools import CPU_ConjugateGrad
 
 try:
     import cupy as cp
-    from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
     from .cg_toolkit.cg_tools import GPU_ConjugateGrad
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
 
 from .constants import constants
 from .model_baseclass import ModelBaseclass
-from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
-from .preconditioners.inter_device_preconditioners import InterDevicePreconditioner
-from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
+from .preconditioners.rand_nys_preconditioners import RandNysPreconditioner
 
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_internal
 from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
@@ -178,14 +175,11 @@ class xGPRegression(ModelBaseclass):
                 well the preconditioner is likely to perform.
         """
         self._run_pre_fitting_prep(dataset, max_rank)
-        if self.device == "cuda":
-            preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, max_rank,
+        preconditioner = RandNysPreconditioner(self.kernel, dataset, max_rank,
                         self.verbose, self.random_seed, method)
+        if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
-        else:
-            preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, max_rank,
-                        self.verbose, self.random_seed, method)
         return preconditioner, preconditioner.achieved_ratio
 
 
@@ -365,15 +359,14 @@ class xGPRegression(ModelBaseclass):
             if settings["max_rank"] >= self.num_rffs:
                 settings["max_rank"] = self.num_rffs - 1
 
-            preconditioner = RandNysTuningPreconditioner(self.kernel, dataset,
+            preconditioner = RandNysPreconditioner(self.kernel, dataset,
                         settings["max_rank"], False, self.random_seed,
                         settings["preconditioner_mode"])
         else:
             preconditioner = self._autoselect_preconditioner(dataset,
                     min_rank = constants.SMALLEST_NMLL_MAX_RANK,
                     max_rank = constants.LARGEST_NMLL_MAX_RANK,
-                    always_use_srht2 = True,
-                    tuning = True)
+                    always_use_srht2 = True)
 
         if self.verbose:
             print("Now fitting...")
@@ -512,7 +505,7 @@ class xGPRegression(ModelBaseclass):
             #a very large number of input features. Find a better / more satisfactory
             #way to resolve this...
             if "Linear" in self.kernel_choice:
-                self.var = InterDevicePreconditioner(self.kernel, dataset,
+                self.var = RandNysPreconditioner(self.kernel, dataset,
                         self.variance_rffs, False, self.random_seed, "srht")
                 self.exact_var_calculation = False
             else:

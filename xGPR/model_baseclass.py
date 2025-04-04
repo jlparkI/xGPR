@@ -4,12 +4,10 @@ import sys
 import copy
 try:
     import cupy as cp
-    from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
 except:
     pass
 import numpy as np
-from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
-from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
+from .preconditioners.rand_nys_preconditioners import RandNysPreconditioner
 from .preconditioners.rand_nys_constructors import srht_ratio_check
 
 from .kernels import KERNEL_NAME_TO_CLASS
@@ -363,9 +361,9 @@ class ModelBaseclass():
         if sample_frac < 0.01 or sample_frac > 1:
             raise RuntimeError("sample_frac must be in the range [0.01, 1]")
 
-        reset_num_rffs = False
+        num_rffs = copy.deepcopy(self.num_rffs)
+
         if self.num_rffs > 8192:
-            reset_num_rffs, num_rffs = True, copy.deepcopy(self.num_rffs)
             if self.kernel_choice == "RBFLinear" and self.num_rffs % 2 != 0:
                 self.num_rffs = 8191
             else:
@@ -375,9 +373,7 @@ class ModelBaseclass():
                 self.verbose, sample_frac)
         ratio = float(s_mat.min() / self.kernel.get_lambda()**2) / sample_frac
 
-        if reset_num_rffs:
-            self.num_rffs = num_rffs
-
+        self.num_rffs = num_rffs
         return ratio
 
 
@@ -385,8 +381,8 @@ class ModelBaseclass():
     def _autoselect_preconditioner(self, dataset, min_rank:int = 512,
             max_rank:int = 3000, increment_size:int = 512,
             always_use_srht2:bool = False,
-            ratio_target:float = 30., tuning:bool = False,
-            x_mean = None):
+            ratio_target:float = 30., class_means = None,
+            priors = None):
         """Uses an automated algorithm to choose a preconditioner that
         is up to max_rank in size. For internal use only.
 
@@ -401,11 +397,11 @@ class ModelBaseclass():
                 number of iterations about 30% but increase time cost
                 of preconditioner construction about 150%.
             ratio_target (int): The target value for the ratio.
-            tuning (bool): If True, preconditioner is intended for tuning,
-                so it also needs to be used for SLQ.
-            x_mean (ndarray): Either None or an array of shape (num_rffs). Should
-                always be None for regression (regression does not mean center the
-                data) and should never be None for classification (classification does).
+            class_means: Either None or a (nclasses, num_rffs)
+                array storing the mean of the features for each
+                class. Only for classification.
+            priors: Either None or an (nclasses) array storing
+                the prior for each class. Only for classification.
 
         Returns:
             preconditioner: A preconditioner object.
@@ -440,20 +436,11 @@ class ModelBaseclass():
         if always_use_srht2:
             method = "srht_2"
 
-        if tuning:
-            #We don't have to pass x_mean here since tuning preconditioners are never
-            #used for classification.
-            preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, rank,
-                        False, self.random_seed, method)
-        else:
-            if self.device == "cuda":
-                preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, rank,
+        preconditioner = RandNysPreconditioner(self.kernel, dataset, rank,
                         self.verbose, self.random_seed, method)
-                mempool = cp.get_default_memory_pool()
-                mempool.free_all_blocks()
-            else:
-                preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, rank,
-                        self.verbose, self.random_seed, method)
+        if self.device == "cuda":
+            mempool = cp.get_default_memory_pool()
+            mempool.free_all_blocks()
 
         return preconditioner
 

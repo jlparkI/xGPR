@@ -15,7 +15,8 @@ from ..kernels.srht_compressor import SRHTCompressor
 
 
 
-def single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose):
+def single_pass_gauss(dataset, kernel, q_mat,
+        acc_results, verbose, class_means, priors):
     """Runs a single pass over the dataset using matvecs.
 
     Args:
@@ -27,15 +28,21 @@ def single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose):
         acc_results (array): A (num_rffs, rank) array
             in which Z^T Z @ q_mat will be stored.
         verbose (bool): Whether to print updates.
+        class_means: Either None or a (nclasses, num_rffs)
+            array storing the mean of the features for each
+            class.
+        priors: Either None or an (nclasses) array storing
+            the prior for each class.
     """
-    for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
-        xdata = kernel.transform_x(xdata, ldata)
+    for j, (xdata, ydata, ldata) in enumerate(dataset.get_chunked_data()):
+        xdata, _ = kernel.transform_x_y(xdata, ydata, ldata, class_means, priors)
         acc_results += xdata.T @ (xdata @ q_mat)
         if j % 10 == 0 and verbose:
             print(f"Chunk {j} complete.")
 
 
-def single_pass_srht(dataset, kernel, compressor, acc_results, verbose):
+def single_pass_srht(dataset, kernel, compressor,
+        acc_results, verbose, class_means, priors):
     """Runs a single pass over the dataset using SRHT.
 
     Args:
@@ -46,17 +53,23 @@ def single_pass_srht(dataset, kernel, compressor, acc_results, verbose):
         acc_results (array): A (num_rffs, rank) array
             in which Z^T Z @ q_mat will be stored.
         verbose (bool): Whether to print updates.
+        class_means: Either None or a (nclasses, num_rffs)
+            array storing the mean of the features for each
+            class.
+        priors: Either None or an (nclasses) array storing
+            the prior for each class.
     """
-    for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
-        xdata = kernel.transform_x(xdata, ldata)
+    for j, (xdata, ydata, ldata) in enumerate(dataset.get_chunked_data()):
+        xdata, _ = kernel.transform_x_y(xdata, ydata, ldata, class_means, priors)
         acc_results += compressor.transform_x(xdata).T @ xdata
         if j % 10 == 0 and verbose:
-            print(f"Chunk {j} complete.")
+            print(f"chunk {j} complete.")
 
 
 
 def subsampled_srht(dataset, kernel, compressor, acc_results, verbose,
-        sample_frac = 0.1, random_seed = 123):
+        sample_frac = 0.1, random_seed = 123, class_means=None,
+        priors=None):
     """Runs a single pass over the dataset using SRHT, but sampling the
     data. The resulting preconditioner will not be useful for fitting
     but the calculated ratio is a good predictor of the number of
@@ -75,23 +88,30 @@ def subsampled_srht(dataset, kernel, compressor, acc_results, verbose,
         sample_frac (float): The fraction of datapoints to
             sample.
         random_seed (int): Seed for the random number generator.
+        class_means: Either None or a (nclasses, num_rffs)
+            array storing the mean of the features for each
+            class.
+        priors: Either None or an (nclasses) array storing
+            the prior for each class.
     """
     rng = np.random.default_rng(random_seed)
-    for j, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
+
+    for j, (xdata, ydata, ldata) in enumerate(dataset.get_chunked_data()):
         cutoff = max(int(sample_frac * float(xdata.shape[0])), 1)
         idx = rng.permutation(xdata.shape[0])[:cutoff]
         if ldata is not None:
-            xdata = kernel.transform_x(xdata[idx,...], ldata[idx])
+            xdata, _ = kernel.transform_x_y(xdata[idx,...], ydata[idx],
+                    ldata[idx], class_means, priors)
         else:
-            xdata = kernel.transform_x(xdata[idx,...])
+            xdata, _ = kernel.transform_x_y(xdata[idx,...], ydata[idx],
+                    ldata, class_means, priors)
         acc_results += compressor.transform_x(xdata).T @ xdata
         if j % 10 == 0 and verbose:
             print(f"Chunk {j} complete.")
 
 
-
 def single_pass_srht_zty(dataset, kernel, compressor, acc_results, z_trans_y,
-                        verbose):
+                        verbose, class_means=None, priors=None):
     """Runs a single pass over the dataset using SRHT.
 
     Args:
@@ -104,10 +124,16 @@ def single_pass_srht_zty(dataset, kernel, compressor, acc_results, z_trans_y,
         z_trans_y (array): A (num_rffs) array in which the
             product Z^T y will be stored.
         verbose (bool): Whether to print updates.
+        class_means: Either None or a (nclasses, num_rffs)
+            array storing the mean of the features for each
+            class.
+        priors: Either None or an (nclasses) array storing
+            the prior for each class.
     """
     y_trans_y = 0.0
     for j, (xin, yin, ldata) in enumerate(dataset.get_chunked_data()):
-        xdata, ydata = kernel.transform_x_y(xin, yin, ldata)
+        xdata, ydata = kernel.transform_x_y(xin, yin, ldata,
+                class_means, priors)
         z_trans_y += xdata.T @ ydata
         y_trans_y += ydata.T @ ydata
         acc_results += compressor.transform_x(xdata).T @ xdata
@@ -119,7 +145,7 @@ def single_pass_srht_zty(dataset, kernel, compressor, acc_results, z_trans_y,
 
 
 def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = False,
-                n_passes = 1, get_zty = False):
+                n_passes = 1, get_zty = False, class_means=None, priors=None):
     """Builds the randomized Nystrom approximation to the inverse
     of (z^T z + lambda), where z is the random features generated
     for dataset, using SRHT on the first pass with subsequent passes over
@@ -134,6 +160,11 @@ def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = Fal
         verbose (bool): If True, print updates during construction.
         get_zty (bool): If True, return z_trans_y and y_trans_y to caller. This
             is useful for some hyperparameter tuning methods.
+        class_means: Either None or a (nclasses, num_rffs)
+            array storing the mean of the features for each
+            class.
+        priors: Either None or an (nclasses) array storing
+            the prior for each class.
 
     Returns:
         u_mat (np.ndarray): The eigenvectors of the matrix needed to
@@ -167,10 +198,10 @@ def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = Fal
 
     if get_zty:
         y_trans_y = single_pass_srht_zty(dataset, kernel, compressor, acc_results,
-                        z_trans_y, verbose)
+                        z_trans_y, verbose, class_means, priors)
     else:
         single_pass_srht(dataset, kernel, compressor, acc_results,
-                verbose)
+                verbose, class_means, priors)
 
     del compressor
     acc_results = acc_results.T
@@ -185,7 +216,8 @@ def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = Fal
         if kernel.device == "cuda":
             mempool.free_all_blocks()
 
-        single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose)
+        single_pass_gauss(dataset, kernel, q_mat, acc_results, verbose,
+                class_means, priors)
 
     if kernel.device == "cuda":
         mempool.free_all_blocks()
@@ -211,7 +243,7 @@ def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = Fal
 
 
 def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
-                get_zty = False):
+                get_zty = False, class_means=None, priors=None):
     """Builds the randomized Nystrom approximation to the inverse
     of (z^T z + lambda), where z is the random features generated
     for dataset, using SRHT.
@@ -224,6 +256,11 @@ def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
         verbose (bool): If True, print updates during construction.
         get_zty (bool): If True, return z_trans_y and y_trans_y to caller. This
             is useful for some hyperparameter tuning methods.
+        class_means: Either None or a (nclasses, num_rffs)
+            array storing the mean of the features for each
+            class.
+        priors: Either None or an (nclasses) array storing
+            the prior for each class.
 
     Returns:
         u_mat (np.ndarray): The eigenvectors of the matrix needed to
@@ -254,9 +291,10 @@ def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
 
     if get_zty:
         y_trans_y = single_pass_srht_zty(dataset, kernel, compressor, acc_results,
-                        z_trans_y, verbose)
+                        z_trans_y, verbose, class_means, priors)
     else:
-        single_pass_srht(dataset, kernel, compressor, acc_results, verbose)
+        single_pass_srht(dataset, kernel, compressor, acc_results, verbose,
+                class_means, priors)
 
     c_mat = compressor.transform_x(acc_results)
     _, c_s1, c_v1 = svd_calculator(c_mat, full_matrices = False)
@@ -284,7 +322,7 @@ def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
 
 
 def srht_ratio_check(dataset, rank, kernel, random_state, verbose = False,
-                sample_frac = 0.1):
+                sample_frac = 0.1, class_means=None, priors=None):
     """Runs a fast 'preconditioner construction' using a random sample of
     the data. The resulting preconditioner will not be useful for fitting,
     so the eigenvectors normally needed for the preconditioner are not
@@ -301,6 +339,11 @@ def srht_ratio_check(dataset, rank, kernel, random_state, verbose = False,
         verbose (bool): If True, print updates during construction.
         sample_frac (float): The fraction of datapoints to
             sample.
+        class_means: Either None or a (nclasses, num_rffs)
+            array storing the mean of the features for each
+            class.
+        priors: Either None or an (nclasses) array storing
+            the prior for each class.
 
     Returns:
         s_mat (np.ndarray): The eigenvalues of the
@@ -318,7 +361,7 @@ def srht_ratio_check(dataset, rank, kernel, random_state, verbose = False,
                 random_seed = random_state, device=kernel.device)
 
     subsampled_srht(dataset, kernel, compressor, acc_results, verbose,
-            sample_frac, random_state)
+            sample_frac, random_state, class_means, priors)
 
     c_mat = compressor.transform_x(acc_results)
     _, c_s1, c_v1 = svd_calculator(c_mat, full_matrices = False)
