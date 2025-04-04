@@ -18,8 +18,9 @@ class GPU_ConjugateGrad:
     SLQ.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, class_means=None, priors=None):
+        self.class_means = class_means
+        self.priors = priors
 
 
     def _matvec(self, dataset, kernel, vec, matvec):
@@ -36,9 +37,15 @@ class GPU_ConjugateGrad:
                 This array is modified in-place.
         """
         matvec[:] = 0
-        for x, lengths in dataset.get_chunked_x_data():
-            Z = kernel.transform_x(x, lengths)
-            matvec += Z.T @ (Z @ vec)
+        if self.class_means is None:
+            for x, lengths in dataset.get_chunked_x_data():
+                Z = kernel.transform_x(x, lengths)
+                matvec += Z.T @ (Z @ vec)
+        else:
+            for x, ydata, lengths in dataset.get_chunked_data():
+                Z, _ = kernel.transform_x_y(x, ydata, lengths,
+                        self.class_means, self.priors)
+                matvec += Z.T @ (Z @ vec)
         matvec += kernel.get_lambda()**2 * vec
 
 
@@ -149,8 +156,9 @@ class CPU_ConjugateGrad:
     SLQ.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, class_means=None, priors=None):
+        self.class_means = class_means
+        self.priors = priors
 
 
     def _matvec(self, dataset, kernel, vec, matvec):
@@ -167,9 +175,15 @@ class CPU_ConjugateGrad:
                 This array is modified in-place.
         """
         matvec[:] = 0
-        for x, lengths in dataset.get_chunked_x_data():
-            Z = kernel.transform_x(x, lengths)
-            matvec += Z.T @ (Z @ vec)
+        if self.class_means is None:
+            for x, lengths in dataset.get_chunked_x_data():
+                Z = kernel.transform_x(x, lengths)
+                matvec += Z.T @ (Z @ vec)
+        else:
+            for x, ydata, lengths in dataset.get_chunked_data():
+                Z, _ = kernel.transform_x_y(x, ydata, lengths,
+                        self.class_means, self.priors)
+                matvec += Z.T @ (Z @ vec)
         matvec += kernel.get_lambda()**2 * vec
 
 

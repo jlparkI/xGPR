@@ -38,7 +38,7 @@ def calc_weights_exact(dataset, kernel):
 
 
 
-def calc_variance_exact(kernel, dataset, kernel_choice, variance_rffs):
+def calc_variance_exact(kernel, dataset, variance_rffs):
     """Calculates the var matrix used for calculating
     posterior predictive variance on new datapoints. We
     only ever use closed-form matrix-decomposition based
@@ -51,7 +51,6 @@ def calc_variance_exact(kernel, dataset, kernel_choice, variance_rffs):
         kernel: A valid kernel object that can generate random features.
         dataset: Either an OnlineDataset or an OfflineDataset containing
             the data that needs to be fitted.
-        kernel_choice (str): The type of kernel.
         variance_rffs (int): The number of random features for variance.
 
     Returns:

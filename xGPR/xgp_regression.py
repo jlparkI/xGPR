@@ -509,8 +509,7 @@ class xGPRegression(ModelBaseclass):
                         self.variance_rffs, False, self.random_seed, "srht")
                 self.exact_var_calculation = False
             else:
-                self.var = calc_variance_exact(self.kernel, dataset, self.kernel_choice,
-                                self.variance_rffs)
+                self.var = calc_variance_exact(self.kernel, dataset, self.variance_rffs)
 
 
         if self.verbose:
