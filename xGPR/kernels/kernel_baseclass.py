@@ -306,7 +306,7 @@ class KernelBaseclass(ABC):
 
 
     def transform_x_y(self, input_x, input_y, sequence_length = None,
-            class_means = None, priors = None):
+            class_means = None, priors = None, classification = False):
         """Given a numpy array as input (and sequence_length,
         which is none for most kernels but must be specified
         for convolution kernels), generate random features
@@ -315,20 +315,28 @@ class KernelBaseclass(ABC):
         on. If class-specific means and priors are supplied, we are
         doing classification, so we will use the features to generate
         a pooled covariance matrix. In that case, the output features
-        should be mean-centered using the class-specific means."""
-        y_out = input_y
-        if self.device == "cuda":
-            y_out = cp.asarray(y_out)
+        should be mean-centered using the class-specific means.
 
+        The y-values should be converted to one data type if we
+        are doing classification and another if we are doing
+        regression."""
         xtrans = self.transform_x(input_x, sequence_length)
 
-        if class_means is not None:
+        if classification:
+            y_out = input_y.astype(np.int32)
             if self.device == "cuda":
-                cudaPrepPooledCovCalc(xtrans, class_means,
-                        y_out, priors)
-            else:
-                cpuPrepPooledCovCalc(xtrans, class_means,
-                        y_out, priors)
+                y_out = cp.asarray(y_out)
+            if class_means is not None:
+                if self.device == "cuda":
+                    cudaPrepPooledCovCalc(xtrans, class_means,
+                            y_out, priors)
+                else:
+                    cpuPrepPooledCovCalc(xtrans, class_means,
+                            y_out, priors)
+        else:
+            y_out = input_y.astype(np.float64)
+            if self.device == "cuda":
+                y_out = cp.asarray(y_out)
 
         return xtrans, y_out
 
@@ -338,7 +346,9 @@ class KernelBaseclass(ABC):
         """Given a numpy array as input (and sequence_length,
         which is none for most kernels but must be specified
         for convolution kernels), generate random features
-        and gradient as output."""
+        and gradient as output. Currently this is only
+        configured for regression and should not be used
+        for classification."""
         # This always generates a copy, which means that we
         # are never working on the input data, only on a copy,
         # and can therefore modify it with impunity.
@@ -374,7 +384,8 @@ class KernelBaseclass(ABC):
         for convolution kernels), generate random features
         and gradient as output. In addition, convert the input y-values
         to live on the same device that the kernel is currently
-        on."""
+        on. Currently this is only configured for regression
+        and should not be used for classification."""
         y_out = input_y
         if self.device == "cuda":
             y_out = cp.asarray(y_out)

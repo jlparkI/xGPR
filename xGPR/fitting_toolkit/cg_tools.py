@@ -18,9 +18,9 @@ class GPU_ConjugateGrad:
     SLQ.
     """
 
-    def __init__(self, class_means=None, priors=None):
+    def __init__(self, class_means=None, class_weights=None):
         self.class_means = class_means
-        self.priors = priors
+        self.class_weights = class_weights
 
 
     def _matvec(self, dataset, kernel, vec, matvec):
@@ -44,7 +44,8 @@ class GPU_ConjugateGrad:
         else:
             for x, ydata, lengths in dataset.get_chunked_data():
                 Z, _ = kernel.transform_x_y(x, ydata, lengths,
-                        self.class_means, self.priors)
+                        self.class_means, self.class_weights,
+                        True)
                 matvec += Z.T @ (Z @ vec)
         matvec += kernel.get_lambda()**2 * vec
 
@@ -156,9 +157,9 @@ class CPU_ConjugateGrad:
     SLQ.
     """
 
-    def __init__(self, class_means=None, priors=None):
+    def __init__(self, class_means=None, class_weights=None):
         self.class_means = class_means
-        self.priors = priors
+        self.class_weights = class_weights
 
 
     def _matvec(self, dataset, kernel, vec, matvec):
@@ -182,7 +183,8 @@ class CPU_ConjugateGrad:
         else:
             for x, ydata, lengths in dataset.get_chunked_data():
                 Z, _ = kernel.transform_x_y(x, ydata, lengths,
-                        self.class_means, self.priors)
+                        self.class_means, self.class_weights,
+                        True)
                 matvec += Z.T @ (Z @ vec)
         matvec += kernel.get_lambda()**2 * vec
 

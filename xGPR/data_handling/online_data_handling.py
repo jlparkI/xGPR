@@ -59,7 +59,6 @@ class OnlineDataset(DatasetBaseclass):
                 cutoff = min(i + self.get_chunk_size(), self._xdim[0])
                 xchunk = self._xdata[i:cutoff,...]
                 ychunk = self._ydata[i:cutoff]
-                ychunk = ychunk.astype(np.float64)
                 ychunk -= self._trainy_mean
                 ychunk /= self._trainy_std
                 yield xchunk, ychunk, None
@@ -71,7 +70,6 @@ class OnlineDataset(DatasetBaseclass):
                 ychunk = self._ydata[i:cutoff]
                 lchunk = self._sequence_lengths[i:cutoff]
 
-                ychunk = ychunk.astype(np.float64)
                 ychunk -= self._trainy_mean
                 ychunk /= self._trainy_std
                 yield xchunk, ychunk, lchunk

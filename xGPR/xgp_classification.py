@@ -4,12 +4,16 @@ The xGPDiscriminant class provides the tools needed to fit a classification
 model and make predictions for new datapoints. It inherits from
 ModelBaseclass.
 """
+import numpy as np
 try:
     import cupy as cp
     from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
+    from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaFindClassMeans
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
-import numpy as np
+
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFindClassMeans
+
 from .constants import constants
 from .model_baseclass import ModelBaseclass
 
@@ -39,7 +43,7 @@ class xGPDiscriminant(ModelBaseclass):
                 to use.
             kernel_choice (str): The kernel that the model will use.
             device (str): Determines whether calculations are performed on
-                'cpu' or 'gpu'. The initial entry can be changed later
+                'cpu' or 'cuda'. The initial entry can be changed later
                 (i.e. model can be transferred to a different device).
                 Defaults to 'cpu'.
             kernel_settings (dict): Contains kernel-specific parameters --
@@ -54,6 +58,13 @@ class xGPDiscriminant(ModelBaseclass):
         """
         # Note that we pass 0 as the second argument for variance rffs
         # since the classifier does not currently compute variance.
+        # Also notice that we set fit_intercept to False by default since
+        # the classifier fits an intercept separately. This is a hack --
+        # the fit_intercept argument is a little clunky anyway and
+        # should probably be removed altogether.
+        if not isinstance(kernel_settings, dict):
+            raise RuntimeError("kernel_settings must be a dict.")
+        kernel_settings["intercept"] = False
         super().__init__(num_rffs, 0,
                         kernel_choice, device = device,
                         kernel_settings = kernel_settings,
@@ -110,81 +121,54 @@ class xGPDiscriminant(ModelBaseclass):
 
             preds.append(pred)
 
-        if self.device == "gpu":
+        if self.device == "cuda":
             return cp.asnumpy(cp.vstack(preds))
         return np.vstack(preds)
 
 
-    def _get_x_mean(self, dataset):
-        """Compiles the overall data mean. This is a faster operation
-        than obtaining all of the targets (see get_targets below.)
+    def _get_class_means_priors(self, dataset):
+        """Compiles the class-specific means, the weight for
+        each class (the square root of the inverse of the
+        number of instances) and the prior for each class
+        (the number of instances divided by the total num
+        training datapoints).
 
         Args:
             dataset: A valid Dataset object.
 
         Returns:
-            x_mean (ndarray): The mean of the random features across
+            class_means (ndarray): The mean of the random features across
                 the whole dataset. Shape (num_rffs).
-        """
-        if self.device == "gpu":
-            x_mean = cp.zeros((self.kernel.get_num_rffs()))
-        else:
-            x_mean = np.zeros((self.kernel.get_num_rffs()))
-
-        for xdata, ldata in dataset.get_chunked_x_data():
-            xfeatures = self.kernel.transform_x(xdata, ldata)
-            x_mean += xfeatures.sum(axis=0)
-
-        x_mean /= dataset.get_ndatapoints()
-        return x_mean
-
-
-    def _get_targets(self, dataset):
-        """Compiles the class-specific means and the overall data
-        mean for fitting.
-
-        Args:
-            dataset: A valid Dataset object.
-
-        Returns:
-            x_mean (ndarray): The mean of the random features across
-                the whole dataset. Shape (num_rffs).
-            targets (ndarray): The mean of the random features for
-                datapoints in each class. Shape (num_rffs, n_classes).
+            class_weights (ndarray): The square root of the inverse of
+                the number of datapoints in each class. Used for class
+                weighting.
+            priors (ndarray): The prior probability of each class, as
+                determined from the training data.
         """
         self.n_classes = dataset.get_n_classes()
 
-        #This procedure is a little clunky. TODO: Replace this with a
-        #wrapped CUDA & CPU function to speed up this calculation.
-        if self.device == "gpu":
-            x_mean = cp.zeros((self.kernel.get_num_rffs()))
-            targets = cp.zeros((self.kernel.get_num_rffs(), self.n_classes))
+        if self.device == "cuda":
+            class_means = cp.zeros((self.n_classes, self.kernel.get_num_rffs()))
             n_pts_per_class = cp.zeros((self.n_classes))
-            unique_elements = cp.unique
-            ytype, locator = cp.int32, cp.where
+
+            for (xdata, ydata, ldata) in dataset.get_chunked_data():
+                xfeatures, yclasses = self.kernel.transform_x_y(xdata, ydata, ldata)
+                if ydata.max() > self.n_classes or ydata.min() < 0:
+                    raise ValueError("Unexpected y-values encountered.")
+                cudaFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
+
         else:
-            x_mean = np.zeros((self.kernel.get_num_rffs()))
             targets = np.zeros((self.kernel.get_num_rffs(), self.n_classes))
             n_pts_per_class = np.zeros((self.n_classes))
-            unique_elements = np.unique
-            ytype, locator = np.int32, np.where
 
-        for (xdata, ydata, ldata) in dataset.get_chunked_data():
-            ydata = ydata.astype(ytype)
-            xfeatures = self.kernel.transform_x(xdata, ldata)
-            if ydata.max() > self.n_classes or ydata.min() < 0:
-                raise ValueError("Unexpected y-values encountered.")
+            for (xdata, ydata, ldata) in dataset.get_chunked_data():
+                xfeatures, ydata = self.kernel.transform_x_y(xdata, ydata, ldata)
+                if ydata.max() > self.n_classes or ydata.min() < 0:
+                    raise ValueError("Unexpected y-values encountered.")
+                cpuFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
 
-            cts = unique_elements(ydata, return_counts=True)
 
-            for i in cts[0].tolist():
-                idx = locator(ydata==i)[0]
-                targets[:,i] += xfeatures[idx,:].sum(axis=0)
-
-            x_mean += xfeatures.sum(axis=0)
-            n_pts_per_class[cts[0]] += cts[1]
-
-        x_mean /= float(dataset.get_ndatapoints())
+        x /= float(dataset.get_ndatapoints())
         targets /= n_pts_per_class[None,:]
         return x_mean, targets
 
@@ -218,19 +202,17 @@ class xGPDiscriminant(ModelBaseclass):
         """
         self._run_pre_fitting_prep(dataset, max_rank)
         # Only difference between regression and classification is this
-        # line. TODO: Combine regression / classification build_preconditioner.
-        x_mean = self._get_x_mean(dataset)
+        # feature which is nonetheless crucial since the classifier must
+        # find the class means, priors and class weights.
+        class_means, class_weights, _ = self._get_class_means_priors(dataset)
 
-        if self.device == "gpu":
-            preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, max_rank,
+        preconditioner = RandNysPreconditioner(self.kernel, dataset, max_rank,
                         self.verbose, self.random_seed, method,
-                        x_mean = x_mean)
+                        class_means=class_means, class_weights=class_weights)
+
+        if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
-        else:
-            preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, max_rank,
-                        self.verbose, self.random_seed, method,
-                        x_mean = x_mean)
         return preconditioner, preconditioner.achieved_ratio
 
 
@@ -334,7 +316,7 @@ class xGPDiscriminant(ModelBaseclass):
 
         if self.verbose:
             print("Fitting complete.")
-        if self.device == "gpu":
+        if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
         self._run_post_fitting_cleanup(dataset)

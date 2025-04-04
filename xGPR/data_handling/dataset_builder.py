@@ -159,10 +159,6 @@ def build_online_dataset(xdata, ydata, sequence_lengths = None,
 
     if len(ydata.shape) != 1:
         raise RuntimeError("Y must be a 1d numpy array.")
-    if xdata.dtype not in ("float64", "float32"):
-        raise RuntimeError("x must be an array of type float32 or type float64.")
-    if ydata.dtype != "float64" and task_type == "regression":
-        raise RuntimeError("For regression, ydata must be an array of type float64.")
     if task_type == "classification" and not issubclass(ydata.dtype.type,
                 np.integer):
         raise RuntimeError("For classification, ydata must be an array of integers.")

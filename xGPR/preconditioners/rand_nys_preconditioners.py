@@ -17,7 +17,7 @@ class RandNysPreconditioner():
     """
     def __init__(self, kernel, dataset, max_rank, verbose,
                 random_state = 123, method = "srht",
-                class_means=None, priors=None):
+                class_means=None, class_weights=None):
         """Class constructor.
 
         Args:
@@ -33,8 +33,8 @@ class RandNysPreconditioner():
             class_means: Either None or a (nclasses, num_rffs)
                 array storing the mean of the features for each
                 class.
-            priors: Either None or an (nclasses) array storing
-                the prior for each class.
+            class_weights: Either None or an (nclasses) array storing
+                the class_weight for each class.
         """
         if method not in ["srht_2", "srht_3", "srht"]:
             raise RuntimeError("Unknown method supplied for tuning preconditioner "
@@ -47,13 +47,13 @@ class RandNysPreconditioner():
                                 max_rank, kernel, random_state, verbose,
                                 n_passes, get_zty = True,
                                 class_means=class_means,
-                                priors=priors)
+                                class_weights=class_weights)
         else:
             self.u_mat, self.eig, self.z_trans_y, self.y_trans_y = \
                             initialize_srht(dataset, max_rank,
                                 kernel, random_state, verbose,
                                 get_zty = True, class_means=class_means,
-                                priors=priors)
+                                class_weights=class_weights)
 
         lambda_ = kernel.get_lambda()
         min_eig = self.eig.min()
