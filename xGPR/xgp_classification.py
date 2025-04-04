@@ -14,9 +14,8 @@ from .constants import constants
 from .model_baseclass import ModelBaseclass
 
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_discriminant
-from .fitting_toolkit.lbfgs_fitting_toolkit import lBFGSModelFit
 from .fitting_toolkit.exact_fitting_toolkit import calc_discriminant_weights_exact
-from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
+from .preconditioners.rand_nys_preconditioners import RandNysPreconditioner
 
 
 

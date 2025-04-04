@@ -7,11 +7,11 @@ ModelBaseclass.
 import warnings
 import numpy as np
 from scipy.optimize import minimize
-from .cg_toolkit.cg_tools import CPU_ConjugateGrad
+from .fitting_toolkit.cg_tools import CPU_ConjugateGrad
 
 try:
     import cupy as cp
-    from .cg_toolkit.cg_tools import GPU_ConjugateGrad
+    from .fitting_toolkit.cg_tools import GPU_ConjugateGrad
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
 

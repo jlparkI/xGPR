@@ -50,7 +50,11 @@ def cg_fit_lib_internal(kernel, dataset, cg_tol = 1e-4, max_iter = 500,
         cg_operator = CPU_ConjugateGrad()
         resid = np.zeros((kernel.get_num_rffs(), 2, 1))
 
-    z_trans_y, _ = calc_zty(dataset, kernel)
+    if preconditioner is None:
+        z_trans_y, _ = calc_zty(dataset, kernel)
+    else:
+        z_trans_y = preconditioner.get_zty()
+
     resid[:,0,:] = z_trans_y[:,None] / dataset.get_ndatapoints()
 
     weights, converged, n_iter, losses = cg_operator.fit(dataset, kernel,
