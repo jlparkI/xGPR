@@ -51,6 +51,7 @@ def calc_variance_exact(kernel, dataset, variance_rffs):
         kernel: A valid kernel object that can generate random features.
         dataset: Either an OnlineDataset or an OfflineDataset containing
             the data that needs to be fitted.
+        kernel_choice (str): The type of kernel.
         variance_rffs (int): The number of random features for variance.
 
     Returns:

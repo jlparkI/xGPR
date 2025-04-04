@@ -2,11 +2,11 @@
 selected) using CG, either using our internal routine or Scipy / Cupy's."""
 import warnings
 import numpy as np
-from ..cg_toolkit.cg_tools import CPU_ConjugateGrad
+from .cg_tools import CPU_ConjugateGrad
 
 try:
     import cupy as cp
-    from ..cg_toolkit.cg_tools import GPU_ConjugateGrad
+    from .cg_tools import GPU_ConjugateGrad
 except:
     pass
 
