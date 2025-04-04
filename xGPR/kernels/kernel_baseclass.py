@@ -9,7 +9,9 @@ import abc
 from abc import ABC
 
 import numpy as np
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuPrepPooledCovCalc
 try:
+    from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaPrepPooledCovCalc
     import cupy as cp
 except:
     pass
@@ -295,6 +297,7 @@ class KernelBaseclass(ABC):
             slen = sequence_length.astype(np.int32, copy=False)
 
         xtrans = self.kernel_specific_transform(xin, slen)
+
         if self.fit_intercept:
             xtrans[:,0] = 1.
 
@@ -302,18 +305,33 @@ class KernelBaseclass(ABC):
 
 
 
-    def transform_x_y(self, input_x, input_y, sequence_length = None):
+    def transform_x_y(self, input_x, input_y, sequence_length = None,
+            class_means = None, priors = None):
         """Given a numpy array as input (and sequence_length,
         which is none for most kernels but must be specified
         for convolution kernels), generate random features
         as output. In addition, convert the input y-values
         to live on the same device that the kernel is currently
-        on."""
+        on. If class-specific means and priors are supplied, we are
+        doing classification, so we will use the features to generate
+        a pooled covariance matrix. In that case, the output features
+        should be mean-centered using the class-specific means."""
         y_out = input_y
         if self.device == "cuda":
             y_out = cp.asarray(y_out)
 
-        return self.transform_x(input_x, sequence_length), y_out
+        xtrans = self.transform_x(input_x, sequence_length)
+
+        if class_means is not None:
+            if self.device == "cuda":
+                cudaPrepPooledCovCalc(xtrans, class_means,
+                        y_out, priors)
+            else:
+                cpuPrepPooledCovCalc(xtrans, class_means,
+                        y_out, priors)
+
+        return xtrans, y_out
+
 
 
     def gradient_x(self, input_x, sequence_length = None):
