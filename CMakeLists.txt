@@ -55,7 +55,7 @@ nanobind_add_module(
   # Target the stable ABI for Python 3.12+, which reduces
   # the number of binary wheels that must be built. This
   # does nothing on older Python versions
-  STABLE_ABI
+  #STABLE_ABI
 
   NB_STATIC
 
@@ -67,6 +67,7 @@ nanobind_add_module(
   xGPR/random_feature_generation/cpu_rf_gen/rbf_ops/ard_ops.cpp
   xGPR/random_feature_generation/cpu_rf_gen/convolution_ops/conv1d_operations.cpp
   xGPR/random_feature_generation/cpu_rf_gen/convolution_ops/rbf_convolution.cpp
+  xGPR/random_feature_generation/cpu_rf_gen/classification_calcs/classification_calcs.cpp
 
 )
 
@@ -78,7 +79,7 @@ if (CMAKE_CUDA_COMPILER)
         # Target the stable ABI for Python 3.12+, which reduces
         # the number of binary wheels that must be built. This
         # does nothing on older Python versions
-        STABLE_ABI
+        #STABLE_ABI
 
         NB_STATIC
 
@@ -88,6 +89,7 @@ if (CMAKE_CUDA_COMPILER)
     xGPR/random_feature_generation/gpu_rf_gen/rbf_ops/ard_ops.cu
     xGPR/random_feature_generation/gpu_rf_gen/convolution_ops/convolution.cu
     xGPR/random_feature_generation/gpu_rf_gen/convolution_ops/rbf_convolution.cu
+    xGPR/random_feature_generation/gpu_rf_gen/classification_calcs/classification_calcs.cu
 
     )
     install(TARGETS xgpr_cuda_rfgen_cpp_ext LIBRARY DESTINATION ${SKBUILD_PROJECT_NAME})

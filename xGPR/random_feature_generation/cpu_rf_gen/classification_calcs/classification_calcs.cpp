@@ -67,6 +67,8 @@ void cpuFindClassMeans_(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, n
 
         for (size_t j=0; j < x_dim1; j++)
             cl_means_row[j] += input_ptr[j];
+
+        input_ptr += x_dim1;
     }
 }
 
@@ -101,7 +103,7 @@ void cpuPrepPooledCovCalc_(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu
     if (x_dim0 == 0 || x_dim1 == 0)
         throw std::runtime_error("no datapoints");
 
-    if (nclasses != class_priors.shape(0) ||
+    if (nclasses != class_prior_sqrts.shape(0) ||
             nclasses == 0)
         throw std::runtime_error("incorrect number of classes");
 
@@ -123,9 +125,10 @@ void cpuPrepPooledCovCalc_(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu
         double prior = class_prior_ptr[class_label];
         const double *cl_means_row = class_means_ptr + class_label * x_dim1;
 
-        for (size_t j=0; j < x_dim1; j++) {
+        for (size_t j=0; j < x_dim1; j++)
             input_ptr[j] = (input_ptr[j] - cl_means_row[j]) * prior;
-        }
+
+        input_ptr += x_dim1;
     }
 }
 

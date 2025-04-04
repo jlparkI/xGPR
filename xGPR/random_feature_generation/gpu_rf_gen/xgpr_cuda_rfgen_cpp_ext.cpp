@@ -16,6 +16,7 @@
 #include "rbf_ops/ard_ops.h"
 #include "convolution_ops/convolution.h"
 #include "convolution_ops/rbf_convolution.h"
+#include "classification_calcs/classification_calcs.h"
 
 
 namespace nb = nanobind;
@@ -95,13 +96,15 @@ NB_MODULE(xgpr_cuda_rfgen_cpp_ext, m){
             nb::arg("sigma"), nb::arg("convWidth"),
             nb::arg("scalingType"));
 
-    m.def("cudaFindClassMeans", &cudaFindClassMeans,
+    m.def("cudaFindClassMeans",
+            &CudaClassificationCalcs::cudaFindClassMeans_,
             nb::arg("input_arr").noconvert(),
             nb::arg("class_means").noconvert(),
             nb::arg("class_labels").noconvert(),
             nb::arg("class_counts").noconvert());
 
-    m.def("cudaPrepPooledCovCalc", &cudaPrepPooledCovCalc,
+    m.def("cudaPrepPooledCovCalc",
+            &CudaClassificationCalcs::cudaPrepPooledCovCalc_,
             nb::arg("input_arr").noconvert(),
             nb::arg("class_means").noconvert(),
             nb::arg("class_labels").noconvert(),

@@ -20,7 +20,7 @@ __global__ void findClassMeansKernel(const double *input_ptr,
         double *class_means_ptr, const int32_t *class_label_ptr,
         int64_t *class_count_ptr, int x_dim0, int x_dim1,
         int nclasses) {
-    double *current_input = input_ptr;
+    const double *current_input = input_ptr;
     double *current_output = class_means_ptr + blockIdx.x * x_dim1;
 
     for (int i=0; i < x_dim0; i++) {
@@ -44,7 +44,8 @@ __global__ void findClassMeansKernel(const double *input_ptr,
 
 
 __global__ void prepPooledCovCalcKernel(double *input_ptr, const double *class_means_ptr,
-        const int32_t *class_label_ptr, const double *class_prior_ptr) {
+        const int32_t *class_label_ptr, const double *class_prior_ptr,
+        int x_dim0, int x_dim1, int nclasses) {
     int pos = blockIdx.x * CL_NUM_THREADS_PER_BLOCK + threadIdx.x;
     int class_label_pos = pos / x_dim1;
     int row_position = pos % x_dim1;
@@ -95,7 +96,7 @@ void cudaFindClassMeans_(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda,
     // which is expensive if not necessary. To avoid this we instead check that
     // individual class labels are not in violation in the kernel itself, and
     // if they are, set them to be >= 0 and < nclasses.
-    findClassMeansKernel<<(nclasses, CL_NUM_THREADS_PER_BLOCK>>(input_ptr,
+    findClassMeansKernel<<<nclasses, CL_NUM_THREADS_PER_BLOCK>>>(input_ptr,
                 class_means_ptr, class_label_ptr, class_count_ptr, x_dim0,
                 x_dim1, nclasses);        
 
@@ -115,11 +116,6 @@ void cudaPrepPooledCovCalc_(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cu
     int x_dim1 = input_arr.shape(1);
     size_t nclasses = class_means.shape(0);
 
-    double *input_ptr = static_cast<double*>(input_arr.data());
-    const double *class_means_ptr = static_cast<double*>(class_means.data());
-    const int32_t *class_label_ptr = static_cast<int32_t*>(class_labels.data());
-    const double *class_prior_ptr = static_cast<double*>(class_priors.data());
-
     if (x_dim0 == 0 || x_dim1 == 0)
         throw std::runtime_error("no datapoints");
 
@@ -137,14 +133,15 @@ void cudaPrepPooledCovCalc_(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cu
     const double *class_means_ptr = static_cast<double*>(class_means.data());
     const int32_t *class_label_ptr = static_cast<int32_t*>(class_labels.data());
     const double *class_prior_ptr = static_cast<double*>(class_priors.data());
-    int num_elements = x_dim0 * x_dim1;
 
     // Note that checking the maximum element here would require launching a kernel,
     // which is expensive if not necessary. To avoid this we instead check that
     // individual class labels are not in violation in the kernel itself, and
     // if they are, set them to be >= 0 and < nclasses.
-    prepPooledCovCalcKernel<<(num_elements + CL_NUM_THREADS_PER_BLOCK) / CL_NUM_THREADS_PER_BLOCK,
-        CL_NUM_THREADS_PER_BLOCK>>(input_ptr, class_means_ptr, class_label_ptr,
+    int num_elements = x_dim0 * x_dim1;
+    int nblocks = (num_elements + CL_NUM_THREADS_PER_BLOCK) / CL_NUM_THREADS_PER_BLOCK;
+    prepPooledCovCalcKernel<<<nblocks, CL_NUM_THREADS_PER_BLOCK>>>(input_ptr,
+            class_means_ptr, class_label_ptr,
             class_prior_ptr, x_dim0, x_dim1, nclasses);        
 }
 

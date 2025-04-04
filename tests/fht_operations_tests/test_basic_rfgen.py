@@ -27,76 +27,33 @@ class TestFastHadamardTransform(unittest.TestCase):
         """Tests the 3d FHT transform. This is for CPU only;
         the cuda module does not provide a separate function
         for FHT only at this time."""
-        dim = (124,36,4)
-        outcome_f, outcome_d = run_fht_test(dim)
-        self.assertTrue(outcome_d)
-        self.assertTrue(outcome_f)
+        dims = [(124,36,4), (124,36,2), (124,36,32),
+                (3001,5,1024), (250,1,4096)]
+        for dim_settings in dims:
+            outcome_f, outcome_d = run_fht_test(dim_settings)
+            self.assertTrue(outcome_d)
+            self.assertTrue(outcome_f)
 
-        dim = (124,36,2)
-        outcome_f, outcome_d = run_fht_test(dim)
-        self.assertTrue(outcome_d)
-        self.assertTrue(outcome_f)
-
-        dim = (124,36,32)
-        outcome_f, outcome_d = run_fht_test(dim)
-        self.assertTrue(outcome_d)
-        self.assertTrue(outcome_f)
-
-        dim = (3001, 5, 1024)
-        outcome_f, outcome_d = run_fht_test(dim)
-        self.assertTrue(outcome_d)
-        self.assertTrue(outcome_f)
-
-        dim = (250, 1, 4096)
-        outcome_f, outcome_d = run_fht_test(dim)
-        self.assertTrue(outcome_d)
-        self.assertTrue(outcome_f)
 
 
     def test_2d_array_transform(self):
         """Tests the 2d FHT transform."""
-        dim = (124, 4)
-        outcomes = run_fht_2d_test(dim)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        dim = (124, 2)
-        outcomes = run_fht_2d_test(dim)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        dim = (124, 32)
-        outcomes = run_fht_2d_test(dim)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        dim = (3001, 1024)
-        outcomes = run_fht_2d_test(dim)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        dim = (250, 4096)
-        outcomes = run_fht_2d_test(dim)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
+        dims = [(124,4),  (124,2), (124,32),
+                (3001,1024), (250,4096)]
+        for dim_settings in dims:
+            outcomes = run_fht_2d_test(dim_settings)
+            for outcome in outcomes:
+                self.assertTrue(outcome)
 
 
     def test_srht(self):
         """Tests SRHT functionality. Note that this tests SRHT
         functionality by using FHT. Therefore if the FHT did not
         pass, this one will not either."""
-
-        outcomes = run_srht_test((150,256), 128)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        outcomes = run_srht_test((304,512), 256)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
-
-        outcomes = run_srht_test((5,2048), 512)
-        for outcome in outcomes:
-            self.assertTrue(outcome)
+        for dims in [((150,256), 128), ((304,512), 256),
+                ((5,2048), 512)]:
+            for outcome in run_srht_test(dims[0], dims[1]):
+                self.assertTrue(outcome)
 
 
 def run_fht_test(dim, random_seed = 123):
