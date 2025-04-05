@@ -123,7 +123,8 @@ def single_pass_srht_zty(dataset, kernel, compressor, acc_results, z_trans_y,
                         verbose):
     """Runs a single pass over the dataset using SRHT and stores the
     z_trans_y vector. Note that this function should never be used
-    for classification.
+    for classification since it does not make sense to construct
+    a z_trans_y vector in that case.
 
     Args:
         dataset: A valid dataset object.
@@ -248,9 +249,10 @@ def initialize_srht_multipass(dataset, rank, kernel, random_state, verbose = Fal
     u_mat, s_mat, _ = svd_calculator(acc_results, full_matrices=False)
     s_mat = (s_mat**2 - shift).clip(min=0)
 
+    # Return z_trans_y if we are not doing classification.
     if class_means is None:
         return u_mat, s_mat, z_trans_y, y_trans_y
-    return u_mat, s_mat, None, None
+    return u_mat, s_mat, None, 0
 
 
 def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
@@ -329,9 +331,11 @@ def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
 
     u_mat, s_mat, _ = svd_calculator(acc_results, full_matrices=False)
     s_mat = s_mat**2
+
+    # Return z_trans_y if we are not doing classification.
     if class_means is None:
         return u_mat, s_mat, z_trans_y, y_trans_y
-    return u_mat, s_mat, None, None
+    return u_mat, s_mat, None, 0
 
 
 
@@ -375,6 +379,7 @@ def srht_ratio_check(dataset, rank, kernel, random_state, verbose = False,
     compressor = SRHTCompressor(rank, kernel.get_num_rffs(),
                 random_seed = random_state, device=kernel.device)
 
+    # We never need to retrieve and store z_trans_y in this case.
     subsampled_srht(dataset, kernel, compressor, acc_results, verbose,
             sample_frac, random_state, class_means, class_weights)
 

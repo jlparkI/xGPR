@@ -45,14 +45,13 @@ class RandNysPreconditioner():
             self.u_mat, self.eig, self.z_trans_y, self.y_trans_y = \
                             initialize_srht_multipass(dataset,
                                 max_rank, kernel, random_state, verbose,
-                                n_passes, get_zty = True,
-                                class_means=class_means,
+                                n_passes, class_means=class_means,
                                 class_weights=class_weights)
         else:
             self.u_mat, self.eig, self.z_trans_y, self.y_trans_y = \
                             initialize_srht(dataset, max_rank,
                                 kernel, random_state, verbose,
-                                get_zty = True, class_means=class_means,
+                                class_means=class_means,
                                 class_weights=class_weights)
 
         lambda_ = kernel.get_lambda()
@@ -127,7 +126,9 @@ class RandNysPreconditioner():
 
     def get_zty(self):
         """Returns the product Z^T y, which is assembled during
-        preconditioner construction."""
+        preconditioner construction for regression models. If
+        this preconditioner was created for a classification
+        model, z_trans_y will be None."""
         return self.z_trans_y
 
 
@@ -160,12 +161,20 @@ class RandNysPreconditioner():
             if not isinstance(self.u_mat, np.ndarray):
                 self.u_mat = cp.asnumpy(self.u_mat)
                 self.inv_eig = cp.asnumpy(self.inv_eig)
-                self.z_trans_y = cp.asnumpy(self.z_trans_y)
+                # Note that for classification models z_trans_y is
+                # not stored / not needed and may therefore be
+                # None.
+                if self.z_trans_y is not None:
+                    self.z_trans_y = cp.asnumpy(self.z_trans_y)
 
         elif value == "cuda":
             self.u_mat = cp.asarray(self.u_mat)
             self.inv_eig = cp.asarray(self.inv_eig)
-            self.z_trans_y = cp.asarray(self.z_trans_y)
+            # Note that for classification models z_trans_y is
+            # not stored / not needed and may therefore be
+            # None.
+            if self.z_trans_y is not None:
+                self.z_trans_y = cp.asnumpy(self.z_trans_y)
 
         else:
             raise RuntimeError("Unrecognized device supplied. Must be one "

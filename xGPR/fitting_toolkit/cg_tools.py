@@ -37,15 +37,18 @@ class GPU_ConjugateGrad:
                 This array is modified in-place.
         """
         matvec[:] = 0
+        # If there are no class means, we are doing regression.
         if self.class_means is None:
             for x, lengths in dataset.get_chunked_x_data():
                 Z = kernel.transform_x(x, lengths)
                 matvec += Z.T @ (Z @ vec)
+        # Otherwise, classification. The features need to be modified
+        # using the class means.
         else:
             for x, ydata, lengths in dataset.get_chunked_data():
                 Z, _ = kernel.transform_x_y(x, ydata, lengths,
                         self.class_means, self.class_weights,
-                        True)
+                        classification=True)
                 matvec += Z.T @ (Z @ vec)
         matvec += kernel.get_lambda()**2 * vec
 
@@ -176,15 +179,18 @@ class CPU_ConjugateGrad:
                 This array is modified in-place.
         """
         matvec[:] = 0
+        # If there are no class means, we are doing regression.
         if self.class_means is None:
             for x, lengths in dataset.get_chunked_x_data():
                 Z = kernel.transform_x(x, lengths)
                 matvec += Z.T @ (Z @ vec)
+        # Otherwise, classification. The features need to be modified
+        # using the class means.
         else:
             for x, ydata, lengths in dataset.get_chunked_data():
                 Z, _ = kernel.transform_x_y(x, ydata, lengths,
                         self.class_means, self.class_weights,
-                        True)
+                        classification=True)
                 matvec += Z.T @ (Z @ vec)
         matvec += kernel.get_lambda()**2 * vec
 
