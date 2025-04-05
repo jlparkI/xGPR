@@ -332,7 +332,7 @@ class ModelBaseclass():
 
 
     def _check_rank_ratio(self, dataset, sample_frac:float = 0.1,
-            max_rank:int = 512):
+            max_rank:int = 512, class_means=None, class_weights=None):
         """Determines what ratio a particular max_rank would achieve by using a random
         sample of the data. This can be used to determine if a particular max_rank is
         'good enough' to achieve a fast fit, and if so, that max_rank can be used
@@ -370,7 +370,7 @@ class ModelBaseclass():
                 self.num_rffs = 8192
 
         s_mat = srht_ratio_check(dataset, max_rank, self.kernel, self.random_seed,
-                self.verbose, sample_frac)
+                self.verbose, sample_frac, class_means, class_weights)
         ratio = float(s_mat.min() / self.kernel.get_lambda()**2) / sample_frac
 
         self.num_rffs = num_rffs
@@ -382,7 +382,7 @@ class ModelBaseclass():
             max_rank:int = 3000, increment_size:int = 512,
             always_use_srht2:bool = False,
             ratio_target:float = 30., class_means = None,
-            priors = None):
+            class_weights = None):
         """Uses an automated algorithm to choose a preconditioner that
         is up to max_rank in size. For internal use only.
 
@@ -400,8 +400,8 @@ class ModelBaseclass():
             class_means: Either None or a (nclasses, num_rffs)
                 array storing the mean of the features for each
                 class. Only for classification.
-            priors: Either None or an (nclasses) array storing
-                the prior for each class. Only for classification.
+            class_weights: Either None or an (nclasses) array storing
+                the weight for each class. Only for classification.
 
         Returns:
             preconditioner: A preconditioner object.
@@ -418,7 +418,8 @@ class ModelBaseclass():
 
         while ratio > ratio_target and rank < max_rank:
             ratio = self._check_rank_ratio(dataset, sample_frac = sample_frac,
-                    max_rank = rank)
+                    max_rank = rank, class_means = class_means,
+                    class_weights = class_weights)
             if ratio > ratio_target:
                 if (rank + increment_size) < max_rank and \
                         (rank + increment_size) < actual_num_rffs:
@@ -437,7 +438,9 @@ class ModelBaseclass():
             method = "srht_2"
 
         preconditioner = RandNysPreconditioner(self.kernel, dataset, rank,
-                        self.verbose, self.random_seed, method)
+                        self.verbose, self.random_seed, method,
+                        class_means = class_means,
+                        class_weights = class_weights)
         if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()

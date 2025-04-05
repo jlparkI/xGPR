@@ -167,10 +167,11 @@ class xGPDiscriminant(ModelBaseclass):
                     raise ValueError("Unexpected y-values encountered.")
                 cpuFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
 
+        class_means /= n_pts_per_class[None,:]
+        class_weights = (1 / n_pts_per_class)**0.5
+        priors = (n_pts_per_class / float(dataset.get_ndatapoints())).clip(min=1e-10)
+        return class_means, class_weights, priors
 
-        x /= float(dataset.get_ndatapoints())
-        targets /= n_pts_per_class[None,:]
-        return x_mean, targets
 
 
     def build_preconditioner(self, dataset, max_rank:int = 512,
@@ -281,23 +282,29 @@ class xGPDiscriminant(ModelBaseclass):
         if self.verbose:
             print("starting fitting")
 
-        x_mean, targets = self._get_targets(dataset)
+        class_means, class_weights, priors = self._get_class_means_priors(dataset)
+        if self.device == "cuda":
+            targets = cp.ascontiguousarray(class_means.T)
+        else:
+            targets = np.ascontiguousarray(class_means.T)
 
         if mode == "exact":
             n_iter = 1
             if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
                 raise ValueError("You specified 'exact' fitting, but the number of rffs is "
                         f"> {constants.MAX_CLOSED_FORM_RFFS}.")
-            self.weights = calc_discriminant_weights_exact(dataset, self.kernel, x_mean, targets)
+            self.weights = calc_discriminant_weights_exact(dataset, self.kernel,
+                    class_means, class_weights, priors)
         elif mode == "cg":
             if preconditioner is None:
                 preconditioner = self._autoselect_preconditioner(dataset,
                         min_rank = min_rank, max_rank = max_rank,
                         ratio_target = autoselect_target_ratio,
                         always_use_srht2 = always_use_srht2,
-                        x_mean = x_mean)
+                        class_means = class_means,
+                        class_weights = class_weights)
             self.weights, n_iter, _ = cg_fit_lib_discriminant(self.kernel, dataset,
-                    x_mean, targets, tol, max_iter, preconditioner, self.verbose)
+                    class_means, class_weights, tol, max_iter, preconditioner, self.verbose)
             if self.verbose:
                 print(f"{n_iter} iterations.")
 
@@ -312,14 +319,13 @@ class xGPDiscriminant(ModelBaseclass):
             raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
                         "'lbfgs', 'cg', 'exact'.")
 
-        self._gamma = np.log(1 / self.n_classes) - 0.5 * (targets * self.weights).sum(axis=0)
+        self._gamma = priors - 0.5 * (targets * self.weights).sum(axis=0)
 
         if self.verbose:
             print("Fitting complete.")
         if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
-        self._run_post_fitting_cleanup(dataset)
 
         if run_diagnostics:
             return n_iter
