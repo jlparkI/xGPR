@@ -34,7 +34,7 @@ def cg_fit_lib_internal(kernel, dataset, cg_tol = 1e-4, max_iter = 500,
             the preconditioner is used for CG. The preconditioner
             can be built by calling self.build_preconditioner
             with appropriate arguments.
-    verbose (bool): If True, print regular updates.
+        verbose (bool): If True, print regular updates.
 
     Returns:
         weights: A cupy or numpy array of shape (M) for M

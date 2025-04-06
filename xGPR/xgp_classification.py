@@ -5,19 +5,21 @@ model and make predictions for new datapoints. It inherits from
 ModelBaseclass.
 """
 import numpy as np
+
 try:
     import cupy as cp
     from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
     from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaFindClassMeans
+    from .fitting_toolkit.cg_tools import GPU_ConjugateGrad
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
 
 from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFindClassMeans
 
+from .fitting_toolkit.cg_tools import CPU_ConjugateGrad
 from .constants import constants
 from .model_baseclass import ModelBaseclass
 
-from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_discriminant
 from .fitting_toolkit.exact_fitting_toolkit import calc_discriminant_weights_exact
 from .preconditioners.rand_nys_preconditioners import RandNysPreconditioner
 
@@ -94,14 +96,14 @@ class xGPDiscriminant(ModelBaseclass):
                 of each class. If binary classification, M is treated as 1.
 
         Raises:
-            ValueError: If the dimesionality or type of the input does
+            RuntimeError: If the dimesionality or type of the input does
                 not match what is expected, or if the model has
-                not yet been fitted, a ValueError is raised.
+                not yet been fitted, a RuntimeError is raised.
         """
         # Note that get_var is always false here, so last arg is false.
         self.pre_prediction_checks(input_x, sequence_lengths, False)
         if self._gamma is None:
-            raise ValueError("Model has not been fitted yet.")
+            raise RuntimeError("Model has not been fitted yet.")
         preds = []
 
         for i in range(0, input_x.shape[0], chunk_size):
@@ -154,7 +156,7 @@ class xGPDiscriminant(ModelBaseclass):
             for (xdata, ydata, ldata) in dataset.get_chunked_data():
                 xfeatures, yclasses = self.kernel.transform_x_y(xdata, ydata, ldata)
                 if ydata.max() > self.n_classes or ydata.min() < 0:
-                    raise ValueError("Unexpected y-values encountered.")
+                    raise RuntimeError("Unexpected y-values encountered.")
                 cudaFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
 
         else:
@@ -164,7 +166,7 @@ class xGPDiscriminant(ModelBaseclass):
             for (xdata, ydata, ldata) in dataset.get_chunked_data():
                 xfeatures, ydata = self.kernel.transform_x_y(xdata, ydata, ldata)
                 if ydata.max() > self.n_classes or ydata.min() < 0:
-                    raise ValueError("Unexpected y-values encountered.")
+                    raise RuntimeError("Unexpected y-values encountered.")
                 cpuFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
 
         class_means /= n_pts_per_class[None,:]
@@ -238,8 +240,8 @@ class xGPDiscriminant(ModelBaseclass):
                 automatically constructed at a max_rank chosen using several
                 passes over the dataset. If mode is 'exact', this argument is
                 ignored.
-            tol (float): The threshold below which iterative strategies (L-BFGS, CG,
-                SGD) are deemed to have converged. Defaults to 1e-5. Note that how
+            tol (float): The threshold below which iterative strategies (CG)
+                are deemed to have converged. Defaults to 1e-5. Note that how
                 reaching the threshold is assessed may depend on the algorithm.
             max_iter (int): The maximum number of epochs for iterative strategies.
             max_rank (int): The largest size to which the preconditioner can be set.
@@ -252,7 +254,7 @@ class xGPDiscriminant(ModelBaseclass):
                 not 'cg' or preconditioner is not None). The default is usually fine.
                 Consider setting to a smaller number if you always want to use the
                 smallest preconditioner possible.
-            mode (str): Must be one of "cg", "lbfgs", "exact".
+            mode (str): Must be one of "cg", "exact".
                 Determines the approach used. If 'exact', self.kernel.get_num_rffs
                 must be <= constants.constants.MAX_CLOSED_FORM_RFFS.
             autoselect_target_ratio (float): The target ratio if choosing the
@@ -269,11 +271,11 @@ class xGPDiscriminant(ModelBaseclass):
         Returns:
             Does not return anything unless run_diagnostics is True.
             n_iter (int): The number of iterations if applicable.
-            losses (list): The loss on each iteration. Only for SGD and CG, otherwise,
+            losses (list): The loss on each iteration. Only for CG, otherwise,
                 empty list.
 
         Raises:
-            ValueError: The input dataset is checked for validity before tuning is
+            RuntimeError: The input dataset is checked for validity before tuning is
                 initiated, an error is raised if problems are found."""
         self._run_pre_fitting_prep(dataset)
         self.weights = None
@@ -291,10 +293,12 @@ class xGPDiscriminant(ModelBaseclass):
         if mode == "exact":
             n_iter = 1
             if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
-                raise ValueError("You specified 'exact' fitting, but the number of rffs is "
+                raise RuntimeError("You specified 'exact' fitting, but the number of rffs is "
                         f"> {constants.MAX_CLOSED_FORM_RFFS}.")
             self.weights = calc_discriminant_weights_exact(dataset, self.kernel,
-                    class_means, class_weights, priors)
+                    targets, class_means, class_weights)
+            losses = []
+
         elif mode == "cg":
             if preconditioner is None:
                 preconditioner = self._autoselect_preconditioner(dataset,
@@ -303,20 +307,23 @@ class xGPDiscriminant(ModelBaseclass):
                         always_use_srht2 = always_use_srht2,
                         class_means = class_means,
                         class_weights = class_weights)
-            self.weights, n_iter, _ = cg_fit_lib_discriminant(self.kernel, dataset,
-                    class_means, class_weights, tol, max_iter, preconditioner, self.verbose)
-            if self.verbose:
-                print(f"{n_iter} iterations.")
+            if self.device == "cuda":
+                cg_operator = GPU_ConjugateGrad(class_means, class_weights)
+            else:
+                cg_operator = CPU_ConjugateGrad(class_means, class_weights)
 
-        elif mode == "lbfgs":
-            model_fitter = lBFGSModelFit(dataset, self.kernel,
-                    self.device, self.verbose, task_type = "discriminant",
-                    n_classes = self.n_classes)
-            self.weights, n_iter, _ = model_fitter.fit_model_lbfgs(max_iter, tol,
-                    x_mean, targets)
+            self.weights, converged, n_iter, losses = cg_operator.fit(dataset,
+                        self.kernel, preconditioner, targets, max_iter,
+                        tol, self.verbose, nmll_settings = False)
+            if not converged:
+                print("Conjugate gradients failed to converge! Try refitting "
+                                "the model with updated settings.")
+
+            if self.verbose:
+                print(f"CG iterations: {n_iter}")
 
         else:
-            raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
+            raise RuntimeError("Unrecognized fitting mode supplied. Must provide one of "
                         "'lbfgs', 'cg', 'exact'.")
 
         self._gamma = priors - 0.5 * (targets * self.weights).sum(axis=0)
@@ -328,4 +335,4 @@ class xGPDiscriminant(ModelBaseclass):
             mempool.free_all_blocks()
 
         if run_diagnostics:
-            return n_iter
+            return n_iter, losses

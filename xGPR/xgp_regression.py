@@ -433,7 +433,7 @@ class xGPRegression(ModelBaseclass):
                 automatically constructed at a max_rank chosen using several
                 passes over the dataset. If mode is 'exact', this argument is
                 ignored.
-            tol (float): The threshold below which iterative strategies (L-BFGS, CG)
+            tol (float): The threshold below which iterative strategies (CG)
                 are deemed to have converged.
             max_iter (int): The maximum number of epochs for iterative strategies.
             mode (str): Must be one of "cg", "exact".
