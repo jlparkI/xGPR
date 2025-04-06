@@ -8,7 +8,6 @@ import numpy as np
 
 try:
     import cupy as cp
-    from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
     from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaFindClassMeans
     from .fitting_toolkit.cg_tools import GPU_ConjugateGrad
 except:
@@ -151,25 +150,31 @@ class xGPDiscriminant(ModelBaseclass):
 
         if self.device == "cuda":
             class_means = cp.zeros((self.n_classes, self.kernel.get_num_rffs()))
-            n_pts_per_class = cp.zeros((self.n_classes))
+            n_pts_per_class = cp.zeros((self.n_classes), dtype=np.int64)
 
             for (xdata, ydata, ldata) in dataset.get_chunked_data():
-                xfeatures, yclasses = self.kernel.transform_x_y(xdata, ydata, ldata)
+                xfeatures, yclasses = self.kernel.transform_x_y(xdata, ydata, ldata,
+                        classification=True)
                 if ydata.max() > self.n_classes or ydata.min() < 0:
                     raise RuntimeError("Unexpected y-values encountered.")
                 cudaFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
 
+            n_pts_per_class = n_pts_per_class.astype(cp.int64)
+
         else:
-            targets = np.zeros((self.kernel.get_num_rffs(), self.n_classes))
-            n_pts_per_class = np.zeros((self.n_classes))
+            class_means = np.zeros((self.n_classes, self.kernel.get_num_rffs()))
+            n_pts_per_class = np.zeros((self.n_classes), dtype=np.int64)
 
             for (xdata, ydata, ldata) in dataset.get_chunked_data():
-                xfeatures, ydata = self.kernel.transform_x_y(xdata, ydata, ldata)
+                xfeatures, yclasses = self.kernel.transform_x_y(xdata, ydata, ldata,
+                        classification=True)
                 if ydata.max() > self.n_classes or ydata.min() < 0:
                     raise RuntimeError("Unexpected y-values encountered.")
                 cpuFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
 
-        class_means /= n_pts_per_class[None,:]
+            n_pts_per_class = n_pts_per_class.astype(np.int64)
+
+        class_means /= n_pts_per_class[:,None]
         class_weights = (1 / n_pts_per_class)**0.5
         priors = (n_pts_per_class / float(dataset.get_ndatapoints())).clip(min=1e-10)
         return class_means, class_weights, priors
@@ -285,12 +290,12 @@ class xGPDiscriminant(ModelBaseclass):
             print("starting fitting")
 
         class_means, class_weights, priors = self._get_class_means_priors(dataset)
-        if self.device == "cuda":
-            targets = cp.ascontiguousarray(class_means.T)
-        else:
-            targets = np.ascontiguousarray(class_means.T)
 
         if mode == "exact":
+            if self.device == "cuda":
+                targets = cp.ascontiguousarray(class_means.T)
+            else:
+                targets = np.ascontiguousarray(class_means.T)
             n_iter = 1
             if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
                 raise RuntimeError("You specified 'exact' fitting, but the number of rffs is "
@@ -300,6 +305,14 @@ class xGPDiscriminant(ModelBaseclass):
             losses = []
 
         elif mode == "cg":
+            if self.device == "cuda":
+                targets = cp.zeros((class_means.shape[1], 2,
+                    class_means.shape[0]))
+            else:
+                targets = np.zeros((class_means.shape[1], 2,
+                    class_means.shape[0]))
+            targets[:,0,:] = class_means.T
+
             if preconditioner is None:
                 preconditioner = self._autoselect_preconditioner(dataset,
                         min_rank = min_rank, max_rank = max_rank,
@@ -326,7 +339,7 @@ class xGPDiscriminant(ModelBaseclass):
             raise RuntimeError("Unrecognized fitting mode supplied. Must provide one of "
                         "'lbfgs', 'cg', 'exact'.")
 
-        self._gamma = priors - 0.5 * (targets * self.weights).sum(axis=0)
+        self._gamma = priors - 0.5 * (class_means.T * self.weights).sum(axis=0)
 
         if self.verbose:
             print("Fitting complete.")

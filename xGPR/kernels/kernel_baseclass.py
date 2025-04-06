@@ -329,10 +329,10 @@ class KernelBaseclass(ABC):
             if class_means is not None:
                 if self.device == "cuda":
                     cudaPrepPooledCovCalc(xtrans, class_means,
-                            y_out, priors)
+                        y_out, priors)
                 else:
                     cpuPrepPooledCovCalc(xtrans, class_means,
-                            y_out, priors)
+                        y_out, priors)
         else:
             y_out = input_y.astype(np.float64)
             if self.device == "cuda":

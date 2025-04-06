@@ -22,9 +22,10 @@ class DatasetBaseclass(ABC):
         trainy_std (float): The standard deviation of the training y-data (for
             regression only).
         max_class (int): The largest class number (for classification only).
+            If performing regression must be set to None.
     """
     def __init__(self, xdim, chunk_size,
-            trainy_mean, trainy_std, max_class=0):
+            trainy_mean, trainy_std, max_class=None):
         self._xdim = xdim
 
         #Trainy_mean and trainy_std are used
@@ -61,6 +62,8 @@ class DatasetBaseclass(ABC):
     def get_n_classes(self):
         """Gets the largest category number in the training
         data. Only useful if data is for classification."""
+        if self._max_class is None:
+            return None
         return self._max_class + 1
 
 

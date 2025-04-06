@@ -175,10 +175,10 @@ def build_online_dataset(xdata, ydata, sequence_lengths = None,
         if normalize_y:
             dataset = OnlineDataset(xdata, ydata, sequence_lengths,
                 chunk_size = chunk_size, trainy_mean = ydata.mean(),
-                trainy_std = ydata.std())
+                trainy_std = ydata.std(), max_class = None)
         else:
             dataset = OnlineDataset(xdata, ydata, sequence_lengths,
-                    chunk_size = chunk_size)
+                    chunk_size = chunk_size, max_class = None)
 
     else:
         dataset = OnlineDataset(xdata, ydata, sequence_lengths,
@@ -316,8 +316,8 @@ def build_offline_np_dataset(xlist:list, ylist:list, sequence_lengths,
         if expected_arrlen == 3:
             xdim[2] = xshape[2]
 
+    max_class = None
     if normalize_y and task_type == "regression":
-        max_class = 1
         trainy_mean, trainy_std = _get_offline_scaling_factors(ylist)
     else:
         trainy_mean, trainy_std = 0.0, 1.0

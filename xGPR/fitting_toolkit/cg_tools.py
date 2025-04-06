@@ -148,6 +148,11 @@ class GPU_ConjugateGrad:
                 betas = betas[0].reshape(1, betas[0].shape[0])
             alphas, betas = cp.asnumpy(alphas[:,1:]), cp.asnumpy(betas[:,1:])
             return x_k, alphas, betas
+        
+        # This is true if and only if we are doing classification.
+        if x_k.shape[1] > 1:
+            return x_k, converged, niter + 1, losses
+
         return x_k[:,0], converged, niter + 1, losses
 
 
@@ -290,4 +295,8 @@ class CPU_ConjugateGrad:
                 alphas = alphas[0].reshape(1, alphas[0].shape[0])
                 betas = betas[0].reshape(1, betas[0].shape[0])
             return x_k, alphas[:,1:], betas[:,1:]
+
+        # This is true if and only if we are doing classification.
+        if x_k.shape[1] > 1:
+            return x_k, converged, niter + 1, losses
         return x_k[:,0], converged, niter + 1, losses

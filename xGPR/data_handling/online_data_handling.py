@@ -26,7 +26,7 @@ class OnlineDataset(DatasetBaseclass):
                        chunk_size = 2000,
                        trainy_mean = 0.,
                        trainy_std = 1.,
-                       max_class = 1.):
+                       max_class = None):
         """Constructor for the OnlineDataset class.
 
         Args:
@@ -42,7 +42,7 @@ class OnlineDataset(DatasetBaseclass):
             trainy_std (float): The standard deviation of the y-values.
                 Only used for regression.
             max_class (int): The largest category number in the data. Only
-                used for classification.
+                used for classification. Otherwise must be set to None.
         """
         super().__init__(xdata.shape, chunk_size, trainy_mean,
                 trainy_std, max_class)
@@ -59,8 +59,9 @@ class OnlineDataset(DatasetBaseclass):
                 cutoff = min(i + self.get_chunk_size(), self._xdim[0])
                 xchunk = self._xdata[i:cutoff,...]
                 ychunk = self._ydata[i:cutoff]
-                ychunk -= self._trainy_mean
-                ychunk /= self._trainy_std
+                if self._max_class is None:
+                    ychunk -= self._trainy_mean
+                    ychunk /= self._trainy_std
                 yield xchunk, ychunk, None
 
         else:
@@ -69,9 +70,9 @@ class OnlineDataset(DatasetBaseclass):
                 xchunk = self._xdata[i:cutoff,...]
                 ychunk = self._ydata[i:cutoff]
                 lchunk = self._sequence_lengths[i:cutoff]
-
-                ychunk -= self._trainy_mean
-                ychunk /= self._trainy_std
+                if self._max_class is None:
+                    ychunk -= self._trainy_mean
+                    ychunk /= self._trainy_std
                 yield xchunk, ychunk, lchunk
 
 

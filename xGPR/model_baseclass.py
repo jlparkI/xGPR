@@ -363,7 +363,12 @@ class ModelBaseclass():
 
         num_rffs = copy.deepcopy(self.num_rffs)
 
-        if self.num_rffs > 8192:
+        # Using a smaller number of RFFs is highly beneficial for speed
+        # but creates a lot of unnecessary complications if performing
+        # classification, since in that case the class means will need
+        # to be recomputed. Skip this step if doing classification
+        # (i.e. if class_means is not None).
+        if self.num_rffs > 8192 and class_means is None:
             if self.kernel_choice == "RBFLinear" and self.num_rffs % 2 != 0:
                 self.num_rffs = 8191
             else:

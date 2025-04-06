@@ -7,7 +7,6 @@ chunk of data from the list provided to it, can serve as a generator
 and return all chunks in succession, or can provide a minibatch.
 """
 import os
-import copy
 
 import numpy as np
 
@@ -35,7 +34,7 @@ class OfflineDataset(DatasetBaseclass):
                        xdim,
                        trainy_mean = 0.,
                        trainy_std = 1.,
-                       max_class = 1,
+                       max_class = None,
                        chunk_size = 2000):
         """The class constructor for an OfflineDataset.
 
@@ -56,7 +55,7 @@ class OfflineDataset(DatasetBaseclass):
             trainy_std (float): The standard deviation of the y-values.
                 Only used for regression.
             max_class (int): The largest category number in the data. Only
-                used for classification.
+                used for classification. Otherwise must be set to None.
             device (str): The current device.
             chunk_size (int): The largest allowed file size (in # datapoints)
                 for this dataset. Should be checked and enforced by caller.
@@ -79,16 +78,18 @@ class OfflineDataset(DatasetBaseclass):
             for xfile, yfile in zip(self._xfiles, self._yfiles):
                 xchunk = np.load(xfile)
                 ychunk = np.load(yfile)
-                ychunk -= self._trainy_mean
-                ychunk /= self._trainy_std
+                if self._max_class is None:
+                    ychunk -= self._trainy_mean
+                    ychunk /= self._trainy_std
                 yield xchunk, ychunk, None
         else:
             for xfile, yfile, lfile in zip(self._xfiles, self._yfiles,
                     self._sequence_lengths):
                 xchunk, lchunk = np.load(xfile), np.load(lfile)
                 ychunk = np.load(yfile)
-                ychunk -= self._trainy_mean
-                ychunk /= self._trainy_std
+                if self._max_class is None:
+                    ychunk -= self._trainy_mean
+                    ychunk /= self._trainy_std
                 yield xchunk, ychunk, lchunk
 
 
