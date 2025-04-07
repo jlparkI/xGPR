@@ -79,6 +79,7 @@ class OfflineDataset(DatasetBaseclass):
                 xchunk = np.load(xfile)
                 ychunk = np.load(yfile)
                 if self._max_class is None:
+                    ychunk = ychunk.astype(np.float64)
                     ychunk -= self._trainy_mean
                     ychunk /= self._trainy_std
                 yield xchunk, ychunk, None
@@ -88,6 +89,7 @@ class OfflineDataset(DatasetBaseclass):
                 xchunk, lchunk = np.load(xfile), np.load(lfile)
                 ychunk = np.load(yfile)
                 if self._max_class is None:
+                    ychunk = ychunk.astype(np.float64)
                     ychunk -= self._trainy_mean
                     ychunk /= self._trainy_std
                 yield xchunk, ychunk, lchunk

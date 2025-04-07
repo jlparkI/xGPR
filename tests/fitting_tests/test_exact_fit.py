@@ -8,7 +8,7 @@ import numpy as np
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from utils.build_test_dataset import build_test_dataset
 from utils.build_classification_dataset import build_discriminant_traintest_split
-from utils.model_constructor import get_models
+from utils.model_constructor import get_models, get_discriminant_models
 from utils.evaluate_model import evaluate_model
 
 #A set of hyperparameters known to work well for our testing dataset

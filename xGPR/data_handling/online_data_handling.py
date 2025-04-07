@@ -60,6 +60,7 @@ class OnlineDataset(DatasetBaseclass):
                 xchunk = self._xdata[i:cutoff,...]
                 ychunk = self._ydata[i:cutoff]
                 if self._max_class is None:
+                    ychunk = ychunk.astype(np.float64)
                     ychunk -= self._trainy_mean
                     ychunk /= self._trainy_std
                 yield xchunk, ychunk, None
@@ -71,6 +72,7 @@ class OnlineDataset(DatasetBaseclass):
                 ychunk = self._ydata[i:cutoff]
                 lchunk = self._sequence_lengths[i:cutoff]
                 if self._max_class is None:
+                    ychunk = ychunk.astype(np.float64)
                     ychunk -= self._trainy_mean
                     ychunk /= self._trainy_std
                 yield xchunk, ychunk, lchunk

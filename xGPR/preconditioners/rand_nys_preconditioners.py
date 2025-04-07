@@ -174,7 +174,7 @@ class RandNysPreconditioner():
             # not stored / not needed and may therefore be
             # None.
             if self.z_trans_y is not None:
-                self.z_trans_y = cp.asnumpy(self.z_trans_y)
+                self.z_trans_y = cp.asarray(self.z_trans_y)
 
         else:
             raise RuntimeError("Unrecognized device supplied. Must be one "
