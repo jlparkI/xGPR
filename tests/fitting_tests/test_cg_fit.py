@@ -14,7 +14,7 @@ from utils.evaluate_model import evaluate_model
 #Sets of hyperparameters known to work well for our testing dataset
 #that we can use as a default. HPARAM is for regression only.
 HPARAM = np.array([np.log(np.sqrt(0.0767)),  np.log(0.358)])
-DISCRIM_HPARAM = np.array([0., -0.75])
+DISCRIM_HPARAM = np.array([-1, -0.75])
 
 
 NUM_RFFS = 8500
@@ -26,7 +26,6 @@ class CheckCGFit(unittest.TestCase):
     def test_preconditioned_cg(self):
         """Test using preconditioned cg, which should easily fit
         in under 10 epochs."""
-        return
         online_data, _ = build_test_dataset(conv_kernel = False)
         cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs = NUM_RFFS)
 
@@ -55,7 +54,6 @@ class CheckCGFit(unittest.TestCase):
     def test_autoselect_cg(self):
         """Test using cg when the software automatically selects the
         max_rank."""
-        return
         online_data, _ = build_test_dataset(conv_kernel = False)
         cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs = NUM_RFFS)
 
