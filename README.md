@@ -1,12 +1,12 @@
 # xGPR
 
 xGPR is a library for fitting approximate Gaussian process regression
-models to datasets ranging in size from hundreds to millions of datapoints.
-It uses an efficient implementation of the random features approximation
-(aka random Fourier features). It is designed to run on either CPU or GPU
-(GPU strongly preferred), to model tabular data, sequence & time series
-data and graph data, and to fit datasets too large to load into memory
-in a straightforward way.
+models and approximate kernel classification models to datasets ranging
+in size from hundreds to millions of datapoints. It uses an efficient
+implementation of the random features approximation (aka random Fourier
+features). It is designed to run on either CPU or GPU (GPU strongly preferred),
+to model tabular data, sequence & time series data and graph data, and to
+fit datasets too large to load into memory in a straightforward way.
 
 Unlike exact Gaussian processes, which exhibit O(N^2) scaling
 and are completely impractical for large datasets, xGPR can scale easily;
@@ -18,7 +18,13 @@ which only provide kernels for fixed-vector data (tabular data),
 xGPR provides powerful convolution kernels for variable-length time series,
 sequences and graphs.
 
-### What's new in v0.4.7
+### What's new in v0.4.8
+An approximate kernel classifier is now included. Unlike the xGPRegression
+object, this does not currently however compute marginal likelihood, so
+to tune hyperparameters for this you will have to evaluate performance
+on a validation set. We hope to implement approximate marginal likelihood
+calculations for this soon.
+
 You can now build custom Datasets (similar to the Dataloader in PyTorch)
 so that you can use any kind of data (SQLite db, HDF5 etc.) as input
 when training with minor tweaks.
