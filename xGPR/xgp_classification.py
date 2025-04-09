@@ -5,9 +5,11 @@ model and make predictions for new datapoints. It inherits from
 ModelBaseclass.
 """
 import numpy as np
+from scipy.special import logsumexp as scipy_logsumexp
 
 try:
     import cupy as cp
+    from cupyx.scipy.special import logsumexp as cupy_logsumexp
     from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaFindClassMeans
     from .fitting_toolkit.cg_tools import GPU_ConjugateGrad
 except:
@@ -223,6 +225,60 @@ class xGPDiscriminant(ModelBaseclass):
             mempool.free_all_blocks()
         return preconditioner, preconditioner.achieved_ratio
 
+
+
+    def exact_nmll(self, hyperparams, dataset, mode:str="cg",
+            preconditioner=None, tol:float=1e-6):
+        """Calculates the exact negative marginal log likelihood (the model
+        'score') using matrix decompositions. For classification, we never
+        need to calculate a log determinant so there is no "approximate"
+        nmll unlike xGPRegression. We can however choose to fit the model using
+        "exact" or "cg" (the same arguments we would pass to self.fit())
+        so the user can supply an additional fitting mode argument in
+        addition to what is supplied to exact_nmll and approximate_nmll
+        in xGPRegression.
+
+        Args:
+            hyperparams (np.ndarray): A numpy array containing the new
+                set of hyperparameters that should be assigned to the kernel.
+            dataset: An OnlineDataset or OfflineDataset containing the raw
+                data we will use for this evaluation.
+            mode (str): One of "exact", "cg". Determines how the model
+                weights are computed. Exact is faster for small num_rffs
+                but has very poor scaling to large num_rffs, where cg
+                should be preferred.
+            preconditioner: Either None or a valid preconditioner object.
+                If None and mode is cg, a preconditioner will be generated
+                automatically.
+            tol: The tolerance for fitting. The default (1e-6) is usually ok.
+
+        Returns:
+            negloglik (float): The negative marginal log likelihood for the
+                input hyperparameters.
+        """
+        self._run_singlepoint_nmll_prep(dataset, exact_method = True)
+
+        self.kernel.set_hyperparams(hyperparams, logspace=True)
+        self.fit(dataset, preconditioner, tol, mode=mode)
+
+        negloglik = 0.0
+
+        if self.device == "cpu":
+            for xdata, ldata in dataset.get_chunked_x_data():
+                xd = self.kernel.transform_x(xdata, ldata)
+                xd = xd @ self.weights + self._gamma[None,:]
+                xd = scipy_logsumexp(xd, axis=1)
+                negloglik -= float(xd.sum())
+        else:
+            for xdata, ldata in dataset.get_chunked_x_data():
+                xd = self.kernel.transform_x(xdata, ldata)
+                xd = xd @ self.weights + self._gamma[None,:]
+                xd = cupy_logsumexp(xd, axis=1)
+                negloglik -= float(xd.sum())
+
+        if self.verbose:
+            print("Evaluated NMLL.")
+        return negloglik
 
 
     def fit(self, dataset, preconditioner = None,
