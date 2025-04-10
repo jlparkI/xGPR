@@ -103,7 +103,7 @@ def calc_discriminant_weights_exact(dataset, kernel, targets,
 
     for i, (xdata, ydata, ldata) in enumerate(dataset.get_chunked_data()):
         xfeatures, _ = kernel.transform_x_y(xdata, ydata, ldata, class_means,
-                class_weights)
+                class_weights, classification=True)
         z_trans_z += xfeatures.T @ xfeatures
         if i % 2 == 0:
             if kernel.device == "cuda":

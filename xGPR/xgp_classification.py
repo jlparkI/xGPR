@@ -152,7 +152,7 @@ class xGPDiscriminant(ModelBaseclass):
 
         if self.device == "cuda":
             class_means = cp.zeros((self.n_classes, self.kernel.get_num_rffs()))
-            n_pts_per_class = cp.zeros((self.n_classes), dtype=np.int64)
+            n_pts_per_class = cp.zeros((self.n_classes), dtype=cp.int64)
 
             for (xdata, ydata, ldata) in dataset.get_chunked_data():
                 xfeatures, yclasses = self.kernel.transform_x_y(xdata, ydata, ldata,
@@ -161,7 +161,8 @@ class xGPDiscriminant(ModelBaseclass):
                     raise RuntimeError("Unexpected y-values encountered.")
                 cudaFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
 
-            n_pts_per_class = n_pts_per_class.astype(cp.int64)
+            priors = cp.log((n_pts_per_class /
+                float(dataset.get_ndatapoints())).clip(min=1e-10))
 
         else:
             class_means = np.zeros((self.n_classes, self.kernel.get_num_rffs()))
@@ -174,11 +175,16 @@ class xGPDiscriminant(ModelBaseclass):
                     raise RuntimeError("Unexpected y-values encountered.")
                 cpuFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
 
-            n_pts_per_class = n_pts_per_class.astype(np.int64)
+            priors = np.log((n_pts_per_class /
+                float(dataset.get_ndatapoints())).clip(min=1e-10))
+
+        # TODO: Fix this, class weights should be class weight (1/ndatapoints)**0.5.
+        class_weights = (n_pts_per_class / dataset.get_ndatapoints())
+        class_weights /= n_pts_per_class
+        class_weights = class_weights**0.5
+        class_weights[:] = 1
 
         class_means /= n_pts_per_class[:,None]
-        class_weights = (1 / n_pts_per_class)**0.5
-        priors = (n_pts_per_class / float(dataset.get_ndatapoints())).clip(min=1e-10)
         return class_means, class_weights, priors
 
 

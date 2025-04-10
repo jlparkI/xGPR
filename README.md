@@ -2,20 +2,23 @@
 
 xGPR is a library for fitting approximate Gaussian process regression
 models and approximate kernel classification models to datasets ranging
-in size from hundreds to millions of datapoints. It uses an efficient
-implementation of the random features approximation (aka random Fourier
-features). It is designed to run on either CPU or GPU (GPU strongly preferred),
+in size from thousands to millions of datapoints. It can also be used
+for efficient approximate kernel k-means and approximate kernel PCA.
+
+It uses a fast Hadamard transform-based implementation of the random features
+approximation (aka random Fourier features). It is designed to run on either CPU
+or GPU (GPU is better for training, either is fine for inference),
 to model tabular data, sequence & time series data and graph data, and to
 fit datasets too large to load into memory in a straightforward way.
 
 Unlike exact Gaussian processes, which exhibit O(N^2) scaling
-and are completely impractical for large datasets, xGPR can scale easily;
-it is fairly straightforward to fit a few million datapoints
-on a GPU. Notably, xGPR is able to do this while providing
-accuracy competitive with deep learning models (*unlike* variational
-GP approximations). Unlike other libraries for Gaussian processes,
-which only provide kernels for fixed-vector data (tabular data),
-xGPR provides powerful convolution kernels for variable-length time series,
+and are impractical for large datasets, xGPR can scale easily;
+it is straightforward to quickly fit a few million datapoints
+on a GPU. The approximation we use provides improved accuracy
+compared with variational or sparse GP approximations.
+Unlike other libraries for Gaussian processes,
+which only provide kernels for fixed-vector data,
+xGPR provides convolution kernels for variable-length time series,
 sequences and graphs.
 
 ### What's new in v0.4.8
