@@ -143,8 +143,8 @@ def loss_func(hyperparams, classifier, training_dataset,
 
     y_true = np.concatenate(y_true)
     y_pred = np.vstack(y_pred)
-    score = score_func(y_true, y_pred)
-    return sign * score
+    score = sign * score_func(y_true, y_pred)
+    return score
 
 
 
@@ -184,7 +184,7 @@ def cross_entropy(y_true, y_pred):
     # Note that this introduces some slight error for numbers
     # very close to zero or 1.
     y_pred = np.clip(y_pred, 1e-15, 1 - 1e-15)
-    loss = -(y_true * np.log(y_pred)).sum(axis=1)
+    loss = -(binarized_labels * np.log(y_pred)).sum(axis=1)
 
     return float(np.mean(loss))
 

@@ -182,7 +182,6 @@ class xGPDiscriminant(ModelBaseclass):
         class_weights = (n_pts_per_class / dataset.get_ndatapoints())
         class_weights /= n_pts_per_class
         class_weights = class_weights**0.5
-        class_weights[:] = 1
 
         class_means /= n_pts_per_class[:,None]
         return class_means, class_weights, priors
