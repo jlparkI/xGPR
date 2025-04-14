@@ -5,10 +5,98 @@ routines in Scipy which are made available here."""
 from copy import deepcopy
 from scipy.optimize import minimize
 import numpy as np
+try:
+    import optuna
+except:
+    pass
 
 
 
-def tune_classifier(training_dataset, validation_dataset,
+
+def tune_classifier_optuna(training_dataset, validation_dataset,
+        classifier, fit_mode="cg", bounds=None,
+        eval_metric="cross_entropy",
+        max_iter=100, random_seed=123):
+    """Tunes a classifier supplied by caller on the validation
+    set, fitting it each time to the training set and maximizing
+    (or minimizing, as appropriate) a specified metric. Only available
+    if Optuna is installed.
+
+    Args:
+        training_dataset: A Dataset object for training data that can be
+            created by a call to build_classification_dataset (or
+            alternatively a custom Dataset object).
+        validation_dataset: A Dataset object for validation data that can
+            be created by a call to build_classification_dataset (or
+            alternatively a custom Dataset object).
+        classifier: An xGPDiscriminant object that has 'predict' and 'fit'
+            functions available.
+        fit_mode (str): One of "cg", "exact". Exact is faster for small
+            num_rffs but scales very badly to larger numbers (e.g. > 3000,
+            where cg should be preferred.
+        bounds: One of None or an np.ndarray. If not None, should have the
+            same length as there are number of hyperparameters for the kernel
+            of the supplied discriminant. If None, automatically preset
+            bounds are used.
+        eval_metric (str): One of "cross_entropy", "matthews_corrcoef",
+            "accuracy". Determines how performance is evaluated on the
+            validation set. For matthews_corrcoef and accuracy, maximization
+            is performed, while for cross entropy minimization is performed.
+        max_iter (int): The maximum number of iterations to run.
+        random_seed (int): The random seed used for starting point
+            initialization.
+
+    Returns:
+        classifier: The updated classifier which has been fitted to the
+            data.
+        best_score (float): The best score achieved.
+        best_hparams (np.ndarray): The best hyperparameters obtained.
+
+    Raises:
+        RuntimeError: A RuntimeError is raised if invalid inputs are supplied.
+    """
+    if eval_metric == "accuracy":
+        score_func = accuracy
+        sign = -1
+    elif eval_metric == "cross_entropy":
+        score_func = cross_entropy
+        sign = 1
+    elif eval_metric == "matthews_corrcoef":
+        score_func = matthews_corrcoef
+        sign = -1
+    else:
+        raise RuntimeError("Unknown metric supplied.")
+
+    # Initialize a kernel, then check the bounds.
+    classifier.set_hyperparams(dataset=training_dataset)
+
+    if bounds is None:
+        bounds = classifier.kernel.get_bounds()
+        # The standard bounds for regression for the first hyperparameter
+        # are too restrictive for classification; reset them.
+        bounds[0,:] = np.array([-11, 1])
+        classifier.kernel.set_bounds(bounds)
+    else:
+        classifier.kernel.set_bounds(bounds)
+
+    sampler = optuna.samplers.TPESampler(seed=random_seed)
+    study = optuna.create_study(sampler=sampler, direction='minimize')
+    study.optimize(lambda trial:
+            optuna_loss_func(trial, classifier,
+                training_dataset, validation_dataset, score_func,
+                bounds, fit_mode, sign),
+            n_trials=100)
+    best_hparams = [study.best_params[str(i)] for i in range(bounds.shape[0])]
+
+    classifier.set_hyperparams(np.array(best_hparams), training_dataset)
+    classifier.fit(training_dataset, mode=fit_mode)
+
+    return classifier, sign * study.best_value, best_hparams
+
+
+
+
+def tune_classifier_powell(training_dataset, validation_dataset,
         classifier, fit_mode="cg", bounds=None,
         eval_metric="cross_entropy", n_restarts=1,
         starting_hparams=None, random_seed=123):
@@ -91,7 +179,7 @@ def tune_classifier(training_dataset, validation_dataset,
                 args=(classifier, training_dataset, validation_dataset,
                     score_func, fit_mode, sign),
                 bounds=list(map(tuple, bounds)),
-                method="Powell")
+                method="Powell", options={"xtol":1e-1, "ftol":1e-2})
 
         if res.fun < best_score:
             best_score = deepcopy(res.fun)
@@ -145,6 +233,25 @@ def loss_func(hyperparams, classifier, training_dataset,
     y_pred = np.vstack(y_pred)
     score = sign * score_func(y_true, y_pred)
     return score
+
+
+
+def optuna_loss_func(trial, classifier, training_dataset,
+        validation_dataset, score_func, bounds,
+        fit_mode="cg", sign=-1):
+    """A modified loss function specific for optuna. Fits the
+    classifier given a specific set of hyperparameters as input
+    and returns a score. The sign on the score is flipped if so
+    specified so that we are always performing minimization for
+    simplicity. This is basically a wrapper on lossfunc set up
+    to accommodate optuna.
+    """
+    hparams = [trial.suggest_float(str(i), bounds[i,0],
+                bounds[i,1]) for i in range(bounds.shape[0])]
+
+    return loss_func(np.array(hparams), classifier, training_dataset,
+            validation_dataset, score_func, fit_mode, sign)
+
 
 
 

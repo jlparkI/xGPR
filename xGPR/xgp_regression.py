@@ -674,7 +674,7 @@ class xGPRegression(ModelBaseclass):
         if tuning_method == "Powell":
             options={"maxfev":max_iter, "xtol":1e-1, "ftol":tol}
         elif tuning_method == "Nelder-Mead":
-            options={"maxfev":max_iter, "fatol":tol}
+            options={"maxfev":max_iter, "ftol":tol}
         elif tuning_method == "L-BFGS-B":
             if nmll_method == "approximate":
                 raise RuntimeError("Approximate NMLL is not supported for "
