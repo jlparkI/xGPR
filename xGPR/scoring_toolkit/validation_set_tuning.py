@@ -85,7 +85,7 @@ def tune_classifier_optuna(training_dataset, validation_dataset,
             optuna_loss_func(trial, classifier,
                 training_dataset, validation_dataset, score_func,
                 bounds, fit_mode, sign),
-            n_trials=100)
+            n_trials=max_iter)
     best_hparams = [study.best_params[str(i)] for i in range(bounds.shape[0])]
 
     classifier.set_hyperparams(np.array(best_hparams), training_dataset)

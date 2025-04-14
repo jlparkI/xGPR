@@ -14,3 +14,7 @@ from .kernel_fgen import KernelFGen
 from .static_layers import FastConv1d
 
 from .scoring_toolkit.validation_set_tuning import tune_classifier_powell
+try:
+    from .scoring_toolkit.validation_set_tuning import tune_classifier_optuna
+except:
+    pass

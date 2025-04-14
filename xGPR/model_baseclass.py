@@ -203,8 +203,9 @@ class ModelBaseclass():
         if self.kernel is None:
             self._initialize_kernel(dataset, hyperparams = hyperparams)
         else:
-            self.kernel.check_hyperparams(hyperparams)
-            self.kernel.set_hyperparams(hyperparams, logspace = True)
+            if hyperparams is not None:
+                self.kernel.check_hyperparams(hyperparams)
+                self.kernel.set_hyperparams(hyperparams, logspace = True)
             self.weights = None
             self.gamma = None
             self.var = None
