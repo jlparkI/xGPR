@@ -1,14 +1,21 @@
-/*!
- * # shared_rfgen_ops.cpp
+/* Copyright (C) 2025 Jonathan Parkinson
  *
- * This module performs core random feature generation
- * operations used by multiple routines.
- */
-
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+*/
+// C++ headers
 #include <math.h>
 #include <cstring>
+
+// Library headers
+
+// Project headers
 #include "shared_rfgen_ops.h"
 #include "hadamard_transforms.h"
+
+
+namespace SharedCPURandomFeatureOps {
 
 
 /*!
@@ -162,27 +169,27 @@ void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
         cbuffer[i] *= rademElement[i] * normConstant;
 
     rademElement += rademShape2;
-    singleVectorTransform<T>(cbuffer, cbufferDim2);
+    CPUHadamardTransformOps::singleVectorTransform<T>(cbuffer, cbufferDim2);
 
     for (int i = 0; i < cbufferDim2; i++)
         cbuffer[i] *= rademElement[i] * normConstant;
 
     rademElement += rademShape2;
-    singleVectorTransform<T>(cbuffer, cbufferDim2);
+    CPUHadamardTransformOps::singleVectorTransform<T>(cbuffer, cbufferDim2);
 
 
     for (int i = 0; i < cbufferDim2; i++)
         cbuffer[i] *= rademElement[i] * normConstant;
 
-    singleVectorTransform<T>(cbuffer, cbufferDim2);
+    CPUHadamardTransformOps::singleVectorTransform<T>(cbuffer, cbufferDim2);
 }
 //Explicitly instantiate for external use.
 template void singleVectorSORF<double>(double cbuffer[], const int8_t *rademArray,
-        int repeatPosition, int rademShape2,
-        int cbufferDim2);
+int repeatPosition, int rademShape2,
+int cbufferDim2);
 template void singleVectorSORF<float>(float cbuffer[], const int8_t *rademArray,
-        int repeatPosition, int rademShape2,
-        int cbufferDim2);
+int repeatPosition, int rademShape2,
+int cbufferDim2);
 
 
 
@@ -315,3 +322,5 @@ template void singleVectorRBFPostGrad<float>(const float xdata[], const float ch
         double *outputArray, double *gradientArray, float sigma,
         int dim2, int numFreqs, int rowNumber, int repeatNum,
         double scalingTerm);
+
+}  // namespace SharedCPURandomFeatureOps

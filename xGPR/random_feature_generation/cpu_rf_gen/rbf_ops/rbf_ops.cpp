@@ -243,7 +243,6 @@ void *allInOneRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
     T *xElement;
 
     for (int i=startRow; i < endRow; i++) {
-
         int repeatPosition = 0;
         xElement = xdata + i * dim1;
 
@@ -253,10 +252,11 @@ void *allInOneRBFGen(T xdata[], int8_t *rademArray, T chiArr[],
             for (int m=dim1; m < paddedBufferSize; m++)
                 copyBuffer[m] = 0;
 
-            singleVectorSORF(copyBuffer, rademArray, repeatPosition,
-                        rademShape2, paddedBufferSize);
-            singleVectorRBFPostProcess(copyBuffer, chiArr, outputArray,
-                        paddedBufferSize, numFreqs, i, k, scalingTerm);
+            SharedCPURandomFeatureOps::singleVectorSORF(copyBuffer,
+                    rademArray, repeatPosition, rademShape2, paddedBufferSize);
+            SharedCPURandomFeatureOps::singleVectorRBFPostProcess(copyBuffer,
+                    chiArr, outputArray, paddedBufferSize, numFreqs, i,
+                    k, scalingTerm);
             repeatPosition += paddedBufferSize;
         }
     }
@@ -299,11 +299,11 @@ void *allInOneRBFGrad(T xdata[], int8_t *rademArray, T chiArr[],
             for (int m=dim1; m < paddedBufferSize; m++)
                 copyBuffer[m] = 0;
 
-            singleVectorSORF(copyBuffer, rademArray, repeatPosition,
-                        rademShape2, paddedBufferSize);
-            singleVectorRBFPostGrad(copyBuffer, chiArr, outputArray,
-                        gradientArray, sigma, paddedBufferSize, numFreqs,
-                        i, k, scalingTerm);
+            SharedCPURandomFeatureOps::singleVectorSORF(copyBuffer,
+                    rademArray, repeatPosition, rademShape2, paddedBufferSize);
+            SharedCPURandomFeatureOps::singleVectorRBFPostGrad(copyBuffer,
+                    chiArr, outputArray, gradientArray, sigma, paddedBufferSize,
+                    numFreqs, i, k, scalingTerm);
             repeatPosition += paddedBufferSize;
         }
     }

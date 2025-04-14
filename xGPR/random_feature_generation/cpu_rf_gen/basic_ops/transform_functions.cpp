@@ -221,10 +221,10 @@ template <typename T>
 void *ThreadSRHTRows2D(T arrayStart[], int8_t* rademArray,
         int dim1, int startPosition, int endPosition){
 
-    multiplyByDiagonalRademacherMat2D<T>(arrayStart,
+    SharedCPURandomFeatureOps::multiplyByDiagonalRademacherMat2D<T>(arrayStart,
                     rademArray, dim1,
                     startPosition, endPosition);
-    transformRows<T>(arrayStart, startPosition, 
+    CPUHadamardTransformOps::transformRows<T>(arrayStart, startPosition,
                     endPosition, 1, dim1);
     return NULL;
 }
@@ -242,8 +242,8 @@ void *ThreadSRHTRows2D(T arrayStart[], int8_t* rademArray,
  */
 template <typename T>
 void *ThreadTransformRows3D(T arrayStart[], int startPosition,
-        int endPosition, int dim1, int dim2){
-    transformRows<T>(arrayStart, startPosition, 
+        int endPosition, int dim1, int dim2) {
+    CPUHadamardTransformOps::transformRows<T>(arrayStart, startPosition,
                     endPosition, dim1, dim2);
     return NULL;
 }
@@ -261,8 +261,8 @@ void *ThreadTransformRows3D(T arrayStart[], int startPosition,
  */
 template <typename T>
 void *ThreadTransformRows2D(T arrayStart[], int startPosition,
-        int endPosition, int dim1){
-    transformRows<T>(arrayStart, startPosition, 
+        int endPosition, int dim1) {
+    CPUHadamardTransformOps::transformRows<T>(arrayStart, startPosition,
                     endPosition, 1, dim1);
     return NULL;
 }

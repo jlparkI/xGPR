@@ -175,8 +175,9 @@ void *allInOneConvMaxpoolGen(T xdata[], int8_t *rademArray, T chiArr[],
                 for (int m=(convWidth * dim2); m < paddedBufferSize; m++)
                     copyBuffer[m] = 0;
 
-                singleVectorSORF(copyBuffer, rademArray, repeatPosition,
-                        rademShape2, paddedBufferSize);
+                SharedCPURandomFeatureOps::singleVectorSORF(copyBuffer,
+                        rademArray, repeatPosition, rademShape2,
+                        paddedBufferSize);
                 singleVectorMaxpoolPostProcess(copyBuffer, chiArr, outputArray,
                         paddedBufferSize, numFreqs, i, k);
                 repeatPosition += paddedBufferSize;

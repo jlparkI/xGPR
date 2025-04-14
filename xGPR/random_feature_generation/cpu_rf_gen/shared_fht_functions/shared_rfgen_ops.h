@@ -1,7 +1,20 @@
+/* Copyright (C) 2025 Jonathan Parkinson
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+*/
 #ifndef SHARED_RFGEN_OPERATIONS_H
 #define SHARED_RFGEN_OPERATIONS_H
+// C++ headers
 #include <stdint.h>
 
+// Library headers
+
+// Project headers
+
+
+namespace SharedCPURandomFeatureOps {
 
 template <typename T>
 void multiplyByDiagonalRademacherMat2D(T __restrict xArray[],
@@ -35,5 +48,7 @@ void singleVectorRBFPostGrad(const T xdata[],
         int dim2, int numFreqs,
         int rowNumber, int repeatNum,
         double scalingTerm);
+
+}  // namespace SharedCPURandomFeatureOps
 
 #endif

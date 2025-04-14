@@ -1,7 +1,15 @@
+/* Copyright (C) 2025 Jonathan Parkinson
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+*/
 #ifndef HADAMARD_TRANSFORM_OPERATIONS_H
 #define HADAMARD_TRANSFORM_OPERATIONS_H
 
-#define MIN(a,b) ((a) < (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+namespace CPUHadamardTransformOps {
 
 template <typename T>
 void transformRows(T __restrict xArray[], int startRow, int endRow,
@@ -17,5 +25,8 @@ void generalTransform(T xArray[], int startRow, int endRow,
 
 template <typename T>
 void singleVectorTransform(T xArray[], int dim);
+
+
+}  // namespace CPUHadamardTransformOps
 
 #endif

@@ -80,7 +80,9 @@ class Linear(KernelBaseclass):
                 xtrans = np.zeros((input_x.shape[0], input_x.shape[1] + 1), np.float64)
             xtrans[:,1:] = input_x
             return xtrans
-        return input_x
+        if self.device == "cuda":
+            return input_x.astype(cp.float64)
+        return input_x.astype(np.float64)
 
 
     def kernel_specific_gradient(self, input_x, sequence_length = None):

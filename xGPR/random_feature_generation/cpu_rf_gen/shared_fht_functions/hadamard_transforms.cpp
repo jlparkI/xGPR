@@ -1,11 +1,21 @@
-/*!
- * # hadamard_transforms.cpp
+/* Copyright (C) 2025 Jonathan Parkinson
  *
- * This module performs core Hadamard transform ops.
- */
-#include <stdint.h>
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+*/
+// C++ headers
 #include <math.h>
+#include <cstring>
+
+// Library headers
+
+// Project headers
 #include "hadamard_transforms.h"
+
+
+namespace CPUHadamardTransformOps {
+
 
 template <typename T>
 void smallBlockTransform(T xArray[], int startRow, int endRow,
@@ -64,9 +74,9 @@ void smallBlockTransform(T xArray[], int startRow, int endRow,
     }
 }
 template void smallBlockTransform<double>(double *xArray,
-        int startRow, int endRow, int dim1, int dim2);
+int startRow, int endRow, int dim1, int dim2);
 template void smallBlockTransform<float>(float *xArray,
-        int startRow, int endRow, int dim1, int dim2);
+int startRow, int endRow, int dim1, int dim2);
 
 
 template <typename T>
@@ -76,25 +86,25 @@ void generalTransform(T xArray[], int startRow, int endRow,
     int rowStride = dim1 * dim2;
     T *__restrict xElement, *__restrict yElement;
 
-    for (int idx1 = startRow; idx1 < endRow; idx1++){
+    for (int idx1 = startRow; idx1 < endRow; idx1++) {
         xElement = xArray + idx1 * rowStride;
         yElement = xElement + 1;
-        for (int i = 0; i < rowStride; i += 2){
+        for (int i = 0; i < rowStride; i += 2) {
             y = *yElement;
             *yElement = *xElement - y;
             *xElement += y;
             xElement += 2;
             yElement += 2;
         }
-        
+
         xElement = xArray + idx1 * rowStride;
         yElement = xElement + 2;
-	    for (int i = 0; i < rowStride; i += 4){
+        for (int i = 0; i < rowStride; i += 4) {
             y = *yElement;
             *yElement = *xElement - y;
             *xElement += y;
-            xElement ++;
-            yElement ++;
+            xElement++;
+            yElement++;
             y = *yElement;
             *yElement = *xElement - y;
             *xElement += y;
@@ -104,39 +114,39 @@ void generalTransform(T xArray[], int startRow, int endRow,
 
         xElement = xArray + idx1 * rowStride;
         yElement = xElement + 4;
-	    for (int i = 0; i < rowStride; i += 8){
+        for (int i = 0; i < rowStride; i += 8) {
             y = *yElement;
             *yElement = *xElement - y;
             *xElement += y;
-            xElement ++;
-            yElement ++;
-            
+            xElement++;
+            yElement++;
+
             y = *yElement;
             *yElement = *xElement - y;
             *xElement += y;
-            xElement ++;
-            yElement ++;
-            
+            xElement++;
+            yElement++;
+
             y = *yElement;
             *yElement = *xElement - y;
             *xElement += y;
-            xElement ++;
-            yElement ++;
+            xElement++;
+            yElement++;
             y = *yElement;
             *yElement = *xElement - y;
             *xElement += y;
-            
+
             xElement += 5;
             yElement += 5;
         }
 
-        //The general, non-unrolled transform.
-        for (int h = 8; h < dim2; h <<= 1){
-            for (int i = 0; i < rowStride; i += (h << 1)){
+        // The general, non-unrolled transform.
+        for (int h = 8; h < dim2; h <<= 1) {
+            for (int i = 0; i < rowStride; i += (h << 1)) {
                 xElement = xArray + idx1 * rowStride + i;
                 yElement = xElement + h;
                 #pragma omp simd
-                for (int j=0; j < h; j++){
+                for (int j=0; j < h; j++) {
                     y = *yElement;
                     *yElement = *xElement - y;
                     *xElement += y;
@@ -187,9 +197,9 @@ void transformRows(T __restrict xArray[], int startRow, int endRow,
     }
 }
 template void transformRows<double>(double *__restrict xArray,
-        int startRow, int endRow, int dim1, int dim2);
+int startRow, int endRow, int dim1, int dim2);
 template void transformRows<float>(float *__restrict xArray,
-        int startRow, int endRow, int dim1, int dim2);
+int startRow, int endRow, int dim1, int dim2);
 
 
 
@@ -279,3 +289,5 @@ void singleVectorTransform(T xArray[], int dim) {
 }
 template void singleVectorTransform<double>(double *__restrict xArray, int dim);
 template void singleVectorTransform<float>(float *__restrict xArray, int dim);
+
+}  // namespace CPUHadamardTransformOps
