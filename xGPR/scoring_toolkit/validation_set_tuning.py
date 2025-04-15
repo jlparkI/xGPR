@@ -391,7 +391,7 @@ def optuna_cv_loss_func(trial, classifier, xvalues,
             validation_dataset = build_classification_dataset(
                     xvalues[test_index,...],
                     yvalues[test_index],
-                    sequence_lengths[train_index])
+                    sequence_lengths[test_index])
 
             results.append(loss_func(np.array(hparams),
                 classifier, training_dataset, validation_dataset,
