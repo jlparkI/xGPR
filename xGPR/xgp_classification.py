@@ -148,7 +148,7 @@ class xGPDiscriminant(ModelBaseclass):
             priors (ndarray): The prior probability of each class, as
                 determined from the training data.
         """
-        self.n_classes = dataset.get_n_classes()
+        self.n_classes = int(dataset.get_n_classes())
 
         if self.device == "cuda":
             class_means = cp.zeros((self.n_classes, self.kernel.get_num_rffs()))
@@ -290,7 +290,7 @@ class xGPDiscriminant(ModelBaseclass):
                 initiated, an error is raised if problems are found."""
         self._run_pre_fitting_prep(dataset)
         self.weights = None
-        self.n_classes = dataset.get_n_classes()
+        self.n_classes = int(dataset.get_n_classes())
 
         if self.verbose:
             print("starting fitting")

@@ -6,6 +6,7 @@ from copy import deepcopy
 from scipy.optimize import minimize
 import numpy as np
 try:
+    from sklearn.metrics import average_precision_score
     import optuna
 except:
     pass
@@ -39,8 +40,8 @@ def tune_classifier_optuna(training_dataset, validation_dataset,
             of the supplied discriminant. If None, automatically preset
             bounds are used.
         eval_metric (str): One of "cross_entropy", "matthews_corrcoef",
-            "accuracy". Determines how performance is evaluated on the
-            validation set. For matthews_corrcoef and accuracy, maximization
+            "accuracy", "aucprc". Determines how performance is evaluated on the
+            validation set. For matthews_corrcoef, aucprc and accuracy, maximization
             is performed, while for cross entropy minimization is performed.
         max_iter (int): The maximum number of iterations to run.
         random_seed (int): The random seed used for starting point
@@ -63,6 +64,9 @@ def tune_classifier_optuna(training_dataset, validation_dataset,
         sign = 1
     elif eval_metric == "matthews_corrcoef":
         score_func = matthews_corrcoef
+        sign = -1
+    elif eval_metric == "aucprc":
+        score_func = aucprc
         sign = -1
     else:
         raise RuntimeError("Unknown metric supplied.")
@@ -121,8 +125,8 @@ def tune_classifier_powell(training_dataset, validation_dataset,
             of the supplied discriminant. If None, automatically preset
             bounds are used.
         eval_metric (str): One of "cross_entropy", "matthews_corrcoef",
-            "accuracy". Determines how performance is evaluated on the
-            validation set. For matthews_corrcoef and accuracy, maximization
+            "accuracy", "aucprc". Determines how performance is evaluated on the
+            validation set. For matthews_corrcoef, aucprc and accuracy, maximization
             is performed, while for cross entropy minimization is performed.
         n_restarts (int): The number of restarts to use when running the
             optimizer.
@@ -149,6 +153,9 @@ def tune_classifier_powell(training_dataset, validation_dataset,
         sign = 1
     elif eval_metric == "matthews_corrcoef":
         score_func = matthews_corrcoef
+        sign = -1
+    elif eval_metric == "aucprc":
+        score_func = aucprc
         sign = -1
     else:
         raise RuntimeError("Unknown metric supplied.")
@@ -271,6 +278,19 @@ def accuracy(y_true, y_pred):
     acc = float((pred_labels == y_true).sum())
     return acc / float(y_true.shape[0])
 
+
+def aucprc(y_true, y_pred):
+    """Calculates the AUC-PRC of the predictions.
+
+    Args:
+        y_true (np.ndarray): The class labels, of shape (n_samples).
+        y_pred (np.ndarray): The predicted probabilities, of shape
+            (n_samples, n_classes).
+
+    Returns:
+        acc (float): A value between 0 and 1.
+    """
+    return average_precision_score(y_true, y_pred[:,1])
 
 
 def cross_entropy(y_true, y_pred):
