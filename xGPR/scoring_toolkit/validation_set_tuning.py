@@ -5,7 +5,9 @@ routines in Scipy which are made available here."""
 from copy import deepcopy
 from scipy.optimize import minimize
 import numpy as np
+from xGPR import build_classification_dataset
 try:
+    from sklearn.model_selection import KFold
     from sklearn.metrics import average_precision_score
     import optuna
 except:
@@ -96,6 +98,97 @@ def tune_classifier_optuna(training_dataset, validation_dataset,
     classifier.fit(training_dataset, mode=fit_mode)
 
     return classifier, sign * study.best_value, best_hparams
+
+
+
+
+
+def cv_tune_classifier_optuna(xvalues, yvalues, classifier,
+        sequence_lengths = None, fit_mode="cg", bounds=None,
+        eval_metric="cross_entropy",
+        max_iter=100, random_seed=123):
+    """Tunes a classifier supplied by caller using cross-validations.
+    This is appropriate for smaller datasets that fit in memory (and
+    where the expense of a 5x CV is not excessive). Only available
+    if Optuna is installed.
+
+    Args:
+        xvalues (np.ndarray): A numpy array of x-values. May be 2d or
+            3d; if 3d, sequence lengths must also be supplied.
+        yvalues (np.ndarray): A numpy array of y-values.
+        classifier: An xGPDiscriminant object that has 'predict' and 'fit'
+            functions available.
+        sequence_lengths: Either None or a numpy array of shape
+            (xvalues.shape[0]). Required if xvalues is a 3d array,
+            otherwise ignored. Indicates the length of each sequence
+            in xvalues.
+        fit_mode (str): One of "cg", "exact". Exact is faster for small
+            num_rffs but scales very badly to larger numbers (e.g. > 3000,
+            where cg should be preferred.
+        bounds: One of None or an np.ndarray. If not None, should have the
+            same length as there are number of hyperparameters for the kernel
+            of the supplied discriminant. If None, automatically preset
+            bounds are used.
+        eval_metric (str): One of "cross_entropy", "matthews_corrcoef",
+            "accuracy", "aucprc". Determines how performance is evaluated on the
+            validation set. For matthews_corrcoef, aucprc and accuracy, maximization
+            is performed, while for cross entropy minimization is performed.
+        max_iter (int): The maximum number of iterations to run.
+        random_seed (int): The random seed used for starting point
+            initialization.
+
+    Returns:
+        classifier: The updated classifier which has been fitted to the
+            data.
+        best_score (float): The best score achieved.
+        best_hparams (np.ndarray): The best hyperparameters obtained.
+
+    Raises:
+        RuntimeError: A RuntimeError is raised if invalid inputs are supplied.
+    """
+    if eval_metric == "accuracy":
+        score_func = accuracy
+        sign = -1
+    elif eval_metric == "cross_entropy":
+        score_func = cross_entropy
+        sign = 1
+    elif eval_metric == "matthews_corrcoef":
+        score_func = matthews_corrcoef
+        sign = -1
+    elif eval_metric == "aucprc":
+        score_func = aucprc
+        sign = -1
+    else:
+        raise RuntimeError("Unknown metric supplied.")
+
+    # Initialize a kernel, then check the bounds.
+    training_dataset = build_classification_dataset(xvalues,
+            yvalues, sequence_lengths)
+    classifier.set_hyperparams(dataset=training_dataset)
+
+    if bounds is None:
+        bounds = classifier.kernel.get_bounds()
+        # The standard bounds for regression for the first hyperparameter
+        # are too restrictive for classification; reset them.
+        bounds[0,:] = np.array([-11, 1])
+        classifier.kernel.set_bounds(bounds)
+    else:
+        classifier.kernel.set_bounds(bounds)
+
+    sampler = optuna.samplers.TPESampler(seed=random_seed)
+    study = optuna.create_study(sampler=sampler, direction='minimize')
+    study.optimize(lambda trial:
+            optuna_cv_loss_func(trial, classifier,
+                xvalues, yvalues, sequence_lengths, score_func,
+                bounds, fit_mode, sign),
+            n_trials=max_iter)
+    best_hparams = [study.best_params[str(i)] for i in range(bounds.shape[0])]
+
+    classifier.set_hyperparams(np.array(best_hparams), training_dataset)
+    classifier.fit(training_dataset, mode=fit_mode)
+
+    return classifier, sign * study.best_value, best_hparams
+
 
 
 
@@ -260,8 +353,55 @@ def optuna_loss_func(trial, classifier, training_dataset,
             validation_dataset, score_func, fit_mode, sign)
 
 
+def optuna_cv_loss_func(trial, classifier, xvalues,
+        yvalues, sequence_lengths, score_func, bounds,
+        fit_mode="cg", sign=-1):
+    """A modified loss function specific for cross-validation tuning
+    with optuna. Fits the classifier to each split of a 5x CV and
+    returns average scores. The sign on the score is flipped if so
+    specified so that we are always performing minimization for
+    simplicity. This is basically a wrapper on lossfunc set up
+    to accommodate optuna.
+    """
+    kf = KFold(n_splits=5)
+    kf.get_n_splits(xvalues)
+    results = []
+    hparams = [trial.suggest_float(str(i), bounds[i,0],
+                bounds[i,1]) for i in range(bounds.shape[0])]
 
+    if len(xvalues.shape) == 2:
+        for train_index, test_index in kf.split(xvalues):
+            training_dataset = build_classification_dataset(
+                    xvalues[train_index,...],
+                    yvalues[train_index])
+            validation_dataset = build_classification_dataset(
+                    xvalues[test_index,...],
+                    yvalues[test_index])
 
+            results.append(loss_func(np.array(hparams),
+                classifier, training_dataset, validation_dataset,
+                score_func, fit_mode, sign))
+
+    elif sequence_lengths is not None and len(xvalues.shape) == 3:
+        for train_index, test_index in kf.split(xvalues):
+            training_dataset = build_classification_dataset(
+                    xvalues[train_index,...],
+                    yvalues[train_index],
+                    sequence_lengths[train_index])
+            validation_dataset = build_classification_dataset(
+                    xvalues[test_index,...],
+                    yvalues[test_index],
+                    sequence_lengths[train_index])
+
+            results.append(loss_func(np.array(hparams),
+                classifier, training_dataset, validation_dataset,
+                score_func, fit_mode, sign))
+
+    else:
+        raise RuntimeError("Sequence lengths must be supplied if "
+                "there is a 3d input array.")
+
+    return np.mean(results)
 
 def accuracy(y_true, y_pred):
     """Calculates the accuracy of the predictions.
