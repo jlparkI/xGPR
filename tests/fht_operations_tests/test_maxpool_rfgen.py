@@ -73,7 +73,7 @@ def run_maxpool_evaluation(ndatapoints, kernel_width, aa_dim, num_aas,
 
     features = features.astype(np.float32)
     cpuConv1dMaxpool(xdata, features, radem, s_mat, seqlen,
-                kernel_width, 2)
+                kernel_width)
 
     outcome = check_results(true_features, features, precision)
     print(f"Settings: N {ndatapoints}, kernel_width {kernel_width}, "

@@ -33,9 +33,8 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             from S H D1 H D2 H D3 are correct.
     """
 
-    def __init__(self, num_rffs, xdim, num_threads = 2,
-                            sine_cosine_kernel = True, random_seed = 123,
-                            double_precision = False,
+    def __init__(self, num_rffs, xdim, sine_cosine_kernel = True,
+            random_seed = 123, double_precision = False,
                             kernel_spec_parms = {}):
         """Constructor for the SORFKernelBaseclass. Calls the KernelBaseclass
         constructor first.
@@ -48,8 +47,6 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
                 where N is the number of datapoints, D is number of features
                 and M is number of timepoints or sequence elements (convolution
                 kernels only).
-            num_threads (int): The number of threads to use for generating random
-                features if running on CPU. If running on GPU, this is ignored.
             random_seed (int): The seed to the random number generator.
             sine_cosine_kernel (bool): If True, the kernel is a sine-cosine kernel,
                 meaning it will sample self.num_freqs frequencies and use the sine
@@ -63,7 +60,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         Raises:
             ValueError: If a non 2d input array dimensionality is supplied.
         """
-        super().__init__(num_rffs, xdim, num_threads = num_threads,
+        super().__init__(num_rffs, xdim,
                 sine_cosine_kernel = sine_cosine_kernel,
                 double_precision = double_precision,
                 kernel_spec_parms = kernel_spec_parms)
@@ -121,7 +118,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
         if self.device == "cpu":
             output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
             cpuRBFFeatureGen(input_x, output_x, self.radem_diag, self.chi_arr,
-                self.num_threads, self.fit_intercept)
+                self.fit_intercept)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             cudaRBFFeatureGen(input_x, output_x, self.radem_diag, self.chi_arr,
@@ -156,7 +153,7 @@ class SORFKernelBaseclass(KernelBaseclass, ABC):
             output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
             dz_dsigma = np.zeros((input_x.shape[0], self.num_rffs, 1), np.float64)
             cpuRBFGrad(input_x, output_x, dz_dsigma, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads, self.fit_intercept)
+                self.hyperparams[1], self.fit_intercept)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             dz_dsigma = cp.zeros((input_x.shape[0], self.num_rffs, 1), cp.float64)

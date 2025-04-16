@@ -124,7 +124,7 @@ def run_basic_eval(ndatapoints, kernel_width, aa_dim, num_aas,
                             seqlen, precision, normalization)
     xd = xdata * sigma
     cpuConv1dFGen(xd, features, radem, s_mat,
-            seqlen, kernel_width, normalization, 2)
+            seqlen, kernel_width, normalization)
 
     outcome = check_results(true_features, features, precision)
     if normalization != 0:
@@ -169,8 +169,7 @@ def run_gradient_eval(ndatapoints, kernel_width, aa_dim, num_aas,
 
     gradient = np.zeros((features.shape[0], features.shape[1], 1))
     cpuConvGrad(xdata, features, radem, s_mat,
-            seqlen, gradient, sigma, kernel_width,
-            0, 2)
+            seqlen, gradient, sigma, kernel_width, 0)
     gradient = gradient[:,:(2*num_freqs),0]
 
     outcome = check_results(true_features, features[:,:(2 * num_freqs)], precision)

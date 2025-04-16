@@ -47,8 +47,6 @@ class ModelBaseclass():
             for the conv1d kernel.
         verbose (bool): If True, regular updates are printed during
             hyperparameter tuning and fitting.
-        num_threads (int): The number of threads to use for random feature generation
-            if running on CPU. If running on GPU, this argument is ignored.
         double_precision_fht (bool): If True, use double precision during FHT for
             generating random features. For most problems, it is not beneficial
             to set this to True -- it merely increases computational expense
@@ -71,7 +69,6 @@ class ModelBaseclass():
             kernel_choice:str = "RBF", device:str = "cpu",
             kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
             verbose:bool = True,
-            num_threads:int = 2,
             random_seed:int = 123) -> None:
         """Constructor.
 
@@ -94,8 +91,6 @@ class ModelBaseclass():
                 for the conv1d kernel.
             verbose (bool): If True, regular updates are printed
                 during fitting and tuning. Defaults to True.
-            num_threads (int): The number of threads to use for random feature generation
-                if running on CPU. If running on GPU, this argument is ignored.
             random_seed (int): The seed to the random number generator.
         """
         self.kernel_choice = kernel_choice
@@ -113,8 +108,6 @@ class ModelBaseclass():
         self.variance_rffs = variance_rffs
 
         self.kernel_spec_parms = kernel_settings
-        self.num_threads = num_threads
-
         self.verbose = verbose
 
         #Currently we do not allow user to set double_precision_fht --
@@ -261,7 +254,7 @@ class ModelBaseclass():
 
         self.kernel = KERNEL_NAME_TO_CLASS[self.kernel_choice](input_xdim,
                             self.num_rffs, self.random_seed, self.device,
-                            self.num_threads, self.double_precision_fht,
+                            self.double_precision_fht,
                             kernel_spec_parms = self.kernel_spec_parms)
 
         #Some kernels set the number of rffs themselves (Linear). If so,
@@ -545,21 +538,6 @@ class ModelBaseclass():
             self.gamma = None
             self.var = None
 
-
-    @property
-    def num_threads(self):
-        """Property definition for the num_threads attribute."""
-        return self._num_threads
-
-    @num_threads.setter
-    def num_threads(self, value):
-        """Setter for the num_threads attribute."""
-        if value < 1:
-            self._num_threads = 1
-            raise RuntimeError("Num threads if supplied must be an integer > 1.")
-        self._num_threads = value
-        if self.kernel is not None:
-            self.kernel.num_threads = value
 
     @property
     def double_precision_fht(self):

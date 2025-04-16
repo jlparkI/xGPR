@@ -36,7 +36,6 @@ class xGPDiscriminant(ModelBaseclass):
             device:str = "cpu",
             kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
             verbose:bool = True,
-            num_threads:int = 2,
             random_seed:int = 123):
         """The class constructor. Passes arguments onto
         the parent class constructor.
@@ -54,8 +53,6 @@ class xGPDiscriminant(ModelBaseclass):
                 for the conv1d kernel.
             verbose (bool): If True, regular updates are printed
                 during fitting and tuning. Defaults to True.
-            num_threads (int): The number of threads to use for random feature generation
-                if running on CPU. If running on GPU, this argument is ignored.
             random_seed (int): The seed to the random number generator. Used
                 throughout.
         """
@@ -71,8 +68,7 @@ class xGPDiscriminant(ModelBaseclass):
         super().__init__(num_rffs, 0,
                         kernel_choice, device = device,
                         kernel_settings = kernel_settings,
-                        verbose = verbose, num_threads = num_threads,
-                        random_seed = random_seed)
+                        verbose = verbose, random_seed = random_seed)
 
 
 

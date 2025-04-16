@@ -19,7 +19,7 @@ class GraphMatern(ConvKernelBaseclass):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
-                    num_threads = 2, double_precision = False, kernel_spec_parms = {}):
+                    double_precision = False, kernel_spec_parms = {}):
         """Constructor.
 
         Args:
@@ -32,8 +32,6 @@ class GraphMatern(ConvKernelBaseclass):
                 class as num_rffs.
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'gpu'. Indicates the starting device.
-            num_threads (int): The number of threads to use for random feature generation
-                if running on CPU. Ignored if running on GPU.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
 
@@ -42,7 +40,7 @@ class GraphMatern(ConvKernelBaseclass):
                 inappropriate given the conv_width.
         """
         super().__init__(xdim, num_rffs, random_seed,
-                num_threads, double_precision, 1,
+                double_precision, 1,
                 kernel_spec_parms)
         if "matern_nu" not in kernel_spec_parms:
             raise ValueError("Tried to initialize a Matern kernel without supplying nu.")

@@ -39,7 +39,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123,
-                    num_threads = 2, double_precision = False,
+                    double_precision = False,
                     conv_width = 9, kernel_spec_parms = {}):
         """Constructor.
 
@@ -53,8 +53,6 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
                 class as num_rffs.
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'cuda'. Indicates the starting device.
-            num_threads (int): The number of threads to use for random feature generation
-                if running on CPU. If running on GPU, this is ignored.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
             conv_width (int): The width of the convolution to perform.
@@ -65,7 +63,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
             RuntimeError: A RuntimeError is raised if the dimensions of the input are
                 inappropriate given the conv_width.
         """
-        super().__init__(num_rffs, xdim, num_threads = 2,
+        super().__init__(num_rffs, xdim,
                 sine_cosine_kernel = True, double_precision = double_precision,
                 kernel_spec_parms = kernel_spec_parms)
         if len(xdim) != 3:
@@ -140,8 +138,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
         if self.device == "cpu":
             xtrans = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
             cpuConv1dFGen(input_x, xtrans, self.radem_diag, self.chi_arr,
-                    sequence_length, self.conv_width, self.scaling_type,
-                    self.num_threads)
+                    sequence_length, self.conv_width, self.scaling_type)
         else:
             xtrans = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             cudaConv1dFGen(input_x, xtrans, self.radem_diag, self.chi_arr,
@@ -182,8 +179,7 @@ class ConvKernelBaseclass(KernelBaseclass, ABC):
             dz_dsigma = np.zeros((input_x.shape[0], self.num_rffs, 1), np.float64)
             cpuConvGrad(input_x, xtrans, self.radem_diag, self.chi_arr,
                     sequence_length, dz_dsigma, self.hyperparams[1],
-                    self.conv_width, self.scaling_type,
-                    self.num_threads)
+                    self.conv_width, self.scaling_type)
         else:
             xtrans = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             dz_dsigma = cp.zeros((input_x.shape[0], self.num_rffs, 1), cp.float64)

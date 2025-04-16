@@ -60,8 +60,8 @@ def run_fht_test(dim, random_seed = 123):
     """A helper function that runs an FHT test with specified
     dimensionality on a 3d input array."""
     scipy_double, scipy_float, marr, marr_float = setup_fht_test(dim, random_seed)
-    cFHT(marr, 1)
-    cFHT(marr_float, 1)
+    cFHT(marr)
+    cFHT(marr_float)
     outcome_d = np.allclose(scipy_double, marr)
     outcome_f = np.allclose(scipy_float, marr_float, rtol=1e-4, atol=1e-4)
     print("Did the C extension provide the correct result for "
@@ -75,8 +75,8 @@ def run_fht_2d_test(dim, random_seed = 123):
     dimensionality."""
     scipy_double, scipy_float, marr, marr_float = setup_fht_2d_test(dim, random_seed)
     cupy_marr, cupy_marr_float = marr.copy(), marr_float.copy()
-    cFHT2D(marr, 1)
-    cFHT2D(marr_float, 1)
+    cFHT2D(marr)
+    cFHT2D(marr_float)
     outcome_d = np.allclose(scipy_double, marr)
     outcome_f = np.allclose(scipy_float, marr_float, rtol=1e-4, atol=1e-4)
     print("Did the C extension provide the correct result for "
@@ -149,13 +149,13 @@ def run_srht_test(dim, compression_size, random_seed = 123):
         cuda_test_float = cp.asarray(marr_test_float)
 
     marr_gt_double = marr_gt_double * radem[None,:] * norm_constant
-    cFHT2D(marr_gt_double, 2)
+    cFHT2D(marr_gt_double)
 
     marr_gt_float = marr_gt_float * radem[None,:] * norm_constant
-    cFHT2D(marr_gt_float, 2)
+    cFHT2D(marr_gt_float)
 
-    cSRHT(marr_test_double, radem, 2)
-    cSRHT(marr_test_float, radem, 2)
+    cSRHT(marr_test_double, radem)
+    cSRHT(marr_test_float, radem)
     outcome_d = np.allclose(marr_gt_double, marr_test_double)
     outcome_f = np.allclose(marr_gt_float, marr_test_float, rtol=1e-3,
             atol=1e-5)
@@ -164,8 +164,8 @@ def run_srht_test(dim, compression_size, random_seed = 123):
 
     if "cupy" in sys.modules:
         radem = cp.asarray(radem)
-        cudaSRHT(cuda_test_float, radem, 2)
-        cudaSRHT(cuda_test_double, radem, 2)
+        cudaSRHT(cuda_test_float, radem)
+        cudaSRHT(cuda_test_double, radem)
         cuda_test_double = cp.asnumpy(cuda_test_double)
         cuda_test_float = cp.asnumpy(cuda_test_float)
         outcome_cuda_d = np.allclose(marr_gt_double, cuda_test_double)

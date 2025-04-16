@@ -50,13 +50,10 @@ class Conv1dTwoLayer(KernelBaseclass):
             second layer.
         chi_arr2: The diagonal array for the SORF transform for the
             second layer.
-        num_threads (int): Number of threads to use if running on CPU;
-            ignored if running on GPU.
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123,
-                device = "cpu", num_threads = 2,
-                double_precision = False,
+                device = "cpu", double_precision = False,
                 kernel_spec_parms = {}):
         """Constructor.
 
@@ -70,8 +67,6 @@ class Conv1dTwoLayer(KernelBaseclass):
                 class as num_rffs.
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'cuda'. Indicates the starting device.
-            num_threads (int): The number of threads to use for random feature generation
-                if running on CPU. If running on GPU, this is ignored.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
             conv_width (int): The width of the convolution to perform.
@@ -96,7 +91,7 @@ class Conv1dTwoLayer(KernelBaseclass):
         if self.init_rffs % 2 != 0:
             raise RuntimeError("Number of init rffs should be an even number.")
 
-        super().__init__(num_rffs, xdim, num_threads = 2,
+        super().__init__(num_rffs, xdim,
                 sine_cosine_kernel = True, double_precision = double_precision,
                 kernel_spec_parms = kernel_spec_parms)
         self.hyperparams = np.ones((2))
@@ -134,7 +129,6 @@ class Conv1dTwoLayer(KernelBaseclass):
             self.chi_arr1 = self.chi_arr1.astype(np.float32)
             self.chi_arr2 = self.chi_arr2.astype(np.float32)
 
-        self.num_threads = num_threads
         self.device = device
 
 
@@ -173,11 +167,11 @@ class Conv1dTwoLayer(KernelBaseclass):
         if self.device == "cpu":
             featurized_x = np.zeros((input_x.shape[0], self.init_rffs), np.float32)
             cpuConv1dMaxpool(input_x, featurized_x, self.radem_diag1, self.chi_arr1,
-                    sequence_length, self.conv_width, self.num_threads)
+                    sequence_length, self.conv_width)
             xtrans = np.zeros((featurized_x.shape[0], self.num_rffs), np.float64)
             featurized_x *= self.hyperparams[1]
             cpuRBFFeatureGen(featurized_x, xtrans, self.radem_diag2, self.chi_arr2,
-                self.num_threads, self.fit_intercept)
+                self.fit_intercept)
 
         else:
             featurized_x = cp.zeros((input_x.shape[0], self.init_rffs), cp.float32)
@@ -210,12 +204,12 @@ class Conv1dTwoLayer(KernelBaseclass):
         if self.device == "cpu":
             featurized_x = np.zeros((input_x.shape[0], self.init_rffs), np.float32)
             cpuConv1dMaxpool(input_x, featurized_x, self.radem_diag1, self.chi_arr1,
-                    sequence_length, self.conv_width, self.num_threads)
+                    sequence_length, self.conv_width)
 
             output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
             dz_dsigma = np.zeros((input_x.shape[0], self.num_rffs, 1), np.float64)
             cpuRBFGrad(featurized_x, output_x, dz_dsigma, self.radem_diag2, self.chi_arr2,
-                self.hyperparams[1], self.num_threads, self.fit_intercept)
+                self.hyperparams[1], self.fit_intercept)
         else:
             featurized_x = cp.zeros((input_x.shape[0], self.init_rffs), cp.float32)
             cudaConv1dMaxpool(input_x, featurized_x, self.radem_diag1, self.chi_arr1,

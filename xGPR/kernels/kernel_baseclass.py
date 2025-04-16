@@ -48,7 +48,7 @@ class KernelBaseclass(ABC):
             be set to False by adding "intercept":False to kernel_spec_parms.
     """
 
-    def __init__(self, num_rffs, xdim, num_threads = 2,
+    def __init__(self, num_rffs, xdim,
             sine_cosine_kernel = False, double_precision = False,
             kernel_spec_parms = {}):
         """Constructor for the KernelBaseclass.
@@ -61,8 +61,6 @@ class KernelBaseclass(ABC):
                 where N is the number of datapoints, D is number of features
                 and M is number of timepoints or sequence elements (convolution
                 kernels only).
-            num_threads (int): The number of threads to use if running on CPU. If
-                running on GPU, this is ignored.
             sine_cosine_kernel (bool): If True, the kernel is a sine-cosine kernel,
                 meaning it will sample self.num_freqs frequencies and use the sine
                 and cosine of each to generate twice as many features
@@ -100,8 +98,6 @@ class KernelBaseclass(ABC):
         self._xdim = xdim
         self.hyperparams = None
         self.bounds = None
-
-        self.num_threads = num_threads
 
 
 

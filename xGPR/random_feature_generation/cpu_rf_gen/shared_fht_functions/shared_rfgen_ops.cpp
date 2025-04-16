@@ -49,7 +49,7 @@ template <typename T>
 void multiplyByDiagonalRademacherMat2D(T __restrict xArray[],
                     const int8_t *rademArray,
                     int dim1,
-                    int startRow, int endRow){
+                    int startRow, int endRow) {
     
     int i = startRow, j = i;
     T normConstant = log2(dim1) / 2;
@@ -57,9 +57,9 @@ void multiplyByDiagonalRademacherMat2D(T __restrict xArray[],
     int rowStride = dim1;
     T *__restrict xElement;
     
-    for(i = startRow; i < endRow; i++){
+    for(i = startRow; i < endRow; i++) {
         xElement = xArray + i * rowStride;
-        for (j = 0; j < rowStride; j++){
+        for (j = 0; j < rowStride; j++) {
             *xElement *= rademArray[j] * normConstant;
             xElement++;
         }
@@ -112,7 +112,7 @@ template <typename T>
 void multiplyByDiagonalRademacherMat(T __restrict xArray[],
                     const int8_t *rademArray,
                     int dim1, int dim2,
-                    int startRow, int endRow){
+                    int startRow, int endRow) {
     
     int i = startRow, j = i;
     T normConstant = log2(dim2) / 2;
@@ -120,9 +120,9 @@ void multiplyByDiagonalRademacherMat(T __restrict xArray[],
     int rowStride = dim1 * dim2;
     T *__restrict xElement;
     
-    for(i = startRow; i < endRow; i++){
+    for(i = startRow; i < endRow; i++) {
         xElement = xArray + i * rowStride;
-        for (j = 0; j < rowStride; j++){
+        for (j = 0; j < rowStride; j++) {
             *xElement *= rademArray[j] * normConstant;
             xElement++;
         }
@@ -160,7 +160,7 @@ template void multiplyByDiagonalRademacherMat<float>(float *__restrict xArray,
 template <typename T>
 void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
         int repeatPosition, int rademShape2,
-        int cbufferDim2){
+        int cbufferDim2) {
     T normConstant = log2(cbufferDim2) / 2;
     normConstant = 1 / pow(2, normConstant);
     const int8_t *rademElement = rademArray + repeatPosition;
@@ -222,20 +222,20 @@ void singleVectorRBFPostProcess(const T xdata[],
         const T chiArr[], double *outputArray,
         int dim2, int numFreqs,
         int rowNumber, int repeatNum,
-        double scalingTerm){
+        double scalingTerm) {
 
     int outputStart = repeatNum * dim2;
     T prodVal;
     double *__restrict xOut;
     const T *chiIn;
-    //NOTE: MIN is defined in the header.
+    // NOTE: MIN is defined in the header.
     int endPosition = MIN(numFreqs, (repeatNum + 1) * dim2);
     endPosition -= outputStart;
 
     chiIn = chiArr + outputStart;
     xOut = outputArray + 2 * outputStart + rowNumber * 2 * numFreqs;
 
-    for (int i=0; i < endPosition; i++){
+    for (int i=0; i < endPosition; i++) {
         prodVal = xdata[i] * chiIn[i];
         *xOut += cos(prodVal) * scalingTerm;
         xOut++;
@@ -281,16 +281,16 @@ template void singleVectorRBFPostProcess<float>(const float xdata[], const float
 template <typename T>
 void singleVectorRBFPostGrad(const T xdata[],
         const T chiArr[], double *outputArray,
-        double *gradientArray, T sigma,
+        double *gradientArray, double sigma,
         int dim2, int numFreqs,
         int rowNumber, int repeatNum,
-        double scalingTerm){
+        double scalingTerm) {
 
     int outputStart = repeatNum * dim2;
     T prodVal, gradVal, cosVal, sinVal;
     double *__restrict xOut, *__restrict gradOut;
     const T *chiIn;
-    //NOTE: MIN is defined in the header.
+    // NOTE: MIN is defined in the header.
     int endPosition = MIN(numFreqs, (repeatNum + 1) * dim2);
     endPosition -= outputStart;
 
@@ -298,7 +298,7 @@ void singleVectorRBFPostGrad(const T xdata[],
     xOut = outputArray + 2 * outputStart + rowNumber * 2 * numFreqs;
     gradOut = gradientArray + 2 * outputStart + rowNumber * 2 * numFreqs;
 
-    for (int i=0; i < endPosition; i++){
+    for (int i=0; i < endPosition; i++) {
         gradVal = xdata[i] * chiIn[i];
         prodVal = gradVal * sigma;
         cosVal = cos(prodVal) * scalingTerm;
@@ -313,14 +313,17 @@ void singleVectorRBFPostGrad(const T xdata[],
         gradOut++;
     }
 }
-//Explicitly instantiate for external use.
-template void singleVectorRBFPostGrad<double>(const double xdata[], const double chiArr[],
-        double *outputArray, double *gradientArray, double sigma,
-        int dim2, int numFreqs, int rowNumber, int repeatNum,
-        double scalingTerm);
-template void singleVectorRBFPostGrad<float>(const float xdata[], const float chiArr[],
-        double *outputArray, double *gradientArray, float sigma,
-        int dim2, int numFreqs, int rowNumber, int repeatNum,
-        double scalingTerm);
+// Explicitly instantiate for external use.
+template void singleVectorRBFPostGrad<double>(
+const double xdata[], const double chiArr[],
+double *outputArray, double *gradientArray, double sigma,
+int dim2, int numFreqs, int rowNumber, int repeatNum,
+double scalingTerm);
+
+template void singleVectorRBFPostGrad<float>(
+const float xdata[], const float chiArr[],
+double *outputArray, double *gradientArray, double sigma,
+int dim2, int numFreqs, int rowNumber, int repeatNum,
+double scalingTerm);
 
 }  // namespace SharedCPURandomFeatureOps

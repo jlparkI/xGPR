@@ -98,9 +98,7 @@ def run_mini_ard_grad_test(xdim, num_freqs, split_points, random_seed = 123,
             f"{outcome_cuda_grad_f},{outcome_cuda_grad_d}")
         if np.sum([outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f,
             outcome_grad_d, outcome_cuda_grad_d]) < 6:
-            import pdb
-            pdb.set_trace()
-        return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f, \
+            return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f, \
                 outcome_grad_d, outcome_cuda_grad_d
     return outcome_d, outcome_f, outcome_grad_d, outcome_grad_f
 

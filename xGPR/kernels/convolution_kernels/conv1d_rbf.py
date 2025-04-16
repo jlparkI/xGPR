@@ -19,7 +19,7 @@ class Conv1dRBF(ConvKernelBaseclass):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
-                    num_threads = 2, double_precision = False,
+                    double_precision = False,
                     kernel_spec_parms = {}):
         """Constructor.
 
@@ -33,8 +33,6 @@ class Conv1dRBF(ConvKernelBaseclass):
                 class as num_rffs.
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'gpu'. Indicates the starting device.
-            num_threads (int): The number of threads to use for random feature generation
-                if running on CPU. If running on GPU, this is ignored.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
             kernel_spec_parms (dict): A dictionary of additional kernel-specific
@@ -49,7 +47,7 @@ class Conv1dRBF(ConvKernelBaseclass):
                     "parameter if using a sequence kernel.")
 
         super().__init__(xdim, num_rffs, random_seed,
-                num_threads, double_precision, kernel_spec_parms["conv_width"],
+                double_precision, kernel_spec_parms["conv_width"],
                 kernel_spec_parms)
         self.hyperparams = np.ones((2))
         self.bounds = np.asarray([[1e-3,5], [1e-6, 1e2]])

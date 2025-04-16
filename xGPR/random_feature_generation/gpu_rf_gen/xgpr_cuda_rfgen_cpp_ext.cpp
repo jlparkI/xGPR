@@ -28,11 +28,11 @@ NB_MODULE(xgpr_cuda_rfgen_cpp_ext, m){
     m.def("cudaFastHadamardTransform2D", &cudaHTransform<double>,
             nb::arg("inputArr").noconvert());
     m.def("cudaSRHT", &cudaSRHT2d<float>,
-            nb::arg("inputArr").noconvert(), nb::arg("radem").noconvert(),
-            nb::arg("numThreads"));
+            nb::arg("inputArr").noconvert(),
+            nb::arg("radem").noconvert());
     m.def("cudaSRHT", &cudaSRHT2d<double>,
-            nb::arg("inputArr").noconvert(), nb::arg("radem").noconvert(),
-            nb::arg("numThreads"));
+            nb::arg("inputArr").noconvert(),
+            nb::arg("radem").noconvert());
 
     m.def("cudaRBFFeatureGen", &RBFFeatureGen<float>,
             nb::arg("inputArr").noconvert(), nb::arg("outputArr").noconvert(),

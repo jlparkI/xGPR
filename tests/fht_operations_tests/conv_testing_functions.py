@@ -65,11 +65,11 @@ def get_reshaped_x(xdata, kernel_width, dim2, radem, num_blocks,
         reshaped_x[:,i,:window_size] = window.reshape((window.shape[0],
                         window.shape[1] * window.shape[2]))
     reshaped_x *= radem[0:1,:,start:end] * norm_constant
-    fht_func(reshaped_x, 1)
+    fht_func(reshaped_x)
     reshaped_x *= radem[1:2,:,start:end] * norm_constant
-    fht_func(reshaped_x, 1)
+    fht_func(reshaped_x)
     reshaped_x *= radem[2:3,:,start:end] * norm_constant
-    fht_func(reshaped_x, 1)
+    fht_func(reshaped_x)
 
     return reshaped_x
 
