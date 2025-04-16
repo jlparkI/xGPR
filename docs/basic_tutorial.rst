@@ -11,9 +11,11 @@ some other form(e.g. a fasta file, an SQLite db or an HDF5 file) and you
 don't want to make a copy of it, you can instead
 subclass xGPR's ``DatasetBaseclass`` and build a
 custom ``Dataset`` object. We'll look at the more common
-situations first:::
+situations first. You can use either ``build_regression_dataset``
+or ``build_classification_dataset``, which take the same arguments,
+as shown below:::
 
-  from xGPR import build_regression_dataset
+  from xGPR import build_regression_dataset, build_classification_dataset
 
   reg_train_set = build_regression_dataset(x, y, sequence_lengths = None,
                         chunk_size = 2000)
@@ -26,6 +28,10 @@ while training. Unlike deep learning, this doesn't affect the fitting
 trajectory in any way; it just affects memory consumption. If your
 datapoints are really large, you can use a smaller chunk size to
 reduce memory consumption.
+
+For regression, ``y`` should be all real values. For classification,
+it should be class labels starting from 0 (e.g. for a three-class problem
+the labels should be 0, 1, or 2).
 
 The ``x`` array(s) can be either 2d for tabular data or 3d for sequences
 and graphs. If they are 2d, they should have shape (N, M) for N datapoints
@@ -73,7 +79,8 @@ Fit your model and make predictions
 
 Let's create two models using RBF kernels and fit them:::
 
-  from xGPR import xGPRegression
+  # xGPRegression is for regression, xGPDiscriminant is for classification
+  from xGPR import xGPRegression, xGPDiscriminant
 
   #Notice that we set the device to be "cuda". If there are multiple
   #cuda devices, xGPR will use whichever one is currently active. You can control
@@ -130,10 +137,56 @@ Let's create two models using RBF kernels and fit them:::
   reg_preds, reg_var = reg_model.predict(xtest_reg, sequence_lengths = None, get_var = True)
 
 
+
+  # Classification is similar but with a few slight differences. For one thing,
+  # we don't need to specify the number of variance rffs since variance is not
+  # calculated separately.
+  class_train_set = build_classification_dataset(xclass, yclass,
+                        sequence_lengths = None, chunk_size = 2000)
+  
+  classifier = xGPDiscriminant(num_rffs = 2048,
+                        random_seed = 123.
+                        kernel_choice = "RBF",
+                        device = "cuda", kernel_settings = {})
+
+  my_hyperparams = np.array([-3.1, -1.25])
+  classifier.set_hyperparams(my_hyperparams, class_train_set)
+
+  #We can change the number of RFFs at any time up until we fit the model.
+  classifier.num_rffs = 2000
+
+  #We can fit using "exact" mode or "cg" mode. "cg" mode is much faster
+  #if num_rffs is very large. "exact" is much faster if "num_rffs" is small,
+  #e.g. < 3000. We'll use both here just for illustrative purposes.
+  #tol controls how tight the fit is; 1e-6 (the default) is usually fine;
+  #1e-7 (tighter fit) will improve performance slightly, especially if
+  #data is close to noise-free, but is not usually necessary; 1e-8 is
+  #usually overkill.
+
+  classifier.fit(class_train_set, mode="cg", tol=1e-6)
+
+  #To make predictions, just feed in a numpy array.
+  #If we want to switch over to CPU for inference now that the model
+  #is fitted, we can do that too, e.g.:
+
+  model.device = "cpu"
+
+  #For classification, predictions are a shape (N,M) array for N
+  # datapoints and M classes. These are the class probabilities.
+  # The actuall class assignments are np.argmax(preds, axis=1). chunk_size controls
+  #how many datapoints xGPR processes at a time in the input array; larger
+  #slightly increases speed but increases memory usage. If you're worried
+  #about memory usage, set a small chunk_size, otherwise default of 2000 is fine.
+
+  class_preds = classifier.predict(xclass)
+
+
+
 And that's basically it!
 
 We used "RBF" kernels here, but there are plenty of other options; see the Kernels
-section on the main page. Some of them have options that you can supply under the
+section on the main page. Some are designed for sequences, others for tabular data.
+Some of them have options that you can supply under the
 ``kernel_settings`` dict (e.g. the convolution width if using a sequence kernel).
 
 Notice also that we had to specify ``num_rffs`` when setting up the model (but can
@@ -156,9 +209,8 @@ How to find good hyperparameter values?
 ----------------------------------------
 
 Most kernels in xGPR have either two hyperparameters ("lambda", "sigma") or one ("lambda").
-(There's an exception to this, the ``MiniARD`` kernel, which is a fixed-length kernel
-that assigns a different "importance" or lengthscale to different groups of features. 
-We'll save that one for an advanced tutorial.) The Lambda hyperparameter is like the ridge
+There are some exceptions to this.
+(See the Kernels section on the main page for details about each kernel.) The Lambda hyperparameter is like the ridge
 penalty in ridge regression: it provides regularization and is roughly related to how "noisy"
 the data is expected to be. Larger (more positive) values = stronger regularization.
 xGPR squares the Lambda hyperparameter when fitting.
@@ -173,11 +225,8 @@ to actual values. So if you have:::
   my_model.set_hyperparams(np.array([-1., 0.]), my_train_dataset)
 
 the Lambda value that xGPR will use when fitting is ``(1 / e)^2``, and the sigma value will be ``1``.
-(This may seem strange -- it's really just for internal convenience). For numerical stability reasons,
-we don't recommend setting Lambda to a value much lower than ``-6.907`` or so
-(``(e^-6.907)^2`` is about 1e-6). So for Lambda, it usually makes sense to search across the
-range from -6.907 or so to 3 or so. For sigma, the optimal value is usually somewhere in the -7 to 2
-range (depending on dataset and kernel).
+(This is really just for internal convenience). For numerical stability, "lambda" probably
+should not go below -7 for regression or -10 for classification.
 
 One simple way to find good hyperparameter values is to fit the model using different 
 hyperparameter settings and look at performance on a validation set. So in this scheme, for each set of
@@ -193,16 +242,18 @@ hyperparameters you're considering, you would:::
 
 where ``my_new_hyperparams`` is a numpy array. You can easily plug this into Optuna or
 some other hyperparameter tuning package, do Bayesian optimization or grid search or
-any other procedure you like.
+any other procedure you like. The ``xGPDiscriminant`` classifer comes with some
+built-in functions that will do this kind of optimization for you just for
+convenience (for details on these see the "Classifier Tuning" section below).
 
-You can tune hyperparameters this way, but for regression, there's
-a much nicer way to evaluate hyperparameters, which uses negative log marginal likelihood
-(what xGPR calls NMLL). In Bayesian inference, the marginal likelihood is the probability
-of the training data averaged over *all possible parameter values*.  A lower NMLL means
-a better model (and a higher NMLL means a worse model). The NMLL on the training set in
-general correlates *very* well with performance on held-out data. So, for regression we
-don't really even need a validation set to tune hyperparameters; we can just calculate the
-NMLL for different hyperparameter settings and see which one gives us the best result.
+For regression, there's also a much nicer way to evaluate hyperparameters,
+which uses negative log marginal likelihood (what xGPR calls NMLL). In Bayesian
+inference, the marginal likelihood is the probability of the training data averaged
+over *all possible parameter values*.  A lower NMLL means a better model (and a higher
+NMLL means a worse model). The NMLL on the training set in general correlates *very*
+well with performance on held-out data. So, for regression we don't really even need a
+validation set to tune hyperparameters; we can just calculate the NMLL for different
+hyperparameter settings and see which one gives us the best result.
 
 Here's an example:::
 
@@ -239,7 +290,8 @@ tuning for you by minimizing the NMLL. These are::
   my_final_hyperparams = my_model.get_hyperparams()
 
 
-(There are some other knobs we can turn on ``tune_hyperparams``; see Advanced Tutorials for more.)
+(There are some other knobs we can turn on ``tune_hyperparams``;
+see Advanced Tutorials for more.)
 
 The first function, ``tune_hyperparams_crude``, is a remarkably efficient way to rapidly
 search the whole hyperparameter space for 1 and 2 hyperparameter kernels. It lets you
@@ -290,14 +342,30 @@ and the considerations are the same. Again, ``exact`` is faster if ``num_rffs`` 
 while ``approximate_nmll`` has better scaling.
 
 Finally, one important thing to keep in mind. Most of these methods run at reasonable
-speed on GPU. On CPU, however, tuning with a large ``num_rffs`` can be a slow slow slog.
-Setting the ``num_threads`` parameter on your model can help a little, e.g.:::
-
-  my_model.num_threads = 4
-
-``num_threads`` is ignored if you're fitting on GPU. But that can only help so much. We strongly
-recommend doing hyperparameter tuning and fitting on GPU whenever possible. Making predictions,
+speed on GPU. On CPU, however, tuning with a large ``num_rffs`` can be slow because of
+all of the matrix multiplications that are required.
+We recommend doing hyperparameter tuning and fitting on GPU when possible. Making predictions,
 by contrast, is reasonably fast on CPU. So fitting on GPU and
 doing inference on CPU is a perfectly viable way to go if desired.
+
+
+Classifier tuning
+----------------------------------------
+
+As discussed above, the xGPDiscriminant classifier does not currently calculate marginal
+likelihood, so currently the supported way to tune hyperparameters is to evaluate
+performance on a validation set or using cross-validation (for larger datasets,
+validation set performance is much faster and is preferred). For convenience,
+xGPR incorporates several functions that can automate validation set tuning using
+either Optuna or a Scipy-based optimizer; these are described below:
+
+.. autofunction:: xGPR.tune_classifier_optuna
+
+   
+.. autofunction:: xGPR.cv_tune_classifier_optuna
+
+   
+.. autofunction:: xGPR.tune_classifier_powell
+
 
 That's really all you absolutely need to know! For lots of useful TMI, see Advanced Tutorials.

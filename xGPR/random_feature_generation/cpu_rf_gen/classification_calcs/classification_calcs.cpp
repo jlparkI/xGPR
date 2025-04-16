@@ -65,6 +65,7 @@ void cpuFindClassMeans_(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu, n
         class_count_ptr[class_label] += 1;
         double *cl_means_row = class_means_ptr + class_label * x_dim1;
 
+        #pragma omp simd
         for (size_t j=0; j < x_dim1; j++)
             cl_means_row[j] += input_ptr[j];
 
@@ -125,6 +126,7 @@ void cpuPrepPooledCovCalc_(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cpu
         double prior = class_prior_ptr[class_label];
         const double *cl_means_row = class_means_ptr + class_label * x_dim1;
 
+        #pragma omp simd
         for (size_t j=0; j < x_dim1; j++)
             input_ptr[j] = (input_ptr[j] - cl_means_row[j]) * prior;
 

@@ -100,12 +100,6 @@ number of RFFs is small, where it will generally get better speed (it has
 poor scalability to large numbers of RFFs). For exact fitting, no
 preconditioner is required.
 
-Finally, note that ``mode=lbfgs`` is available as an alternative. We don't
-really recommend this -- it's mostly used for testing. In the past, we've found
-that both LBFGS and numerous flavors of stochastic gradient descent are
-substantially slower for fitting than exact and preconditioned CG, at least
-for tol < 1e-4.
-
 As a side note: SGD is popular in the literature because it works well for
 deep learning. Most papers that recommend some flavor of SGD haven't tried
 to use it for high-dimensional linear problems that may sometimes be

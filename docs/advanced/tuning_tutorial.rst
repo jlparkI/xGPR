@@ -32,12 +32,11 @@ this will return the log of the boundaries.
 
 If you find that optimization is suggesting hyperparameter values which are
 close to or on the bounds, you might want to set new more generous bounds.
-The default bounds for ``lambda`` (the first hyperparamter, shared by all
-kernels) are pretty generous and seldom need to be moved. The kernel-specific
-hyperparameter (for RBF, Matern and convolution kernels) has pretty generous
-default bounds but it may rarely be necessary to expand them.
+The lower bound for lambda for classification is sometimes too tight and
+sometimes it can be desirable to set a more generous lower bound of -10
+for lambda for classification.
 
-A more common use case is *contracting* the bounds, i.e. setting a smaller search
+It is more common to have to *contract* the bounds, i.e. setting a smaller search
 space so optimization can proceed more efficiently.
 
 

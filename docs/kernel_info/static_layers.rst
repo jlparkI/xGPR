@@ -39,7 +39,11 @@ random filter in the sequence of interest and thereby creates a
 If using these kernels, choose an ``RBF`` kernel when initializing
 the xGPRegression model (for ``FastConv1d``). (You *could* also use
 Linear or Matern or some other in principle, but we've never found that to be
-terribly useful.)
+terribly useful.) You can also concatenate the output of two ``FastConv1d``
+extractors and input these to an ``RBF`` or ``MiniARD`` kernel (the ``MiniARD``
+kernel would then have two separate lengthscales, one for each section of
+the input), or alternatively concatenate the output of ``FastConv1d`` with
+some other representation of the input.
 
 Using the output of a ``FastConv1d`` feature extractor as input to an RBF
 kernel is equivalent to using the ``Conv1dTwoLayer`` kernel. Why would you

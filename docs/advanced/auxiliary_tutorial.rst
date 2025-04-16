@@ -37,8 +37,7 @@ To generate random features, use the KernelFGen tool below:::
 
   fgen = KernelFGen(num_rffs = 512, hyperparams = np.array([1.0]),
                     num_features = 24, kernel_choice = "RBF",
-                    kernel_settings = {}, random_seed = 123, verbose = True,
-                    num_threads = 2)
+                    kernel_settings = {}, random_seed = 123, verbose = True)
 
   my_feature_rep = fgen.predict(my_input_numpy_array, sequence_lengths = None,
                                            chunk_size = 2000)
@@ -46,23 +45,17 @@ To generate random features, use the KernelFGen tool below:::
 Now you can cluster ``my_feature_rep`` -- it's just a random features representation
 of your input -- or do PCA.
 
-``num_features`` here is the last dimension of the inputs you will
-supply. If your input is fixed vectors, then this should be dim1 of
-the fixed vector input. If by contrast you are using a sequence /
-graph kernel, this should be the number of features per graph element /
-sequence element.
-
 Note some important things here. First, the ``KernelFGen`` is like an
 xGPRegression model that doesn't do hyperparameter tuning and is fitted
 as soon as it's created. This means that you have to supply (the log of) the
 hyperparameters as a numpy array.
 
 All xGPR kernels have at least one hyperparameter. Most have either one or two
-hyperparameters. If the kernel has only one hyperparameter (e.g. polynomial
-kernels, linear kernels, arc-cosine kernels) you don't need to supply anything for
-hyperparameters. You only need to supply a hyperparameter for kernels that
-have two hyperparameters, e.g. RBF, Matern, GraphRBF, FHTConv1d -- in that case
-you need to supply the second hyperparameter for the kernel as shown above.
+hyperparameters. If the kernel has only one hyperparameter (e.g. linear kernels)
+you don't need to supply anything for hyperparameters. You only need to supply a
+hyperparameter for kernels that have two hyperparameters, e.g. RBF, Matern,
+GraphRBF, FHTConv1d -- in that case you need to supply the second hyperparameter
+for the kernel as shown above.
 
 How to choose a hyperparameter for a kernel that requires it for clustering? If you've fitted a
 Gaussian process regression model to your data, that's easy -- just call:::
@@ -76,6 +69,7 @@ tutorials for some examples of how this affects the results. Some kernels accept
 additional settings under the ``kernel_settings`` dict, e.g. the degree of a polynomial;
 see the kernels section for more details.
 
-Setting a larger ``chunk_size`` increases the number of datapoints that
-are processed at a time, which increases memory consumption but
-slightly increases speed.
+For more details see below:
+
+.. autoclass:: xGPR.KernelFGen
+   :special-members: __init__
