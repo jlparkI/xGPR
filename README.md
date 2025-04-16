@@ -5,7 +5,12 @@ models and approximate kernel classification models to datasets ranging
 in size from thousands to millions of datapoints. It can also be used
 for efficient approximate kernel k-means and approximate kernel PCA.
 
-It uses a fast Hadamard transform-based implementation of the random features
+[The docs](https://xgpr.readthedocs.io/en/latest/) provide a number of
+examples for how to use xGPR for fitting protein sequences, small
+molecule structures, and tabular data for regression (classification
+is also available in v0.4.8).
+
+xGPR uses a fast Hadamard transform-based implementation of the random features
 approximation (aka random Fourier features). It is designed to run on either CPU
 or GPU (GPU is better for training, either is fine for inference),
 to model tabular data, sequence & time series data and graph data, and to
@@ -32,9 +37,7 @@ You can now build custom Datasets (similar to the Dataloader in PyTorch)
 so that you can use any kind of data (SQLite db, HDF5 etc.) as input
 when training with minor tweaks.
 
-Starting with version 0.4.5, xGPR is available as a precompiled binary / wheel
-for 64 bit Linux and as a source distribution for other platforms, so that
-in most cases, installation should typically be as simple as:
+In most cases, installation should typically be as simple as:
 ```
 pip install xGPR
 ```
@@ -57,7 +60,7 @@ Jonathan Parkinson and Wei Wang
 Journal of Chemical Information and Modeling 2023 63 (15), 4589-4601
 DOI: 10.1021/acs.jcim.3c00601 
 
-or the preprint at:
+The preprint is available at:
 
 Jonathan Parkinson, & Wei Wang. (2023). Linear Scaling Kernels for Protein Sequences and Small Molecules Outperform
 Deep Learning while Providing Uncertainty Quantitation and Improved Interpretability
