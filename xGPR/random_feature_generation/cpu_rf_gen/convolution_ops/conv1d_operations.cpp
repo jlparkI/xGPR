@@ -95,23 +95,29 @@ int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu
                 "array size.");
     }
 
+    #pragma omp parallel
+    {
+    int seqlength, numKmers;
     int rademShape2 = numRepeats * paddedBufferSize;
     // Notice that we don't have error handling here...very naughty. Out of
     // memory should be extremely rare since we are only allocating memory
     // for one row of the convolution. TODO: add error handling here.
     T *copyBuffer = new T[paddedBufferSize];
 
+    #pragma omp for
     for (int i=0; i < xDim0; i++) {
-        int seqlength = seqlengthsPtr[i];
-        int numKmers = seqlength - convWidth + 1;
+        seqlength = seqlengthsPtr[i];
+        numKmers = seqlength - convWidth + 1;
 
         for (int j=0; j < numKmers; j++) {
             int repeatPosition = 0;
             T *xElement = inputPtr + i * xDim1 * xDim2 + j * xDim2;
 
             for (int k=0; k < numRepeats; k++) {
+                #pragma omp simd
                 for (int m=0; m < (convWidth * xDim2); m++)
                     copyBuffer[m] = xElement[m];
+                #pragma omp simd
                 for (int m=(convWidth * xDim2); m < paddedBufferSize; m++)
                     copyBuffer[m] = 0;
 
@@ -125,6 +131,7 @@ int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu
         }
     }
     delete[] copyBuffer;
+    }
 
     return 0;
 }

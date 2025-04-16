@@ -59,10 +59,9 @@ void multiplyByDiagonalRademacherMat2D(T __restrict xArray[],
     
     for(i = startRow; i < endRow; i++) {
         xElement = xArray + i * rowStride;
-        for (j = 0; j < rowStride; j++) {
-            *xElement *= rademArray[j] * normConstant;
-            xElement++;
-        }
+        #pragma omp simd
+        for (j = 0; j < rowStride; j++)
+            xElement[j] *= rademArray[j] * normConstant;
     }
 }
 //Explicitly instantiate for external use.
@@ -165,12 +164,14 @@ void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
     normConstant = 1 / pow(2, normConstant);
     const int8_t *rademElement = rademArray + repeatPosition;
 
+    #pragma omp simd
     for (int i = 0; i < cbufferDim2; i++)
         cbuffer[i] *= rademElement[i] * normConstant;
 
     rademElement += rademShape2;
     CPUHadamardTransformOps::singleVectorTransform<T>(cbuffer, cbufferDim2);
 
+    #pragma omp simd
     for (int i = 0; i < cbufferDim2; i++)
         cbuffer[i] *= rademElement[i] * normConstant;
 
@@ -178,6 +179,7 @@ void singleVectorSORF(T cbuffer[], const int8_t *rademArray,
     CPUHadamardTransformOps::singleVectorTransform<T>(cbuffer, cbufferDim2);
 
 
+    #pragma omp simd
     for (int i = 0; i < cbufferDim2; i++)
         cbuffer[i] *= rademElement[i] * normConstant;
 

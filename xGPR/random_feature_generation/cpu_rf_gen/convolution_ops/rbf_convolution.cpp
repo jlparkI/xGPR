@@ -96,7 +96,8 @@ int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1, -1, -1>, nb::device::cpu, nb
                 "be >= conv width and < array size.");
     }
 
-
+    #pragma omp parallel
+    {
     int numKmers;
     int32_t seqlength;
     int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
@@ -107,6 +108,7 @@ int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1, -1, -1>, nb::device::cpu, nb
     T *copyBuffer = new T[paddedBufferSize];
     T *xElement;
 
+    #pragma omp for
     for (int i=0; i < xDim0; i++) {
         seqlength = seqlengthsPtr[i];
         numKmers = seqlength - convWidth + 1;
@@ -128,8 +130,10 @@ int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1, -1, -1>, nb::device::cpu, nb
             T *xElement = inputPtr + i * xDim1 * xDim2 + j * xDim2;
 
             for (int k=0; k < numRepeats; k++) {
+                #pragma omp simd
                 for (int m=0; m < (convWidth * xDim2); m++)
                     copyBuffer[m] = xElement[m];
+                #pragma omp simd
                 for (int m=(convWidth * xDim2); m < paddedBufferSize; m++)
                     copyBuffer[m] = 0;
 
@@ -143,8 +147,8 @@ int convRBFFeatureGen_(nb::ndarray<T, nb::shape<-1, -1, -1>, nb::device::cpu, nb
             }
         }
     }
-
     delete[] copyBuffer;
+    }
 
     return 0;
 }
@@ -252,6 +256,8 @@ int convRBFGrad_(nb::ndarray<T, nb::shape<-1, -1, -1>, nb::device::cpu, nb::c_co
 
 
 
+    #pragma omp parallel
+    {
     int numKmers;
     int32_t seqlength;
     int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
@@ -262,6 +268,7 @@ int convRBFGrad_(nb::ndarray<T, nb::shape<-1, -1, -1>, nb::device::cpu, nb::c_co
     T *copyBuffer = new T[paddedBufferSize];
     T *xElement;
 
+    #pragma omp for
     for (int i=0; i < xDim0; i++) {
         seqlength = seqlengthsPtr[i];
         numKmers = seqlength - convWidth + 1;
@@ -299,7 +306,7 @@ int convRBFGrad_(nb::ndarray<T, nb::shape<-1, -1, -1>, nb::device::cpu, nb::c_co
         }
     }
     delete[] copyBuffer;
-
+    }
 
     return 0;
 }

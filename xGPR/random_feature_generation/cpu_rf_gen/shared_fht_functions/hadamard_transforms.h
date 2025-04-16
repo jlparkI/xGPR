@@ -12,19 +12,12 @@
 namespace CPUHadamardTransformOps {
 
 template <typename T>
-void transformRows(T __restrict xArray[], int startRow, int endRow,
+void transformRows(T __restrict__ xArray[], int startRow, int endRow,
                     int dim1, int dim2);
 
-template <typename T>
-void smallBlockTransform(T xArray[], int startRow, int endRow,
-                    int dim1, int dim2);
 
 template <typename T>
-void generalTransform(T xArray[], int startRow, int endRow,
-                    int dim1, int dim2);
-
-template <typename T>
-void singleVectorTransform(T xArray[], int dim);
+void singleVectorTransform(T __restrict__ xArray[], int dim);
 
 
 }  // namespace CPUHadamardTransformOps

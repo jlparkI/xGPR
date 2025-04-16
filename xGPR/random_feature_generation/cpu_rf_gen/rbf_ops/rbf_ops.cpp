@@ -41,8 +41,8 @@ int rbfFeatureGen_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_conti
     // to see these because the Python code will always ensure inputs
     // are correct -- these are a failsafe -- so we do not need to provide
     // detailed exception messages here.
-    int zDim0 = inputArr.shape(0);
-    int zDim1 = inputArr.shape(1);
+    int xDim0 = inputArr.shape(0);
+    int xDim1 = inputArr.shape(1);
     size_t rademShape2 = radem.shape(2);
     size_t numRffs = outputArr.shape(1);
     size_t numFreqs = chiArr.shape(0);
@@ -60,7 +60,7 @@ int rbfFeatureGen_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_conti
     if ( (2 * numFreqs) != numRffs || numFreqs > radem.shape(2) )
         throw std::runtime_error("incorrect number of rffs and or freqs.");
 
-    double expectedNFreq = (zDim1 > 2) ? static_cast<double>(zDim1) : 2.0;
+    double expectedNFreq = (xDim1 > 2) ? static_cast<double>(xDim1) : 2.0;
     double log2Freqs = std::log2(expectedNFreq);
     log2Freqs = std::ceil(log2Freqs);
     int paddedBufferSize = std::pow(2, log2Freqs);
@@ -76,19 +76,26 @@ int rbfFeatureGen_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_conti
         rbfNormConstant = std::sqrt(1.0 / numFreqsFlt);
 
 
+    #pragma omp parallel
+    {
+    int repeatPosition;
     int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
     // Notice that we don't have error handling here...very naughty. Out of
     // memory should be extremely rare since we are only allocating memory
     // for one row of the convolution. TODO: add error handling here.
     T *copyBuffer = new T[paddedBufferSize];
 
-    for (int i=0; i < zDim0; i++) {
-        int repeatPosition = 0;
+    #pragma omp for
+    for (int i=0; i < xDim0; i++) {
+        repeatPosition = 0;
 
         for (int k=0; k < numRepeats; k++) {
-            for (int m=0; m < zDim1; m++)
-                copyBuffer[m] = inputPtr[m];
-            for (int m=zDim1; m < paddedBufferSize; m++)
+            int start_pos = i * xDim1;
+            #pragma omp simd
+            for (int m=0; m < xDim1; m++)
+                copyBuffer[m] = inputPtr[start_pos + m];
+            #pragma omp simd
+            for (int m=xDim1; m < paddedBufferSize; m++)
                 copyBuffer[m] = 0;
 
             SharedCPURandomFeatureOps::singleVectorSORF(copyBuffer,
@@ -98,9 +105,9 @@ int rbfFeatureGen_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_conti
                     k, rbfNormConstant);
             repeatPosition += paddedBufferSize;
         }
-        inputPtr += zDim1;
     }
     delete[] copyBuffer;
+    }
 
     return 0;
 }
@@ -144,8 +151,8 @@ int rbfGrad_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inp
     // to see these because the Python code will always ensure inputs
     // are correct -- these are a failsafe -- so we do not need to provide
     // detailed exception messages here.
-    int zDim0 = inputArr.shape(0);
-    int zDim1 = inputArr.shape(1);
+    int xDim0 = inputArr.shape(0);
+    int xDim1 = inputArr.shape(1);
     size_t rademShape2 = radem.shape(2);
     size_t numRffs = outputArr.shape(1);
     size_t numFreqs = chiArr.shape(0);
@@ -166,7 +173,7 @@ int rbfGrad_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inp
     if (gradArr.shape(0) != outputArr.shape(0) || gradArr.shape(1) != outputArr.shape(1))
         throw std::runtime_error("Wrong array sizes.");
 
-    double expectedNFreq = (zDim1 > 2) ? static_cast<double>(zDim1) : 2.0;
+    double expectedNFreq = (xDim1 > 2) ? static_cast<double>(xDim1) : 2.0;
     double log2Freqs = std::log2(expectedNFreq);
     log2Freqs = std::ceil(log2Freqs);
     int paddedBufferSize = std::pow(2, log2Freqs);
@@ -182,19 +189,26 @@ int rbfGrad_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inp
         rbfNormConstant = std::sqrt(1.0 / numFreqsFlt);
 
 
+    #pragma omp parallel
+    {
+    int repeatPosition;
     int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
     // Notice that we don't have error handling here...very naughty. Out of
     // memory should be extremely rare since we are only allocating memory
     // for one row of the convolution. TODO: add error handling here.
     T *copyBuffer = new T[paddedBufferSize];
 
-    for (int i=0; i < zDim0; i++) {
-        int repeatPosition = 0;
+    #pragma omp for
+    for (int i=0; i < xDim0; i++) {
+        repeatPosition = 0;
 
         for (int k=0; k < numRepeats; k++) {
-            for (int m=0; m < zDim1; m++)
-                copyBuffer[m] = inputPtr[m];
-            for (int m=zDim1; m < paddedBufferSize; m++)
+            int start_pos = i * xDim1;
+            #pragma omp simd
+            for (int m=0; m < xDim1; m++)
+                copyBuffer[m] = inputPtr[start_pos + m];
+            #pragma omp simd
+            for (int m=xDim1; m < paddedBufferSize; m++)
                 copyBuffer[m] = 0;
 
             SharedCPURandomFeatureOps::singleVectorSORF(copyBuffer,
@@ -204,10 +218,10 @@ int rbfGrad_(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> inp
                     numFreqs, i, k, rbfNormConstant);
             repeatPosition += paddedBufferSize;
         }
-        inputPtr += zDim1;
     }
     delete[] copyBuffer;
-    
+    }
+
     return 0;
 }
 //Explicitly instantiate for external use.
