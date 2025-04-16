@@ -46,7 +46,7 @@ class MiniARD(KernelBaseclass):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123,
-                device = "cpu", num_threads = 2, double_precision = False,
+                device = "cpu", double_precision = False,
                 kernel_spec_parms = {}):
         """Constructor.
 
@@ -55,8 +55,6 @@ class MiniARD(KernelBaseclass):
             num_rffs (int): The user-requested number of random Fourier features.
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'cuda'. Indicates the starting device.
-            num_threads (int): The number of threads to use for generating random
-                features if running on CPU. Ignored if running on GPU.
             double_precision (bool): Whether to use double precision for the FHT
                 when generating random features. It is generally best to set to
                 False -- setting to True increases computational cost for negligible
@@ -69,7 +67,7 @@ class MiniARD(KernelBaseclass):
             ValueError: A ValueError is raised if the needed kernel_spec_parms
                 are not supplied, or if the split points supplied are invalid.
         """
-        super().__init__(num_rffs, xdim, num_threads, sine_cosine_kernel = True,
+        super().__init__(num_rffs, xdim, sine_cosine_kernel = True,
                 double_precision = double_precision,
                 kernel_spec_parms = kernel_spec_parms)
         if len(self._xdim) != 2:
@@ -197,7 +195,7 @@ class MiniARD(KernelBaseclass):
             if not self.double_precision:
                 xtrans = xtrans.astype(np.float32)
             cpuRBFFeatureGen(xtrans, output_x, self.radem_diag, self.chi_arr,
-                    self.num_threads, self.fit_intercept)
+                    self.fit_intercept)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             if not self.double_precision:
@@ -238,11 +236,11 @@ class MiniARD(KernelBaseclass):
             ident_mat = np.eye(self.padded_dims)
             init_pt, cut_pt = i * self.padded_dims, (i+1) * self.padded_dims
             ident_mat *= self.radem_diag[0:1,0,init_pt:cut_pt] * norm_constant
-            dFHT2d(ident_mat, self.num_threads)
+            dFHT2d(ident_mat)
             ident_mat *= self.radem_diag[1:2,0,init_pt:cut_pt] * norm_constant
-            dFHT2d(ident_mat, self.num_threads)
+            dFHT2d(ident_mat)
             ident_mat *= self.radem_diag[2:3,0,init_pt:cut_pt] * norm_constant
-            dFHT2d(ident_mat, self.num_threads)
+            dFHT2d(ident_mat)
 
 
             ident_mat *= padded_chi_arr[init_pt:cut_pt]
@@ -285,7 +283,7 @@ class MiniARD(KernelBaseclass):
                 max_map_position + 1), np.float64)
             cpuMiniARDGrad(input_x, xtrans, self.precomputed_weights,
                 self.ard_position_key, self.full_ard_weights,
-                dz_dsigma, self.num_threads, self.fit_intercept)
+                dz_dsigma, self.fit_intercept)
         else:
             xtrans = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             dz_dsigma = cp.zeros((input_x.shape[0], self.num_rffs,

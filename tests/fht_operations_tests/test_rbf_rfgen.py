@@ -81,11 +81,11 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, fit_intercept = False):
             chi_arr.astype(np.float32), nblocks, padded_dims, fit_intercept)
 
     double_output = np.zeros((test_array.shape[0], num_freqs * 2))
-    cRBF(test_array, double_output, radem, chi_arr, 2, fit_intercept)
+    cRBF(test_array, double_output, radem, chi_arr, fit_intercept)
 
     float_output = np.zeros((test_array.shape[0], num_freqs * 2))
     cRBF(test_array.astype(np.float32), float_output, radem,
-            chi_arr.astype(np.float32), 2, fit_intercept)
+            chi_arr.astype(np.float32), fit_intercept)
 
     if "cupy" in sys.modules:
         cuda_test_array = cp.asarray(test_array)
@@ -134,13 +134,13 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123,
     double_output = np.zeros((test_array.shape[0], num_freqs * 2))
     double_grad = np.zeros((double_output.shape[0], double_output.shape[1], 1))
     cRBFGrad(test_array, double_output, double_grad, radem, chi_arr,
-            1.0, 2, fit_intercept)
+            1.0, fit_intercept)
 
     float_output = np.zeros((test_array.shape[0], num_freqs * 2))
     float_grad = np.zeros((float_output.shape[0], float_output.shape[1], 1))
     cRBFGrad(test_array.astype(np.float32), float_output,
             float_grad, radem, chi_arr.astype(np.float32), 1.0,
-            2, fit_intercept)
+            fit_intercept)
 
     if "cupy" in sys.modules:
         cuda_test_array = cp.asarray(test_array)
@@ -228,7 +228,7 @@ def generate_rbf_values(test_array, radem, chi_arr, nblocks,
 
         for j in range(3):
             temp_arr *= radem[j, 0, i*padded_dims:(i+1)*padded_dims] * norm_constant
-            cFHT(temp_arr, 1)
+            cFHT(temp_arr)
 
         #The simplex projection (Reid et al 2023) (disabled for now
         #since erratic / unclear effect on performance). We use a deliberately

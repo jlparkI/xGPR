@@ -4,13 +4,6 @@ The AuxiliaryBaseclass describes class attributes and methods shared by
 auxiliary tools like kernel_xPCA and kernel_FGen.
 """
 import sys
-import numpy as np
-
-try:
-    import cupy as cp
-except:
-    pass
-
 from .kernels import KERNEL_NAME_TO_CLASS, ARR_3D_KERNELS
 from .constants import constants
 
@@ -35,7 +28,6 @@ class AuxiliaryBaseclass():
                     kernel_choice:str = "RBF", device:str = "cpu",
                     kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     random_seed:int = 123, verbose:bool = True,
-                    num_threads:int = 2,
                     double_precision_fht:bool = False):
         """Constructor.
 
@@ -65,8 +57,6 @@ class AuxiliaryBaseclass():
             random_seed (int): A seed for the random number generator.
             verbose (bool): If True, regular updates are printed
                 during fitting and tuning. Defaults to True.
-            num_threads (int): The number of threads to use for random feature generation
-                if running on CPU. If running on GPU, this argument is ignored.
             double_precision_fht (bool): If True, use double precision during FHT for
                 generating random features. For most problems, it is not beneficial
                 to set this to True -- it merely increases computational expense
@@ -79,7 +69,7 @@ class AuxiliaryBaseclass():
         self.verbose = verbose
 
         if kernel_choice not in KERNEL_NAME_TO_CLASS:
-            raise ValueError("An unrecognized kernel choice was supplied.")
+            raise RuntimeError("An unrecognized kernel choice was supplied.")
 
         if kernel_choice in ARR_3D_KERNELS:
             if "conv_width" in kernel_settings:
@@ -90,8 +80,7 @@ class AuxiliaryBaseclass():
             xdim = (1, num_features)
 
         self.kernel = KERNEL_NAME_TO_CLASS[kernel_choice](xdim,
-                            num_rffs, random_seed, device,
-                            num_threads, double_precision_fht,
+                num_rffs, random_seed, device, double_precision_fht,
                             kernel_spec_parms = kernel_settings)
 
         self.double_precision_fht = double_precision_fht
@@ -116,23 +105,19 @@ class AuxiliaryBaseclass():
                 to the unmodified input array otherwise.
 
         Raises:
-            ValueError: If invalid inputs are supplied,
-                a detailed ValueError is raised to explain.
+            RuntimeError: If invalid inputs are supplied,
+                a detailed RuntimeError is raised to explain.
         """
         if not self.kernel.validate_new_datapoints(input_x):
-            raise ValueError("The input has incorrect dimensionality.")
+            raise RuntimeError("The input has incorrect dimensionality.")
         if sequence_lengths is None:
             if len(input_x.shape) != 2:
-                raise ValueError("sequence_lengths is required if using a "
+                raise RuntimeError("sequence_lengths is required if using a "
                         "convolution kernel.")
         else:
             if len(input_x.shape) == 2:
-                raise ValueError("sequence_lengths must be None if using a "
+                raise RuntimeError("sequence_lengths must be None if using a "
                     "fixed vector kernel.")
-
-        if self.device == "cuda":
-            mempool = cp.get_default_memory_pool()
-            mempool.free_all_blocks()
 
 
     ####The remaining functions are all getters / setters.
@@ -147,20 +132,17 @@ class AuxiliaryBaseclass():
     def device(self, value):
         """Setter for the device attribute."""
         if value not in ["cpu", "cuda"]:
-            raise ValueError("Device must be in ['cpu', 'cuda'].")
+            raise RuntimeError("Device must be in ['cpu', 'cuda'].")
 
         if "cupy" not in sys.modules and value == "cuda":
-            raise ValueError("You have specified the cuda fit mode but CuPy is "
+            raise RuntimeError("You have specified the cuda fit mode but CuPy is "
                 "not installed. Currently CPU only fitting is available.")
 
         if "xGPR.xgpr_cuda_rfgen_cpp_ext" not in sys.modules and value == "cuda":
-            raise ValueError("You have specified the cuda fit mode but the "
+            raise RuntimeError("You have specified the cuda fit mode but the "
                 "cudaHadamardTransform module is not installed / "
                 "does not appear to have installed correctly. "
                 "Currently CPU only fitting is available.")
 
         self.kernel.device = value
-        if value == "cuda":
-            mempool = cp.get_default_memory_pool()
-            mempool.free_all_blocks()
         self._device = value

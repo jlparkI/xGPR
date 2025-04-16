@@ -54,7 +54,7 @@ class RBFLinear(KernelBaseclass, ABC):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
-                num_threads = 2, double_precision = False,
+                double_precision = False,
                 kernel_spec_parms = {}):
         """Constructor. Calls the KernelBaseclass
         constructor first.
@@ -70,8 +70,6 @@ class RBFLinear(KernelBaseclass, ABC):
                 where N is the number of datapoints, D is number of features
                 and M is number of timepoints or sequence elements (convolution
                 kernels only).
-            num_threads (int): The number of threads to use for generating random
-                features if running on CPU. If running on GPU, this is ignored.
             random_seed (int): The seed to the random number generator.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
@@ -87,7 +85,7 @@ class RBFLinear(KernelBaseclass, ABC):
         #Although this IS a sine_cosine kernel, we don't want the parent class
         #to enforce that num_rffs be a multiple of two (only needs to be true
         #for internal rffs), so we set sine_cosine_kernel to False.
-        super().__init__(num_rffs, xdim, num_threads = num_threads,
+        super().__init__(num_rffs, xdim,
                 sine_cosine_kernel = False,
                 double_precision = double_precision,
                 kernel_spec_parms = kernel_spec_parms)
@@ -164,7 +162,7 @@ class RBFLinear(KernelBaseclass, ABC):
             output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float64)
             rf_features = np.zeros((input_x.shape[0], self.internal_rffs), np.float64)
             cpuRBFFeatureGen(input_x, rf_features, self.radem_diag, self.chi_arr,
-                self.num_threads, self.fit_intercept)
+                self.fit_intercept)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             rf_features = cp.zeros((input_x.shape[0], self.internal_rffs), cp.float64)
@@ -205,7 +203,7 @@ class RBFLinear(KernelBaseclass, ABC):
             rf_features = np.zeros((input_x.shape[0], self.internal_rffs), np.float64)
             rf_grad = np.zeros((input_x.shape[0], self.internal_rffs, 1), np.float64)
             cpuRBFGrad(input_x, rf_features, rf_grad, self.radem_diag, self.chi_arr,
-                self.hyperparams[1], self.num_threads, self.fit_intercept)
+                self.hyperparams[1], self.fit_intercept)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float64)
             output_grad = cp.zeros((input_x.shape[0], self.num_rffs, 1), cp.float64)

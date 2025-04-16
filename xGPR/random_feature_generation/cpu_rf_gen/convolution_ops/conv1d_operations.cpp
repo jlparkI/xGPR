@@ -1,13 +1,16 @@
-/*!
- * # conv1d_operations.c
+/* Copyright (C) 2025 Jonathan Parkinson
  *
- * This module performs operations unique to the convolution
- * kernels in xGPR, essentially orthogonal random features based
- * convolution, for non-RBF kernels.
- */
-#include <vector>
-#include <thread>
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+*/
+// C++ headers
 #include <math.h>
+#include <vector>
+
+// Library headers
+
+// Project headers
 #include "conv1d_operations.h"
 #include "../shared_fht_functions/hadamard_transforms.h"
 #include "../shared_fht_functions/shared_rfgen_ops.h"
@@ -15,47 +18,36 @@
 
 
 
-/*!
- * # conv1dMaxpoolFeatureGen_
- *
- * Generates random features for a maxpool (rather than RBF) type pre-kernel.
- *
- * ## Args:
- *
- * + `radem` The stacks of diagonal matrices used in
- * the transform. Must be of shape (3 x 1 x m * C) where m is
- * an integer that indicates the number of times we must repeat
- * the operation to generate the requested number of sampled frequencies.
- * + `xdata` The raw input 3d array, of shape (N x D x K).
- * + `chiArr` The diagonal array by which to multiply the SORF products.
- * + `outputArray` The array in which the results are stored.
- * + `seqlengths` The length of each sequence in the input. Of shape (N).
- * + `dim0` The first dimension of xdata
- * + `dim1` The second dimension of xdata
- * + `dim2` The last dimension of xdata
- * + `numThreads` The number of threads to use
- * + `numFreqs` The number of frequencies to sample.
- * numFreqs must be equal <= shape[2] of radem.
- * + `convWidth` The width of the convolution to perform.
- * + `paddedBufferSize` dim2 of the copy buffer to create to perform
- * the convolution.
- *
- * ## Returns:
- * "error" if an error, "no_error" otherwise.
- */
+namespace CPUMaxpoolKernelCalculations {
+
+
+
+/// @brief Generates random features for the static layer FastConv1d-type
+/// feature generator.
+/// @param inputArr The input features that will be used to generate the RFs.
+/// @param outputArr The array in which random features will be stored.
+/// @param radem The array in which the diagonal Rademacher matrices are
+/// stored.
+/// @param chiArr The array in which the diagonal scaling matrix is stored.
+/// @param seqlengths The array storing the length of each sequence in
+/// inputArr.
+/// @param convWidth The width of the convolution kernel.
 template <typename T>
 int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
         nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
         nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
         nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
         nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, int numThreads) {
+        int convWidth) {
 
-    // Perform safety checks. Any exceptions thrown here are handed off to Python
-    // by the Nanobind wrapper. We do not expect the user to see these because
-    // the Python code will always ensure inputs are correct -- these are a failsafe
-    // -- so we do not need to provide detailed exception messages here.
-    int zDim0 = inputArr.shape(0);
+    // Perform safety checks. Any exceptions thrown here are handed
+    // off to Python by the Nanobind wrapper. We do not expect the
+    // user to see these because the Python code will always ensure
+    // inputs are correct -- these are a failsafe -- so we do not need
+    // to provide detailed exception messages here.
+    int xDim0 = inputArr.shape(0);
+    int xDim1 = inputArr.shape(1);
+    int xDim2 = inputArr.shape(2);
     size_t numRffs = outputArr.shape(1);
     size_t numFreqs = chiArr.shape(0);
 
@@ -103,42 +95,61 @@ int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu
                 "array size.");
     }
 
-    if (numThreads > zDim0)
-        numThreads = zDim0;
+    #pragma omp parallel
+    {
+    int seqlength, numKmers;
+    int rademShape2 = numRepeats * paddedBufferSize;
+    // Notice that we don't have error handling here...very naughty. Out of
+    // memory should be extremely rare since we are only allocating memory
+    // for one row of the convolution. TODO: add error handling here.
+    T *copyBuffer = new T[paddedBufferSize];
 
-    std::vector<std::thread> threads(numThreads);
-    int startRow, endRow;
-    int chunkSize = (zDim0 + numThreads - 1) / numThreads;
-    
-    for (int i=0; i < numThreads; i++) {
-        startRow = i * chunkSize;
-        endRow = (i + 1) * chunkSize;
-        if (endRow > zDim0)
-            endRow = zDim0;
+    #pragma omp for
+    for (int i=0; i < xDim0; i++) {
+        seqlength = seqlengthsPtr[i];
+        numKmers = seqlength - convWidth + 1;
 
-        threads[i] = std::thread(&allInOneConvMaxpoolGen<T>, inputPtr,
-                rademPtr, chiPtr, outputPtr, seqlengthsPtr, inputArr.shape(1),
-                inputArr.shape(2), numFreqs, startRow, endRow, convWidth,
-                paddedBufferSize);
+        for (int j=0; j < numKmers; j++) {
+            int repeatPosition = 0;
+            T *xElement = inputPtr + i * xDim1 * xDim2 + j * xDim2;
+
+            for (int k=0; k < numRepeats; k++) {
+                #pragma omp simd
+                for (int m=0; m < (convWidth * xDim2); m++)
+                    copyBuffer[m] = xElement[m];
+                #pragma omp simd
+                for (int m=(convWidth * xDim2); m < paddedBufferSize; m++)
+                    copyBuffer[m] = 0;
+
+                SharedCPURandomFeatureOps::singleVectorSORF(copyBuffer,
+                        rademPtr, repeatPosition, rademShape2,
+                        paddedBufferSize);
+                singleVectorMaxpoolPostProcess(copyBuffer, chiPtr, outputPtr,
+                        paddedBufferSize, numFreqs, i, k);
+                repeatPosition += paddedBufferSize;
+            }
+        }
     }
-
-    for (auto& th : threads)
-        th.join();
+    delete[] copyBuffer;
+    }
 
     return 0;
 }
-template int conv1dMaxpoolFeatureGen_<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
-        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
-        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
-        nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, int numThreads);
-template int conv1dMaxpoolFeatureGen_<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
-        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
-        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
-        nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth, int numThreads);
+template int conv1dMaxpoolFeatureGen_<double>(
+nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+int convWidth);
+
+template int conv1dMaxpoolFeatureGen_<float>(
+nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
+nb::ndarray<float, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> outputArr,
+nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+int convWidth);
 
 
 
@@ -153,37 +164,6 @@ void *allInOneConvMaxpoolGen(T xdata[], int8_t *rademArray, T chiArr[],
         float *outputArray, int32_t *seqlengths, int dim1, int dim2,
         int numFreqs, int startRow, int endRow,
         int convWidth, int paddedBufferSize) {
-    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
-    int rademShape2 = numRepeats * paddedBufferSize;
-    //Notice that we don't have error handling here...very naughty. Out of
-    //memory should be extremely rare since we are only allocating memory
-    //for one row of the convolution. TODO: add error handling here.
-    T *copyBuffer = new T[paddedBufferSize];
-    T *xElement;
-
-    for (int i=startRow; i < endRow; i++) {
-        int seqlength = seqlengths[i];
-        int numKmers = seqlength - convWidth + 1;
-
-        for (int j=0; j < numKmers; j++) {
-            int repeatPosition = 0;
-            xElement = xdata + i * dim1 * dim2 + j * dim2;
-
-            for (int k=0; k < numRepeats; k++) {
-                for (int m=0; m < (convWidth * dim2); m++)
-                    copyBuffer[m] = xElement[m];
-                for (int m=(convWidth * dim2); m < paddedBufferSize; m++)
-                    copyBuffer[m] = 0;
-
-                singleVectorSORF(copyBuffer, rademArray, repeatPosition,
-                        rademShape2, paddedBufferSize);
-                singleVectorMaxpoolPostProcess(copyBuffer, chiArr, outputArray,
-                        paddedBufferSize, numFreqs, i, k);
-                repeatPosition += paddedBufferSize;
-            }
-        }
-    }
-    delete[] copyBuffer;
 
     return NULL;
 }
@@ -237,3 +217,7 @@ void singleVectorMaxpoolPostProcess(const T xdata[],
         xOut++;
     }
 }
+
+
+
+}  // namespace CPUMaxpoolKernelCalculations

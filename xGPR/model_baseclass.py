@@ -4,12 +4,10 @@ import sys
 import copy
 try:
     import cupy as cp
-    from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
 except:
     pass
 import numpy as np
-from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
-from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
+from .preconditioners.rand_nys_preconditioners import RandNysPreconditioner
 from .preconditioners.rand_nys_constructors import srht_ratio_check
 
 from .kernels import KERNEL_NAME_TO_CLASS
@@ -49,8 +47,6 @@ class ModelBaseclass():
             for the conv1d kernel.
         verbose (bool): If True, regular updates are printed during
             hyperparameter tuning and fitting.
-        num_threads (int): The number of threads to use for random feature generation
-            if running on CPU. If running on GPU, this argument is ignored.
         double_precision_fht (bool): If True, use double precision during FHT for
             generating random features. For most problems, it is not beneficial
             to set this to True -- it merely increases computational expense
@@ -73,7 +69,6 @@ class ModelBaseclass():
             kernel_choice:str = "RBF", device:str = "cpu",
             kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
             verbose:bool = True,
-            num_threads:int = 2,
             random_seed:int = 123) -> None:
         """Constructor.
 
@@ -96,8 +91,6 @@ class ModelBaseclass():
                 for the conv1d kernel.
             verbose (bool): If True, regular updates are printed
                 during fitting and tuning. Defaults to True.
-            num_threads (int): The number of threads to use for random feature generation
-                if running on CPU. If running on GPU, this argument is ignored.
             random_seed (int): The seed to the random number generator.
         """
         self.kernel_choice = kernel_choice
@@ -115,8 +108,6 @@ class ModelBaseclass():
         self.variance_rffs = variance_rffs
 
         self.kernel_spec_parms = kernel_settings
-        self.num_threads = num_threads
-
         self.verbose = verbose
 
         #Currently we do not allow user to set double_precision_fht --
@@ -146,28 +137,28 @@ class ModelBaseclass():
                 to the unmodified input array otherwise.
 
         Raises:
-            ValueError: If invalid inputs are supplied,
-                a detailed ValueError is raised to explain.
+            RuntimeError: If invalid inputs are supplied,
+                a detailed RuntimeError is raised to explain.
         """
         if self.kernel is None or self.weights is None:
-            raise ValueError("Model has not yet been successfully fitted.")
+            raise RuntimeError("Model has not yet been successfully fitted.")
         if not self.kernel.validate_new_datapoints(input_x):
-            raise ValueError("The input has incorrect dimensionality.")
+            raise RuntimeError("The input has incorrect dimensionality.")
         if sequence_lengths is None:
             if len(input_x.shape) != 2:
-                raise ValueError("sequence_lengths is required if using a "
+                raise RuntimeError("sequence_lengths is required if using a "
                         "convolution kernel.")
         else:
             if len(input_x.shape) == 2:
-                raise ValueError("sequence_lengths must be None if using a "
+                raise RuntimeError("sequence_lengths must be None if using a "
                     "fixed vector kernel.")
 
         #This should never happen, but just in case.
         if self.weights.shape[0] != self.kernel.get_num_rffs():
-            raise ValueError("The size of the weight vector does not "
+            raise RuntimeError("The size of the weight vector does not "
                     "match the number of random features that are generated.")
         if self.var is None and get_var:
-            raise ValueError("Variance was requested but suppress_var "
+            raise RuntimeError("Variance was requested but suppress_var "
                     "was selected when fitting, meaning that variance "
                     "has not been generated.")
         if self.device == "cuda":
@@ -193,20 +184,21 @@ class ModelBaseclass():
                 this argument is required.
 
         Raises:
-            ValueError: A ValueError is raised if the kernel does not exist but
+            RuntimeError: A RuntimeError is raised if the kernel does not exist but
                 a dataset was not supplied.
         """
         if self.kernel is None and dataset is None:
-            raise ValueError("A dataset is required if the kernel has not already "
+            raise RuntimeError("A dataset is required if the kernel has not already "
                     "been initialized. The kernel is initialized by calling set_hyperparams "
                     "or fit or any of the hyperparameter tuning / scoring routines.")
         if hyperparams is None and dataset is None:
-            raise ValueError("Should supply hyperparams and/or a dataset.")
+            raise RuntimeError("Should supply hyperparams and/or a dataset.")
         if self.kernel is None:
             self._initialize_kernel(dataset, hyperparams = hyperparams)
         else:
-            self.kernel.check_hyperparams(hyperparams)
-            self.kernel.set_hyperparams(hyperparams, logspace = True)
+            if hyperparams is not None:
+                self.kernel.check_hyperparams(hyperparams)
+                self.kernel.set_hyperparams(hyperparams, logspace = True)
             self.weights = None
             self.gamma = None
             self.var = None
@@ -247,22 +239,22 @@ class ModelBaseclass():
             kernel: An object of the appropriate kernel class.
 
         Raises:
-            ValueError: Raises a value error if an unrecognized kernel
+            RuntimeError: Raises a value error if an unrecognized kernel
                 is supplied.
         """
         if self.kernel_choice not in KERNEL_NAME_TO_CLASS:
-            raise ValueError("An unrecognized kernel choice was supplied.")
+            raise RuntimeError("An unrecognized kernel choice was supplied.")
 
         if dataset is None and xdim is not None:
             input_xdim = xdim
         elif dataset is not None:
             input_xdim = dataset.get_xdim()
         else:
-            raise ValueError("Either a dataset or xdim must be supplied.")
+            raise RuntimeError("Either a dataset or xdim must be supplied.")
 
         self.kernel = KERNEL_NAME_TO_CLASS[self.kernel_choice](input_xdim,
                             self.num_rffs, self.random_seed, self.device,
-                            self.num_threads, self.double_precision_fht,
+                            self.double_precision_fht,
                             kernel_spec_parms = self.kernel_spec_parms)
 
         #Some kernels set the number of rffs themselves (Linear). If so,
@@ -272,7 +264,7 @@ class ModelBaseclass():
         #the kernel under some circumstances.
         self._num_rffs = self.kernel.get_num_rffs()
         if self.variance_rffs >= self.num_rffs:
-            raise ValueError("The number of variance rffs must be < num_rffs.")
+            raise RuntimeError("The number of variance rffs must be < num_rffs.")
 
         if bounds is not None:
             self.kernel.set_bounds(bounds)
@@ -302,11 +294,11 @@ class ModelBaseclass():
         self.weights, self.var = None, None
 
         if self.num_rffs <= 2:
-            raise ValueError("num_rffs should be > 2 to use any tuning method.")
+            raise RuntimeError("num_rffs should be > 2 to use any tuning method.")
 
         if exact_method:
             if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
-                raise ValueError(f"At most {constants.MAX_CLOSED_FORM_RFFS} can be used "
+                raise RuntimeError(f"At most {constants.MAX_CLOSED_FORM_RFFS} can be used "
                         "for tuning hyperparameters using this method. Try tuning "
                         "using approximate nmll instead.")
 
@@ -322,19 +314,19 @@ class ModelBaseclass():
         if self.kernel is None:
             self._initialize_kernel(dataset)
         if self.variance_rffs > self.kernel.get_num_rffs():
-            raise ValueError("The number of variance rffs should be <= the number "
+            raise RuntimeError("The number of variance rffs should be <= the number "
                     "of random features for the kernel.")
         if max_rank is not None:
             if max_rank < 1:
-                raise ValueError("Invalid value for max_rank.")
+                raise RuntimeError("Invalid value for max_rank.")
             if max_rank >= self.kernel.get_num_rffs():
-                raise ValueError("Max rank should be < the number of rffs.")
+                raise RuntimeError("Max rank should be < the number of rffs.")
 
 
 
 
     def _check_rank_ratio(self, dataset, sample_frac:float = 0.1,
-            max_rank:int = 512):
+            max_rank:int = 512, class_means=None, class_weights=None):
         """Determines what ratio a particular max_rank would achieve by using a random
         sample of the data. This can be used to determine if a particular max_rank is
         'good enough' to achieve a fast fit, and if so, that max_rank can be used
@@ -361,23 +353,26 @@ class ModelBaseclass():
                 well a preconditioner built with this max_rank is likely to perform.
         """
         if sample_frac < 0.01 or sample_frac > 1:
-            raise ValueError("sample_frac must be in the range [0.01, 1]")
+            raise RuntimeError("sample_frac must be in the range [0.01, 1]")
 
-        reset_num_rffs = False
-        if self.num_rffs > 8192:
-            reset_num_rffs, num_rffs = True, copy.deepcopy(self.num_rffs)
+        num_rffs = copy.deepcopy(self.num_rffs)
+
+        # Using a smaller number of RFFs is highly beneficial for speed
+        # but creates a lot of unnecessary complications if performing
+        # classification, since in that case the class means will need
+        # to be recomputed. Skip this step if doing classification
+        # (i.e. if class_means is not None).
+        if self.num_rffs > 8192 and class_means is None:
             if self.kernel_choice == "RBFLinear" and self.num_rffs % 2 != 0:
                 self.num_rffs = 8191
             else:
                 self.num_rffs = 8192
 
         s_mat = srht_ratio_check(dataset, max_rank, self.kernel, self.random_seed,
-                self.verbose, sample_frac)
+                self.verbose, sample_frac, class_means, class_weights)
         ratio = float(s_mat.min() / self.kernel.get_lambda()**2) / sample_frac
 
-        if reset_num_rffs:
-            self.num_rffs = num_rffs
-
+        self.num_rffs = num_rffs
         return ratio
 
 
@@ -385,7 +380,8 @@ class ModelBaseclass():
     def _autoselect_preconditioner(self, dataset, min_rank:int = 512,
             max_rank:int = 3000, increment_size:int = 512,
             always_use_srht2:bool = False,
-            ratio_target:float = 30., tuning:bool = False):
+            ratio_target:float = 30., class_means = None,
+            class_weights = None):
         """Uses an automated algorithm to choose a preconditioner that
         is up to max_rank in size. For internal use only.
 
@@ -400,8 +396,11 @@ class ModelBaseclass():
                 number of iterations about 30% but increase time cost
                 of preconditioner construction about 150%.
             ratio_target (int): The target value for the ratio.
-            tuning (bool): If True, preconditioner is intended for tuning,
-                so it also needs to be used for SLQ.
+            class_means: Either None or a (nclasses, num_rffs)
+                array storing the mean of the features for each
+                class. Only for classification.
+            class_weights: Either None or an (nclasses) array storing
+                the weight for each class. Only for classification.
 
         Returns:
             preconditioner: A preconditioner object.
@@ -418,7 +417,8 @@ class ModelBaseclass():
 
         while ratio > ratio_target and rank < max_rank:
             ratio = self._check_rank_ratio(dataset, sample_frac = sample_frac,
-                    max_rank = rank)
+                    max_rank = rank, class_means = class_means,
+                    class_weights = class_weights)
             if ratio > ratio_target:
                 if (rank + increment_size) < max_rank and \
                         (rank + increment_size) < actual_num_rffs:
@@ -436,18 +436,13 @@ class ModelBaseclass():
         if always_use_srht2:
             method = "srht_2"
 
-        if tuning:
-            preconditioner = RandNysTuningPreconditioner(self.kernel, dataset, rank,
-                        False, self.random_seed, method)
-        else:
-            if self.device == "cuda":
-                preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, rank,
-                        self.verbose, self.random_seed, method)
-                mempool = cp.get_default_memory_pool()
-                mempool.free_all_blocks()
-            else:
-                preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, rank,
-                        self.verbose, self.random_seed, method)
+        preconditioner = RandNysPreconditioner(self.kernel, dataset, rank,
+                        self.verbose, self.random_seed, method,
+                        class_means = class_means,
+                        class_weights = class_weights)
+        if self.device == "cuda":
+            mempool = cp.get_default_memory_pool()
+            mempool.free_all_blocks()
 
         return preconditioner
 
@@ -467,7 +462,7 @@ class ModelBaseclass():
         user is changing this, the kernel needs to be
         re-initialized."""
         if not isinstance(value, dict):
-            raise ValueError("Tried to set kernel_spec_parms to something that "
+            raise RuntimeError("Tried to set kernel_spec_parms to something that "
                     "was not a dict!")
         self._kernel_spec_parms = value
         self.kernel = None
@@ -487,9 +482,9 @@ class ModelBaseclass():
         the user is changing this, the kernel needs to
         be re-initialized."""
         if not isinstance(value, str):
-            raise ValueError("You supplied a kernel_choice that is not a string.")
+            raise RuntimeError("You supplied a kernel_choice that is not a string.")
         if value not in KERNEL_NAME_TO_CLASS:
-            raise ValueError("You supplied an unrecognized kernel.")
+            raise RuntimeError("You supplied an unrecognized kernel.")
         self._kernel_choice = value
         self.kernel = None
         self.weights = None
@@ -529,10 +524,10 @@ class ModelBaseclass():
         for certain fitting procedures, the fit() routine
         does reset variance_rffs."""
         if value > constants.MAX_VARIANCE_RFFS:
-            raise ValueError("Currently to keep computational expense at acceptable "
+            raise RuntimeError("Currently to keep computational expense at acceptable "
                     f"levels variance rffs is capped at {constants.MAX_VARIANCE_RFFS}.")
         if value > self.num_rffs and self.kernel_choice not in ["Linear", "ExactQuadratic"]:
-            raise ValueError("variance_rffs must be <= num_rffs.")
+            raise RuntimeError("variance_rffs must be <= num_rffs.")
         self._variance_rffs = value
         if self.var is not None:
             if self.kernel is not None:
@@ -543,21 +538,6 @@ class ModelBaseclass():
             self.gamma = None
             self.var = None
 
-
-    @property
-    def num_threads(self):
-        """Property definition for the num_threads attribute."""
-        return self._num_threads
-
-    @num_threads.setter
-    def num_threads(self, value):
-        """Setter for the num_threads attribute."""
-        if value < 1:
-            self._num_threads = 1
-            raise ValueError("Num threads if supplied must be an integer > 1.")
-        self._num_threads = value
-        if self.kernel is not None:
-            self.kernel.num_threads = value
 
     @property
     def double_precision_fht(self):
@@ -601,14 +581,14 @@ class ModelBaseclass():
     def device(self, value):
         """Setter for the device attribute."""
         if value not in ["cpu", "cuda"]:
-            raise ValueError("Device must be in ['cpu', 'cuda'].")
+            raise RuntimeError("Device must be in ['cpu', 'cuda'].")
 
         if "cupy" not in sys.modules and value == "cuda":
-            raise ValueError("You have specified cuda mode but CuPy is "
+            raise RuntimeError("You have specified cuda mode but CuPy is "
                 "not installed. Currently CPU only fitting is available.")
 
         if "xGPR.xgpr_cuda_rfgen_cpp_ext" not in sys.modules and value == "cuda":
-            raise ValueError("You have specified the cuda fit mode but the "
+            raise RuntimeError("You have specified the cuda fit mode but the "
                 "rfgen cuda module is not installed / "
                 "does not appear to have installed correctly. "
                 "Currently CPU only fitting is available.")

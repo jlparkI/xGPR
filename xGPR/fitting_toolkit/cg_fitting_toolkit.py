@@ -2,11 +2,11 @@
 selected) using CG, either using our internal routine or Scipy / Cupy's."""
 import warnings
 import numpy as np
-from ..cg_toolkit.cg_tools import CPU_ConjugateGrad
+from .cg_tools import CPU_ConjugateGrad
 
 try:
     import cupy as cp
-    from ..cg_toolkit.cg_tools import GPU_ConjugateGrad
+    from .cg_tools import GPU_ConjugateGrad
 except:
     pass
 
@@ -34,7 +34,7 @@ def cg_fit_lib_internal(kernel, dataset, cg_tol = 1e-4, max_iter = 500,
             the preconditioner is used for CG. The preconditioner
             can be built by calling self.build_preconditioner
             with appropriate arguments.
-    verbose (bool): If True, print regular updates.
+        verbose (bool): If True, print regular updates.
 
     Returns:
         weights: A cupy or numpy array of shape (M) for M
@@ -50,7 +50,11 @@ def cg_fit_lib_internal(kernel, dataset, cg_tol = 1e-4, max_iter = 500,
         cg_operator = CPU_ConjugateGrad()
         resid = np.zeros((kernel.get_num_rffs(), 2, 1))
 
-    z_trans_y, _ = calc_zty(dataset, kernel)
+    if preconditioner is None:
+        z_trans_y, _ = calc_zty(dataset, kernel)
+    else:
+        z_trans_y = preconditioner.get_zty()
+
     resid[:,0,:] = z_trans_y[:,None] / dataset.get_ndatapoints()
 
     weights, converged, n_iter, losses = cg_operator.fit(dataset, kernel,

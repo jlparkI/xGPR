@@ -32,11 +32,10 @@ class SRHTCompressor():
         device: Either "cpu" or "cuda".
         double_precision (bool): If True, input is assumed to be
                 doubles, else floats. Right now set to True by default.
-        num_threads (int): Max number of threads to use for CPU operations.
     """
 
     def __init__(self, compression_size, input_size, device = "cpu",
-            double_precision = True, random_seed = 123, num_threads = 2):
+            double_precision = True, random_seed = 123):
         """Class constructor.
 
         Args:
@@ -46,16 +45,14 @@ class SRHTCompressor():
             double_precision (bool): If True, input is assumed to be
                 doubles, else floats.
             random_seed (int): A seed for the random number generator.
-            num_threads (int): The max number of threads to use for CPU
-                operations.
 
         Raises:
-            ValueError: Raises a ValueError if the inputs are inappropriate.
+            RuntimeError: Raises a RuntimeError if the inputs are inappropriate.
         """
         self.compression_size = compression_size
         self.input_size = input_size
         if compression_size >= input_size or compression_size <= 1:
-            raise ValueError("The compression size should be < "
+            raise RuntimeError("The compression size should be < "
                     "the number of rffs and > 1.")
         self.padded_dims = 2**ceil(np.log2(max(input_size, 2)))
         self.double_precision = double_precision
@@ -68,7 +65,6 @@ class SRHTCompressor():
         self.truncated_sampler = self.col_sampler[:self.compression_size]
         self.compressor_func = None
         self.device = device
-        self.num_threads = num_threads
 
 
     def transform_x(self, features, no_compression = False):
@@ -86,7 +82,7 @@ class SRHTCompressor():
                 feature information.
         """
         if features.shape[1] != self.input_size or len(features.shape) != 2:
-            raise ValueError("Input with unexpected size passed to a compressor "
+            raise RuntimeError("Input with unexpected size passed to a compressor "
                     "module.")
         if features.shape[1] < self.padded_dims:
             xfeatures = self.zero_arr((features.shape[0], self.padded_dims), self.dtype)
@@ -94,7 +90,7 @@ class SRHTCompressor():
         else:
             xfeatures = features.astype(self.dtype)
 
-        self.compressor_func(xfeatures, self.radem, self.num_threads)
+        self.compressor_func(xfeatures, self.radem)
         if no_compression:
             return xfeatures[:,self.col_sampler]
 
@@ -120,7 +116,7 @@ class SRHTCompressor():
             value (str): Must be one of 'cpu', 'cuda'.
 
         Raises:
-            ValueError: A ValueError is raised if an unrecognized
+            RuntimeError: A RuntimeError is raised if an unrecognized
                 device is passed.
 
         Note that a number of 'convenience attributes' (e.g. self.dtype,
@@ -147,6 +143,6 @@ class SRHTCompressor():
             else:
                 self.dtype = cp.float32
         else:
-            raise ValueError("Unrecognized device supplied. Must be one "
+            raise RuntimeError("Unrecognized device supplied. Must be one "
                     "of 'cpu', 'cuda'.")
         self.device_ = value

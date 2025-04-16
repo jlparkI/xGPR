@@ -24,8 +24,7 @@ class Matern(SORFKernelBaseclass):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123, device = "cpu",
-                num_threads = 2, double_precision = False,
-                kernel_spec_parms = {}):
+            double_precision = False, kernel_spec_parms = {}):
         """Constructor for Matern.
 
         Args:
@@ -33,16 +32,12 @@ class Matern(SORFKernelBaseclass):
             num_rffs (int): The user-requested number of random Fourier features.
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'gpu'. Indicates the starting device.
-            num_threads (int): The number of threads to use for generating random
-                features if running on CPU. If running on GPU, this is ignored.
-            num_threads (int): The number of threads to use for generating random
-                features if running on CPU. If running on GPU, this is ignored.
             double_precision (bool): If True, generate random features in double precision.
                 Otherwise, generate as single precision.
             kernel_spec_parms (dict): A dictionary of additional kernel-specific
                 attributes. In this case, should contain 'matern_nu'.
         """
-        super().__init__(num_rffs, xdim, num_threads,
+        super().__init__(num_rffs, xdim,
                 sine_cosine_kernel = True, random_seed = random_seed,
                 double_precision = double_precision,
                 kernel_spec_parms = kernel_spec_parms)

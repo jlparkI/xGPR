@@ -7,20 +7,17 @@ ModelBaseclass.
 import warnings
 import numpy as np
 from scipy.optimize import minimize
-from .cg_toolkit.cg_tools import CPU_ConjugateGrad
+from .fitting_toolkit.cg_tools import CPU_ConjugateGrad
 
 try:
     import cupy as cp
-    from .preconditioners.cuda_rand_nys_preconditioners import Cuda_RandNysPreconditioner
-    from .cg_toolkit.cg_tools import GPU_ConjugateGrad
+    from .fitting_toolkit.cg_tools import GPU_ConjugateGrad
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
 
 from .constants import constants
 from .model_baseclass import ModelBaseclass
-from .preconditioners.tuning_preconditioners import RandNysTuningPreconditioner
-from .preconditioners.inter_device_preconditioners import InterDevicePreconditioner
-from .preconditioners.rand_nys_preconditioners import CPU_RandNysPreconditioner
+from .preconditioners.rand_nys_preconditioners import RandNysPreconditioner
 
 from .fitting_toolkit.cg_fitting_toolkit import cg_fit_lib_internal
 from .fitting_toolkit.exact_fitting_toolkit import calc_weights_exact, calc_variance_exact
@@ -47,7 +44,6 @@ class xGPRegression(ModelBaseclass):
                     device:str = "cpu",
                     kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
                     verbose:bool = True,
-                    num_threads:int = 2,
                     random_seed:int = 123) -> None:
         """The constructor for xGPRegression. Passes arguments onto
         the parent class constructor.
@@ -68,15 +64,12 @@ class xGPRegression(ModelBaseclass):
                 for the conv1d kernel.
             verbose (bool): If True, regular updates are printed
                 during fitting and tuning. Defaults to True.
-            num_threads (int): The number of threads to use for random feature generation
-                if running on CPU. If running on GPU, this argument is ignored.
             random_seed (int): The seed to the random number generator.
         """
         super().__init__(num_rffs, variance_rffs,
                         kernel_choice, device = device,
                         kernel_settings = kernel_settings,
-                        verbose = verbose, num_threads = num_threads,
-                        random_seed = random_seed)
+                        verbose = verbose, random_seed = random_seed)
 
 
 
@@ -104,9 +97,9 @@ class xGPRegression(ModelBaseclass):
             for N datapoints.
 
         Raises:
-            ValueError: If the dimesionality or type of the input does
+            RuntimeError: If the dimesionality or type of the input does
                 not match what is expected, or if the model has
-                not yet been fitted, a ValueError is raised.
+                not yet been fitted, a RuntimeError is raised.
         """
         self.pre_prediction_checks(input_x, sequence_lengths, get_var)
         preds, var = [], []
@@ -138,6 +131,7 @@ class xGPRegression(ModelBaseclass):
             preds = np.concatenate(preds)
         if not get_var:
             return preds * self.trainy_std + self.trainy_mean
+
         if self.device == "cuda":
             var = cp.asnumpy(cp.concatenate(var))
             mempool = cp.get_default_memory_pool()
@@ -152,7 +146,9 @@ class xGPRegression(ModelBaseclass):
 
     def build_preconditioner(self, dataset, max_rank:int = 512, method:str = "srht"):
         """Builds a preconditioner. The resulting preconditioner object
-        can be supplied to fit and used for CG.
+        can be supplied to fit and used for CG. Use this function if you do
+        not want fit() to automatically choose preconditioner settings for
+        you.
 
         Args:
             dataset: A Dataset object.
@@ -175,14 +171,11 @@ class xGPRegression(ModelBaseclass):
                 well the preconditioner is likely to perform.
         """
         self._run_pre_fitting_prep(dataset, max_rank)
-        if self.device == "cuda":
-            preconditioner = Cuda_RandNysPreconditioner(self.kernel, dataset, max_rank,
+        preconditioner = RandNysPreconditioner(self.kernel, dataset, max_rank,
                         self.verbose, self.random_seed, method)
+        if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
-        else:
-            preconditioner = CPU_RandNysPreconditioner(self.kernel, dataset, max_rank,
-                        self.verbose, self.random_seed, method)
         return preconditioner, preconditioner.achieved_ratio
 
 
@@ -281,7 +274,7 @@ class xGPRegression(ModelBaseclass):
         z_trans_z, z_trans_y, y_trans_y, dz_dsigma_ty, inner_deriv, nsamples = \
                         calc_gradient_terms(dataset, self.kernel, self.device, subsample)
 
-        #Try-except here since very occasionally, optimizer samples a really
+        #Try-except here since very rarely, optimizer samples a really
         #terrible set of hyperparameters that with numerical error has resulted in a
         #non-positive-definite design matrix. TODO: Find a good workaround to
         #avoid this whole problem.
@@ -362,15 +355,14 @@ class xGPRegression(ModelBaseclass):
             if settings["max_rank"] >= self.num_rffs:
                 settings["max_rank"] = self.num_rffs - 1
 
-            preconditioner = RandNysTuningPreconditioner(self.kernel, dataset,
+            preconditioner = RandNysPreconditioner(self.kernel, dataset,
                         settings["max_rank"], False, self.random_seed,
                         settings["preconditioner_mode"])
         else:
             preconditioner = self._autoselect_preconditioner(dataset,
                     min_rank = constants.SMALLEST_NMLL_MAX_RANK,
                     max_rank = constants.LARGEST_NMLL_MAX_RANK,
-                    always_use_srht2 = True,
-                    tuning = True)
+                    always_use_srht2 = True)
 
         if self.verbose:
             print("Now fitting...")
@@ -437,7 +429,7 @@ class xGPRegression(ModelBaseclass):
                 automatically constructed at a max_rank chosen using several
                 passes over the dataset. If mode is 'exact', this argument is
                 ignored.
-            tol (float): The threshold below which iterative strategies (L-BFGS, CG)
+            tol (float): The threshold below which iterative strategies (CG)
                 are deemed to have converged.
             max_iter (int): The maximum number of epochs for iterative strategies.
             mode (str): Must be one of "cg", "exact".
@@ -474,7 +466,7 @@ class xGPRegression(ModelBaseclass):
                 otherwise).
 
         Raises:
-            ValueError: The input dataset is checked for validity before tuning is
+            RuntimeError: The input dataset is checked for validity before tuning is
                 initiated, an error is raised if problems are found."""
         self._run_pre_fitting_prep(dataset)
         self.weights, self.var = None, None
@@ -485,7 +477,7 @@ class xGPRegression(ModelBaseclass):
 
         if mode == "exact":
             if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
-                raise ValueError("You specified 'exact' fitting, but the number of rffs is "
+                raise RuntimeError("You specified 'exact' fitting, but the number of rffs is "
                         f"> {constants.MAX_CLOSED_FORM_RFFS}.")
             self.weights, n_iter, losses = calc_weights_exact(dataset, self.kernel)
 
@@ -499,7 +491,7 @@ class xGPRegression(ModelBaseclass):
                     max_iter, preconditioner, self.verbose)
 
         else:
-            raise ValueError("Unrecognized fitting mode supplied. Must provide one of "
+            raise RuntimeError("Unrecognized fitting mode supplied. Must provide one of "
                         "'cg', 'exact'.")
 
         if not suppress_var:
@@ -509,12 +501,11 @@ class xGPRegression(ModelBaseclass):
             #a very large number of input features. Find a better / more satisfactory
             #way to resolve this...
             if "Linear" in self.kernel_choice:
-                self.var = InterDevicePreconditioner(self.kernel, dataset,
+                self.var = RandNysPreconditioner(self.kernel, dataset,
                         self.variance_rffs, False, self.random_seed, "srht")
                 self.exact_var_calculation = False
             else:
-                self.var = calc_variance_exact(self.kernel, dataset, self.kernel_choice,
-                                self.variance_rffs)
+                self.var = calc_variance_exact(self.kernel, dataset, self.variance_rffs)
 
 
         if self.verbose:
@@ -574,14 +565,14 @@ class xGPRegression(ModelBaseclass):
             best_score (float): The best negative marginal log-likelihood achieved.
 
         Raises:
-            ValueError: The input dataset is checked for validity before tuning is
+            RuntimeError: The input dataset is checked for validity before tuning is
                 initiated. If problems are found, a raise exception will provide an
                 explanation of the error. This method will also raise an exception
                 if you try to use it on a kernel with > 4 hyperparameters (since
                 this strategy no longer provides any benefit under those conditions).
         """
         if subsample < 0.01 or subsample > 1:
-            raise ValueError("subsample must be in the range [0.01, 1].")
+            raise RuntimeError("subsample must be in the range [0.01, 1].")
 
         optim_bounds = self._run_pre_nmll_prep(dataset, bounds)
         num_hparams = self.kernel.get_hyperparams().shape[0]
@@ -595,7 +586,7 @@ class xGPRegression(ModelBaseclass):
                                 self.verbose, subsample = subsample)
 
         else:
-            raise ValueError("The crude procedure is only appropriate for "
+            raise RuntimeError("The crude procedure is only appropriate for "
                     "kernels with 1-3 hyperparameters.")
 
         self.kernel.set_hyperparams(hyperparams, logspace=True)
@@ -674,19 +665,19 @@ class xGPRegression(ModelBaseclass):
             best_score (float): The best negative marginal log-likelihood achieved.
 
         Raises:
-            ValueError: A ValueError is raised if invalid inputs are supplied.
+            RuntimeError: A RuntimeError is raised if invalid inputs are supplied.
         """
         if tuning_method == "Powell":
             options={"maxfev":max_iter, "xtol":1e-1, "ftol":tol}
         elif tuning_method == "Nelder-Mead":
-            options={"maxfev":max_iter, "fatol":tol}
+            options={"maxfev":max_iter, "ftol":tol}
         elif tuning_method == "L-BFGS-B":
             if nmll_method == "approximate":
-                raise ValueError("Approximate NMLL is not supported for "
+                raise RuntimeError("Approximate NMLL is not supported for "
                         "L-BFGS-B at this time.")
             options={"maxiter":max_iter, "ftol":tol}
         else:
-            raise ValueError("Invalid tuning method supplied.")
+            raise RuntimeError("Invalid tuning method supplied.")
 
         optim_bounds = self._run_pre_nmll_prep(dataset, bounds)
 
@@ -700,7 +691,7 @@ class xGPRegression(ModelBaseclass):
             else:
                 cost_fun = self.exact_nmll
         else:
-            raise ValueError("Invalid nmll method supplied.")
+            raise RuntimeError("Invalid nmll method supplied.")
 
 
         bounds_tuples = list(map(tuple, optim_bounds))
@@ -719,7 +710,7 @@ class xGPRegression(ModelBaseclass):
             starting_hyperparams.shape[0] == self.kernel.get_hyperparams().shape[0]:
             x0 = starting_hyperparams
         else:
-            raise ValueError("Invalid starting hyperparams were supplied.")
+            raise RuntimeError("Invalid starting hyperparams were supplied.")
 
         best_score, n_feval = np.inf, 0
 

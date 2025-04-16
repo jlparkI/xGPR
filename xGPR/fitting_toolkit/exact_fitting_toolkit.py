@@ -38,7 +38,7 @@ def calc_weights_exact(dataset, kernel):
 
 
 
-def calc_variance_exact(kernel, dataset, kernel_choice, variance_rffs):
+def calc_variance_exact(kernel, dataset, variance_rffs):
     """Calculates the var matrix used for calculating
     posterior predictive variance on new datapoints. We
     only ever use closed-form matrix-decomposition based
@@ -69,8 +69,8 @@ def calc_variance_exact(kernel, dataset, kernel_choice, variance_rffs):
     return var
 
 
-def calc_discriminant_weights_exact(dataset, kernel, x_mean,
-        targets):
+def calc_discriminant_weights_exact(dataset, kernel, targets,
+        class_means, class_weights):
     """Calculates the weights when fitting a discriminant using
     exact matrix decomposition. Fast for small numbers of random
     features but poor scaling.
@@ -81,11 +81,15 @@ def calc_discriminant_weights_exact(dataset, kernel, x_mean,
             are fitting.
         kernel: A valid kernel object that can generate random
             features.
-        x_mean (ndarray): An array of shape (num_rffs) containing
-            the mean of the training data.
         targets (ndarray): A (num_rffs, nc) for nc classes shape
             array containing class specific means.
-
+        class_means (ndarray): A (nc, num_rffs) for nc classes shape
+            array containing class specific means. This is not
+            transposed unlike targets (more convenient for
+            sequential-in-memory access when building the covariance
+            matrix).
+        class_weights (ndaray): An (nc) for nc classes shape array
+            containing class weights.
 
     Returns:
         weights: A cupy or numpy array of shape (M, nc) for M
@@ -97,15 +101,15 @@ def calc_discriminant_weights_exact(dataset, kernel, x_mean,
     else:
         z_trans_z = cp.zeros((num_rffs, num_rffs))
 
-    for i, (xdata, ldata) in enumerate(dataset.get_chunked_x_data()):
-        xfeatures = kernel.transform_x(xdata, ldata) - x_mean[None,:]
+    for i, (xdata, ydata, ldata) in enumerate(dataset.get_chunked_data()):
+        xfeatures, _ = kernel.transform_x_y(xdata, ydata, ldata, class_means,
+                class_weights, classification=True)
         z_trans_z += xfeatures.T @ xfeatures
         if i % 2 == 0:
             if kernel.device == "cuda":
                 mempool = cp.get_default_memory_pool()
                 mempool.free_all_blocks()
 
-    z_trans_z /= float(dataset.get_ndatapoints())
     z_trans_z.flat[::z_trans_z.shape[0]+1] += kernel.get_lambda()**2
 
     if kernel.device == "cpu":

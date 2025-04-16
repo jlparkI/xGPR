@@ -18,8 +18,9 @@ class GPU_ConjugateGrad:
     SLQ.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, class_means=None, class_weights=None):
+        self.class_means = class_means
+        self.class_weights = class_weights
 
 
     def _matvec(self, dataset, kernel, vec, matvec):
@@ -36,9 +37,19 @@ class GPU_ConjugateGrad:
                 This array is modified in-place.
         """
         matvec[:] = 0
-        for x, lengths in dataset.get_chunked_x_data():
-            Z = kernel.transform_x(x, lengths)
-            matvec += Z.T @ (Z @ vec)
+        # If there are no class means, we are doing regression.
+        if self.class_means is None:
+            for x, lengths in dataset.get_chunked_x_data():
+                Z = kernel.transform_x(x, lengths)
+                matvec += Z.T @ (Z @ vec)
+        # Otherwise, classification. The features need to be modified
+        # using the class means.
+        else:
+            for x, ydata, lengths in dataset.get_chunked_data():
+                Z, _ = kernel.transform_x_y(x, ydata, lengths,
+                        self.class_means, self.class_weights,
+                        classification=True)
+                matvec += Z.T @ (Z @ vec)
         matvec += kernel.get_lambda()**2 * vec
 
 
@@ -137,6 +148,11 @@ class GPU_ConjugateGrad:
                 betas = betas[0].reshape(1, betas[0].shape[0])
             alphas, betas = cp.asnumpy(alphas[:,1:]), cp.asnumpy(betas[:,1:])
             return x_k, alphas, betas
+        
+        # This is true if and only if we are doing classification.
+        if x_k.shape[1] > 1:
+            return x_k, converged, niter + 1, losses
+
         return x_k[:,0], converged, niter + 1, losses
 
 
@@ -149,8 +165,9 @@ class CPU_ConjugateGrad:
     SLQ.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, class_means=None, class_weights=None):
+        self.class_means = class_means
+        self.class_weights = class_weights
 
 
     def _matvec(self, dataset, kernel, vec, matvec):
@@ -167,9 +184,19 @@ class CPU_ConjugateGrad:
                 This array is modified in-place.
         """
         matvec[:] = 0
-        for x, lengths in dataset.get_chunked_x_data():
-            Z = kernel.transform_x(x, lengths)
-            matvec += Z.T @ (Z @ vec)
+        # If there are no class means, we are doing regression.
+        if self.class_means is None:
+            for x, lengths in dataset.get_chunked_x_data():
+                Z = kernel.transform_x(x, lengths)
+                matvec += Z.T @ (Z @ vec)
+        # Otherwise, classification. The features need to be modified
+        # using the class means.
+        else:
+            for x, ydata, lengths in dataset.get_chunked_data():
+                Z, _ = kernel.transform_x_y(x, ydata, lengths,
+                        self.class_means, self.class_weights,
+                        classification=True)
+                matvec += Z.T @ (Z @ vec)
         matvec += kernel.get_lambda()**2 * vec
 
 
@@ -268,4 +295,8 @@ class CPU_ConjugateGrad:
                 alphas = alphas[0].reshape(1, alphas[0].shape[0])
                 betas = betas[0].reshape(1, betas[0].shape[0])
             return x_k, alphas[:,1:], betas[:,1:]
+
+        # This is true if and only if we are doing classification.
+        if x_k.shape[1] > 1:
+            return x_k, converged, niter + 1, losses
         return x_k[:,0], converged, niter + 1, losses

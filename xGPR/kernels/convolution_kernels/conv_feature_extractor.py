@@ -32,12 +32,10 @@ class FHTMaxpoolConv1dFeatureExtractor():
         chi_arr: A diagonal array whose elements are drawn from the chi
             distribution. Ensures the marginals of the matrix resulting
             from S H D1 H D2 H D3 are correct.
-        num_threads (int): Number of threads to use if running on CPU;
-            ignored if running on GPU.
     """
 
     def __init__(self, seqwidth, num_rffs, random_seed = 123, device = "cpu",
-                    conv_width = 9, num_threads = 2):
+                    conv_width = 9):
         """Constructor for FHT_Conv1d.
 
         Args:
@@ -48,8 +46,6 @@ class FHTMaxpoolConv1dFeatureExtractor():
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'cuda'. Indicates the starting device.
             conv_width (int): The width of the convolution kernel. Defaults to 9.
-            num_threads (int): Number of threads to use if running on CPU;
-                ignored if running on GPU.
 
         Raises:
             ValueError: A ValueError is raised if the dimensions of the input are
@@ -72,7 +68,6 @@ class FHTMaxpoolConv1dFeatureExtractor():
         self.chi_arr = chi.rvs(df=padded_dims, size=self.num_rffs,
                             random_state = random_seed).astype(np.float32)
 
-        self.num_threads = num_threads
         self.device = device
 
 
@@ -103,7 +98,7 @@ class FHTMaxpoolConv1dFeatureExtractor():
             output_x = np.zeros((input_x.shape[0], self.num_rffs), np.float32)
             x_in = np.ascontiguousarray(input_x.astype(np.float32, copy=False))
             cpuConv1dMaxpool(x_in, output_x, self.radem_diag, self.chi_arr,
-                    sequence_length, self.conv_width, self.num_threads)
+                    sequence_length, self.conv_width)
         else:
             output_x = cp.zeros((input_x.shape[0], self.num_rffs), cp.float32)
             x_in = cp.ascontiguousarray(cp.asarray(input_x).astype(cp.float32, copy=False))

@@ -12,6 +12,10 @@ Installation
 
 * Cupy
 
+**Optional and occasionally useful dependencies**
+
+* Optuna
+
 
 **Installation**
 

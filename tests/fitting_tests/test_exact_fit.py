@@ -8,7 +8,7 @@ import numpy as np
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from utils.build_test_dataset import build_test_dataset
 from utils.build_classification_dataset import build_discriminant_traintest_split
-from utils.model_constructor import get_models
+from utils.model_constructor import get_models, get_discriminant_models
 from utils.evaluate_model import evaluate_model
 
 #A set of hyperparameters known to work well for our testing dataset
@@ -30,6 +30,18 @@ class CheckExactFit(unittest.TestCase):
         """Test exact fitting."""
         online_data, _ = build_test_dataset(conv_kernel = False)
         cpu_mod, gpu_mod = get_models("RBF", online_data, num_rffs = NUM_RFFS)
+
+        cpu_mod.fit(online_data, mode = "exact")
+
+        if gpu_mod is not None:
+            gpu_mod.fit(online_data, mode = "exact")
+
+
+    def test_exact_discriminant_fit(self):
+        """Test exact fitting for discriminants."""
+        online_data, _ = build_discriminant_traintest_split()
+        cpu_mod, gpu_mod = get_discriminant_models("RBF", online_data,
+                num_rffs = NUM_RFFS)
 
         cpu_mod.fit(online_data, mode = "exact")
 

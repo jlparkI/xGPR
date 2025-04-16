@@ -48,9 +48,9 @@ taking each node in graph A and evaluating an RBF kernel across
 that node vs each node in graph B. GraphMatern and GraphCauchy
 do the same thing, except using Cauchy or Matern kernels.
 A naive implementation would have quadratic scaling
-in the size of the graph; in xGPR, remarkably, we are able to
-implement these kernels with a "trick" that results in *linear
-scaling* with graph size and number of datapoints for both kernels.
+in the size of the graph; in xGPR, we
+implement these kernels with a "trick" that results in linear
+scaling with graph size and number of datapoints.
 
 These convolution kernels can be slower than
 fixed-vector input kernels, *especially* for large graphs,

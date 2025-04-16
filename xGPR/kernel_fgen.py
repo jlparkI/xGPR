@@ -19,7 +19,7 @@ class KernelFGen(AuxiliaryBaseclass):
     def __init__(self, num_rffs:int, hyperparams, num_features:int,
             kernel_choice:str = "RBF", device:str = "cpu",
             kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
-            random_seed:int = 123, verbose:bool = True, num_threads:int = 2):
+            random_seed:int = 123, verbose:bool = True):
         """The constructor.
 
         Args:
@@ -46,12 +46,10 @@ class KernelFGen(AuxiliaryBaseclass):
             random_seed (int): A seed for the random number generator.
             verbose (bool): If True, regular updates are printed
                 during fitting and tuning. Defaults to True.
-            num_threads (int): The number of threads to use for random feature generation
-                if running on CPU. If running on GPU, this argument is ignored.
         """
         super().__init__(num_rffs, hyperparams, num_features,
                         kernel_choice, device, kernel_settings,
-                        random_seed, verbose, num_threads)
+                        random_seed, verbose)
 
 
     def predict(self, input_x, sequence_lengths = None, chunk_size:int = 2000):
@@ -72,7 +70,7 @@ class KernelFGen(AuxiliaryBaseclass):
                 the number of rffs.
 
         Raises:
-            ValueError: A ValueError is raised if inappropriate inputs are
+            RuntimeError: A RuntimeError is raised if inappropriate inputs are
                 supplied.
         """
         self.pre_prediction_checks(input_x, sequence_lengths)

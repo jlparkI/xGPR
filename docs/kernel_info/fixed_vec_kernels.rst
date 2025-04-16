@@ -100,7 +100,7 @@ It computes the similarity of any two datapoints using
   e^{-\sigma ||x_1 - x_2||^2}
   
 where sigma is a hyperparameter
-we will tune. Large values for sigma the function varies rapidly
+we will tune. Large values for sigma mean the function varies rapidly
 on very short lengthscales, while small values mean the function
 varies slowly over long distances.
 

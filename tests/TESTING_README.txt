@@ -29,6 +29,9 @@ of the kernel can be calculated in advance).
 complete_pipeline_tests load the data, tunes hyperparameters, fits the
 model and checks performance for a specified kernel.
 
+classification_operations_tests checks operations specific to classification
+models.
+
 If a problem is encountered after making changes to xGPR,
 it may be best to begin with the most
 fundamental tests (fht_operations_tests) and work upwards to
@@ -36,6 +39,7 @@ least fundamental / optional features, as follows:
 
 fht_operations
 basic_dataset
+classification_operations
 gradient_calc
 preconditioner
 approximate_nmll

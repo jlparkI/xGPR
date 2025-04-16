@@ -14,7 +14,7 @@ class Linear(KernelBaseclass):
     """
 
     def __init__(self, xdim, num_rffs, random_seed = 123,
-                device = "cpu", num_threads = 2,
+                device = "cpu",
                 double_precision = True,
                 kernel_spec_parms = {}):
         """Constructor.
@@ -25,9 +25,6 @@ class Linear(KernelBaseclass):
                 For this kernel, it is ignored.
             random_seed (int): The seed to the random number generator.
             device (str): One of 'cpu', 'gpu'. Indicates the starting device.
-            num_threads (int): The number of threads to use for random feature generation
-                if running on CPU; if running on GPU this is ignored. Since random features
-                are not generated for this kernel this is ignored.
             double_precision (bool): Not used for this kernel; accepted to preserve
                 common interface with other kernels.
             kernel_spec_parms (dict): A dictionary of kernel-specific parameters.
@@ -80,7 +77,9 @@ class Linear(KernelBaseclass):
                 xtrans = np.zeros((input_x.shape[0], input_x.shape[1] + 1), np.float64)
             xtrans[:,1:] = input_x
             return xtrans
-        return input_x
+        if self.device == "cuda":
+            return input_x.astype(cp.float64)
+        return input_x.astype(np.float64)
 
 
     def kernel_specific_gradient(self, input_x, sequence_length = None):
