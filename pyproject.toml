@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "xGPR"
-version = "0.4.8"
+version = "0.4.8.5"
 description = "Efficient approximate Bayesian machine learning"
 readme = "README.md"
 requires-python = ">=3.8"
