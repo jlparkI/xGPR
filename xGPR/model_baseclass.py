@@ -166,13 +166,16 @@ class ModelBaseclass():
             mempool.free_all_blocks()
 
 
-    def set_hyperparams(self, hyperparams = None, dataset = None):
-        """Sets the hyperparameters to those supplied if
-        the kernel already exists, creates a kernel if it
-        doesn't already exist. If the kernel doesn't already
-        exist a dataset needs to be supplied to tell the
+    def set_hyperparams(self, hyperparams = None, dataset = None,
+            xdim = None):
+        """Creates a kernel object if the model has not already
+        been initialized. Sets the hyperparameters to those supplied if
+        the kernel already exists. If the kernel doesn't already
+        exist either a dataset or a description of what input data
+        will "look" like needs to be supplied to tell the
         kernel what size its inputs will be. If hyperparams is None,
-        the kernel is initialized.
+        the kernel is set to use default hyperparameters (only
+        do this if you are about to tune hyperparameters).
 
         Args:
             hyperparams (ndarray): A numpy array such that shape[0] == the number of
@@ -181,27 +184,31 @@ class ModelBaseclass():
                 exists (i.e. if set hyperparams or any of the tuning / fitting /
                 scoring routines has already been called) no dataset is required
                 and this argument is ignored. If the kernel does NOT exist,
-                this argument is required.
+                either this argument or xdim is required.
+            xdim (ndarray): Either None or a valid 2d or 3d numpy array. If
+                the kernel already exists (i.e. if set hyperparams or any
+                of the tuning / fitting / scoring routines has already been
+                called) no xdim is required and this argument is ignored.
+                If the kernel does not exist, either this argument or
+                ``dataset`` is required. Only the *last* element of xdim
+                is used to determine how large the last dimension
+                of a typical input array will be; the first element
+                are ignored and can be any value. The easiest way to set xdim
+                is to take one of your input training or test data arrays and
+                pass ``xdim=my_array.shape``.
 
         Raises:
-            RuntimeError: A RuntimeError is raised if the kernel does not exist but
-                a dataset was not supplied.
+            RuntimeError: A RuntimeError is raised if invalid arguments are
+                supplied.
         """
-        if self.kernel is None and dataset is None:
-            raise RuntimeError("A dataset is required if the kernel has not already "
-                    "been initialized. The kernel is initialized by calling set_hyperparams "
-                    "or fit or any of the hyperparameter tuning / scoring routines.")
-        if hyperparams is None and dataset is None:
-            raise RuntimeError("Should supply hyperparams and/or a dataset.")
         if self.kernel is None:
-            self._initialize_kernel(dataset, hyperparams = hyperparams)
-        else:
-            if hyperparams is not None:
-                self.kernel.check_hyperparams(hyperparams)
-                self.kernel.set_hyperparams(hyperparams, logspace = True)
-            self.weights = None
-            self.gamma = None
-            self.var = None
+            self._initialize_kernel(dataset, xdim, hyperparams = hyperparams)
+        elif hyperparams is not None:
+            self.kernel.check_hyperparams(hyperparams)
+            self.kernel.set_hyperparams(hyperparams, logspace = True)
+        self.weights = None
+        self.gamma = None
+        self.var = None
 
 
     def get_hyperparams(self):

@@ -13,7 +13,8 @@ not need to be tested since Conv1dRBF is)."""
 #is a convolution kernel and 2) the expected
 #minimum performance.
 IMPLEMENTED_KERNELS = {
-        "Conv1dRBF":(True,0.58),"RBF":(False, 0.58),
+        "Conv1dRBF":(True,0.58),
+        "RBF":(False, 0.58),
         "Matern":(False, 0.55),
         "Linear":(False, 0.53),
         "RBFLinear":(False,0.55),
