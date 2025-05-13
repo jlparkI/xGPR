@@ -106,7 +106,7 @@ class xGPDiscriminant(ModelBaseclass):
         """
         # Note that get_var is always false here, so last arg is false.
         self.pre_prediction_checks(input_x, sequence_lengths, False)
-        if self._gamma is None:
+        if self.gamma is None:
             raise RuntimeError("Model has not been fitted yet.")
         preds = []
 
@@ -118,7 +118,7 @@ class xGPDiscriminant(ModelBaseclass):
             else:
                 xfeatures = self.kernel.transform_x(input_x[i:cutoff,...])
 
-            pred = xfeatures @ self.weights + self._gamma[None,:]
+            pred = xfeatures @ self.weights + self.gamma[None,:]
 
             # Numerically stable softmax. 2.71828 is e.
             pred -= pred.max(axis=1)[:,None]
@@ -355,7 +355,7 @@ class xGPDiscriminant(ModelBaseclass):
             raise RuntimeError("Unrecognized fitting mode supplied. Must provide one of "
                         "'lbfgs', 'cg', 'exact'.")
 
-        self._gamma = priors - 0.5 * (class_means.T * self.weights).sum(axis=0)
+        self.gamma = priors - 0.5 * (class_means.T * self.weights).sum(axis=0)
 
         if self.verbose:
             print("Fitting complete.")
