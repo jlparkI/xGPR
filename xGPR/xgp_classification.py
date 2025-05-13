@@ -36,6 +36,7 @@ class xGPDiscriminant(ModelBaseclass):
             device:str = "cpu",
             kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
             verbose:bool = True,
+            uniform_priors = False,
             random_seed:int = 123):
         """The class constructor. Passes arguments onto
         the parent class constructor.
@@ -53,6 +54,10 @@ class xGPDiscriminant(ModelBaseclass):
                 for the conv1d kernel.
             verbose (bool): If True, regular updates are printed
                 during fitting and tuning. Defaults to True.
+            uniform_priors (bool): If True, the prior probability of each class
+                is assumed to be the same. If False (default), the prior probability
+                of each class is determined by how frequently that class appears
+                in the training data. This is a classification-specific argument.
             random_seed (int): The seed to the random number generator. Used
                 throughout.
         """
@@ -69,6 +74,8 @@ class xGPDiscriminant(ModelBaseclass):
                         kernel_choice, device = device,
                         kernel_settings = kernel_settings,
                         verbose = verbose, random_seed = random_seed)
+
+        self._uniform_priors = uniform_priors
 
 
 
@@ -99,7 +106,7 @@ class xGPDiscriminant(ModelBaseclass):
         """
         # Note that get_var is always false here, so last arg is false.
         self.pre_prediction_checks(input_x, sequence_lengths, False)
-        if self._gamma is None:
+        if self.gamma is None:
             raise RuntimeError("Model has not been fitted yet.")
         preds = []
 
@@ -111,7 +118,7 @@ class xGPDiscriminant(ModelBaseclass):
             else:
                 xfeatures = self.kernel.transform_x(input_x[i:cutoff,...])
 
-            pred = xfeatures @ self.weights + self._gamma[None,:]
+            pred = xfeatures @ self.weights + self.gamma[None,:]
 
             # Numerically stable softmax. 2.71828 is e.
             pred -= pred.max(axis=1)[:,None]
@@ -157,8 +164,14 @@ class xGPDiscriminant(ModelBaseclass):
                     raise RuntimeError("Unexpected y-values encountered.")
                 cudaFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
 
-            priors = cp.log((n_pts_per_class /
-                float(dataset.get_ndatapoints())).clip(min=1e-10))
+            if self._uniform_priors:
+                priors = cp.ones((n_pts_per_class.shape[0]))
+            else:
+                priors = cp.log((n_pts_per_class /
+                    float(dataset.get_ndatapoints())).clip(min=1e-10))
+
+            class_weights = cp.full(n_pts_per_class.shape[0],
+                    (1./float(dataset.get_ndatapoints()))**0.5)
 
         else:
             class_means = np.zeros((self.n_classes, self.kernel.get_num_rffs()))
@@ -171,13 +184,14 @@ class xGPDiscriminant(ModelBaseclass):
                     raise RuntimeError("Unexpected y-values encountered.")
                 cpuFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
 
-            priors = np.log((n_pts_per_class /
-                float(dataset.get_ndatapoints())).clip(min=1e-10))
+            if self._uniform_priors:
+                priors = np.ones((n_pts_per_class.shape[0]))
+            else:
+                priors = np.log((n_pts_per_class /
+                    float(dataset.get_ndatapoints())).clip(min=1e-10))
 
-        # TODO: Fix this, class weights should be class weight (1/ndatapoints)**0.5.
-        class_weights = (n_pts_per_class / dataset.get_ndatapoints())
-        class_weights /= n_pts_per_class
-        class_weights = class_weights**0.5
+            class_weights = np.full(n_pts_per_class.shape[0],
+                    (1./float(dataset.get_ndatapoints()))**0.5)
 
         class_means /= n_pts_per_class[:,None]
         return class_means, class_weights, priors
@@ -341,7 +355,7 @@ class xGPDiscriminant(ModelBaseclass):
             raise RuntimeError("Unrecognized fitting mode supplied. Must provide one of "
                         "'lbfgs', 'cg', 'exact'.")
 
-        self._gamma = priors - 0.5 * (class_means.T * self.weights).sum(axis=0)
+        self.gamma = priors - 0.5 * (class_means.T * self.weights).sum(axis=0)
 
         if self.verbose:
             print("Fitting complete.")

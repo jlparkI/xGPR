@@ -31,7 +31,8 @@ KERNEL_NAME_TO_CLASS = {"RBF":RBF,
         "GraphCauchy":GraphCauchy,
         "Linear":Linear,
         "RBFLinear":RBFLinear,
-        "MiniARD":MiniARD}
+        "MiniARD":MiniARD,
+        }
 
 # A list of kernels that require 3d arrays as input. This
 # is used by kernel_fgen for generating random features
