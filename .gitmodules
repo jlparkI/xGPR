@@ -1,3 +1,6 @@
 [submodule "ext/nanobind"]
 	path = ext/nanobind
 	url = https://github.com/wjakob/nanobind
+[submodule "ext/xgpr_private"]
+	path = ext/xgpr_private
+	url = https://github.com/jlparki/xgpr_private

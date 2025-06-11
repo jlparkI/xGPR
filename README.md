@@ -5,6 +5,13 @@ models and approximate kernel classification models to datasets ranging
 in size from thousands to millions of datapoints. It can also be used
 for efficient approximate kernel k-means and approximate kernel PCA.
 
+# Licensing
+
+xGPR is currently licensed for non-commercial use only under an
+academic software license.
+
+# Usage
+
 [The docs](https://xgpr.readthedocs.io/en/latest/) provide a number of
 examples for how to use xGPR for fitting protein sequences, small
 molecule structures, and tabular data for regression (classification
@@ -30,8 +37,7 @@ sequences and graphs.
 An approximate kernel classifier is now included. Unlike the xGPRegression
 object, this does not currently however compute marginal likelihood, so
 to tune hyperparameters for this you will have to evaluate performance
-on a validation set. We hope to implement approximate marginal likelihood
-calculations for this soon.
+on a validation set.
 
 You can now build custom Datasets (similar to the Dataloader in PyTorch)
 so that you can use any kind of data (SQLite db, HDF5 etc.) as input
