@@ -306,7 +306,10 @@ class xGPDiscriminant(ModelBaseclass):
             print("starting fitting")
 
         class_means, class_weights, priors = self._get_class_means_priors(dataset)
-        mean_of_targets = None
+        if self.device == "cuda":
+            norm_constant = float(cp.linalg.norm(class_means, axis=1).max())
+        else:
+            norm_constant = float(np.linalg.norm(class_means, axis=1).max())
 
         if mode == "exact":
             if self.device == "cuda":
@@ -314,8 +317,7 @@ class xGPDiscriminant(ModelBaseclass):
             else:
                 targets = np.ascontiguousarray(class_means.T)
 
-            mean_of_targets = targets.mean(axis=1)
-            targets -= mean_of_targets[:,None]
+            targets /= norm_constant
 
             n_iter = 1
             if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
@@ -333,8 +335,7 @@ class xGPDiscriminant(ModelBaseclass):
                 targets = np.zeros((class_means.shape[1], 2,
                     class_means.shape[0]))
             targets[:,0,:] = class_means.T
-            mean_of_targets = targets[:,0,:].mean(axis=1)
-            targets[:,0,:] -= mean_of_targets[:,None]
+            targets[:,0,:] /= norm_constant
 
             if preconditioner is None:
                 preconditioner = self._autoselect_preconditioner(dataset,
@@ -362,8 +363,8 @@ class xGPDiscriminant(ModelBaseclass):
             raise RuntimeError("Unrecognized fitting mode supplied. Must provide one of "
                         "'lbfgs', 'cg', 'exact'.")
 
-        self.gamma = priors - 0.5 * (class_means.T * self.weights).sum(axis=0)
-        self.gamma += (mean_of_targets[:,None] * self.weights).sum(axis=0)
+        self.gamma = (priors / norm_constant) - 0.5 * norm_constant * \
+                (class_means.T * self.weights).sum(axis=0)
 
         if self.verbose:
             print("Fitting complete.")
