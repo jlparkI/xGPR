@@ -306,12 +306,17 @@ class xGPDiscriminant(ModelBaseclass):
             print("starting fitting")
 
         class_means, class_weights, priors = self._get_class_means_priors(dataset)
+        mean_of_targets = None
 
         if mode == "exact":
             if self.device == "cuda":
                 targets = cp.ascontiguousarray(class_means.T)
             else:
                 targets = np.ascontiguousarray(class_means.T)
+
+            mean_of_targets = targets.mean(axis=1)
+            targets -= mean_of_targets[:,None]
+
             n_iter = 1
             if self.kernel.get_num_rffs() > constants.MAX_CLOSED_FORM_RFFS:
                 raise RuntimeError("You specified 'exact' fitting, but the number of rffs is "
@@ -328,6 +333,8 @@ class xGPDiscriminant(ModelBaseclass):
                 targets = np.zeros((class_means.shape[1], 2,
                     class_means.shape[0]))
             targets[:,0,:] = class_means.T
+            mean_of_targets = targets[:,0,:].mean(axis=1)
+            targets[:,0,:] -= mean_of_targets[:,None]
 
             if preconditioner is None:
                 preconditioner = self._autoselect_preconditioner(dataset,
@@ -356,6 +363,7 @@ class xGPDiscriminant(ModelBaseclass):
                         "'lbfgs', 'cg', 'exact'.")
 
         self.gamma = priors - 0.5 * (class_means.T * self.weights).sum(axis=0)
+        self.gamma += (mean_of_targets[:,None] * self.weights).sum(axis=0)
 
         if self.verbose:
             print("Fitting complete.")
