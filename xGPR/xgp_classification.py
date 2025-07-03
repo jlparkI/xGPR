@@ -165,9 +165,9 @@ class xGPDiscriminant(ModelBaseclass):
                 cudaFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
 
             if self._uniform_priors:
-                priors = cp.ones((n_pts_per_class.shape[0]))
+                log_priors = cp.zeros((n_pts_per_class.shape[0]))
             else:
-                priors = cp.log((n_pts_per_class /
+                log_priors = cp.log((n_pts_per_class /
                     float(dataset.get_ndatapoints())).clip(min=1e-10))
 
             class_weights = cp.full(n_pts_per_class.shape[0],
@@ -185,16 +185,16 @@ class xGPDiscriminant(ModelBaseclass):
                 cpuFindClassMeans(xfeatures, class_means, yclasses, n_pts_per_class)
 
             if self._uniform_priors:
-                priors = np.ones((n_pts_per_class.shape[0]))
+                log_priors = np.zeros((n_pts_per_class.shape[0]))
             else:
-                priors = np.log((n_pts_per_class /
+                log_priors = np.log((n_pts_per_class /
                     float(dataset.get_ndatapoints())).clip(min=1e-10))
 
             class_weights = np.full(n_pts_per_class.shape[0],
                     (1./float(dataset.get_ndatapoints()))**0.5)
 
         class_means /= n_pts_per_class[:,None]
-        return class_means, class_weights, priors
+        return class_means, class_weights, log_priors
 
 
 
