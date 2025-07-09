@@ -28,7 +28,7 @@ class CheckLBFGSFit(unittest.TestCase):
         """Test using L-BFGS."""
         _, offline_data = build_discriminant_traintest_split()
         cpu_mod, gpu_mod = get_discriminant_models("RBF", offline_data,
-                num_rffs = NUM_RFFS)
+                num_rffs = NUM_RFFS, model_type = "logistic")
 
         cpu_mod.set_hyperparams(DISCRIM_HPARAM, offline_data)
         niter, _ = cpu_mod.fit(offline_data,

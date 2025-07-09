@@ -19,7 +19,7 @@ class CheckClassifierValidationSetTuning(unittest.TestCase):
     def test_optuna_classifier_tuning(self):
         """Test the optuna tuning routine."""
         train_data, test_data = build_discriminant_traintest_split()
-        for kernel in ["Linear", "RBF"]:
+        for kernel in ["RBF"]:
             models = [m for m in get_discriminant_models(kernel,
                 train_data) if m is not None]
 

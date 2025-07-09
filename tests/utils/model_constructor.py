@@ -38,14 +38,16 @@ def get_models(kernel_choice, dataset, conv_width = 3, num_rffs = 512,
 
 
 
-def get_discriminant_models(kernel_choice, dataset, num_rffs = 512):
+def get_discriminant_models(kernel_choice, dataset, num_rffs = 512,
+        model_type = "discriminant"):
     """Generates a discriminant CPU model and a GPU model with generic
     kernel settings. Fewer options are available than for regression since
     for the discriminant, we use the RBF kernel only in testing (other kernels
     are tested more extensively for regression purposes)."""
     cpu_mod = xGPDiscriminant(num_rffs = num_rffs, kernel_choice = kernel_choice,
             random_seed = RANDOM_STATE, device = "cpu",
-            kernel_settings = {"intercept":True})
+            kernel_settings = {"intercept":True},
+            model_type = model_type)
     if "cupy" not in sys.modules:
         print("Cupy not installed -- skipping the CUDA test.")
         gpu_mod = None

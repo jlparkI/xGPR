@@ -77,6 +77,8 @@ class xGPDiscriminant(ModelBaseclass):
             raise RuntimeError("kernel_settings must be a dict.")
         if model_type == "discriminant":
             kernel_settings["intercept"] = False
+        elif model_type != "logistic":
+            raise RuntimeError("Unrecognized model type passed.")
         super().__init__(num_rffs, 0,
                         kernel_choice, device = device,
                         kernel_settings = kernel_settings,
