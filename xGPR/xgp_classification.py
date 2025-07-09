@@ -5,7 +5,7 @@ model and make predictions for new datapoints. It inherits from
 ModelBaseclass.
 """
 import numpy as np
-from scipy.special import logsumexp as scipy_logsumexp
+from scipy.optimize import minimize
 
 try:
     import cupy as cp
@@ -18,6 +18,7 @@ except:
 from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFindClassMeans
 
 from .fitting_toolkit.cg_tools import CPU_ConjugateGrad
+from .fitting_toolkit.lbfgs_toolkit import lbfgs_cost_fun
 from .constants import constants
 from .model_baseclass import ModelBaseclass
 
@@ -69,7 +70,7 @@ class xGPDiscriminant(ModelBaseclass):
         # should probably be removed altogether.
         if not isinstance(kernel_settings, dict):
             raise RuntimeError("kernel_settings must be a dict.")
-        kernel_settings["intercept"] = False
+        #kernel_settings["intercept"] = False
         super().__init__(num_rffs, 0,
                         kernel_choice, device = device,
                         kernel_settings = kernel_settings,
@@ -326,6 +327,8 @@ class xGPDiscriminant(ModelBaseclass):
             self.weights = calc_discriminant_weights_exact(dataset, self.kernel,
                     targets, class_means, class_weights)
             losses = []
+            self.gamma = (priors / norm_constant) - 0.5 * norm_constant * \
+                    (class_means.T * self.weights).sum(axis=0)
 
         elif mode == "cg":
             if self.device == "cuda":
@@ -359,12 +362,34 @@ class xGPDiscriminant(ModelBaseclass):
             if self.verbose:
                 print(f"CG iterations: {n_iter}")
 
+            self.gamma = (priors / norm_constant) - 0.5 * norm_constant * \
+                    (class_means.T * self.weights).sum(axis=0)
+
+        elif mode == "lbfgs":
+            losses = []
+            x0 = np.zeros((self.num_rffs * class_means.shape[0]))
+            res = minimize(fun=lbfgs_cost_fun, x0=x0, jac=True,
+                    options={"maxfun":max_iter},
+                    method="L-BFGS-B",
+                    args=(dataset, self.kernel, class_means.shape[0]))
+
+            if self.device == "cuda":
+                self.gamma = cp.zeros((class_means.shape[0]))
+                self.weights = cp.zeros((self.num_rffs, class_means.shape[0]))
+                for k, i in enumerate(range(0, res.x.shape[0], self.num_rffs)):
+                    self.weights[:,k] = cp.asarray(res.x[i:i+self.num_rffs])
+            else:
+                self.gamma = np.zeros((class_means.shape[0]))
+                self.weights = np.zeros((self.num_rffs, class_means.shape[0]))
+                for k, i in enumerate(range(0, res.x.shape[0], self.num_rffs)):
+                    self.weights[:,k] = res.x[i:i+self.num_rffs]
+
+            n_iter = res.nfev
+
         else:
             raise RuntimeError("Unrecognized fitting mode supplied. Must provide one of "
                         "'lbfgs', 'cg', 'exact'.")
 
-        self.gamma = (priors / norm_constant) - 0.5 * norm_constant * \
-                (class_means.T * self.weights).sum(axis=0)
 
         if self.verbose:
             print("Fitting complete.")
