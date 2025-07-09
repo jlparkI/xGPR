@@ -38,7 +38,8 @@ class xGPDiscriminant(ModelBaseclass):
             kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
             verbose:bool = True,
             uniform_priors = False,
-            random_seed:int = 123):
+            random_seed:int = 123,
+            model_type:str = "discriminant"):
         """The class constructor. Passes arguments onto
         the parent class constructor.
 
@@ -59,8 +60,12 @@ class xGPDiscriminant(ModelBaseclass):
                 is assumed to be the same. If False (default), the prior probability
                 of each class is determined by how frequently that class appears
                 in the training data. This is a classification-specific argument.
-            random_seed (int): The seed to the random number generator. Used
-                throughout.
+            random_seed (int): The seed to the random number generator.
+            model_type (str): One of "discriminant", "logistic". If "discriminant",
+                fitting must be either via CG or exact methods. If "logistic",
+                the model will be fitted using L-BFGS. Fitting logistic is slower
+                because the fast preconditioned CG algorithm for fitting cannot
+                be used but will sometimes be a little more accurate.
         """
         # Note that we pass 0 as the second argument for variance rffs
         # since the classifier does not currently compute variance.
@@ -70,14 +75,15 @@ class xGPDiscriminant(ModelBaseclass):
         # should probably be removed altogether.
         if not isinstance(kernel_settings, dict):
             raise RuntimeError("kernel_settings must be a dict.")
-        #kernel_settings["intercept"] = False
+        if model_type == "discriminant":
+            kernel_settings["intercept"] = False
         super().__init__(num_rffs, 0,
                         kernel_choice, device = device,
                         kernel_settings = kernel_settings,
                         verbose = verbose, random_seed = random_seed)
 
         self._uniform_priors = uniform_priors
-
+        self._model_type = model_type
 
 
     def predict(self, input_x, sequence_lengths = None, chunk_size:int = 2000):
@@ -276,8 +282,9 @@ class xGPDiscriminant(ModelBaseclass):
                 not 'cg' or preconditioner is not None). The default is usually fine.
                 Consider setting to a smaller number if you always want to use the
                 smallest preconditioner possible.
-            mode (str): Must be one of "cg", "exact".
-                Determines the approach used. If 'exact', self.kernel.get_num_rffs
+            mode (str): Must be one of "cg", "exact", "lbfgs". "lbfgs" is the only
+                allowed option if model_type is "logistic", otherwise it is not
+                an allowed option. If 'exact', self.kernel.get_num_rffs
                 must be <= constants.constants.MAX_CLOSED_FORM_RFFS.
             autoselect_target_ratio (float): The target ratio if choosing the
                 preconditioner size via autoselect. Lower values reduce the number
@@ -313,6 +320,10 @@ class xGPDiscriminant(ModelBaseclass):
             norm_constant = float(np.linalg.norm(class_means, axis=1).max())
 
         if mode == "exact":
+            if self._model_type != "discriminant":
+                raise RuntimeError("This fitting mode is only allowed for discriminant models. "
+                        "To use this, set model type to 'discriminant'")
+
             if self.device == "cuda":
                 targets = cp.ascontiguousarray(class_means.T)
             else:
@@ -331,6 +342,10 @@ class xGPDiscriminant(ModelBaseclass):
                     (class_means.T * self.weights).sum(axis=0)
 
         elif mode == "cg":
+            if self._model_type != "discriminant":
+                raise RuntimeError("This fitting mode is only allowed for discriminant models. "
+                        "To use this, set model type to 'discriminant'")
+
             if self.device == "cuda":
                 targets = cp.zeros((class_means.shape[1], 2,
                     class_means.shape[0]))
@@ -366,6 +381,9 @@ class xGPDiscriminant(ModelBaseclass):
                     (class_means.T * self.weights).sum(axis=0)
 
         elif mode == "lbfgs":
+            if self._model_type == "discriminant":
+                raise RuntimeError("L-BFGS is not allowed for discriminant models. "
+                        "To use this, set model type to 'logistic'")
             losses = []
             x0 = np.zeros((self.num_rffs * class_means.shape[0]))
             res = minimize(fun=lbfgs_cost_fun, x0=x0, jac=True,
