@@ -312,6 +312,10 @@ class xGPDiscriminant(ModelBaseclass):
         self.weights = None
         self.n_classes = int(dataset.get_n_classes())
 
+        if mode not in ("lbfgs", "cg", "exact"):
+            raise RuntimeError("Unrecognized fitting mode supplied. Must provide one of "
+                        "'lbfgs', 'cg', 'exact'.")
+
         if self.verbose:
             print("starting fitting")
 
@@ -417,9 +421,6 @@ class xGPDiscriminant(ModelBaseclass):
 
             n_iter = res.nfev
 
-        else:
-            raise RuntimeError("Unrecognized fitting mode supplied. Must provide one of "
-                        "'lbfgs', 'cg', 'exact'.")
 
 
         if self.verbose:
