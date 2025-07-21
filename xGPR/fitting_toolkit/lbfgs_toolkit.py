@@ -6,7 +6,7 @@ except:
     pass
 
 
-def lbfgs_cost_fun(params, dataset, kernel, nclasses):
+def lbfgs_cost_fun(params, dataset, kernel, nclasses, gamma):
     """Evaluates the cost and gradient for L-BFGS for
     a classification problem."""
     num_rffs = kernel.get_num_rffs()
@@ -26,7 +26,7 @@ def lbfgs_cost_fun(params, dataset, kernel, nclasses):
     for (xdata, ydata, ldata) in dataset.get_chunked_data():
         xd, yd = kernel.transform_x_y(xdata, ydata, ldata,
                 classification=True)
-        pred = xd @ weights
+        pred = xd @ weights + gamma[None,:]
         # Numerically stable softmax.
         pred -= pred.max(axis=1)[:,None]
         pred = 2.71828**pred

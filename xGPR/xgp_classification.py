@@ -343,11 +343,12 @@ class xGPDiscriminant(ModelBaseclass):
             self.gamma = (priors / norm_constant) - 0.5 * norm_constant * \
                     (class_means.T * self.weights).sum(axis=0)
 
-        elif mode == "cg":
-            if self._model_type != "discriminant":
-                raise RuntimeError("This fitting mode is only allowed for discriminant models. "
-                        "To use this, set model type to 'discriminant'")
-
+        # Importantly, note that if using lbfgs, we fit using CG FIRST,
+        # which is for LDA, then shift to logistic regression and use
+        # the LDA result as a starting point for optimization for a
+        # logistic regression objective with L-BFGS as the optimization
+        # algorithm.
+        elif mode == "cg" or mode == "lbfgs":
             if self.device == "cuda":
                 targets = cp.zeros((class_means.shape[1], 2,
                     class_means.shape[0]))
@@ -382,24 +383,34 @@ class xGPDiscriminant(ModelBaseclass):
             self.gamma = (priors / norm_constant) - 0.5 * norm_constant * \
                     (class_means.T * self.weights).sum(axis=0)
 
-        elif mode == "lbfgs":
+        # Note that when using L-BFGS we always fit using CG first to
+        # obtain a reasonable x0.
+        if mode == "lbfgs":
             if self._model_type == "discriminant":
                 raise RuntimeError("L-BFGS is not allowed for discriminant models. "
                         "To use this, set model type to 'logistic'")
             losses = []
             x0 = np.zeros((self.num_rffs * class_means.shape[0]))
+            if self.device == "cuda":
+                for i in range(self.weights.shape[1]):
+                    x0[(i*self.num_rffs):((i+1)*self.num_rffs)] = \
+                        cp.asnumpy(self.weights[:,i])
+            else:
+                for i in range(self.weights.shape[1]):
+                    x0[(i*self.num_rffs):((i+1)*self.num_rffs)] = \
+                        self.weights[:,i]
+
             res = minimize(fun=lbfgs_cost_fun, x0=x0, jac=True,
                     options={"maxfun":max_iter},
                     method="L-BFGS-B",
-                    args=(dataset, self.kernel, class_means.shape[0]))
+                    args=(dataset, self.kernel, class_means.shape[0],
+                        self.gamma))
 
             if self.device == "cuda":
-                self.gamma = cp.zeros((class_means.shape[0]))
                 self.weights = cp.zeros((self.num_rffs, class_means.shape[0]))
                 for k, i in enumerate(range(0, res.x.shape[0], self.num_rffs)):
                     self.weights[:,k] = cp.asarray(res.x[i:i+self.num_rffs])
             else:
-                self.gamma = np.zeros((class_means.shape[0]))
                 self.weights = np.zeros((self.num_rffs, class_means.shape[0]))
                 for k, i in enumerate(range(0, res.x.shape[0], self.num_rffs)):
                     self.weights[:,k] = res.x[i:i+self.num_rffs]
