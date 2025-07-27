@@ -252,7 +252,7 @@ class xGPDiscriminant(ModelBaseclass):
 
 
     def fit(self, dataset, preconditioner = None,
-            tol:float = 1e-6,
+            tol:float = 1e-3,
             max_iter:int = 500,
             max_rank:int = 3000,
             min_rank:int = 512,
@@ -387,10 +387,6 @@ class xGPDiscriminant(ModelBaseclass):
                     (class_means.T * self.weights).sum(axis=0)
 
         elif mode == "lsr1":
-            if self.device == "cuda":
-                self.gamma = cp.zeros((self.n_classes))
-            else:
-                self.gamma = np.zeros((self.n_classes))
             if preconditioner is None:
                 preconditioner = self._autoselect_preconditioner(dataset,
                         min_rank = min_rank, max_rank = max_rank,
@@ -398,12 +394,16 @@ class xGPDiscriminant(ModelBaseclass):
                         always_use_srht2 = always_use_srht2,
                         class_means = class_means,
                         class_weights = class_weights)
-            lsr1_operator = lSR1_classification(self.kernel,
+            lsr1_operator = lSR1_classification(dataset, self.kernel,
                     self.device, self.verbose, preconditioner)
 
-            self.weights, niter, losses = lsr1_operator.fit_model(max_iter, tol)
+            self.weights, n_iter, losses = lsr1_operator.fit_model(max_iter, tol)
+            if self.device == "cuda":
+                self.gamma = cp.zeros((self.n_classes))
+            else:
+                self.gamma = np.zeros((self.n_classes))
             if self.verbose:
-                print(f"LSR1 iterations: {niter}")
+                print(f"LSR1 iterations: {n_iter}")
 
 
 

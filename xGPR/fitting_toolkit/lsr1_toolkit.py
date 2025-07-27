@@ -26,7 +26,7 @@ class lSR1_classification:
             the Dataset.
         lambda_ (float): The noise hyperparameter shared across all kernels.
         verbose (bool): If True, print regular updates.
-        device (str): One of 'cpu', 'gpu'. Indicates where calculations
+        device (str): One of 'cpu', 'cuda'. Indicates where calculations
             will be performed.
         zero_arr: A convenience reference to either cp.zeros or np.zeros.
         dtype: A convenience reference to either cp.float64 or np.float64,
@@ -45,7 +45,7 @@ class lSR1_classification:
     """
 
     def __init__(self, dataset, kernel, device, verbose,
-            preconditioner = None, history_size = 200):
+            preconditioner = None, history_size = 50):
         """Class constructor.
 
         Args:
@@ -53,7 +53,7 @@ class lSR1_classification:
                 training data.
             kernel: A kernel object that can generate random features for
                 the Dataset.
-            device (str): One of 'cpu', 'gpu'. Indicates where calculations
+            device (str): One of 'cpu', 'cuda'. Indicates where calculations
                 will be performed.
             verbose (bool): If True, print regular updates.
             preconditioner: Either None or a valid preconditioner object.
@@ -65,7 +65,7 @@ class lSR1_classification:
         self.lambda_ = kernel.get_lambda()
         self.verbose = verbose
         self.device = device
-        if device == "gpu":
+        if device == "cuda":
             self.zero_arr = cp.zeros
             self.dtype = cp.float64
         else:
@@ -78,7 +78,7 @@ class lSR1_classification:
         self.losses = []
         self.preconditioner = preconditioner
         self.stored_mvecs = self.zero_arr((self.kernel.get_num_rffs(),
-            self.history_size))
+            dataset.get_n_classes(), self.history_size))
         self.stored_nconstants = self.zero_arr((self.history_size))
         self.stored_nconstants[:] = 1
 
@@ -98,19 +98,19 @@ class lSR1_classification:
             wvec: A cupy or numpy array depending on device that contains the
                 best set of weights found. A 1d array of length self.kernel.get_num_rffs().
         """
-        wvec = self.zero_arr((self.kernel.get_num_rffs()))
+        wvec = self.zero_arr((self.kernel.get_num_rffs(), self.dataset.get_n_classes() ))
         self.n_iter, self.n_updates = 0, 0
         grad, loss = self.cost_fun_classification(wvec)
         self.losses = [loss]
 
         while self.n_iter < max_iter:
-            grad, loss = self.update_params(grad, wvec, loss)
+            grad, loss, wvec = self.update_params(grad, wvec, loss)
             self.losses.append(loss)
-            if np.abs(self.losses[-1] - self.losses[-2]) < tol:
+            if np.abs(np.abs(self.losses[-1] - self.losses[-2]) / self.losses[-2]) < tol:
                 break
             self.n_iter += 1
 
-        if self.device == "gpu":
+        if self.device == "cuda":
             wvec = cp.asarray(wvec)
         return wvec, self.n_iter, self.losses
 
@@ -148,7 +148,7 @@ class lSR1_classification:
 
         new_grad, loss = self.cost_fun_classification(new_wvec)
         self.update_hess(new_grad - grad, s_k)
-        return new_grad, loss
+        return new_grad, loss, new_wvec
 
 
 
@@ -166,14 +166,15 @@ class lSR1_classification:
 
         h_update = s_k - y_kh
         b_update = y_k - s_kb
-        criterion_lhs = np.abs(float(s_k.T @ (y_k - s_kb)))
-        criterion_rhs = 1e-8 * float(s_k.T @ s_k) * float(b_update.T @ b_update)
+        criterion_lhs = np.abs(float(  (s_k * (y_k - s_kb)).sum()   ))
+        criterion_rhs = 1e-8 * float( (s_k * s_k).sum()  ) * \
+                float( (b_update * b_update).sum()  )
 
         if criterion_lhs >= criterion_rhs:
-            self.stored_mvecs[:,self.n_updates] = h_update
-            self.stored_nconstants[self.n_updates] = h_update.T @ y_k
-            self.stored_bvecs[:,self.n_updates] = b_update
-            self.stored_bconstants[self.n_updates] = b_update.T @ s_k
+            self.stored_mvecs[:,:,self.n_updates] = h_update
+            self.stored_nconstants[self.n_updates] = (h_update * y_k).sum()
+            self.stored_bvecs[:,:,self.n_updates] = b_update
+            self.stored_bconstants[self.n_updates] = (b_update * s_k).sum()
             self.n_updates += 1
 
 
@@ -182,8 +183,8 @@ class lSR1_classification:
         Hessian with an input vector.
 
         Args:
-            ivec (ndarray): A cupy or numpy array of shape (num_rffs) with which
-                to take the product.
+            ivec (ndarray): A cupy or numpy array of shape (num_rffs, n_classes)
+                with which to take the product.
 
         Returns:
             ovec (ndarray): Hk @ ivec.
@@ -191,13 +192,13 @@ class lSR1_classification:
         if self.n_updates == 0:
             if self.preconditioner is None:
                 return ivec
-            return self.preconditioner.batch_matvec(ivec[:,None])[:,0]
+            return self.preconditioner.batch_matvec(ivec)
 
-        ovec = (self.stored_mvecs[:,:self.n_updates] * ivec[:,None]).sum(axis=0) / \
-                self.stored_nconstants[:self.n_updates]
-        ovec = (ovec[None,:] * self.stored_mvecs[:,:self.n_updates]).sum(axis=1)
+        ovec = (self.stored_mvecs[:,:,:self.n_updates] * ivec[:,:,None]).sum(axis=0) / \
+                self.stored_nconstants[None,:self.n_updates]
+        ovec = (ovec[None,:,:] * self.stored_mvecs[:,:,:self.n_updates]).sum(axis=2)
         if self.preconditioner is not None:
-            ovec += self.preconditioner.batch_matvec(ivec[:,None])[:,0]
+            ovec += self.preconditioner.batch_matvec(ivec)
         else:
             ovec += ivec
         return ovec
@@ -208,8 +209,8 @@ class lSR1_classification:
         an input vector.
 
         Args:
-            ivec (ndarray): A cupy or numpy array of shape (num_rffs) with which
-                to take the product.
+            ivec (ndarray): A cupy or numpy array of shape (num_rffs, n_classes)
+                with which to take the product.
 
         Returns:
             ovec (ndarray): Hk @ ivec.
@@ -217,13 +218,13 @@ class lSR1_classification:
         if self.n_updates == 0:
             if self.preconditioner is None:
                 return ivec
-            return self.preconditioner.rev_batch_matvec(ivec[:,None])[:,0]
+            return self.preconditioner.rev_batch_matvec(ivec)
 
-        ovec = (self.stored_bvecs[:,:self.n_updates] * ivec[:,None]).sum(axis=0) / \
-                self.stored_bconstants[:self.n_updates]
-        ovec = (ovec[None,:] * self.stored_bvecs[:,:self.n_updates]).sum(axis=1)
+        ovec = (self.stored_bvecs[:,:,:self.n_updates] * ivec[:,:,None]).sum(axis=0) / \
+                self.stored_bconstants[None,:self.n_updates]
+        ovec = (ovec[None,:,:] * self.stored_bvecs[:,:,:self.n_updates]).sum(axis=2)
         if self.preconditioner is not None:
-            ovec += self.preconditioner.rev_batch_matvec(ivec[:,None])[:,0]
+            ovec += self.preconditioner.rev_batch_matvec(ivec)
         else:
             ovec += ivec
         return ovec
@@ -277,5 +278,5 @@ class lSR1_classification:
         loss /= ndatapoints
 
         if self.verbose:
-            print(f"Nfev {self.n_iter}, loss {loss}")
+            print(f"Nfev {self.n_iter}, loss {loss}", flush=True)
         return grad, loss
