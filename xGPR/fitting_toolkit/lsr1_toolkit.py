@@ -86,7 +86,7 @@ class lSR1_classification:
         self.stored_bconstants = self.stored_nconstants.copy()
 
 
-    def fit_model(self, max_iter = 500, tol = 1e-6):
+    def fit_model(self, max_iter = 500, tol = 1e-4):
         """Finds an optimal set of weights using the information already
         provided to the class constructor.
 

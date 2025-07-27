@@ -18,6 +18,7 @@ except:
 from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFindClassMeans
 
 from .fitting_toolkit.cg_tools import CPU_ConjugateGrad
+from .fitting_toolkit.lsr1_toolkit import lSR1_classification
 from .fitting_toolkit.lbfgs_toolkit import lbfgs_cost_fun
 from .constants import constants
 from .model_baseclass import ModelBaseclass
@@ -284,10 +285,7 @@ class xGPDiscriminant(ModelBaseclass):
                 not 'cg' or preconditioner is not None). The default is usually fine.
                 Consider setting to a smaller number if you always want to use the
                 smallest preconditioner possible.
-            mode (str): Must be one of "cg", "exact", "lbfgs". "lbfgs" is the only
-                allowed option if model_type is "logistic", otherwise it is not
-                an allowed option. If 'exact', self.kernel.get_num_rffs
-                must be <= constants.constants.MAX_CLOSED_FORM_RFFS.
+            mode (str): Must be one of "cg", "exact", "lsr1".
             autoselect_target_ratio (float): The target ratio if choosing the
                 preconditioner size via autoselect. Lower values reduce the number
                 of iterations needed to fit but increase preconditioner expense.
@@ -311,10 +309,11 @@ class xGPDiscriminant(ModelBaseclass):
         self._run_pre_fitting_prep(dataset)
         self.weights = None
         self.n_classes = int(dataset.get_n_classes())
+        losses = []
 
-        if mode not in ("lbfgs", "cg", "exact"):
+        if mode not in ("lsr1", "cg", "exact"):
             raise RuntimeError("Unrecognized fitting mode supplied. Must provide one of "
-                        "'lbfgs', 'cg', 'exact'.")
+                        "'lsr1', 'cg', 'exact'.")
 
         if self.verbose:
             print("starting fitting")
@@ -352,7 +351,7 @@ class xGPDiscriminant(ModelBaseclass):
         # the LDA result as a starting point for optimization for a
         # logistic regression objective with L-BFGS as the optimization
         # algorithm.
-        elif mode == "cg" or mode == "lbfgs":
+        elif mode == "cg":
             if self.device == "cuda":
                 targets = cp.zeros((class_means.shape[1], 2,
                     class_means.shape[0]))
@@ -387,7 +386,28 @@ class xGPDiscriminant(ModelBaseclass):
             self.gamma = (priors / norm_constant) - 0.5 * norm_constant * \
                     (class_means.T * self.weights).sum(axis=0)
 
-        # Note that when using L-BFGS we always fit using CG first to
+        elif mode == "lsr1":
+            if self.device == "cuda":
+                self.gamma = cp.zeros((self.n_classes))
+            else:
+                self.gamma = np.zeros((self.n_classes))
+            if preconditioner is None:
+                preconditioner = self._autoselect_preconditioner(dataset,
+                        min_rank = min_rank, max_rank = max_rank,
+                        ratio_target = autoselect_target_ratio,
+                        always_use_srht2 = always_use_srht2,
+                        class_means = class_means,
+                        class_weights = class_weights)
+            lsr1_operator = lSR1_classification(self.kernel,
+                    self.device, self.verbose, preconditioner)
+
+            self.weights, niter, losses = lsr1_operator.fit_model(max_iter, tol)
+            if self.verbose:
+                print(f"LSR1 iterations: {niter}")
+
+
+
+        '''# Note that when using L-BFGS we always fit using CG first to
         # obtain a reasonable x0.
         if mode == "lbfgs":
             if self._model_type == "discriminant":
@@ -419,7 +439,7 @@ class xGPDiscriminant(ModelBaseclass):
                 for k, i in enumerate(range(0, res.x.shape[0], self.num_rffs)):
                     self.weights[:,k] = res.x[i:i+self.num_rffs]
 
-            n_iter = res.nfev
+            n_iter = res.nfev'''
 
 
 
