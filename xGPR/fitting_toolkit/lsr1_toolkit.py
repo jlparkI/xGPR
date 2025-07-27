@@ -130,24 +130,25 @@ class lSR1_classification:
             wvec (ndarray): The updated wvec.
             last_wvec (ndarray): Current wvec (which is now the last wvec).
         """
-        altered_grad = -self.inv_hess_vector_prod(grad)
-        full_step_candidate_wvec = wvec + altered_grad
+        altered_grad = self.inv_hess_vector_prod(grad)
+        full_step_candidate_wvec = wvec - altered_grad
 
         # First consider using a step size (alpha) of 1. This will usually
         # be too much, at least initially. So interpolate the available
         # info using a quadratic and adjust step size accordingly.
         full_step_grad, full_step_loss = self.cost_fun_classification(
                 full_step_candidate_wvec)
-        alpha0_prime = (grad * altered_grad).sum()
+        alpha0_prime = -(grad * altered_grad).sum()
         step_size = -alpha0_prime / (2 * (full_step_loss - loss - alpha0_prime))
-        new_wvec = wvec + step_size * altered_grad
-        del full_step_candidate_wvec
-        del full_step_grad
+        new_wvec = wvec - step_size * altered_grad
 
         s_k = new_wvec - wvec
 
         new_grad, loss = self.cost_fun_classification(new_wvec)
         self.update_hess(new_grad - grad, s_k)
+        if full_step_loss < loss:
+            return full_step_grad, full_step_loss, \
+                    full_step_candidate_wvec
         return new_grad, loss, new_wvec
 
 
@@ -265,7 +266,7 @@ class lSR1_classification:
                 logpred = cp.log(pred.clip(min=1e-16))
             else:
                 logpred = np.log(pred.clip(min=1e-16))
-            loss -= float(logpred[np.arange(pred.shape[0]), yd].sum(axis=0))
+            loss -= float(logpred[np.arange(pred.shape[0]), yd].sum())
 
             for k in range(wvec.shape[1]):
                 if self.device == "cuda":

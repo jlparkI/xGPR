@@ -78,7 +78,9 @@ class xGPDiscriminant(ModelBaseclass):
             raise RuntimeError("kernel_settings must be a dict.")
         if model_type == "discriminant":
             kernel_settings["intercept"] = False
-        elif model_type != "logistic":
+        elif model_type == "logistic":
+            kernel_settings["intercept"] = True
+        else:
             raise RuntimeError("Unrecognized model type passed.")
         super().__init__(num_rffs, 0,
                         kernel_choice, device = device,
@@ -386,14 +388,12 @@ class xGPDiscriminant(ModelBaseclass):
             self.gamma = (priors / norm_constant) - 0.5 * norm_constant * \
                     (class_means.T * self.weights).sum(axis=0)
 
-        elif mode == "lsr1":
+        if mode == "lsr1":
             if preconditioner is None:
                 preconditioner = self._autoselect_preconditioner(dataset,
                         min_rank = min_rank, max_rank = max_rank,
                         ratio_target = autoselect_target_ratio,
-                        always_use_srht2 = always_use_srht2,
-                        class_means = class_means,
-                        class_weights = class_weights)
+                        always_use_srht2 = always_use_srht2)
             lsr1_operator = lSR1_classification(dataset, self.kernel,
                     self.device, self.verbose, preconditioner)
 
