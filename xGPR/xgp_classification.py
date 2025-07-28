@@ -254,7 +254,8 @@ class xGPDiscriminant(ModelBaseclass):
 
 
     def fit(self, dataset, preconditioner = None,
-            tol:float = 1e-3,
+            tol:float = 1e-4,
+            history_size:int = 20,
             max_iter:int = 500,
             max_rank:int = 3000,
             min_rank:int = 512,
@@ -276,6 +277,9 @@ class xGPDiscriminant(ModelBaseclass):
             tol (float): The threshold below which iterative strategies (CG)
                 are deemed to have converged. Defaults to 1e-5. Note that how
                 reaching the threshold is assessed may depend on the algorithm.
+            history_size (int): The maximum history size to store for L-SR1
+                fitting. The default is usually fine as long as a preconditioner
+                is being used.
             max_iter (int): The maximum number of epochs for iterative strategies.
             max_rank (int): The largest size to which the preconditioner can be set.
                 Ignored if not autoselecting a preconditioner (i.e. if
@@ -395,7 +399,8 @@ class xGPDiscriminant(ModelBaseclass):
                         ratio_target = autoselect_target_ratio,
                         always_use_srht2 = always_use_srht2)
             lsr1_operator = lSR1_classification(dataset, self.kernel,
-                    self.device, self.verbose, preconditioner)
+                    self.device, self.verbose, preconditioner,
+                    history_size=history_size)
 
             self.weights, n_iter, losses = lsr1_operator.fit_model(max_iter, tol)
             if self.device == "cuda":

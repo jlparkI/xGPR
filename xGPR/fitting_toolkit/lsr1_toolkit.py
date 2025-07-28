@@ -144,12 +144,18 @@ class lSR1_classification:
 
         s_k = new_wvec - wvec
 
-        new_grad, loss = self.cost_fun_classification(new_wvec)
+        new_grad, new_loss = self.cost_fun_classification(new_wvec)
         self.update_hess(new_grad - grad, s_k)
         if full_step_loss < loss:
-            return full_step_grad, full_step_loss, \
-                    full_step_candidate_wvec
-        return new_grad, loss, new_wvec
+            if new_loss < loss:
+                return full_step_grad, full_step_loss, \
+                        full_step_candidate_wvec
+            # Returning the same loss that was input will
+            # always automatically cause optimization to
+            # terminate. Do this if neither proposed step
+            # size is an improvement on the previous loss.
+            return None, loss, wvec
+        return new_grad, new_loss, new_wvec
 
 
 
@@ -195,9 +201,9 @@ class lSR1_classification:
                 return ivec
             return self.preconditioner.batch_matvec(ivec)
 
-        ovec = (self.stored_mvecs[:,:,:self.n_updates] * ivec[:,:,None]).sum(axis=0) / \
-                self.stored_nconstants[None,:self.n_updates]
-        ovec = (ovec[None,:,:] * self.stored_mvecs[:,:,:self.n_updates]).sum(axis=2)
+        ovec = (self.stored_mvecs[:,:,:self.n_updates] * ivec[:,:,None]).sum(axis=0).sum(axis=0) / \
+                self.stored_nconstants[:self.n_updates]
+        ovec = (ovec[None,None,:] * self.stored_mvecs[:,:,:self.n_updates]).sum(axis=2)
         if self.preconditioner is not None:
             ovec += self.preconditioner.batch_matvec(ivec)
         else:
@@ -221,9 +227,9 @@ class lSR1_classification:
                 return ivec
             return self.preconditioner.rev_batch_matvec(ivec)
 
-        ovec = (self.stored_bvecs[:,:,:self.n_updates] * ivec[:,:,None]).sum(axis=0) / \
-                self.stored_bconstants[None,:self.n_updates]
-        ovec = (ovec[None,:,:] * self.stored_bvecs[:,:,:self.n_updates]).sum(axis=2)
+        ovec = (self.stored_bvecs[:,:,:self.n_updates] * ivec[:,:,None]).sum(axis=0).sum(axis=0) / \
+                self.stored_bconstants[:self.n_updates]
+        ovec = (ovec[None,None,:] * self.stored_bvecs[:,:,:self.n_updates]).sum(axis=2)
         if self.preconditioner is not None:
             ovec += self.preconditioner.rev_batch_matvec(ivec)
         else:
