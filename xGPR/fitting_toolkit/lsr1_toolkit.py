@@ -251,7 +251,6 @@ class lSR1_classification:
                 gradient, same shape as wvec.
             loss (float): A float indicating the current loss value.
         """
-        ndatapoints = 0
         grad = self.zero_arr(wvec.shape)
         # We assume the first row is an intercept since fit_intercept will
         # always be set to true for classification.
@@ -261,7 +260,6 @@ class lSR1_classification:
         for (xdata, ydata, ldata) in self.dataset.get_chunked_data():
             xd, yd = self.kernel.transform_x_y(xdata, ydata, ldata,
                     classification=True)
-            ndatapoints += float(yd.shape[0])
 
             pred = xd @ wvec
             # Numerically stable softmax.
@@ -280,9 +278,6 @@ class lSR1_classification:
                 else:
                     targets = (yd==k).astype(np.float64)
                 grad[:,k] += ((pred[:,k] - targets)[:,None] * xd).sum(axis=0)
-
-        grad /= ndatapoints
-        loss /= ndatapoints
 
         if self.verbose:
             print(f"Nfev {self.n_iter}, loss {loss}", flush=True)
