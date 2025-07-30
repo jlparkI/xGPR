@@ -19,6 +19,7 @@ from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFindClassMeans
 
 from .fitting_toolkit.cg_tools import CPU_ConjugateGrad
 from .fitting_toolkit.lsr1_toolkit import lSR1_classification
+from .fitting_toolkit.nonlinear_cg_toolkit import nonlinear_CG_classification
 from .fitting_toolkit.lbfgs_toolkit import lbfgs_cost_fun
 from .constants import constants
 from .model_baseclass import ModelBaseclass
@@ -254,8 +255,8 @@ class xGPDiscriminant(ModelBaseclass):
 
 
     def fit(self, dataset, preconditioner = None,
-            tol:float = 1e-4,
-            history_size:int = 20,
+            tol:float = 1e-3,
+            history_size:int = 5,
             max_iter:int = 500,
             max_rank:int = 3000,
             min_rank:int = 512,
@@ -358,39 +359,23 @@ class xGPDiscriminant(ModelBaseclass):
         # logistic regression objective with L-BFGS as the optimization
         # algorithm.
         elif mode == "cg":
-            if self.device == "cuda":
-                targets = cp.zeros((class_means.shape[1], 2,
-                    class_means.shape[0]))
-            else:
-                targets = np.zeros((class_means.shape[1], 2,
-                    class_means.shape[0]))
-            targets[:,0,:] = class_means.T
-            targets[:,0,:] /= norm_constant
-
             if preconditioner is None:
                 preconditioner = self._autoselect_preconditioner(dataset,
                         min_rank = min_rank, max_rank = max_rank,
                         ratio_target = autoselect_target_ratio,
-                        always_use_srht2 = always_use_srht2,
-                        class_means = class_means,
-                        class_weights = class_weights)
+                        always_use_srht2 = always_use_srht2)
+            cg_operator = nonlinear_CG_classification(dataset, self.kernel,
+                    self.device, self.verbose, preconditioner,
+                    history_size=history_size)
+
+            self.weights, n_iter, losses = cg_operator.fit_model(max_iter, tol)
             if self.device == "cuda":
-                cg_operator = GPU_ConjugateGrad(class_means, class_weights)
+                self.gamma = cp.zeros((self.n_classes))
             else:
-                cg_operator = CPU_ConjugateGrad(class_means, class_weights)
-
-            self.weights, converged, n_iter, losses = cg_operator.fit(dataset,
-                        self.kernel, preconditioner, targets, max_iter,
-                        tol, self.verbose, nmll_settings = False)
-            if not converged:
-                print("Conjugate gradients failed to converge! Try refitting "
-                                "the model with updated settings.")
-
+                self.gamma = np.zeros((self.n_classes))
             if self.verbose:
                 print(f"CG iterations: {n_iter}")
 
-            self.gamma = (priors / norm_constant) - 0.5 * norm_constant * \
-                    (class_means.T * self.weights).sum(axis=0)
 
         if mode == "lsr1":
             if preconditioner is None:
@@ -412,39 +397,36 @@ class xGPDiscriminant(ModelBaseclass):
 
 
 
-        '''# Note that when using L-BFGS we always fit using CG first to
-        # obtain a reasonable x0.
-        if mode == "lbfgs":
-            if self._model_type == "discriminant":
-                raise RuntimeError("L-BFGS is not allowed for discriminant models. "
-                        "To use this, set model type to 'logistic'")
+        '''if mode == "lbfgs":
+            if preconditioner is None:
+                preconditioner = self._autoselect_preconditioner(dataset,
+                        min_rank = min_rank, max_rank = max_rank,
+                        ratio_target = autoselect_target_ratio,
+                        always_use_srht2 = always_use_srht2)
             losses = []
-            x0 = np.zeros((self.num_rffs * class_means.shape[0]))
+            x0 = np.zeros((self.num_rffs * dataset.get_n_classes() ))
             if self.device == "cuda":
-                for i in range(self.weights.shape[1]):
-                    x0[(i*self.num_rffs):((i+1)*self.num_rffs)] = \
-                        cp.asnumpy(self.weights[:,i])
+                self.gamma = cp.zeros((self.n_classes))
             else:
-                for i in range(self.weights.shape[1]):
-                    x0[(i*self.num_rffs):((i+1)*self.num_rffs)] = \
-                        self.weights[:,i]
+                self.gamma = np.zeros((self.n_classes))
 
-            res = minimize(fun=lbfgs_cost_fun, x0=x0, jac=True,
-                    options={"maxfun":max_iter},
-                    method="L-BFGS-B",
+            weights, _, info_dict = xgpr_lbfgs(func=lbfgs_cost_fun, x0=x0,
+                    maxfun=max_iter,
                     args=(dataset, self.kernel, class_means.shape[0],
-                        self.gamma))
+                        self.gamma),
+                    num_rffs=self.num_rffs, n_classes=dataset.get_n_classes(),
+                    preconditioner=preconditioner)
 
             if self.device == "cuda":
                 self.weights = cp.zeros((self.num_rffs, class_means.shape[0]))
-                for k, i in enumerate(range(0, res.x.shape[0], self.num_rffs)):
-                    self.weights[:,k] = cp.asarray(res.x[i:i+self.num_rffs])
+                for k, i in enumerate(range(0, weights.shape[0], self.num_rffs)):
+                    self.weights[:,k] = cp.asarray(weights.x[i:i+self.num_rffs])
             else:
                 self.weights = np.zeros((self.num_rffs, class_means.shape[0]))
-                for k, i in enumerate(range(0, res.x.shape[0], self.num_rffs)):
-                    self.weights[:,k] = res.x[i:i+self.num_rffs]
+                for k, i in enumerate(range(0, weights.x.shape[0], self.num_rffs)):
+                    self.weights[:,k] = weights.x[i:i+self.num_rffs]
 
-            n_iter = res.nfev'''
+            n_iter = info_dict['funcalls']'''
 
 
 

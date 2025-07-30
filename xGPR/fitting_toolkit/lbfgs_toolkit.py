@@ -6,17 +6,21 @@ except:
     pass
 
 
+
+
 def lbfgs_cost_fun(params, dataset, kernel, nclasses, gamma):
     """Evaluates the cost and gradient for L-BFGS for
     a classification problem."""
     num_rffs = kernel.get_num_rffs()
     weights = np.zeros((num_rffs, nclasses))
     nonflat_gradient = kernel.get_lambda()**2 * weights
+    nonflat_gradient[0,:] = 0
     cuda = False
-    loss = 0
 
     for k, i in enumerate(range(0, params.shape[0], num_rffs)):
         weights[:,k] = params[i:i+num_rffs]
+
+    loss = 0.5 * kernel.get_lambda()**2 * (weights**2)[1:,:].sum()
 
     if kernel.device == "cuda":
         weights = cp.asarray(weights)

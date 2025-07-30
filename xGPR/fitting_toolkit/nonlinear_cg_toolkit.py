@@ -1,5 +1,5 @@
 """Contains the tools needed to get weights for the model
-using the L-SR1 optimization algorithm with an optional
+using the nonlinear CG algorithm with an optional
 but strongly recommended preconditioner as H0."""
 import numpy as np
 try:
@@ -7,17 +7,16 @@ try:
 except:
     pass
 
-from ..scoring_toolkit.exact_nmll_calcs import calc_zty
 
 
-
-class lSR1_classification:
+class nonlinear_CG_classification:
     """This class contains all the tools needed to fit a model
-    whose hyperparameters have already been tuned using the L-SR1
-    algorithm. It is highly preferable to supply a preconditioner
-    which acts as an H0 approximation, since otherwise this
-    algorithm may take a long time to converge. It is intended
-    for use with classification (CG is preferable for regression).
+    whose hyperparameters have already been tuned using the
+    nonlinear_CG algorithm. It is highly preferable to supply
+    a preconditioner which acts as an H0 approximation, since
+    otherwise this algorithm may take a long time to converge.
+    It is intended for use with classification (just use
+    straight CG for regression).
 
     Attributes:
         dataset: An OnlineDataset or OfflineDatset containing all the
@@ -30,21 +29,11 @@ class lSR1_classification:
             will be performed.
         zero_arr: A convenience reference to either cp.zeros or np.zeros.
         n_iter (int): The number of function evaluations performed.
-        n_updates (int): The number of Hessian updates to date. Not necessarily
-            the same as n_iter, since Hessian updates can be skipped.
-        history_size (int): The number of previous gradient updates to store.
-        current_replacement_token (int): The element of the approximate Hessian
-            that should be replaced on next update.
-        bleed_in (int): Use only the preconditioner and do not start L-SR1
-            updating for this number of iterations. Helpful initially when
-            the preconditioner is a very good approximation to the Hessian.
         losses (list): A list of loss values. Useful for comparing rate of
             convergence with other options.
         preconditioner: Either None or a valid preconditioner object.
-        stored_mvecs (ndarray): A cupy or numpy array containing the
-            sk - Hk yk terms; shape (num_rffs, history_size).
-        stored_nconstants (ndarray): The denominator of the Hessian
-            update; shape (history_size).
+        last_search_direction (ndarray): The last search direction
+            taken. Used to generate the CG update.
     """
 
     def __init__(self, dataset, kernel, device, verbose,
@@ -74,20 +63,10 @@ class lSR1_classification:
         else:
             self.zero_arr = np.zeros
         self.n_iter = 0
-        self.n_updates = 0
-        self.history_size = history_size
-        self.current_replacement_token = 0
-        self.bleed_in = bleed_in
 
         self.losses = []
         self.preconditioner = preconditioner
-        self.stored_mvecs = self.zero_arr((self.kernel.get_num_rffs(),
-            dataset.get_n_classes(), self.history_size))
-        self.stored_nconstants = self.zero_arr((self.history_size))
-        self.stored_nconstants[:] = 1
-
-        self.stored_bvecs = self.stored_mvecs.copy()
-        self.stored_bconstants = self.stored_nconstants.copy()
+        self.last_search_direction = None
 
 
     def fit_model(self, max_iter = 500, tol = 1e-4):
@@ -103,7 +82,7 @@ class lSR1_classification:
                 best set of weights found. A 1d array of length self.kernel.get_num_rffs().
         """
         wvec = self.zero_arr((self.kernel.get_num_rffs(), self.dataset.get_n_classes() ))
-        self.n_iter, self.n_updates = 0, 0
+        self.n_iter = 0
         grad, loss = self.cost_fun_classification(wvec)
         self.losses = [loss]
 
@@ -134,23 +113,34 @@ class lSR1_classification:
             wvec (ndarray): The updated wvec.
             last_wvec (ndarray): Current wvec (which is now the last wvec).
         """
-        altered_grad = self.inv_hess_vector_prod(grad)
-        full_step_candidate_wvec = wvec - altered_grad
+        if self.preconditioner is not None:
+            search_direction = -self.preconditioner.batch_matvec(grad)
+        else:
+            search_direction = -grad
+
+        if self.last_search_direction is not None:
+            polak_ribiere = (search_direction * (search_direction -
+                self.last_search_direction)).sum()
+            polak_ribiere /= (self.last_search_direction *
+                    self.last_search_direction).sum()
+            polak_ribiere = max(0., float(polak_ribiere))
+            search_direction += polak_ribiere * self.last_search_direction
+
+        self.last_search_direction = search_direction.copy()
+        full_step_candidate_wvec = wvec + search_direction
 
         # First consider using a step size (alpha) of 1. This will usually
         # be too much, at least initially. So interpolate the available
         # info using a quadratic and adjust step size accordingly.
         full_step_grad, full_step_loss = self.cost_fun_classification(
                 full_step_candidate_wvec)
-        alpha0_prime = -(grad * altered_grad).sum()
+        alpha0_prime = (grad * search_direction).sum()
         quad_step_size = -alpha0_prime / (2 * (full_step_loss - loss - alpha0_prime))
-        quad_wvec = wvec - quad_step_size * altered_grad
+        quad_wvec = wvec + quad_step_size * search_direction
 
         quad_grad, quad_loss = self.cost_fun_classification(quad_wvec)
 
         if quad_loss < full_step_loss and quad_loss < loss:
-            self.update_hess(quad_grad - grad,
-                        quad_wvec - wvec)
             return quad_grad, quad_loss, quad_wvec
 
         # If quadratic interpolation was unsuccessful,
@@ -169,17 +159,13 @@ class lSR1_classification:
         a_term /= divisor
         cubic_step_size = (-b_term + np.sqrt(b_term**2 -
             3 * a_term * alpha0_prime)) / (3 * a_term)
-        cubic_wvec = wvec - cubic_step_size * altered_grad
+        cubic_wvec = wvec - cubic_step_size * search_direction
         cubic_grad, cubic_loss = self.cost_fun_classification(cubic_wvec)
 
         if cubic_loss < full_step_loss and cubic_loss < loss:
-            self.update_hess(cubic_grad - grad,
-                        cubic_wvec - wvec)
             return cubic_grad, cubic_loss, cubic_wvec
 
         if full_step_loss < loss:
-            self.update_hess(full_step_grad - grad,
-                    full_step_candidate_wvec - wvec)
             return full_step_grad, full_step_loss, \
                     full_step_candidate_wvec
         # Returning the same loss that was input will
@@ -187,100 +173,6 @@ class lSR1_classification:
         # terminate. Do this if neither proposed step
         # size is an improvement on the previous loss.
         return None, loss, wvec
-
-
-
-
-    def update_hess(self, y_k, s_k):
-        """Updates the hessian approximation.
-
-        Args:
-            y_k (ndarray): The shift in gradient on the current iteration.
-            s_k (ndarray): The shift in the weight vector.
-
-        Returns:
-            success (int): 0 if failure, 1 if success.
-        """
-        if self.n_iter < self.bleed_in:
-            return
-        y_kh = self.inv_hess_vector_prod(y_k)
-        s_kb = self.hess_vector_prod(s_k)
-
-        h_update = s_k - y_kh
-        b_update = y_k - s_kb
-        criterion_lhs = np.abs(float(  (s_k * (y_k - s_kb)).sum()   ))
-        criterion_rhs = 1e-8 * np.sqrt(float( (s_k * s_k).sum()  )) * \
-                np.sqrt(float( (b_update * b_update).sum()  ))
-
-        if criterion_lhs >= criterion_rhs:
-            self.stored_mvecs[:,:,self.current_replacement_token] = h_update
-            self.stored_nconstants[self.current_replacement_token] = (h_update * y_k).sum()
-            self.stored_bvecs[:,:,self.current_replacement_token] = b_update
-            self.stored_bconstants[self.current_replacement_token] = (b_update * s_k).sum()
-            if self.n_updates < self.history_size:
-                self.n_updates += 1
-            self.current_replacement_token += 1
-            if self.current_replacement_token >= self.history_size:
-                self.current_replacement_token = 0
-
-
-    def inv_hess_vector_prod(self, ivec):
-        """Takes the product of the inverse of the approximate
-        Hessian with an input vector.
-
-        Args:
-            ivec (ndarray): A cupy or numpy array of shape (num_rffs, n_classes)
-                with which to take the product.
-
-        Returns:
-            ovec (ndarray): Hk @ ivec.
-        """
-        if self.n_updates == 0:
-            if self.preconditioner is None:
-                return ivec
-            return self.preconditioner.batch_matvec(ivec)
-
-        # The first version essentially has a separate hessian for every class.
-        #ovec = (self.stored_mvecs[:,:,:self.n_updates] * ivec[:,:,None]).sum(axis=0) / \
-        #        self.stored_nconstants[None, :self.n_updates]
-        #ovec = (ovec[None,:,:] * self.stored_mvecs[:,:,:self.n_updates]).sum(axis=2)
-        ovec = (self.stored_mvecs[:,:,:self.n_updates] * ivec[:,:,None]).sum(axis=0).sum(axis=0) / \
-                self.stored_nconstants[:self.n_updates]
-        ovec = (ovec[None,None,:] * self.stored_mvecs[:,:,:self.n_updates]).sum(axis=2)
-        if self.preconditioner is not None:
-            ovec += self.preconditioner.batch_matvec(ivec)
-        else:
-            ovec += ivec
-        return ovec
-
-
-    def hess_vector_prod(self, ivec):
-        """Takes the product of the approximate Hessian with
-        an input vector.
-
-        Args:
-            ivec (ndarray): A cupy or numpy array of shape (num_rffs, n_classes)
-                with which to take the product.
-
-        Returns:
-            ovec (ndarray): Hk @ ivec.
-        """
-        if self.n_updates == 0:
-            if self.preconditioner is None:
-                return ivec
-            return self.preconditioner.rev_batch_matvec(ivec)
-
-        #ovec = (self.stored_bvecs[:,:,:self.n_updates] * ivec[:,:,None]).sum(axis=0) / \
-        #        self.stored_bconstants[None,:self.n_updates]
-        #ovec = (ovec[None,:,:] * self.stored_bvecs[:,:,:self.n_updates]).sum(axis=2)
-        ovec = (self.stored_bvecs[:,:,:self.n_updates] * ivec[:,:,None]).sum(axis=0).sum(axis=0) / \
-                self.stored_bconstants[:self.n_updates]
-        ovec = (ovec[None,None,:] * self.stored_bvecs[:,:,:self.n_updates]).sum(axis=2)
-        if self.preconditioner is not None:
-            ovec += self.preconditioner.rev_batch_matvec(ivec)
-        else:
-            ovec += ivec
-        return ovec
 
 
     def cost_fun_classification(self, wvec):
