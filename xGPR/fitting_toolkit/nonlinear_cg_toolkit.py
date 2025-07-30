@@ -124,9 +124,12 @@ class nonlinear_CG_classification:
             polak_ribiere /= (self.last_search_direction *
                     self.last_search_direction).sum()
             polak_ribiere = max(0., float(polak_ribiere))
-            search_direction += polak_ribiere * self.last_search_direction
+            course_correction = polak_ribiere * self.last_search_direction
+            self.last_search_direction = search_direction.copy()
+            search_direction += course_correction
+        else:
+            self.last_search_direction = search_direction.copy()
 
-        self.last_search_direction = search_direction.copy()
         full_step_candidate_wvec = wvec + search_direction
 
         # First consider using a step size (alpha) of 1. This will usually
