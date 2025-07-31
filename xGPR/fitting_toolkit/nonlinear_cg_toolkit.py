@@ -32,7 +32,7 @@ class nonlinear_CG_classification:
         losses (list): A list of loss values. Useful for comparing rate of
             convergence with other options.
         preconditioner: Either None or a valid preconditioner object.
-        last_search_direction (ndarray): The last search direction
+        last_grad (ndarray): The last search direction
             taken. Used to generate the CG update.
     """
 
@@ -66,6 +66,7 @@ class nonlinear_CG_classification:
 
         self.losses = []
         self.preconditioner = preconditioner
+        self.last_grad = None
         self.last_search_direction = None
 
 
@@ -114,22 +115,26 @@ class nonlinear_CG_classification:
             last_wvec (ndarray): Current wvec (which is now the last wvec).
         """
         if self.preconditioner is not None:
-            search_direction = -self.preconditioner.batch_matvec(grad)
+            search_direction = self.preconditioner.batch_matvec(grad)
         else:
-            search_direction = -grad
+            search_direction = grad
 
-        if self.last_search_direction is not None:
-            polak_ribiere = (search_direction * (search_direction -
-                self.last_search_direction)).sum()
-            polak_ribiere /= (self.last_search_direction *
+        if self.last_grad is not None:
+            polak_ribiere = (search_direction * (grad -
+                self.last_grad)).sum()
+            polak_ribiere /= (self.last_grad *
                     self.last_search_direction).sum()
             polak_ribiere = max(0., float(polak_ribiere))
+
             course_correction = polak_ribiere * self.last_search_direction
+            self.last_grad = grad.copy()
             self.last_search_direction = search_direction.copy()
             search_direction += course_correction
         else:
+            self.last_grad = grad.copy()
             self.last_search_direction = search_direction.copy()
 
+        search_direction = -search_direction
         full_step_candidate_wvec = wvec + search_direction
 
         # First consider using a step size (alpha) of 1. This will usually
