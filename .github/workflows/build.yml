@@ -17,7 +17,7 @@ jobs:
           token: ${{ secrets.XGPR_PRIVATE_CLONE }}
           submodules: true
       - name: setup cuda
-        run:
+        run: |
           git submodule update --init --recursive
           git submodule update --remote --recursive
           sudo apt-get update
