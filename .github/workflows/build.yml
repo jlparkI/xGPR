@@ -15,7 +15,7 @@ jobs:
       - uses: Jimver/cuda-toolkit@v0.2.24
         id: cuda-toolkit
         with:
-          cuda: '10.0'
+          cuda: '10.0.130'
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.XGPR_PRIVATE_CLONE }}
