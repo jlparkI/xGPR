@@ -12,14 +12,19 @@ jobs:
         os: [ubuntu-latest]
 
     steps:
-      - uses: Jimver/cuda-toolkit@v0.2.24
-        id: cuda-toolkit
-        with:
-          cuda: '10.0.130'
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.XGPR_PRIVATE_CLONE }}
           submodules: true
+      - name: setup cuda
+        run:
+          git submodule update --init --recursive
+          git submodule update --remote --recursive
+          sudo apt-get update
+          sudo apt-get install -y \
+            cuda-toolkit-10-2 \
+            cuda-cudart-dev-10-2 \
+            cuda-nvrtc-dev-10-2
 
       - name: Build but don't test wheels
         env:
