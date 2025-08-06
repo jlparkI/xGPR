@@ -18,6 +18,7 @@ jobs:
           cuda: '10.0'
       - uses: actions/checkout@v4
         with:
+          token: ${{ secrets.XGPR_PRIVATE_CLONE }}
           submodules: true
 
       - name: Build but don't test wheels
@@ -40,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.ANTPACK_PRIVATE_CLONE }}
+          token: ${{ secrets.XGPR_PRIVATE_CLONE }}
           submodules: true
 
       - name: Build sdist
