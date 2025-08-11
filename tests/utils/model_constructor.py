@@ -4,7 +4,7 @@ import sys
 import copy
 
 from xGPR import xGPRegression as xGPReg
-from xGPR import xGPDiscriminant
+from xGPR import xGPClassification
 
 RANDOM_STATE = 123
 
@@ -44,10 +44,9 @@ def get_discriminant_models(kernel_choice, dataset, num_rffs = 512,
     kernel settings. Fewer options are available than for regression since
     for the discriminant, we use the RBF kernel only in testing (other kernels
     are tested more extensively for regression purposes)."""
-    cpu_mod = xGPDiscriminant(num_rffs = num_rffs, kernel_choice = kernel_choice,
+    cpu_mod = xGPClassification(num_rffs = num_rffs, kernel_choice = kernel_choice,
             random_seed = RANDOM_STATE, device = "cpu",
-            kernel_settings = {"intercept":True},
-            model_type = model_type)
+            kernel_settings = {"intercept":True})
     if "cupy" not in sys.modules:
         print("Cupy not installed -- skipping the CUDA test.")
         gpu_mod = None

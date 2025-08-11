@@ -7,7 +7,7 @@ import unittest
 
 import numpy as np
 
-from xGPR import xGPDiscriminant, tune_classifier_optuna, tune_classifier_powell
+from xGPR import tune_classifier_optuna, tune_classifier_powell
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from utils.build_classification_dataset import build_discriminant_traintest_split
 from utils.model_constructor import get_discriminant_models

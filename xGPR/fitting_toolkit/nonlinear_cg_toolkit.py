@@ -34,6 +34,9 @@ class nonlinear_CG_classification:
         preconditioner: Either None or a valid preconditioner object.
         last_grad (ndarray): The last search direction
             taken. Used to generate the CG update.
+        last_search_direction (ndarray): The last search direction taken.
+            Used to generate the CG update.
+        last_loss (float): The last loss value. Used for the CG update.
     """
 
     def __init__(self, dataset, kernel, device, verbose,
@@ -135,6 +138,18 @@ class nonlinear_CG_classification:
             self.last_search_direction = search_direction.copy()
 
         search_direction = -search_direction
+        # The slope along our search direction.
+        alpha0_prime = (grad * search_direction).sum()
+
+        # If we are on the first iteration, we do not have any
+        # info from previous iterations to help us guess a good step
+        # size, so just use step size 1 as the initial guess.
+        # Otherwise, use a quadratic interpolated to the previous
+        # loss and directional slope.
+        if self.n_iter == 0:
+            alpha0 = 1
+        else:
+            alpha0 = 2
         full_step_candidate_wvec = wvec + search_direction
 
         # First consider using a step size (alpha) of 1. This will usually
@@ -142,7 +157,6 @@ class nonlinear_CG_classification:
         # info using a quadratic and adjust step size accordingly.
         full_step_grad, full_step_loss = self.cost_fun_classification(
                 full_step_candidate_wvec)
-        alpha0_prime = (grad * search_direction).sum()
         quad_step_size = -alpha0_prime / (2 * (full_step_loss - loss - alpha0_prime))
         quad_wvec = wvec + quad_step_size * search_direction
 
@@ -169,6 +183,9 @@ class nonlinear_CG_classification:
             3 * a_term * alpha0_prime)) / (3 * a_term)
         cubic_wvec = wvec - cubic_step_size * search_direction
         cubic_grad, cubic_loss = self.cost_fun_classification(cubic_wvec)
+
+        import pdb
+        pdb.set_trace()
 
         if cubic_loss < full_step_loss and cubic_loss < loss:
             return cubic_grad, cubic_loss, cubic_wvec

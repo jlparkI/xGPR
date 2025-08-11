@@ -15,12 +15,10 @@ try:
 except:
     print("CuPy not detected. xGPR will run in CPU-only mode.")
 
-from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFindClassMeans
+from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFindClassMeans, cpu_mean_variance
 
-from .fitting_toolkit.cg_tools import CPU_ConjugateGrad
 from .fitting_toolkit.lsr1_toolkit import lSR1_classification
 from .fitting_toolkit.nonlinear_cg_toolkit import nonlinear_CG_classification
-from .fitting_toolkit.lbfgs_toolkit import lbfgs_cost_fun
 from .constants import constants
 from .model_baseclass import ModelBaseclass
 
@@ -30,9 +28,8 @@ from .preconditioners.rand_nys_preconditioners import RandNysPreconditioner
 
 
 
-class xGPDiscriminant(ModelBaseclass):
-    """An approximate kernelized discriminant for classification.
-    """
+class xGPClassification(ModelBaseclass):
+    """Approximate kernelized classification."""
 
     def __init__(self, num_rffs:int = 256,
             kernel_choice:str = "RBF",
@@ -40,8 +37,7 @@ class xGPDiscriminant(ModelBaseclass):
             kernel_settings:dict = constants.DEFAULT_KERNEL_SPEC_PARMS,
             verbose:bool = True,
             uniform_priors = False,
-            random_seed:int = 123,
-            model_type:str = "discriminant"):
+            random_seed:int = 123):
         """The class constructor. Passes arguments onto
         the parent class constructor.
 
@@ -63,11 +59,6 @@ class xGPDiscriminant(ModelBaseclass):
                 of each class is determined by how frequently that class appears
                 in the training data. This is a classification-specific argument.
             random_seed (int): The seed to the random number generator.
-            model_type (str): One of "discriminant", "logistic". If "discriminant",
-                fitting must be either via CG or exact methods. If "logistic",
-                the model will be fitted using L-BFGS. Fitting logistic is slower
-                because the fast preconditioned CG algorithm for fitting cannot
-                be used but will sometimes be a little more accurate.
         """
         # Note that we pass 0 as the second argument for variance rffs
         # since the classifier does not currently compute variance.
@@ -77,19 +68,12 @@ class xGPDiscriminant(ModelBaseclass):
         # should probably be removed altogether.
         if not isinstance(kernel_settings, dict):
             raise RuntimeError("kernel_settings must be a dict.")
-        if model_type == "discriminant":
-            kernel_settings["intercept"] = False
-        elif model_type == "logistic":
-            kernel_settings["intercept"] = True
-        else:
-            raise RuntimeError("Unrecognized model type passed.")
         super().__init__(num_rffs, 0,
                         kernel_choice, device = device,
                         kernel_settings = kernel_settings,
                         verbose = verbose, random_seed = random_seed)
 
         self._uniform_priors = uniform_priors
-        self._model_type = model_type
 
 
     def predict(self, input_x, sequence_lengths = None, chunk_size:int = 2000):
@@ -211,6 +195,39 @@ class xGPDiscriminant(ModelBaseclass):
 
 
 
+    def _set_data_mean_var(self, dataset):
+        """Gets the mean and variance of the data, which is supplied
+        to the kernel and used to adjust all generated random features
+        so that they are zero-mean, unit variance. Nothing is returned
+        because the mean and variance of the random features are
+        supplied to the kernel which will make use of them
+        automatically.
+
+        Args:
+            dataset: A Dataset object storing the training data for
+                this fit.
+        """
+        xmean = np.zeros((self.kernel.get_num_rffs()))
+        xsk = xmean.copy()
+        xmk = xmean.copy()
+        ndatapoints = 0
+
+        for (xdata, ldata) in dataset.get_chunked_x_data():
+            xfeatures = self.kernel.transform_x(xdata, ldata)
+            if self.device == "cuda":
+                xfeatures = cp.asnumpy(xfeatures)
+            ndatapoints = cpu_mean_variance(xfeatures,
+                    xmean, xmk, xsk, ndatapoints)
+
+        if ndatapoints > 1:
+            xvar = xsk / (ndatapoints - 1)
+        else:
+            raise RuntimeError("Must have more than one datapoint!")
+
+        self.kernel.set_xmean_xvar(xmean, xvar)
+
+
+
     def build_preconditioner(self, dataset, max_rank:int = 512,
             method:str = "srht"):
         """Builds a preconditioner. The resulting preconditioner object
@@ -240,18 +257,23 @@ class xGPDiscriminant(ModelBaseclass):
         """
         self._run_pre_fitting_prep(dataset, max_rank)
         # Only difference between regression and classification is this
-        # feature which is nonetheless crucial since the classifier must
-        # find the class means, priors and class weights.
-        class_means, class_weights, _ = self._get_class_means_priors(dataset)
+        # feature which is nonetheless crucial for classification specifically.
+        if self.kernel.get_xmean_xvar()[0] is None:
+            self._set_data_mean_var(dataset)
+        
+        #class_means, class_weights, _ = self._get_class_means_priors(dataset)
+        
 
         preconditioner = RandNysPreconditioner(self.kernel, dataset, max_rank,
-                        self.verbose, self.random_seed, method,
-                        class_means=class_means, class_weights=class_weights)
+                        self.verbose, self.random_seed, method)
+                        #class_means=class_means, class_weights=class_weights)
 
         if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()
         return preconditioner, preconditioner.achieved_ratio
+
+
 
 
     def fit(self, dataset, preconditioner = None,
@@ -314,6 +336,11 @@ class xGPDiscriminant(ModelBaseclass):
             RuntimeError: The input dataset is checked for validity before tuning is
                 initiated, an error is raised if problems are found."""
         self._run_pre_fitting_prep(dataset)
+        if mode == "exact":
+            self.kernel.reset_xmean_xvar()
+        elif self.kernel.get_xmean_xvar()[0] is None:
+            self._set_data_mean_var(dataset)
+
         self.weights = None
         self.n_classes = int(dataset.get_n_classes())
         losses = []
@@ -332,10 +359,6 @@ class xGPDiscriminant(ModelBaseclass):
             norm_constant = float(np.linalg.norm(class_means, axis=1).max())
 
         if mode == "exact":
-            if self._model_type != "discriminant":
-                raise RuntimeError("This fitting mode is only allowed for discriminant models. "
-                        "To use this, set model type to 'discriminant'")
-
             if self.device == "cuda":
                 targets = cp.ascontiguousarray(class_means.T)
             else:
