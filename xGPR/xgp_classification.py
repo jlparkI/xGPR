@@ -18,6 +18,7 @@ except:
 from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuFindClassMeans, cpu_mean_variance
 
 from .fitting_toolkit.lsr1_toolkit import lSR1_classification
+from .fitting_toolkit.lbfgs_toolkit import lbfgs_cost_fun
 from .fitting_toolkit.nonlinear_cg_toolkit import nonlinear_CG_classification
 from .constants import constants
 from .model_baseclass import ModelBaseclass
@@ -338,27 +339,25 @@ class xGPClassification(ModelBaseclass):
         self._run_pre_fitting_prep(dataset)
         if mode == "exact":
             self.kernel.reset_xmean_xvar()
-        elif self.kernel.get_xmean_xvar()[0] is None:
-            self._set_data_mean_var(dataset)
 
         self.weights = None
         self.n_classes = int(dataset.get_n_classes())
         losses = []
 
-        if mode not in ("lsr1", "cg", "exact"):
+        if mode not in ("lsr1", "cg", "lbfgs"):
             raise RuntimeError("Unrecognized fitting mode supplied. Must provide one of "
                         "'lsr1', 'cg', 'exact'.")
 
         if self.verbose:
             print("starting fitting")
 
-        class_means, class_weights, priors = self._get_class_means_priors(dataset)
-        if self.device == "cuda":
-            norm_constant = float(cp.linalg.norm(class_means, axis=1).max())
-        else:
-            norm_constant = float(np.linalg.norm(class_means, axis=1).max())
 
         if mode == "exact":
+            class_means, class_weights, priors = self._get_class_means_priors(dataset)
+            if self.device == "cuda":
+                norm_constant = float(cp.linalg.norm(class_means, axis=1).max())
+            else:
+                norm_constant = float(np.linalg.norm(class_means, axis=1).max())
             if self.device == "cuda":
                 targets = cp.ascontiguousarray(class_means.T)
             else:
@@ -382,6 +381,8 @@ class xGPClassification(ModelBaseclass):
         # logistic regression objective with L-BFGS as the optimization
         # algorithm.
         elif mode == "cg":
+            if self.kernel.get_xmean_xvar()[0] is None:
+                self._set_data_mean_var(dataset)
             if preconditioner is None:
                 preconditioner = self._autoselect_preconditioner(dataset,
                         min_rank = min_rank, max_rank = max_rank,
@@ -401,6 +402,8 @@ class xGPClassification(ModelBaseclass):
 
 
         if mode == "lsr1":
+            if self.kernel.get_xmean_xvar()[0] is None:
+                self._set_data_mean_var(dataset)
             if preconditioner is None:
                 preconditioner = self._autoselect_preconditioner(dataset,
                         min_rank = min_rank, max_rank = max_rank,
@@ -420,12 +423,9 @@ class xGPClassification(ModelBaseclass):
 
 
 
-        '''if mode == "lbfgs":
-            if preconditioner is None:
-                preconditioner = self._autoselect_preconditioner(dataset,
-                        min_rank = min_rank, max_rank = max_rank,
-                        ratio_target = autoselect_target_ratio,
-                        always_use_srht2 = always_use_srht2)
+        if mode == "lbfgs":
+            if self.kernel.get_xmean_xvar()[0] is None:
+                self._set_data_mean_var(dataset)
             losses = []
             x0 = np.zeros((self.num_rffs * dataset.get_n_classes() ))
             if self.device == "cuda":
@@ -433,23 +433,22 @@ class xGPClassification(ModelBaseclass):
             else:
                 self.gamma = np.zeros((self.n_classes))
 
-            weights, _, info_dict = xgpr_lbfgs(func=lbfgs_cost_fun, x0=x0,
-                    maxfun=max_iter,
-                    args=(dataset, self.kernel, class_means.shape[0],
-                        self.gamma),
-                    num_rffs=self.num_rffs, n_classes=dataset.get_n_classes(),
-                    preconditioner=preconditioner)
+            res = minimize(fun=lbfgs_cost_fun, x0=x0,
+                    method="L-BFGS-B", jac=True,
+                    args=(dataset, self.kernel, self.n_classes,
+                        self.gamma), options={"maxiter":max_iter})
+            weights = res.x
 
             if self.device == "cuda":
-                self.weights = cp.zeros((self.num_rffs, class_means.shape[0]))
+                self.weights = cp.zeros((self.num_rffs, self.n_classes))
                 for k, i in enumerate(range(0, weights.shape[0], self.num_rffs)):
-                    self.weights[:,k] = cp.asarray(weights.x[i:i+self.num_rffs])
+                    self.weights[:,k] = cp.asarray(weights[i:i+self.num_rffs])
             else:
-                self.weights = np.zeros((self.num_rffs, class_means.shape[0]))
-                for k, i in enumerate(range(0, weights.x.shape[0], self.num_rffs)):
-                    self.weights[:,k] = weights.x[i:i+self.num_rffs]
+                self.weights = np.zeros((self.num_rffs, self.n_classes))
+                for k, i in enumerate(range(0, weights.shape[0], self.num_rffs)):
+                    self.weights[:,k] = weights[i:i+self.num_rffs]
 
-            n_iter = info_dict['funcalls']'''
+            n_iter = res.nfev
 
 
 

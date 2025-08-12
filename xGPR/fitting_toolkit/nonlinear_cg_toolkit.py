@@ -89,13 +89,21 @@ class nonlinear_CG_classification:
         self.n_iter = 0
         grad, loss = self.cost_fun_classification(wvec)
         self.losses = [loss]
+        previous_loss = None
+        if self.verbose:
+            print(f"Starting loss: {loss}")
 
         while self.n_iter < max_iter:
-            grad, loss, wvec = self.update_params(grad, wvec, loss)
+            grad, loss, wvec = self.update_params(grad, wvec, loss, previous_loss)
             self.losses.append(loss)
+            if self.verbose:
+                print(f"Niter {self.n_iter}, loss {loss}", flush=True)
             if np.abs(np.abs(self.losses[-1] - self.losses[-2]) / self.losses[-2]) < tol:
                 break
+
             self.n_iter += 1
+            previous_loss = self.losses[self.n_iter-1]
+
 
         if self.device == "cuda":
             wvec = cp.asarray(wvec)
@@ -104,7 +112,7 @@ class nonlinear_CG_classification:
 
 
 
-    def update_params(self, grad, wvec, loss):
+    def update_params(self, grad, wvec, loss, previous_loss):
         """Updates the weight vector and the approximate hessian maintained
         by the algorithm.
 
@@ -138,6 +146,7 @@ class nonlinear_CG_classification:
             self.last_search_direction = search_direction.copy()
 
         search_direction = -search_direction
+
         # The slope along our search direction.
         alpha0_prime = (grad * search_direction).sum()
 
@@ -146,58 +155,55 @@ class nonlinear_CG_classification:
         # size, so just use step size 1 as the initial guess.
         # Otherwise, use a quadratic interpolated to the previous
         # loss and directional slope.
-        if self.n_iter == 0:
-            alpha0 = 1
+        if previous_loss is None:
+            alpha_init = 1
         else:
-            alpha0 = 2
-        full_step_candidate_wvec = wvec + search_direction
+            alpha_init = 2 * (loss - previous_loss) / alpha0_prime
 
-        # First consider using a step size (alpha) of 1. This will usually
-        # be too much, at least initially. So interpolate the available
-        # info using a quadratic and adjust step size accordingly.
+        new_wvec = wvec + alpha_init * search_direction
         full_step_grad, full_step_loss = self.cost_fun_classification(
-                full_step_candidate_wvec)
-        quad_step_size = -alpha0_prime / (2 * (full_step_loss - loss - alpha0_prime))
-        quad_wvec = wvec + quad_step_size * search_direction
+                new_wvec)
+        # If this initial guess satisfies the Armijo conditions, halt.
+        if full_step_loss < (loss + alpha_init * 0.1 * alpha0_prime):
+            return full_step_grad, full_step_loss, new_wvec
 
+        # Next, try interpolating using a quadratic. This often works well,
+        # especially on initial steps.
+        alpha_quad = -alpha0_prime / (2 * (full_step_loss - loss - alpha0_prime))
+        quad_wvec = wvec + alpha_quad * search_direction
         quad_grad, quad_loss = self.cost_fun_classification(quad_wvec)
-
-        if quad_loss < full_step_loss and quad_loss < loss:
+        if quad_loss < (loss + alpha_quad * 0.1 * alpha0_prime):
             return quad_grad, quad_loss, quad_wvec
 
-        # If quadratic interpolation was unsuccessful,
-        # interpolate using a cubic. This can be further
-        # extended to do a backtracking Armijo line
-        # search...
-        a_term = quad_loss - loss - (alpha0_prime * quad_step_size) - \
-                quad_step_size**2 * \
-                (full_step_loss - loss - alpha0_prime)
-        b_term = -(quad_loss - loss - (alpha0_prime * quad_step_size)) + \
-                quad_step_size**3 * \
-                (full_step_loss - loss - alpha0_prime)
-        divisor = 1 / (quad_step_size**2 *
-            (quad_step_size - 1))
-        b_term /= divisor
-        a_term /= divisor
-        cubic_step_size = (-b_term + np.sqrt(b_term**2 -
-            3 * a_term * alpha0_prime)) / (3 * a_term)
-        cubic_wvec = wvec - cubic_step_size * search_direction
-        cubic_grad, cubic_loss = self.cost_fun_classification(cubic_wvec)
+        # Otherwise run a backtracking line search, using whichever is further out
+        # (the initial step guess or the interpolated step guess).
+        losses = [loss, full_step_loss, quad_loss]
+        grads = [grad, full_step_grad, quad_grad]
+        wvecs = [wvec, new_wvec, quad_wvec]
 
-        import pdb
-        pdb.set_trace()
+        alpha_max = max(alpha_quad, alpha_init)
 
-        if cubic_loss < full_step_loss and cubic_loss < loss:
-            return cubic_grad, cubic_loss, cubic_wvec
+        for rfactor in [0.5, 0.25, 0.125, 0.0625]:
+            alpha = rfactor * alpha_max
+            candidate_wvec = wvec + alpha * search_direction
+            candidate_grad, candidate_loss = self.cost_fun_classification(
+                candidate_wvec)
+            # If the current step size worked, stop here.
+            if candidate_loss < (loss + alpha * 0.1 * alpha0_prime):
+                return candidate_grad, candidate_loss, candidate_wvec
 
-        if full_step_loss < loss:
-            return full_step_grad, full_step_loss, \
-                    full_step_candidate_wvec
-        # Returning the same loss that was input will
-        # always automatically cause optimization to
-        # terminate. Do this if neither proposed step
-        # size is an improvement on the previous loss.
-        return None, loss, wvec
+            # Otherwise, keep track of this update and continue.
+            losses.append(candidate_loss)
+            grads.append(candidate_grad)
+            wvecs.append(candidate_wvec)
+
+
+        # If we're still here, the backtracking line search never met Armijo
+        # conditions. Return the best candidate we found.
+        best_idx = np.argmin(losses)
+        return grads[best_idx], losses[best_idx], wvecs[best_idx]
+
+
 
 
     def cost_fun_classification(self, wvec):
@@ -243,5 +249,5 @@ class nonlinear_CG_classification:
                 grad[:,k] += ((pred[:,k] - targets)[:,None] * xd).sum(axis=0)
 
         if self.verbose:
-            print(f"Niter {self.n_iter}, loss {loss}", flush=True)
-        return grad, loss
+            print(f"        Func eval loss {loss}", flush=True)
+        return grad, float(loss)

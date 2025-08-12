@@ -5,7 +5,6 @@ from .basic_kernels.matern import Matern
 from .basic_kernels.rbf import RBF
 from .basic_kernels.linear import Linear
 from .basic_kernels.cauchy import Cauchy
-from .basic_kernels.rbf_linear import RBFLinear
 
 from .convolution_kernels.conv1d_rbf import Conv1dRBF
 from .convolution_kernels.conv1d_matern import Conv1dMatern
@@ -30,7 +29,6 @@ KERNEL_NAME_TO_CLASS = {"RBF":RBF,
         "GraphMatern":GraphMatern,
         "GraphCauchy":GraphCauchy,
         "Linear":Linear,
-        "RBFLinear":RBFLinear,
         "MiniARD":MiniARD,
         }
 

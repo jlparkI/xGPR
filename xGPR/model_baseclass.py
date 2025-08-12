@@ -332,57 +332,6 @@ class ModelBaseclass():
 
 
 
-    def _check_rank_ratio(self, dataset, sample_frac:float = 0.1,
-            max_rank:int = 512, class_means=None, class_weights=None):
-        """Determines what ratio a particular max_rank would achieve by using a random
-        sample of the data. This can be used to determine if a particular max_rank is
-        'good enough' to achieve a fast fit, and if so, that max_rank can be used
-        for fitting. If the number of rffs is > 8192, this function will use
-        8192 by default for better speed (we can get away with this thanks to
-        eigenvalue interlacing on random matrices). Note that this procedure
-        is not advisable for a small number of datapoints (e.g. < 5,000);
-        for those cases, just building the full preconditioner is easier.
-
-        Args:
-            dataset: A Dataset object.
-            max_rank (int): The maximum rank for the preconditioner, which
-                uses a low-rank approximation to the matrix inverse. Larger
-                numbers mean a more accurate approximation and thus reduce
-                the number of iterations, but make the preconditioner more
-                expensive to construct.
-            sample_frac (float): The fraction of the data to sample. Must be in
-                [0.01, 1].
-
-        Returns:
-            achieved_ratio (float): The min eigval of the preconditioner over
-                lambda, the noise hyperparameter shared between all kernels.
-                This value has decent predictive value for assessing how
-                well a preconditioner built with this max_rank is likely to perform.
-        """
-        if sample_frac < 0.01 or sample_frac > 1:
-            raise RuntimeError("sample_frac must be in the range [0.01, 1]")
-
-        num_rffs = copy.deepcopy(self.num_rffs)
-
-        # Using a smaller number of RFFs is highly beneficial for speed
-        # but creates a lot of unnecessary complications if performing
-        # classification, since in that case the class means will need
-        # to be recomputed. Skip this step if doing classification
-        # (i.e. if class_means is not None).
-        if self.num_rffs > 8192 and class_means is None:
-            if self.kernel_choice == "RBFLinear" and self.num_rffs % 2 != 0:
-                self.num_rffs = 8191
-            else:
-                self.num_rffs = 8192
-
-        s_mat = srht_ratio_check(dataset, max_rank, self.kernel, self.random_seed,
-                self.verbose, sample_frac, class_means, class_weights)
-        ratio = float(s_mat.min() / self.kernel.get_lambda()**2) / sample_frac
-
-        self.num_rffs = num_rffs
-        return ratio
-
-
 
     def _autoselect_preconditioner(self, dataset, min_rank:int = 512,
             max_rank:int = 3000, increment_size:int = 512,
@@ -423,9 +372,10 @@ class ModelBaseclass():
             sample_frac = 1
 
         while ratio > ratio_target and rank < max_rank:
-            ratio = self._check_rank_ratio(dataset, sample_frac = sample_frac,
-                    max_rank = rank, class_means = class_means,
-                    class_weights = class_weights)
+            s_mat = srht_ratio_check(dataset, rank, self.kernel, self.random_seed,
+                self.verbose, sample_frac, class_means, class_weights)
+            ratio = float(s_mat.min() / self.kernel.get_lambda()**2) / sample_frac
+
             if ratio > ratio_target:
                 if (rank + increment_size) < max_rank and \
                         (rank + increment_size) < actual_num_rffs:

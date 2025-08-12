@@ -17,7 +17,7 @@ HPARAM = np.array([np.log(np.sqrt(0.0767)),  np.log(0.358)])
 DISCRIM_HPARAM = np.array([-1, -0.75])
 
 
-NUM_RFFS = 8500
+NUM_RFFS = 4096
 
 
 class CheckCGFit(unittest.TestCase):
