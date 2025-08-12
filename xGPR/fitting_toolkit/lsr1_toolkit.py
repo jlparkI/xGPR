@@ -35,9 +35,6 @@ class lSR1_classification:
         history_size (int): The number of previous gradient updates to store.
         current_replacement_token (int): The element of the approximate Hessian
             that should be replaced on next update.
-        bleed_in (int): Use only the preconditioner and do not start L-SR1
-            updating for this number of iterations. Helpful initially when
-            the preconditioner is a very good approximation to the Hessian.
         losses (list): A list of loss values. Useful for comparing rate of
             convergence with other options.
         preconditioner: Either None or a valid preconditioner object.
@@ -48,8 +45,7 @@ class lSR1_classification:
     """
 
     def __init__(self, dataset, kernel, device, verbose,
-            preconditioner = None, history_size = 5,
-            bleed_in = 3):
+            preconditioner = None, history_size = 5):
         """Class constructor.
 
         Args:
@@ -77,7 +73,6 @@ class lSR1_classification:
         self.n_updates = 0
         self.history_size = history_size
         self.current_replacement_token = 0
-        self.bleed_in = bleed_in
 
         self.losses = []
         self.preconditioner = preconditioner
@@ -134,59 +129,60 @@ class lSR1_classification:
             wvec (ndarray): The updated wvec.
             last_wvec (ndarray): Current wvec (which is now the last wvec).
         """
-        altered_grad = self.inv_hess_vector_prod(grad)
-        full_step_candidate_wvec = wvec - altered_grad
+        search_direction = -self.inv_hess_vector_prod(grad)
+        alpha0_prime = (grad * search_direction).sum()
 
-        # First consider using a step size (alpha) of 1. This will usually
-        # be too much, at least initially. So interpolate the available
-        # info using a quadratic and adjust step size accordingly.
+        # First consider using a step size (alpha) of 1.
+        full_step_wvec = wvec + search_direction
         full_step_grad, full_step_loss = self.cost_fun_classification(
-                full_step_candidate_wvec)
-        alpha0_prime = -(grad * altered_grad).sum()
+                full_step_wvec)
+        # If this initial guess satisfies the Armijo conditions, halt.
+        if full_step_loss < (loss + 1e-4 * alpha0_prime):
+            return full_step_grad, full_step_loss, full_step_wvec
+
+        # Otherwise interpolate using a quadratic, which often works well,
+        # especially on initial steps.
         quad_step_size = -alpha0_prime / (2 * (full_step_loss - loss - alpha0_prime))
-        quad_wvec = wvec - quad_step_size * altered_grad
-
+        quad_wvec = wvec + quad_step_size * search_direction
         quad_grad, quad_loss = self.cost_fun_classification(quad_wvec)
-
-        if quad_loss < full_step_loss and quad_loss < loss:
-            self.update_hess(quad_grad - grad,
-                        quad_wvec - wvec)
+        # If this guess satisfies the Armijo conditions, halt.
+        if quad_loss < (loss + quad_step_size * 1e-4 * alpha0_prime):
             return quad_grad, quad_loss, quad_wvec
 
         # If quadratic interpolation was unsuccessful,
-        # interpolate using a cubic. This can be further
-        # extended to do a backtracking Armijo line
-        # search...
-        a_term = quad_loss - loss - (alpha0_prime * quad_step_size) - \
-                quad_step_size**2 * \
-                (full_step_loss - loss - alpha0_prime)
-        b_term = -(quad_loss - loss - (alpha0_prime * quad_step_size)) + \
-                quad_step_size**3 * \
-                (full_step_loss - loss - alpha0_prime)
-        divisor = 1 / (quad_step_size**2 *
-            (quad_step_size - 1))
-        b_term /= divisor
-        a_term /= divisor
-        cubic_step_size = (-b_term + np.sqrt(b_term**2 -
-            3 * a_term * alpha0_prime)) / (3 * a_term)
-        cubic_wvec = wvec - cubic_step_size * altered_grad
-        cubic_grad, cubic_loss = self.cost_fun_classification(cubic_wvec)
+        # do a backtracking line search. This is expensive so we try
+        # the much cheaper easy guesses first.
+        losses = [loss, full_step_loss, quad_loss]
+        grads = [grad, full_step_grad, quad_grad]
+        wvecs = [wvec, full_step_wvec, quad_wvec]
 
-        if cubic_loss < full_step_loss and cubic_loss < loss:
-            self.update_hess(cubic_grad - grad,
-                        cubic_wvec - wvec)
-            return cubic_grad, cubic_loss, cubic_wvec
+        alpha_max, rfactor = 1, 0.5
+        if quad_loss < full_step_loss:
+            alpha_max = quad_step_size
 
-        if full_step_loss < loss:
-            self.update_hess(full_step_grad - grad,
-                    full_step_candidate_wvec - wvec)
-            return full_step_grad, full_step_loss, \
-                    full_step_candidate_wvec
-        # Returning the same loss that was input will
-        # always automatically cause optimization to
-        # terminate. Do this if neither proposed step
-        # size is an improvement on the previous loss.
-        return None, loss, wvec
+        # Run up to 10 iterations. At that point if we haven't found anything
+        # it's best to cut our losses.
+        for _ in range(10):
+            alpha = rfactor * alpha_max
+            candidate_wvec = wvec + alpha * search_direction
+            candidate_grad, candidate_loss = self.cost_fun_classification(
+                candidate_wvec)
+            # If the current step size worked, stop here.
+            if candidate_loss < (loss + alpha * 1e-4 * alpha0_prime):
+                return candidate_grad, candidate_loss, candidate_wvec
+
+            # Otherwise, keep track of this update and continue.
+            losses.append(candidate_loss)
+            grads.append(candidate_grad)
+            wvecs.append(candidate_wvec)
+
+            rfactor *= 0.5
+
+
+        # If we're still here, the backtracking line search never met Armijo
+        # conditions. Return the best candidate we found.
+        best_idx = np.argmin(losses)
+        return grads[best_idx], losses[best_idx], wvecs[best_idx]
 
 
 
@@ -201,8 +197,6 @@ class lSR1_classification:
         Returns:
             success (int): 0 if failure, 1 if success.
         """
-        if self.n_iter < self.bleed_in:
-            return
         y_kh = self.inv_hess_vector_prod(y_k)
         s_kb = self.hess_vector_prod(s_k)
 

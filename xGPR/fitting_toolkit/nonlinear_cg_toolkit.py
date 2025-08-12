@@ -181,7 +181,9 @@ class nonlinear_CG_classification:
         grads = [grad, full_step_grad, quad_grad]
         wvecs = [wvec, new_wvec, quad_wvec]
 
-        alpha_max = max(alpha_quad, alpha_init)
+        alpha_max = alpha_init
+        if quad_loss < full_step_loss:
+            alpha_max = alpha_quad
 
         for rfactor in [0.5, 0.25, 0.125, 0.0625]:
             alpha = rfactor * alpha_max
