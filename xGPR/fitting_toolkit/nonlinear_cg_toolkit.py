@@ -108,14 +108,17 @@ class nonlinear_CG_classification:
 
 
 
-    def update_params(self, grad, wvec, loss, previous_loss):
+    def update_params(self, grad, wvec, loss, previous_loss, tol):
         """Updates the weight vector and the approximate hessian maintained
         by the algorithm.
 
         Args:
             grad (ndarray): The previous gradient of the weights. Shape (num_rffs).
             wvec (ndarray): The current weight values.
-            loss (float): The previous loss value.
+            loss (float): The current loss value.
+            previous_loss (float): The previous loss value.
+            tol (float): The tolerance for convergence. Use this to
+                check to see if a proposed step would cause convergence.
 
         Returns:
             wvec (ndarray): The updated wvec.
@@ -158,9 +161,21 @@ class nonlinear_CG_classification:
         new_wvec = wvec + alpha_init * search_direction
         full_step_grad, full_step_loss = self.cost_fun_classification(
                 new_wvec)
-        # Even in cases where the initial guess is pretty good, we sometimes
-        # find that interpolating a quadratic to this result is even better.
-        # Consequently, always try this before accepting the initial guess.
+        # On late iterations, the initial guess is often pretty good. On
+        # early iterations, however, it is often pretty bad. On early
+        # iterations, then, we check loss using the initial guess and
+        # fit the result to a quadratic before deciding whether to accept
+        # or decline the initial guess. On later iterations we check the
+        # initial guess first. When doing so, we make sure that the initial
+        # guess would not cause fitting to converge (i.e. we do not want
+        # to stop the fit based purely on the initial guess).
+        if self.n_iter >= 10:
+            if np.abs(np.abs(full_step_loss - loss) / loss) > tol:
+                if full_step_loss < (loss + alpha_init * 1e-4 * alpha0_prime):
+                    return full_step_grad, full_step_loss, new_wvec, alpha_init
+
+        # Otherwise check the loss using a quadratic to interpolate and
+        # pick a new step size.
         alpha_quad = -(alpha0_prime * alpha_init**2) / (2 * (full_step_loss - loss -
             alpha0_prime * alpha_init))
         quad_wvec = wvec + alpha_quad * search_direction
