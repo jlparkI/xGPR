@@ -1,6 +1,7 @@
 """Contains the tools needed to get weights for the model
 using the nonlinear CG algorithm with an optional
 but strongly recommended preconditioner as H0."""
+import copy
 import numpy as np
 try:
     import cupy as cp
@@ -36,12 +37,10 @@ class nonlinear_CG_classification:
             taken. Used to generate the CG update.
         last_search_direction (ndarray): The last search direction taken.
             Used to generate the CG update.
-        last_loss (float): The last loss value. Used for the CG update.
     """
 
     def __init__(self, dataset, kernel, device, verbose,
-            preconditioner = None, history_size = 5,
-            bleed_in = 3):
+            preconditioner = None):
         """Class constructor.
 
         Args:
@@ -53,8 +52,6 @@ class nonlinear_CG_classification:
                 will be performed.
             verbose (bool): If True, print regular updates.
             preconditioner: Either None or a valid preconditioner object.
-            history_size (int): The number of recent gradient updates
-                to store.
         """
         self.dataset = dataset
         self.kernel = kernel
@@ -89,12 +86,12 @@ class nonlinear_CG_classification:
         self.n_iter = 0
         grad, loss = self.cost_fun_classification(wvec)
         self.losses = [loss]
-        previous_loss = None
+        last_alpha = None
         if self.verbose:
             print(f"Starting loss: {loss}")
 
         while self.n_iter < max_iter:
-            grad, loss, wvec = self.update_params(grad, wvec, loss, previous_loss)
+            grad, loss, wvec, _ = self.update_params(grad, wvec, loss, last_alpha)
             self.losses.append(loss)
             if self.verbose:
                 print(f"Niter {self.n_iter}, loss {loss}", flush=True)
@@ -102,8 +99,7 @@ class nonlinear_CG_classification:
                 break
 
             self.n_iter += 1
-            previous_loss = self.losses[self.n_iter-1]
-
+            last_alpha = self.losses[self.n_iter-1]
 
         if self.device == "cuda":
             wvec = cp.asarray(wvec)
@@ -152,9 +148,8 @@ class nonlinear_CG_classification:
 
         # If we are on the first iteration, we do not have any
         # info from previous iterations to help us guess a good step
-        # size, so just use step size 1 as the initial guess.
-        # Otherwise, use a quadratic interpolated to the previous
-        # loss and directional slope.
+        # size, so just use 1 to start. Otherwise, use a quadratic
+        # interpolated to the previous loss and directional slope.
         if previous_loss is None:
             alpha_init = 1
         else:
@@ -163,47 +158,56 @@ class nonlinear_CG_classification:
         new_wvec = wvec + alpha_init * search_direction
         full_step_grad, full_step_loss = self.cost_fun_classification(
                 new_wvec)
-        # If this initial guess satisfies the Armijo conditions, halt.
-        if full_step_loss < (loss + alpha_init * 0.1 * alpha0_prime):
-            return full_step_grad, full_step_loss, new_wvec
-
-        # Next, try interpolating using a quadratic. This often works well,
-        # especially on initial steps.
-        alpha_quad = -alpha0_prime / (2 * (full_step_loss - loss - alpha0_prime))
+        # Even in cases where the initial guess is pretty good, we sometimes
+        # find that interpolating a quadratic to this result is even better.
+        # Consequently, always try this before accepting the initial guess.
+        alpha_quad = -(alpha0_prime * alpha_init**2) / (2 * (full_step_loss - loss -
+            alpha0_prime * alpha_init))
         quad_wvec = wvec + alpha_quad * search_direction
         quad_grad, quad_loss = self.cost_fun_classification(quad_wvec)
-        if quad_loss < (loss + alpha_quad * 0.1 * alpha0_prime):
-            return quad_grad, quad_loss, quad_wvec
 
-        # Otherwise run a backtracking line search, using whichever is further out
-        # (the initial step guess or the interpolated step guess).
+        # If either initial guess or quadratic satisfies the Armijo conditions, halt.
+        if quad_loss < full_step_loss:
+            if quad_loss < (loss + alpha_quad * 1e-4 * alpha0_prime):
+                return quad_grad, quad_loss, quad_wvec, alpha_quad
+        elif full_step_loss < (loss + alpha_init * 1e-4 * alpha0_prime):
+            return full_step_grad, full_step_loss, new_wvec, alpha_init
+
+        # If all else fails run a backtracking line search. This is expensive so
+        # always try the initial guesses first.
         losses = [loss, full_step_loss, quad_loss]
         grads = [grad, full_step_grad, quad_grad]
         wvecs = [wvec, new_wvec, quad_wvec]
+        alphas = [0, alpha_init, alpha_quad]
 
         alpha_max = alpha_init
         if quad_loss < full_step_loss:
             alpha_max = alpha_quad
 
-        for rfactor in [0.5, 0.25, 0.125, 0.0625]:
+        rfactor = 0.5
+
+        for _ in range(10):
             alpha = rfactor * alpha_max
             candidate_wvec = wvec + alpha * search_direction
             candidate_grad, candidate_loss = self.cost_fun_classification(
                 candidate_wvec)
             # If the current step size worked, stop here.
-            if candidate_loss < (loss + alpha * 0.1 * alpha0_prime):
-                return candidate_grad, candidate_loss, candidate_wvec
+            if candidate_loss < (loss + alpha * 1e-4 * alpha0_prime):
+                return candidate_grad, candidate_loss, candidate_wvec, alpha
 
             # Otherwise, keep track of this update and continue.
             losses.append(candidate_loss)
             grads.append(candidate_grad)
             wvecs.append(candidate_wvec)
+            alphas.append(alpha)
+
+            rfactor *= 0.5
 
 
         # If we're still here, the backtracking line search never met Armijo
-        # conditions. Return the best candidate we found.
+        # conditions, even after 10 iterations. Return the best candidate we found.
         best_idx = np.argmin(losses)
-        return grads[best_idx], losses[best_idx], wvecs[best_idx]
+        return grads[best_idx], losses[best_idx], wvecs[best_idx], alphas[best_idx]
 
 
 

@@ -110,6 +110,8 @@ class ModelBaseclass():
         self.kernel_spec_parms = kernel_settings
         self.verbose = verbose
 
+        self.is_regression = True
+
         #Currently we do not allow user to set double_precision_fht --
         #only used for testing.
         self.double_precision_fht = False
@@ -217,6 +219,44 @@ class ModelBaseclass():
         if self.kernel is None:
             return None
         return self.kernel.get_hyperparams()
+
+
+
+    def build_preconditioner(self, dataset, max_rank:int = 512, method:str = "srht"):
+        """Builds a preconditioner. The resulting preconditioner object
+        can be supplied to fit and used for CG. Use this function if you do
+        not want fit() to automatically choose preconditioner settings for
+        you.
+
+        Args:
+            dataset: A Dataset object.
+            max_rank (int): The maximum rank for the preconditioner, which
+                uses a low-rank approximation to the matrix inverse. Larger
+                numbers mean a more accurate approximation and thus reduce
+                the number of iterations, but make the preconditioner more
+                expensive to construct.
+            method (str): one of "srht", "srht_2". "srht_2" runs two passes
+                over the dataset. For the same max_rank, the preconditioner
+                built by "srht_2" will reduce the number of CG iterations by
+                25-30% compared with "srht", but it does incur the expense
+                of a second pass over the dataset.
+
+        Returns:
+            preconditioner: A preconditioner object.
+            achieved_ratio (float): The min eigval of the preconditioner over
+                lambda, the noise hyperparameter shared between all kernels.
+                This value has decent predictive value for assessing how
+                well the preconditioner is likely to perform.
+        """
+        self._run_pre_fitting_prep(dataset, max_rank)
+        preconditioner = RandNysPreconditioner(self.kernel, dataset, max_rank,
+                        self.verbose, self.random_seed, method,
+                        is_regression = self.is_regression)
+        if self.device == "cuda":
+            mempool = cp.get_default_memory_pool()
+            mempool.free_all_blocks()
+        return preconditioner, preconditioner.achieved_ratio
+
 
 
 
@@ -336,8 +376,7 @@ class ModelBaseclass():
     def _autoselect_preconditioner(self, dataset, min_rank:int = 512,
             max_rank:int = 3000, increment_size:int = 512,
             always_use_srht2:bool = False,
-            ratio_target:float = 30., class_means = None,
-            class_weights = None):
+            ratio_target:float = 30.):
         """Uses an automated algorithm to choose a preconditioner that
         is up to max_rank in size. For internal use only.
 
@@ -352,11 +391,6 @@ class ModelBaseclass():
                 number of iterations about 30% but increase time cost
                 of preconditioner construction about 150%.
             ratio_target (int): The target value for the ratio.
-            class_means: Either None or a (nclasses, num_rffs)
-                array storing the mean of the features for each
-                class. Only for classification.
-            class_weights: Either None or an (nclasses) array storing
-                the weight for each class. Only for classification.
 
         Returns:
             preconditioner: A preconditioner object.
@@ -373,7 +407,7 @@ class ModelBaseclass():
 
         while ratio > ratio_target and rank < max_rank:
             s_mat = srht_ratio_check(dataset, rank, self.kernel, self.random_seed,
-                self.verbose, sample_frac, class_means, class_weights)
+                self.verbose, sample_frac)
             ratio = float(s_mat.min() / self.kernel.get_lambda()**2) / sample_frac
 
             if ratio > ratio_target:
@@ -395,8 +429,7 @@ class ModelBaseclass():
 
         preconditioner = RandNysPreconditioner(self.kernel, dataset, rank,
                         self.verbose, self.random_seed, method,
-                        class_means = class_means,
-                        class_weights = class_weights)
+                        is_regression = self.is_regression)
         if self.device == "cuda":
             mempool = cp.get_default_memory_pool()
             mempool.free_all_blocks()

@@ -73,6 +73,7 @@ class xGPRegression(ModelBaseclass):
 
 
 
+
     def predict(self, input_x, sequence_lengths = None, get_var:bool = False,
             chunk_size:int = 2000):
         """Generate a predicted value for each
@@ -144,39 +145,6 @@ class xGPRegression(ModelBaseclass):
         return preds * self.trainy_std + self.trainy_mean, var * self.trainy_std**2
 
 
-    def build_preconditioner(self, dataset, max_rank:int = 512, method:str = "srht"):
-        """Builds a preconditioner. The resulting preconditioner object
-        can be supplied to fit and used for CG. Use this function if you do
-        not want fit() to automatically choose preconditioner settings for
-        you.
-
-        Args:
-            dataset: A Dataset object.
-            max_rank (int): The maximum rank for the preconditioner, which
-                uses a low-rank approximation to the matrix inverse. Larger
-                numbers mean a more accurate approximation and thus reduce
-                the number of iterations, but make the preconditioner more
-                expensive to construct.
-            method (str): one of "srht", "srht_2". "srht_2" runs two passes
-                over the dataset. For the same max_rank, the preconditioner
-                built by "srht_2" will reduce the number of CG iterations by
-                25-30% compared with "srht", but it does incur the expense
-                of a second pass over the dataset.
-
-        Returns:
-            preconditioner: A preconditioner object.
-            achieved_ratio (float): The min eigval of the preconditioner over
-                lambda, the noise hyperparameter shared between all kernels.
-                This value has decent predictive value for assessing how
-                well the preconditioner is likely to perform.
-        """
-        self._run_pre_fitting_prep(dataset, max_rank)
-        preconditioner = RandNysPreconditioner(self.kernel, dataset, max_rank,
-                        self.verbose, self.random_seed, method)
-        if self.device == "cuda":
-            mempool = cp.get_default_memory_pool()
-            mempool.free_all_blocks()
-        return preconditioner, preconditioner.achieved_ratio
 
 
 

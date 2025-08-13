@@ -17,7 +17,7 @@ class RandNysPreconditioner():
     """
     def __init__(self, kernel, dataset, max_rank, verbose,
                 random_state = 123, method = "srht",
-                class_means=None, class_weights=None):
+                is_regression = True):
         """Class constructor.
 
         Args:
@@ -30,11 +30,7 @@ class RandNysPreconditioner():
                 generator.
             method (str): One of "srht", "srht_2". Determines the method of
                 preconditioner construction.
-            class_means: Either None or a (nclasses, num_rffs)
-                array storing the mean of the features for each
-                class.
-            class_weights: Either None or an (nclasses) array storing
-                the class_weight for each class.
+            is_regression (bool): If True, this is a regression model.
         """
         if method not in ["srht_2", "srht_3", "srht"]:
             raise RuntimeError("Unknown method supplied for tuning preconditioner "
@@ -45,14 +41,12 @@ class RandNysPreconditioner():
             self.u_mat, self.eig, self.z_trans_y, self.y_trans_y = \
                             initialize_srht_multipass(dataset,
                                 max_rank, kernel, random_state, verbose,
-                                n_passes, class_means=class_means,
-                                class_weights=class_weights)
+                                n_passes, is_regression)
         else:
             self.u_mat, self.eig, self.z_trans_y, self.y_trans_y = \
                             initialize_srht(dataset, max_rank,
                                 kernel, random_state, verbose,
-                                class_means=class_means,
-                                class_weights=class_weights)
+                                is_regression)
 
         lambda_ = kernel.get_lambda()
         min_eig = self.eig.min()
