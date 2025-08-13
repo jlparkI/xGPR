@@ -3,7 +3,6 @@ which is generally only recommended for small datasets & numbers of
 random features, and for fitting the variance using exact calculations."""
 try:
     import cupy as cp
-    import cupyx as cpx
 except:
     pass
 import numpy as np
@@ -67,58 +66,3 @@ def calc_variance_exact(kernel, dataset, variance_rffs):
     else:
         var = cp.linalg.pinv(z_trans_z)
     return var
-
-
-def calc_discriminant_weights_exact(dataset, kernel, targets,
-        class_means, class_weights):
-    """Calculates the weights when fitting a discriminant using
-    exact matrix decomposition. Fast for small numbers of random
-    features but poor scaling.
-
-    Args:
-        dataset: Either OnlineDataset or OfflineDataset,
-            containing the information on the dataset we
-            are fitting.
-        kernel: A valid kernel object that can generate random
-            features.
-        targets (ndarray): A (num_rffs, nc) for nc classes shape
-            array containing class specific means.
-        class_means (ndarray): A (nc, num_rffs) for nc classes shape
-            array containing class specific means. This is not
-            transposed unlike targets (more convenient for
-            sequential-in-memory access when building the covariance
-            matrix).
-        class_weights (ndaray): An (nc) for nc classes shape array
-            containing class weights.
-
-    Returns:
-        weights: A cupy or numpy array of shape (M, nc) for M
-            random features and nc classes.
-    """
-    num_rffs = kernel.get_num_rffs()
-    if kernel.device == "cpu":
-        z_trans_z = np.zeros((num_rffs, num_rffs))
-    else:
-        z_trans_z = cp.zeros((num_rffs, num_rffs))
-
-    for i, (xdata, ydata, ldata) in enumerate(dataset.get_chunked_data()):
-        xfeatures, _ = kernel.transform_x_y(xdata, ydata, ldata, class_means,
-                class_weights, classification=True)
-        z_trans_z += xfeatures.T @ xfeatures
-        if i % 2 == 0:
-            if kernel.device == "cuda":
-                mempool = cp.get_default_memory_pool()
-                mempool.free_all_blocks()
-
-    z_trans_z.flat[::z_trans_z.shape[0]+1] += kernel.get_lambda()**2
-
-    if kernel.device == "cpu":
-        chol_z_trans_z = np.linalg.cholesky(z_trans_z)
-        weights = cho_solve((chol_z_trans_z, True), targets)
-    else:
-        chol_z_trans_z = cp.linalg.cholesky(z_trans_z)
-        weights = cpx.scipy.linalg.solve_triangular(chol_z_trans_z,
-                        targets, lower=True)
-        weights = cpx.scipy.linalg.solve_triangular(chol_z_trans_z.T,
-                        weights, lower=False)
-    return weights
