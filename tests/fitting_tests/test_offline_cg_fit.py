@@ -78,8 +78,8 @@ class CheckCGFit(unittest.TestCase):
 
 
 
-    def test_preconditioned_discriminant_cg(self):
-        """Test using preconditioned cg for the discriminant
+    def test_preconditioned_classifier_cg(self):
+        """Test using preconditioned cg for the classifier
         classifier."""
         _, offline_data = build_discriminant_traintest_split()
         cpu_mod, gpu_mod = get_discriminant_models("RBF", offline_data,
@@ -91,7 +91,7 @@ class CheckCGFit(unittest.TestCase):
 
         niter, _ = cpu_mod.fit(offline_data,  preconditioner = preconditioner,
                 max_iter = 500, run_diagnostics = True,
-                tol = 1e-2,  mode = "cg")
+                tol = 1e-2)
         print(f"niter: {niter}")
         self.assertTrue(niter < 10)
 
@@ -102,14 +102,14 @@ class CheckCGFit(unittest.TestCase):
 
             niter, _ = gpu_mod.fit(offline_data,  preconditioner = preconditioner,
                 max_iter = 500, run_diagnostics = True,
-                tol = 1e-2,  mode = "cg")
+                tol = 1e-2)
             print(f"Discriminant classifier, niter: {niter}")
             self.assertTrue(niter < 10)
 
 
-    def test_autoselect_discriminant_cg(self):
+    def test_autoselect_classifier_cg(self):
         """Test using cg when the software automatically selects the
-        max_rank for the discriminant classifier."""
+        max_rank for the classifier."""
         _, offline_data = build_discriminant_traintest_split()
         cpu_mod, gpu_mod = get_discriminant_models("RBF", offline_data,
                 num_rffs = NUM_RFFS)
@@ -117,7 +117,7 @@ class CheckCGFit(unittest.TestCase):
         cpu_mod.set_hyperparams(DISCRIM_HPARAM, offline_data)
         niter, _ = cpu_mod.fit(offline_data,
                 max_iter = 500, run_diagnostics = True,
-                tol = 1e-2,  mode = "cg")
+                tol = 1e-2)
         print("Discriminant classifier, autoselected preconditioning, "
                 f"niter: {niter}")
         self.assertTrue(niter < 10)
@@ -126,7 +126,7 @@ class CheckCGFit(unittest.TestCase):
             gpu_mod.set_hyperparams(DISCRIM_HPARAM, offline_data)
             niter, _ = gpu_mod.fit(offline_data,
                 max_iter = 500, run_diagnostics = True,
-                tol = 1e-2,  mode = "cg")
+                tol = 1e-2)
             print("Discriminant classifier, autoselected "
                 f"preconditioning, niter: {niter}")
             self.assertTrue(niter < 10)

@@ -265,7 +265,7 @@ def initialize_srht(dataset, rank, kernel, random_state, verbose = False,
     # If class means were supplied, we are doing classification and do
     # not need to retrieve z_trans_y. Otherwise we do need to retrieve
     # and store z_trans_y.
-    if class_means is None:
+    if is_regression:
         y_trans_y = single_pass_srht_zty(dataset, kernel, compressor, acc_results,
                         z_trans_y, verbose)
     else:

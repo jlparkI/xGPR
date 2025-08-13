@@ -17,8 +17,6 @@ IMPLEMENTED_KERNELS = {
         "RBF":(False, 0.58),
         "Matern":(False, 0.55),
         "Linear":(False, 0.53),
-        "RBFLinear":(False,0.55),
         "MiniARD":(False, 0.64),
-        "Conv1dRBF":(True, 0.58),
         "GraphRBF":(True, 0.38),
         }
