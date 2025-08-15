@@ -91,7 +91,8 @@ class nonlinear_CG_classification:
             print(f"Starting loss: {loss}")
 
         while self.n_iter < max_iter:
-            grad, loss, wvec, _ = self.update_params(grad, wvec, loss, last_alpha)
+            grad, loss, wvec, _ = self.update_params(grad, wvec,
+                    loss, last_alpha, tol)
             self.losses.append(loss)
             if self.verbose:
                 print(f"Niter {self.n_iter}, loss {loss}", flush=True)
