@@ -17,8 +17,6 @@
 
 namespace nb = nanobind;
 
-namespace CudaRBFHTransformOps {
-
 template <typename T>
 __global__ void rbfFeatureGenKernel(const T origData[], T cArray[],
         double *output_array, const T chi_arr[], const int8_t *radem,
@@ -427,5 +425,3 @@ nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> grad_arr
 nb::ndarray<const int8_t, nb::shape<3,1,-1>, nb::device::cuda, nb::c_contig> radem,
 nb::ndarray<const float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chi_arr,
 float sigma, bool fit_intercept);
-
-}  // namespace CudaRBFHTransformOps

@@ -10,8 +10,6 @@
 namespace nb = nanobind;
 
 
-namespace CudaBasicHTransformOps {
-
 
 template <typename T>
 int cudaHTransform(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cuda,
@@ -24,6 +22,5 @@ nb::ndarray<const int8_t, nb::shape<-1>, nb::device::cuda,
 nb::c_contig> radem);
 
 
-}  // namespace CudaBasicHTransformOps
 
 #endif

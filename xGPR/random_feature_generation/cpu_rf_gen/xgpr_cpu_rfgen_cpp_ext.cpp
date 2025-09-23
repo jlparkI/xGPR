@@ -16,7 +16,6 @@
 #include "rbf_ops/ard_ops.h"
 #include "convolution_ops/conv1d_operations.h"
 #include "convolution_ops/rbf_convolution.h"
-#include "classification_calcs/classification_calcs.h"
 
 
 namespace nb = nanobind;
@@ -145,26 +144,4 @@ NB_MODULE(xgpr_cpu_rfgen_cpp_ext, m) {
             nb::arg("sigma"),
             nb::arg("convWidth"),
             nb::arg("scalingType"));
-
-    m.def("cpuFindClassMeans",
-            &CpuClassificationCalcs::cpuFindClassMeans_,
-            nb::arg("input_arr").noconvert(),
-            nb::arg("class_means").noconvert(),
-            nb::arg("class_labels").noconvert(),
-            nb::arg("class_counts").noconvert());
-
-    m.def("cpuPrepPooledCovCalc",
-            &CpuClassificationCalcs::cpuPrepPooledCovCalc_,
-            nb::arg("input_arr").noconvert(),
-            nb::arg("class_means").noconvert(),
-            nb::arg("class_labels").noconvert(),
-            nb::arg("class_prior_sqrts").noconvert());
-
-    m.def("cpu_mean_variance",
-            &CpuClassificationCalcs::cpu_welford_mean_variance,
-            nb::arg("input_arr").noconvert(),
-            nb::arg("xmean").noconvert(),
-            nb::arg("xmk").noconvert(),
-            nb::arg("xsk").noconvert(),
-            nb::arg("start_ndatapoints"));
 }

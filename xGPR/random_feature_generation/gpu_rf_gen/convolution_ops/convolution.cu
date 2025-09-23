@@ -13,8 +13,6 @@
 #include "../sharedmem.h"
 #include "convolution.h"
 
-namespace CudaMaxpoolConvHTransformOps {
-
 template <typename T>
 __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
 float *output_array, const T chi_arr[], const int8_t *radem,
@@ -256,6 +254,3 @@ nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
 nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chi_arr,
 nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
 int conv_width);
-
-
-}  // namespace CudaMaxpoolConvHTransformOps

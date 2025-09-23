@@ -14,7 +14,6 @@
 namespace nb = nanobind;
 
 
-namespace CudaMaxpoolConvHTransformOps {
 
 template <typename T>
 int conv1dMaxpoolFeatureGen(
@@ -25,7 +24,6 @@ nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
 nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
 int convWidth);
 
-}  // namespace CudaMaxpoolConvHTransformOps
 
 
 #endif

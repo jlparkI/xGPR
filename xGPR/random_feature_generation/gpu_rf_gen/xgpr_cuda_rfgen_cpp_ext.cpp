@@ -1,8 +1,4 @@
 /* Copyright (C) 2025 Jonathan Parkinson
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 */
 // C++ headers
 
@@ -16,7 +12,6 @@
 #include "rbf_ops/ard_ops.h"
 #include "convolution_ops/convolution.h"
 #include "convolution_ops/rbf_convolution.h"
-#include "classification_calcs/classification_calcs.h"
 
 
 namespace nb = nanobind;
@@ -95,18 +90,4 @@ NB_MODULE(xgpr_cuda_rfgen_cpp_ext, m){
             nb::arg("seqlengths").noconvert(), nb::arg("gradArr").noconvert(),
             nb::arg("sigma"), nb::arg("convWidth"),
             nb::arg("scalingType"));
-
-    m.def("cudaFindClassMeans",
-            &CudaClassificationCalcs::cudaFindClassMeans_,
-            nb::arg("input_arr").noconvert(),
-            nb::arg("class_means").noconvert(),
-            nb::arg("class_labels").noconvert(),
-            nb::arg("class_counts").noconvert());
-
-    m.def("cudaPrepPooledCovCalc",
-            &CudaClassificationCalcs::cudaPrepPooledCovCalc_,
-            nb::arg("input_arr").noconvert(),
-            nb::arg("class_means").noconvert(),
-            nb::arg("class_labels").noconvert(),
-            nb::arg("class_counts").noconvert());
 }

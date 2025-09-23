@@ -11,7 +11,6 @@
 
 namespace nb = nanobind;
 
-namespace CudaBasicHTransformOps {
 
 template <typename T>
 __global__ void hadamardTransform(T cArray[], int N, int log2N){
@@ -273,5 +272,3 @@ template int cudaSRHT2d<float>(nb::ndarray<float, nb::shape<-1,-1>, nb::device::
 nb::c_contig> inputArr,
 nb::ndarray<const int8_t, nb::shape<-1>, nb::device::cuda,
 nb::c_contig> radem);
-
-}  // namespace CudaBasicHTransformOps
