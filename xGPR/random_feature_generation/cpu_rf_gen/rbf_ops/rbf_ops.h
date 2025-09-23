@@ -23,39 +23,38 @@ namespace CPURBFKernelCalculations {
 
 
 /// @brief Calculates the random features only for the RBF kernel.
-/// @param inputArr The input features that will be used to generate the RFs.
-/// @param outputArr The array in which random features will be stored.
+/// @param input_arr The input features that will be used to generate the RFs.
+/// @param output_arr The array in which random features will be stored.
 /// @param radem The array storing the diagonal Rademacher matrices.
-/// @param chiArr The array storing the diagonal scaling matrix.
-/// @param fitIntercept Whether to convert the first column to all 1s to fit
+/// @param chi_arr The array storing the diagonal scaling matrix.
+/// @param fit_intercept Whether to convert the first column to all 1s to fit
 /// an intercept.
 template <typename T>
-int rbfFeatureGen_(nb::ndarray<T, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> inputArr,
-nb::ndarray<double, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> outputArr,
+int rbfFeatureGen_(nb::ndarray<T, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> input_arr,
+nb::ndarray<double, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> output_arr,
 nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
-nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
-bool fitIntercept);
+nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chi_arr,
+bool fit_intercept);
 
 
 /// @brief Calculates both the random features and the gradient for the
 /// RBF kernel.
-/// @param inputArr The input features that will be used to generate the RFs and
+/// @param input_arr The input features that will be used to generate the RFs and
 /// gradient.
-/// @param outputArr The array in which random features will be stored.
-/// @param precompWeights The precomputed weight matrix for converting from
-/// input to random features.
+/// @param output_arr The array in which random features will be stored.
+/// @param grad_arr The array in which the gradient will be stored.
 /// @param radem The array storing the diagonal Rademacher matrices.
-/// @param chiArr The array storing the diagonal scaling matrix.
+/// @param chi_arr The array storing the diagonal scaling matrix.
 /// @param sigma The lengthscale hyperparameter.
-/// @param fitIntercept Whether to convert the first column to all 1s to fit
+/// @param fit_intercept Whether to convert the first column to all 1s to fit
 /// an intercept.
 template <typename T>
-int rbfGrad_(nb::ndarray<T, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> inputArr,
-nb::ndarray<double, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> outputArr,
-nb::ndarray<double, nb::shape<-1, -1, 1>, nb::device::cpu, nb::c_contig> gradArr,
+int rbfGrad_(nb::ndarray<T, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> input_arr,
+nb::ndarray<double, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> output_arr,
+nb::ndarray<double, nb::shape<-1, -1, 1>, nb::device::cpu, nb::c_contig> grad_arr,
 nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
-nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
-double sigma, bool fitIntercept);
+nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chi_arr,
+double sigma, bool fit_intercept);
 
 
 }  // namespace CPURBFKernelCalculations

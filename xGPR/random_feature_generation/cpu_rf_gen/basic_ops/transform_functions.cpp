@@ -1,8 +1,4 @@
 /* Copyright (C) 2025 Jonathan Parkinson
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 */
 
 // C++ headers
@@ -22,35 +18,23 @@ namespace nb = nanobind;
 namespace CPUHadamardTransformBasicCalculations {
 
 
-/*!
- * # fastHadamard3dArray_
- *
- * Performs an unnormalized Hadamard transform along the last
- * dimension of an input 3d array. The transform is performed
- * in place.
- *
- * ## Args:
- * + `inputArr` A nanobind reference to a numpy 3d array of shape
- * (N x D x C), where C must be a power of 2.
- * + `numThreads` The number of threads to use.
- */
 template <typename T>
 int fastHadamard3dArray_(nb::ndarray<T, nb::shape<-1, -1, -1>,
-    nb::device::cpu, nb::c_contig> inputArr) {
+    nb::device::cpu, nb::c_contig> input_arr) {
 
     // Perform safety checks. Any exceptions thrown here are handed
     // off to Python by the Nanobind wrapper. We do not expect the user
     // to see these because the Python code will always ensure inputs are
     // correct -- these are a failsafe -- so we do not need to provide
     // detailed exception messages here.
-    int xDim0 = inputArr.shape(0);
-    int xDim1 = inputArr.shape(1);
-    int xDim2 = inputArr.shape(2);
-    T *inputPtr = static_cast<T*>(inputArr.data());
+    int xDim0 = input_arr.shape(0);
+    int xDim1 = input_arr.shape(1);
+    int xDim2 = input_arr.shape(2);
+    T *inputPtr = static_cast<T*>(input_arr.data());
 
-    if (inputArr.shape(0) == 0)
+    if (input_arr.shape(0) == 0)
         throw std::runtime_error("no datapoints");
-    if (inputArr.shape(2) < 2)
+    if (input_arr.shape(2) < 2)
         throw std::runtime_error("last dim not power of 2 > 1");
     if ((xDim2 & (xDim2 - 1)) != 0)
         throw std::runtime_error("last dim not power of 2");
@@ -62,43 +46,30 @@ int fastHadamard3dArray_(nb::ndarray<T, nb::shape<-1, -1, -1>,
 }
 template int fastHadamard3dArray_<double>(
 nb::ndarray<double, nb::shape<-1, -1, -1>,
-nb::device::cpu, nb::c_contig> inputArr);
+nb::device::cpu, nb::c_contig> input_arr);
 
 template int fastHadamard3dArray_<float>(
 nb::ndarray<float, nb::shape<-1, -1, -1>,
-nb::device::cpu, nb::c_contig> inputArr);
+nb::device::cpu, nb::c_contig> input_arr);
 
 
 
 
-/*!
- * # fastHadamard2dArray_
- *
- * Performs an unnormalized Hadamard transform along the last
- * dimension of an input 2d array. The transform is performed
- * in place.
- *
- * ## Args:
- *
- * + `inputArr` A nanobind reference to a numpy array of shape
- * (N x C), where C must be a power of 2.
- * + `numThreads` The number of threads to use.
- */
 template <typename T>
 int fastHadamard2dArray_(nb::ndarray<T, nb::shape<-1, -1>,
-                        nb::device::cpu, nb::c_contig> inputArr) {
+                        nb::device::cpu, nb::c_contig> input_arr) {
     // Perform safety checks. Any exceptions thrown here are handed
     // off to Python by the Nanobind wrapper. We do not expect the user
     // to see these because the Python code will always ensure inputs are
     // correct -- these are a failsafe -- so we do not need to provide
     // detailed exception messages here.
-    int xDim0 = inputArr.shape(0);
-    int xDim1 = inputArr.shape(1);
-    T *inputPtr = static_cast<T*>(inputArr.data());
+    int xDim0 = input_arr.shape(0);
+    int xDim1 = input_arr.shape(1);
+    T *inputPtr = static_cast<T*>(input_arr.data());
 
-    if (inputArr.shape(0) == 0)
+    if (input_arr.shape(0) == 0)
         throw std::runtime_error("no datapoints");
-    if (inputArr.shape(1) < 2)
+    if (input_arr.shape(1) < 2)
         throw std::runtime_error("last dim not power of 2 > 1");
     if ((xDim1 & (xDim1 - 1)) != 0)
         throw std::runtime_error("last dim not power of 2");
@@ -109,50 +80,35 @@ int fastHadamard2dArray_(nb::ndarray<T, nb::shape<-1, -1>,
 }
 template int fastHadamard2dArray_<double>(
 nb::ndarray<double, nb::shape<-1, -1>,
-nb::device::cpu, nb::c_contig> inputArr);
+nb::device::cpu, nb::c_contig> input_arr);
 
 template int fastHadamard2dArray_<float>(
 nb::ndarray<float, nb::shape<-1, -1>,
-nb::device::cpu, nb::c_contig> inputArr);
+nb::device::cpu, nb::c_contig> input_arr);
 
 
 
 
 
 
-/*!
- * # SRHTBlockTransform_
- *
- * Performs the following operation along the last dimension
- * of the input array Z: H D1, where H is a normalized
- * Hadamard transform and D1 is a diagonal array.
- *
- * ## Args:
- *
- * + `inputArr` A nanobind reference to a numpy array of shape
- * (N x C), where C must be a power of 2.
- * + `radem` A diagonal array of shape (C) containing int8_t.
- * + `numThreads` The number of threads to use.
- */
 template <typename T>
-int SRHTBlockTransform(nb::ndarray<T, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> inputArr,
-        nb::ndarray<int8_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> radem) {
-
+int SRHTBlockTransform(nb::ndarray<T, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> input_arr,
+nb::ndarray<int8_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> radem) {
     // Perform safety checks. Any exceptions thrown here are handed
     // off to Python by the Nanobind wrapper. We do not expect the user
     // to see these because the Python code will always ensure inputs are
     // correct -- these are a failsafe -- so we do not need to provide
     // detailed exception messages here.
-    int xDim0 = inputArr.shape(0);
-    int xDim1 = inputArr.shape(1);
-    T *inputPtr = static_cast<T*>(inputArr.data());
+    int xDim0 = input_arr.shape(0);
+    int xDim1 = input_arr.shape(1);
+    T *inputPtr = static_cast<T*>(input_arr.data());
     int8_t *rademPtr = static_cast<int8_t*>(radem.data());
 
-    if (inputArr.shape(0) == 0)
+    if (input_arr.shape(0) == 0)
         throw std::runtime_error("no datapoints");
-    if (inputArr.shape(1) != radem.shape(0))
+    if (input_arr.shape(1) != radem.shape(0))
         throw std::runtime_error("incorrect array dims passed");
-    if (inputArr.shape(1) < 2)
+    if (input_arr.shape(1) < 2)
         throw std::runtime_error("last dim not power of 2 > 1");
     if ((xDim1 & (xDim1 - 1)) != 0)
         throw std::runtime_error("last dim not power of 2");
@@ -164,33 +120,11 @@ int SRHTBlockTransform(nb::ndarray<T, nb::shape<-1, -1>, nb::device::cpu, nb::c_
     return 0;
 }
 template int SRHTBlockTransform<double>(
-nb::ndarray<double, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> inputArr,
+nb::ndarray<double, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> input_arr,
 nb::ndarray<int8_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> radem);
 
 template int SRHTBlockTransform<float>(
-nb::ndarray<float, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> inputArr,
+nb::ndarray<float, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> input_arr,
 nb::ndarray<int8_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> radem);
-
-
-
-
-
-
-/*!
- * # ThreadTransformRows2D
- *
- * Performs the fast Hadamard transform for one thread for a chunk of
- * the input array Z from startRow through endRow (each thread
- * works on its own group of rows).
- */
-template <typename T>
-void *ThreadTransformRows2D(T arrayStart[], int startPosition,
-        int endPosition, int dim1) {
-    CPUHadamardTransformOps::transformRows<T>(arrayStart, startPosition,
-                    endPosition, 1, dim1);
-    return NULL;
-}
-
-
 
 }  // namespace CPUHadamardTransformBasicCalculations

@@ -7,12 +7,22 @@
 #ifndef HADAMARD_TRANSFORM_OPERATIONS_H
 #define HADAMARD_TRANSFORM_OPERATIONS_H
 
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 namespace CPUHadamardTransformOps {
 
+
+/// @brief Runs a fast Hadamard transform on the last dim of a 3d
+/// array.
+/// @param xArray pointer to the first element of the array to be
+/// transformed in place.
+/// @param start_row The first row of the array to transform.
+/// @param end_row The last row of the array to transform.
+/// @param dim1 dim1 (the second of the three dimensions of the
+/// array).
+/// @param dim2 dim2 (the third of the three dimensions of the
+/// array).
 template <typename T>
-void transformRows(T __restrict__ xArray[], int startRow, int endRow,
+void transformRows(T __restrict__ xArray[], int start_row, int end_row,
                     int dim1, int dim2);
 
 

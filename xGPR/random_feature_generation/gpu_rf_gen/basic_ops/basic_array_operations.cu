@@ -1,10 +1,5 @@
-/*
-* Contains tools for basic array operations on GPU -- fast hadamard transforms
-* and SRHT. Note that many operations here assume specific dimensions
-* of the input array are a power of 2. The Cython wrapper checks this, so do
-* not call these routines OUTSIDE of the Cython wrapper -- use the Cython wrapper.
+/* Copyright (C) 2025 Jonathan Parkinson
 */
-
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <stdlib.h>
@@ -16,12 +11,8 @@
 
 namespace nb = nanobind;
 
+namespace CudaBasicHTransformOps {
 
-//Uses shared memory to perform a reasonably efficient single kernel
-//transform up to MAX_BASE_LEVEL_TRANSFORM, then uses a somewhat
-//less efficient global memory procedure to complete the
-//transform if needed. Performs the transform on a single
-//vector of the input.
 template <typename T>
 __global__ void hadamardTransform(T cArray[], int N, int log2N){
     int stepSize = MIN(N, MAX_BASE_LEVEL_TRANSFORM);
@@ -84,12 +75,9 @@ __global__ void hadamardTransform(T cArray[], int N, int log2N){
 }
 
 
-//Performs a Hadamard transform on a 2d array after first multiplying
-//by a diagonal array with entries populated from a Rademacher distribution.
-//This is intended for use with SRHT and related procedures.
 template <typename T>
 __global__ void hadamardTransformRadMult(T cArray[], int N, int log2N,
-        const int8_t *radem, T normConstant){
+const int8_t *radem, T normConstant){
     int stepSize = MIN(N, MAX_BASE_LEVEL_TRANSFORM);
     int nRepeats = N / stepSize;
 
@@ -181,9 +169,9 @@ __global__ void diagonalRademMultiply(T cArray[], const int8_t *rademArray,
 //the [3, 1, P x S] array are used.
 template <typename T>
 __global__ void conv1dDiagonalRademMultiply(T cArray[],
-            const int8_t *rademArray,
-			int dim2, int startPosition, int numElements,
-            T normConstant)
+const int8_t *rademArray,
+int dim2, int startPosition, int numElements,
+T normConstant)
 {
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
     int position = startPosition + (tid & (dim2 - 1));
@@ -199,7 +187,7 @@ __global__ void conv1dDiagonalRademMultiply(T cArray[],
 //dimension of the input array.
 template <typename T>
 int cudaHTransform(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cuda,
-        nb::c_contig> inputArr){
+nb::c_contig> inputArr){
 
     // Perform safety checks. Any exceptions thrown here are handed off to Python
     // by the Nanobind wrapper. We do not expect the user to see these because
@@ -238,9 +226,9 @@ template int cudaHTransform<float>(nb::ndarray<float, nb::shape<-1, -1>, nb::dev
 //Performs the first two steps of SRHT (HD)
 template <typename T>
 int cudaSRHT2d(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cuda,
-        nb::c_contig> inputArr,
-        nb::ndarray<const int8_t, nb::shape<-1>, nb::device::cuda,
-        nb::c_contig> radem) {
+nb::c_contig> inputArr,
+nb::ndarray<const int8_t, nb::shape<-1>, nb::device::cuda,
+nb::c_contig> radem) {
     // Perform safety checks. Any exceptions thrown here are handed off to Python
     // by the Nanobind wrapper. We do not expect the user to see these because
     // the Python code will always ensure inputs are correct -- these are a failsafe
@@ -276,13 +264,14 @@ int cudaSRHT2d(nb::ndarray<T, nb::shape<-1,-1>, nb::device::cuda,
     //cudaProfilerStop();
     return 0;
 }
-//Instantiate templates explicitly so wrapper can use.
 template int cudaSRHT2d<double>(nb::ndarray<double, nb::shape<-1,-1>, nb::device::cuda,
-        nb::c_contig> inputArr,
-        nb::ndarray<const int8_t, nb::shape<-1>, nb::device::cuda,
-        nb::c_contig> radem);
+nb::c_contig> inputArr,
+nb::ndarray<const int8_t, nb::shape<-1>, nb::device::cuda,
+nb::c_contig> radem);
 
 template int cudaSRHT2d<float>(nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda,
-        nb::c_contig> inputArr,
-        nb::ndarray<const int8_t, nb::shape<-1>, nb::device::cuda,
-        nb::c_contig> radem);
+nb::c_contig> inputArr,
+nb::ndarray<const int8_t, nb::shape<-1>, nb::device::cuda,
+nb::c_contig> radem);
+
+}  // namespace CudaBasicHTransformOps

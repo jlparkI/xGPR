@@ -1,12 +1,9 @@
 /* Copyright (C) 2025 Jonathan Parkinson
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 */
 // C++ headers
 #include <math.h>
 #include <vector>
+#include <algorithm>
 
 // Library headers
 
@@ -22,24 +19,13 @@ namespace CPUMaxpoolKernelCalculations {
 
 
 
-/// @brief Generates random features for the static layer FastConv1d-type
-/// feature generator.
-/// @param inputArr The input features that will be used to generate the RFs.
-/// @param outputArr The array in which random features will be stored.
-/// @param radem The array in which the diagonal Rademacher matrices are
-/// stored.
-/// @param chiArr The array in which the diagonal scaling matrix is stored.
-/// @param seqlengths The array storing the length of each sequence in
-/// inputArr.
-/// @param convWidth The width of the convolution kernel.
 template <typename T>
 int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
-        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
-        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
-        nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth) {
-
+nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> output_arr,
+nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
+nb::ndarray<T, nb::shape<-1>, nb::device::cpu, nb::c_contig> chi_arr,
+nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+int convWidth) {
     // Perform safety checks. Any exceptions thrown here are handed
     // off to Python by the Nanobind wrapper. We do not expect the
     // user to see these because the Python code will always ensure
@@ -48,20 +34,20 @@ int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu
     int xDim0 = inputArr.shape(0);
     int xDim1 = inputArr.shape(1);
     int xDim2 = inputArr.shape(2);
-    size_t numRffs = outputArr.shape(1);
-    size_t numFreqs = chiArr.shape(0);
+    size_t numRffs = output_arr.shape(1);
+    size_t num_freqs = chi_arr.shape(0);
 
     T *inputPtr = static_cast<T*>(inputArr.data());
-    float *outputPtr = static_cast<float*>(outputArr.data());
-    T *chiPtr = static_cast<T*>(chiArr.data());
+    float *outputPtr = static_cast<float*>(output_arr.data());
+    T *chiPtr = static_cast<T*>(chi_arr.data());
     int8_t *rademPtr = static_cast<int8_t*>(radem.data());
     int32_t *seqlengthsPtr = static_cast<int32_t*>(seqlengths.data());
 
-    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+    if (inputArr.shape(0) == 0 || output_arr.shape(0) != inputArr.shape(0))
         throw std::runtime_error("no datapoints");
     if (numRffs < 2 || (numRffs & 1) != 0)
         throw std::runtime_error("last dim of output must be even number");
-    if ( numFreqs != numRffs || numFreqs > radem.shape(2) )
+    if ( num_freqs != numRffs || num_freqs > radem.shape(2) )
         throw std::runtime_error("incorrect number of rffs and or freqs.");
 
     if (seqlengths.shape(0) != inputArr.shape(0))
@@ -70,11 +56,11 @@ int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu
         throw std::runtime_error("invalid conv_width");
 
     double expectedNFreq = static_cast<double>(convWidth * inputArr.shape(2));
-    expectedNFreq = MAX(expectedNFreq, 2);
+    expectedNFreq = std::max(expectedNFreq, 2.);
     double log2Freqs = std::log2(expectedNFreq);
     log2Freqs = std::ceil(log2Freqs);
     int paddedBufferSize = std::pow(2, log2Freqs);
-    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
+    int numRepeats = (num_freqs + paddedBufferSize - 1) / paddedBufferSize;
 
     if (radem.shape(2) % paddedBufferSize != 0 ||
             radem.shape(2) != numRepeats * paddedBufferSize) {
@@ -90,9 +76,10 @@ int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu
             minSeqLength = seqlengths(i);
     }
 
-    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth) {
-        throw std::runtime_error("All sequence lengths must be >= conv width and < "
-                "array size.");
+    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1))
+            || minSeqLength < convWidth) {
+        throw std::runtime_error("All sequence lengths must "
+                "be >= conv width and < array size.");
     }
 
     #pragma omp parallel
@@ -125,7 +112,7 @@ int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu
                         rademPtr, repeatPosition, rademShape2,
                         paddedBufferSize);
                 singleVectorMaxpoolPostProcess(copyBuffer, chiPtr, outputPtr,
-                        paddedBufferSize, numFreqs, i, k);
+                        paddedBufferSize, num_freqs, i, k);
                 repeatPosition += paddedBufferSize;
             }
         }
@@ -137,83 +124,45 @@ int conv1dMaxpoolFeatureGen_(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cpu
 }
 template int conv1dMaxpoolFeatureGen_<double>(
 nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
-nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> outputArr,
+nb::ndarray<float, nb::shape<-1,-1>, nb::device::cpu, nb::c_contig> output_arr,
 nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
-nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+nb::ndarray<double, nb::shape<-1>, nb::device::cpu, nb::c_contig> chi_arr,
 nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
 int convWidth);
 
 template int conv1dMaxpoolFeatureGen_<float>(
 nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cpu, nb::c_contig> inputArr,
-nb::ndarray<float, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> outputArr,
+nb::ndarray<float, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig> output_arr,
 nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cpu, nb::c_contig> radem,
-nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chiArr,
+nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig> chi_arr,
 nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
 int convWidth);
 
 
 
-/*!
- * # allInOneConvMaxpoolGen
- *
- * Performs the maxpool-based convolution kernel feature generation
- * process for the input, for one thread.
- */
-template <typename T>
-void *allInOneConvMaxpoolGen(T xdata[], int8_t *rademArray, T chiArr[],
-        float *outputArray, int32_t *seqlengths, int dim1, int dim2,
-        int numFreqs, int startRow, int endRow,
-        int convWidth, int paddedBufferSize) {
-
-    return NULL;
-}
 
 
-
-
-
-
-
-/*!
- * # singleVectorMaxpoolPostProcess
- *
- * Performs the last steps in RBF-based convolution kernel feature
- * generation for a single convolution element.
- *
- * ## Args:
- * + `xdata` Pointer to the first element of the array that has been
- * used for the convolution. Shape is (C). C must be a power of 2.
- * + `chiArr` Pointer to the first element of chiArr, a diagonal matrix
- * that will be multipled against xdata.
- * + `outputArray` A pointer to the first element of the array in which
- * the output will be stored.
- * + `dim2` The last dimension of xdata
- * + `numFreqs` The number of frequencies to sample.
- * + `rowNumber` The row of the output array to use.
- * + `repeatNum` The repeat number
- * + `convWidth` The convolution width
- *
- */
 template <typename T>
 void singleVectorMaxpoolPostProcess(const T xdata[],
-        const T chiArr[], float *outputArray,
-        int dim2, int numFreqs,
-        int rowNumber, int repeatNum) {
-    int outputStart = repeatNum * dim2;
+const T chi_arr[], float *output_array,
+int dim2, int num_freqs,
+int row_number, int repeat_num) {
+    int output_start = repeat_num * dim2;
     float *__restrict xOut;
     const T *chiIn;
     // NOTE: MIN is defined in the header.
-    int endPosition = MIN(numFreqs, (repeatNum + 1) * dim2);
-    endPosition -= outputStart;
+    int endPosition = std::min(num_freqs,
+            (repeat_num + 1) * dim2);
+    endPosition -= output_start;
 
-    chiIn = chiArr + outputStart;
-    xOut = outputArray + outputStart + rowNumber * numFreqs;
+    chiIn = chi_arr + output_start;
+    xOut = output_array + output_start + row_number * num_freqs;
 
     #pragma omp simd
     for (int i=0; i < endPosition; i++) {
-        T prodVal = xdata[i] * chiIn[i];
+        float prodVal = xdata[i] * chiIn[i];
         // NOTE: MAX is defined in the header.
-        *xOut = MAX(*xOut, prodVal);
+        *xOut = std::max(*xOut, prodVal);
         xOut++;
     }
 }

@@ -1,45 +1,46 @@
-/*
-* Contains all functions needed to generate features for the FastConv operation
-* and other non-RBF convolution operations.
+/* Copyright (C) 2025 Jonathan Parkinson
 */
+// C++ headers
+#include <math.h>
+#include <stdint.h>
+
+// Library headers
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <stdint.h>
-#include <math.h>
+
+// Project headers
 #include "../shared_constants.h"
 #include "../sharedmem.h"
 #include "convolution.h"
 
-//Generates the FastConv kernel features. This single kernel loops over 1) kmers
-//then 2) the number of repeats then inside that loop 3) the three diagonal
-//matrix multiplications and fast Hadamard transforms before
-//applying 4) diagonal matmul before activation function.
+namespace CudaMaxpoolConvHTransformOps {
+
 template <typename T>
 __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
-        float *outputArray, const T chiArr[], const int8_t *radem,
-        int paddedBufferSize, int log2N, int numFreqs, int xDim1, int xDim2,
-        int nRepeats, T normConstant, int convWidth,
-        const int32_t *seqlengths, int rademShape2){
+float *output_array, const T chi_arr[], const int8_t *radem,
+int padded_buffer_size, int log2N, int num_freqs, int xDim1, int xDim2,
+int nRepeats, T norm_constant, int conv_width,
+const int32_t *seqlengths, int rademShape2){
 
-    int stepSize = MIN(paddedBufferSize, MAX_BASE_LEVEL_TRANSFORM);
-    int colCutoff = seqlengths[blockIdx.x] - convWidth + 1;
+    int step_size = MIN(padded_buffer_size, MAX_BASE_LEVEL_TRANSFORM);
+    int col_cutoff = seqlengths[blockIdx.x] - conv_width + 1;
 
     SharedMemory<T> shared;
     T *s_data = shared.getPointer();
     int spacing, pos = threadIdx.x;
     int lo, id1, id2;
-    int tempArrPos, chiArrPos = 0, inputCutoff = xDim2 * convWidth;
-    int inputArrPos = (blockIdx.x * xDim1 * xDim2);
-    int outputArrPos = (blockIdx.x * numFreqs);
+    int tempArrPos, chi_arrPos = 0, inputCutoff = xDim2 * conv_width;
+    int input_arrPos = (blockIdx.x * xDim1 * xDim2);
+    int output_arrPos = (blockIdx.x * num_freqs);
     T y, outputVal;
 
-    const int8_t *rademPtr = radem;
+    const int8_t *radem_ptr = radem;
 
     //Loop over the kmers in this stretch.
-    for (int kmer = 0; kmer < colCutoff; kmer++){
-        chiArrPos = 0;
-        outputArrPos = (blockIdx.x * numFreqs);
-        inputArrPos = (blockIdx.x * xDim1 * xDim2) + kmer * xDim2;
+    for (int kmer = 0; kmer < col_cutoff; kmer++){
+        chi_arrPos = 0;
+        output_arrPos = (blockIdx.x * num_freqs);
+        input_arrPos = (blockIdx.x * xDim1 * xDim2) + kmer * xDim2;
 
         //Run over the number of repeats required to generate the random
         //features.
@@ -47,29 +48,29 @@ __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
             tempArrPos = (blockIdx.x << log2N);
 
             //Copy original data into the temporary array.
-            for (int i = threadIdx.x; i < paddedBufferSize; i += blockDim.x){
+            for (int i = threadIdx.x; i < padded_buffer_size; i += blockDim.x){
                 if (i < inputCutoff)
-                    cArray[i + tempArrPos] = origData[i + inputArrPos];
+                    cArray[i + tempArrPos] = origData[i + input_arrPos];
                 else
                     cArray[i + tempArrPos] = 0;
             }
 
             //Run over three repeats for the SORF procedure.
             for (int sorfRep = 0; sorfRep < 3; sorfRep++){
-                rademPtr = radem + paddedBufferSize * rep + sorfRep * rademShape2;
+                radem_ptr = radem + padded_buffer_size * rep + sorfRep * rademShape2;
                 tempArrPos = (blockIdx.x << log2N);
 
-                for (int hStep = 0; hStep < paddedBufferSize; hStep+=stepSize){
-                    for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
+                for (int hStep = 0; hStep < padded_buffer_size; hStep+=step_size){
+                    for (int i = threadIdx.x; i < step_size; i += blockDim.x)
                         s_data[i] = cArray[i + tempArrPos];
 
                     __syncthreads();
 
                     //Multiply by the diagonal array here.
-                    for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
-                        s_data[i] = s_data[i] * rademPtr[i] * normConstant;
+                    for (int i = threadIdx.x; i < step_size; i += blockDim.x)
+                        s_data[i] = s_data[i] * radem_ptr[i] * norm_constant;
 
-                    rademPtr += stepSize;
+                    radem_ptr += step_size;
 
                     id1 = (pos << 1);
                     id2 = id1 + 1;
@@ -78,7 +79,7 @@ __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
                     s_data[id2] = s_data[id1] - y;
                     s_data[id1] += y;
 
-                    for (spacing = 2; spacing < stepSize; spacing <<= 1){
+                    for (spacing = 2; spacing < step_size; spacing <<= 1){
                         //Equivalent to pos mod spacing if spacing is a power of 2,
                         //which here is always true.
                         lo = pos & (spacing - 1);
@@ -91,21 +92,21 @@ __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
                     }
                     __syncthreads();
 
-                    for (int i = threadIdx.x; i < stepSize; i += blockDim.x)
+                    for (int i = threadIdx.x; i < step_size; i += blockDim.x)
                         cArray[i + tempArrPos] = s_data[i];
 
-                    tempArrPos += stepSize;
+                    tempArrPos += step_size;
                     __syncthreads();
                 }
 
                 //A less efficient global memory procedure to complete the FHT
                 //for long arrays.
-                if (paddedBufferSize > MAX_BASE_LEVEL_TRANSFORM){
+                if (padded_buffer_size > MAX_BASE_LEVEL_TRANSFORM){
                     tempArrPos = (blockIdx.x << log2N);
 
-                    for (int spacing = stepSize; spacing < paddedBufferSize; spacing <<= 1){
+                    for (int spacing = step_size; spacing < padded_buffer_size; spacing <<= 1){
 
-                        for (int k = 0; k < paddedBufferSize; k += (spacing << 1)){
+                        for (int k = 0; k < padded_buffer_size; k += (spacing << 1)){
                             for (int i = threadIdx.x; i < spacing; i += blockDim.x){
                                 id1 = i + k + tempArrPos;
                                 id2 = id1 + spacing;
@@ -122,15 +123,15 @@ __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
             //activation function, and populate the output array.
             tempArrPos = (blockIdx.x << log2N);
 
-            for (int i = threadIdx.x; i < paddedBufferSize; i += blockDim.x){
-                if ((i + chiArrPos) >= numFreqs)
+            for (int i = threadIdx.x; i < padded_buffer_size; i += blockDim.x){
+                if ((i + chi_arrPos) >= num_freqs)
                     break;
-                outputVal = chiArr[chiArrPos + i] * cArray[tempArrPos + i];
-                outputArray[outputArrPos + i] = MAX(outputArray[outputArrPos + i], outputVal);
+                outputVal = chi_arr[chiArrPos + i] * cArray[tempArrPos + i];
+                output_array[outputArrPos + i] = MAX(outputArray[outputArrPos + i], outputVal);
             }
 
-            chiArrPos += paddedBufferSize;
-            outputArrPos += paddedBufferSize;
+            chi_arrPos += padded_buffer_size;
+            output_arrPos += padded_buffer_size;
             __syncthreads();
         }
     }
@@ -138,50 +139,49 @@ __global__ void convMaxpoolFeatureGenKernel(const T origData[], T cArray[],
 
 
 
-//This function generates and sums random features for a Conv1d Maxpool-type kernel.
 template <typename T>
-int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
-        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
-        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
-        nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth) {
+int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> input_arr,
+nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> output_arr,
+nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
+nb::ndarray<T, nb::shape<-1>, nb::device::cuda, nb::c_contig> chi_arr,
+nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+int conv_width) {
 
     // Perform safety checks. Any exceptions thrown here are handed off to Python
     // by the Nanobind wrapper. We do not expect the user to see these because
     // the Python code will always ensure inputs are correct -- these are a failsafe
     // -- so we do not need to provide detailed exception messages here.
-    int zDim0 = inputArr.shape(0);
-    int zDim1 = inputArr.shape(1);
-    int zDim2 = inputArr.shape(2);
-    size_t numRffs = outputArr.shape(1);
-    size_t numFreqs = chiArr.shape(0);
+    int zDim0 = input_arr.shape(0);
+    int zDim1 = input_arr.shape(1);
+    int zDim2 = input_arr.shape(2);
+    size_t num_rffs = output_arr.shape(1);
+    size_t num_freqs = chi_arr.shape(0);
 
-    T *inputPtr = static_cast<T*>(inputArr.data());
-    float *outputPtr = static_cast<float*>(outputArr.data());
-    T *chiPtr = static_cast<T*>(chiArr.data());
-    int8_t *rademPtr = static_cast<int8_t*>(radem.data());
+    T *input_ptr = static_cast<T*>(input_arr.data());
+    float *output_ptr = static_cast<float*>(output_arr.data());
+    T *chi_ptr = static_cast<T*>(chi_arr.data());
+    int8_t *radem_ptr = static_cast<int8_t*>(radem.data());
     int32_t *seqlengthsPtr = static_cast<int32_t*>(seqlengths.data());
 
-    if (inputArr.shape(0) == 0 || outputArr.shape(0) != inputArr.shape(0))
+    if (input_arr.shape(0) == 0 || output_arr.shape(0) != input_arr.shape(0))
         throw std::runtime_error("no datapoints");
-    if (numRffs < 2 || (numRffs & 1) != 0)
+    if (num_rffs < 2 || (num_rffs & 1) != 0)
         throw std::runtime_error("last dim of output must be even number");
-    if ( numFreqs != numRffs || numFreqs > radem.shape(2) )
+    if (num_freqs != num_rffs || num_freqs > radem.shape(2) )
         throw std::runtime_error("incorrect number of rffs and or freqs.");
 
-    if (seqlengths.shape(0) != inputArr.shape(0))
+    if (seqlengths.shape(0) != input_arr.shape(0))
         throw std::runtime_error("wrong array sizes");
-    if (static_cast<int>(inputArr.shape(1)) < convWidth || convWidth <= 0)
+    if (static_cast<int>(input_arr.shape(1)) < conv_width || convWidth <= 0)
         throw std::runtime_error("invalid conv_width");
 
-    double expectedNFreq = static_cast<double>(convWidth * inputArr.shape(2));
+    double expectedNFreq = static_cast<double>(conv_width * input_arr.shape(2));
     expectedNFreq = MAX(expectedNFreq, 2);
     double log2Freqs = std::log2(expectedNFreq);
     log2Freqs = std::ceil(log2Freqs);
-    int paddedBufferSize = std::pow(2, log2Freqs);
+    int padded_buffer_size = std::pow(2, log2Freqs);
 
-    if (radem.shape(2) % paddedBufferSize != 0)
+    if (radem.shape(2) % padded_buffer_size != 0)
         throw std::runtime_error("incorrect number of rffs and or freqs.");
 
 
@@ -193,7 +193,7 @@ int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda
             minSeqLength = seqlengths(i);
     }
 
-    if (maxSeqLength > static_cast<int32_t>(inputArr.shape(1)) || minSeqLength < convWidth){
+    if (maxSeqLength > static_cast<int32_t>(input_arr.shape(1)) || minSeqLength < conv_width){
         throw std::runtime_error("All sequence lengths must be >= conv width and < "
                 "array size.");
     }
@@ -214,43 +214,48 @@ int conv1dMaxpoolFeatureGen(nb::ndarray<T, nb::shape<-1,-1,-1>, nb::device::cuda
 
 
 
-    int numKmers = zDim1 - convWidth + 1;
-    int numElements = zDim0 * numKmers * paddedBufferSize;
+    int num_kmers = zDim1 - conv_width + 1;
+    int num_elements = zDim0 * num_kmers * padded_buffer_size;
 
-    T *featureArray;
-    if (cudaMalloc(&featureArray, sizeof(T) * numElements) != cudaSuccess) {
+    T *feature_array;
+    if (cudaMalloc(&feature_array, sizeof(T) * num_elements) != cudaSuccess) {
         cudaFree(slenCudaPtr);
-        cudaFree(featureArray);
+        cudaFree(feature_array);
         throw std::runtime_error("Cuda is out of memory");
         return 1;
     };
 
     //This is the Hadamard normalization constant.
-    T normConstant = log2(paddedBufferSize) / 2;
-    normConstant = 1 / pow(2, normConstant);
-    int stepSize = MIN(MAX_BASE_LEVEL_TRANSFORM, paddedBufferSize);
-    int log2N = log2(paddedBufferSize);
+    T norm_constant = log2(padded_buffer_size) / 2;
+    norm_constant = 1 / pow(2, normConstant);
+    int step_size = MIN(MAX_BASE_LEVEL_TRANSFORM, padded_buffer_size);
+    int log2N = log2(padded_buffer_size);
 
-    int numRepeats = (numFreqs + paddedBufferSize - 1) / paddedBufferSize;
+    int num_repeats = (num_freqs + padded_buffer_size - 1) / paddedBufferSize;
 
-    convMaxpoolFeatureGenKernel<T><<<zDim0, stepSize / 2, stepSize * sizeof(T)>>>(inputPtr,
-            featureArray, outputPtr, chiPtr, rademPtr, paddedBufferSize, log2N, numFreqs,
-            zDim1, zDim2, numRepeats, normConstant, convWidth, slenCudaPtr, radem.shape(2));
+    convMaxpoolFeatureGenKernel<T><<<zDim0, step_size / 2, stepSize * sizeof(T)>>>(input_ptr,
+            feature_array, output_ptr, chi_ptr, radem_ptr, padded_buffer_size, log2N, num_freqs,
+            zDim1, zDim2, num_repeats, norm_constant, conv_width, slenCudaPtr, radem.shape(2));
 
     cudaFree(slenCudaPtr);
-    cudaFree(featureArray);
+    cudaFree(feature_array);
     return 0;
 }
 //Explicitly instantiate so wrapper can use.
-template int conv1dMaxpoolFeatureGen<double>(nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
-        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
-        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
-        nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth);
-template int conv1dMaxpoolFeatureGen<float>(nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> inputArr,
-        nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> outputArr,
-        nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
-        nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chiArr,
-        nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
-        int convWidth);
+template int conv1dMaxpoolFeatureGen<double>(
+nb::ndarray<double, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> input_arr,
+nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> output_arr,
+nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
+nb::ndarray<double, nb::shape<-1>, nb::device::cuda, nb::c_contig> chi_arr,
+nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+int conv_width);
+template int conv1dMaxpoolFeatureGen<float>(
+nb::ndarray<float, nb::shape<-1,-1,-1>, nb::device::cuda, nb::c_contig> input_arr,
+nb::ndarray<float, nb::shape<-1,-1>, nb::device::cuda, nb::c_contig> output_arr,
+nb::ndarray<int8_t, nb::shape<3, 1, -1>, nb::device::cuda, nb::c_contig> radem,
+nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chi_arr,
+nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
+int conv_width);
+
+
+}  // namespace CudaMaxpoolConvHTransformOps

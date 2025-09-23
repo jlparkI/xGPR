@@ -1,8 +1,4 @@
 /* Copyright (C) 2025 Jonathan Parkinson
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 */
 // C++ headers
 #include <math.h>
@@ -17,18 +13,16 @@
 namespace CPUHadamardTransformOps {
 
 
-
-
 template <typename T>
-void transformRows(T __restrict__ xArray[], int startRow, int endRow,
-                    int dim1, int dim2) {
+void transformRows(T __restrict__ xArray[], int start_row, int end_row,
+int dim1, int dim2) {
     T y;
-    int rowStride = dim1 * dim2;
-    int end_pos = endRow * rowStride;
+    int row_stride = dim1 * dim2;
+    int end_pos = end_row * row_stride;
 
-    for (int idx1 = startRow; idx1 < endRow; idx1++) {
-        int start_pos = idx1 * rowStride;
-        int end_pos = start_pos + rowStride;
+    for (int idx1 = start_row; idx1 < end_row; idx1++) {
+        int start_pos = idx1 * row_stride;
+        int end_pos = start_pos + row_stride;
 
         #pragma omp simd
         for (int i = start_pos; i < end_pos; i += 2) {
@@ -76,28 +70,15 @@ void transformRows(T __restrict__ xArray[], int startRow, int endRow,
     }
 }
 template void transformRows<double>(double *__restrict__ xArray,
-int startRow, int endRow, int dim1, int dim2);
+int start_row, int end_row, int dim1, int dim2);
 template void transformRows<float>(float *__restrict__ xArray,
-int startRow, int endRow, int dim1, int dim2);
+int start_row, int end_row, int dim1, int dim2);
 
 
 
 
 
 
-/*!
- * # singleVectorTransform
- *
- * Performs an unnormalized Hadamard transform along a single
- * vector, which allows for some simplifications.
- *
- * ## Args:
- *
- * + `xArray` Pointer to the first element of the array to be
- * modified. Must be a 1d array (e.g. C). C MUST be
- * a power of 2.
- * + `dim` The length of the array.
- */
 template <typename T>
 void singleVectorTransform(T __restrict__ xArray[], int dim) {
     T y;
