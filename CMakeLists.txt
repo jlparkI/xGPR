@@ -59,14 +59,14 @@ nanobind_add_module(
 
   NB_STATIC
 
-  xGPR/random_feature_generation/cpu_rf_gen/xgpr_cpu_rfgen_cpp_ext.cpp
-  xGPR/random_feature_generation/cpu_rf_gen/shared_fht_functions/hadamard_transforms.cpp
-  xGPR/random_feature_generation/cpu_rf_gen/shared_fht_functions/shared_rfgen_ops.cpp
-  xGPR/random_feature_generation/cpu_rf_gen/basic_ops/transform_functions.cpp
-  xGPR/random_feature_generation/cpu_rf_gen/rbf_ops/rbf_ops.cpp
-  xGPR/random_feature_generation/cpu_rf_gen/rbf_ops/ard_ops.cpp
-  xGPR/random_feature_generation/cpu_rf_gen/convolution_ops/conv1d_operations.cpp
-  xGPR/random_feature_generation/cpu_rf_gen/convolution_ops/rbf_convolution.cpp
+  src/xGPR/random_feature_generation/cpu_rf_gen/xgpr_cpu_rfgen_cpp_ext.cpp
+  src/xGPR/random_feature_generation/cpu_rf_gen/shared_fht_functions/hadamard_transforms.cpp
+  src/xGPR/random_feature_generation/cpu_rf_gen/shared_fht_functions/shared_rfgen_ops.cpp
+  src/xGPR/random_feature_generation/cpu_rf_gen/basic_ops/transform_functions.cpp
+  src/xGPR/random_feature_generation/cpu_rf_gen/rbf_ops/rbf_ops.cpp
+  src/xGPR/random_feature_generation/cpu_rf_gen/rbf_ops/ard_ops.cpp
+  src/xGPR/random_feature_generation/cpu_rf_gen/convolution_ops/conv1d_operations.cpp
+  src/xGPR/random_feature_generation/cpu_rf_gen/convolution_ops/rbf_convolution.cpp
 
 )
 
@@ -82,12 +82,12 @@ if (CMAKE_CUDA_COMPILER)
 
         NB_STATIC
 
-    xGPR/random_feature_generation/gpu_rf_gen/xgpr_cuda_rfgen_cpp_ext.cpp
-    xGPR/random_feature_generation/gpu_rf_gen/basic_ops/basic_array_operations.cu
-    xGPR/random_feature_generation/gpu_rf_gen/rbf_ops/rbf_ops.cu
-    xGPR/random_feature_generation/gpu_rf_gen/rbf_ops/ard_ops.cu
-    xGPR/random_feature_generation/gpu_rf_gen/convolution_ops/convolution.cu
-    xGPR/random_feature_generation/gpu_rf_gen/convolution_ops/rbf_convolution.cu
+    src/xGPR/random_feature_generation/gpu_rf_gen/xgpr_cuda_rfgen_cpp_ext.cpp
+    src/xGPR/random_feature_generation/gpu_rf_gen/basic_ops/basic_array_operations.cu
+    src/xGPR/random_feature_generation/gpu_rf_gen/rbf_ops/rbf_ops.cu
+    src/xGPR/random_feature_generation/gpu_rf_gen/rbf_ops/ard_ops.cu
+    src/xGPR/random_feature_generation/gpu_rf_gen/convolution_ops/convolution.cu
+    src/xGPR/random_feature_generation/gpu_rf_gen/convolution_ops/rbf_convolution.cu
 
     )
     install(TARGETS xgpr_cuda_rfgen_cpp_ext LIBRARY DESTINATION ${SKBUILD_PROJECT_NAME})
