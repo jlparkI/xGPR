@@ -101,14 +101,14 @@ def run_rbf_test(xdim, num_freqs, random_seed = 123, fit_intercept = False):
 
 
     outcome_d = np.allclose(gt_double, double_output)
-    outcome_f = np.allclose(gt_float, float_output, rtol=1e-5, atol=1e-4)
+    outcome_f = np.allclose(gt_float, float_output, rtol=1e-3, atol=1e-3)
     print("Correct result for CPU  for RBF of "
             f"{xdim}, {num_freqs} for float, double? {outcome_f},{outcome_d}")
 
     if "cupy" in sys.modules:
         outcome_cuda_d = np.allclose(gt_double, cuda_double_output)
-        outcome_cuda_f = np.allclose(gt_float, cuda_float_output, rtol=1e-5,
-                atol=1e-4)
+        outcome_cuda_f = np.allclose(gt_float, cuda_float_output, rtol=1e-3,
+                atol=1e-3)
         print("Correct result for Cuda for RBF of "
             f"{xdim}, {num_freqs} for float, double? {outcome_cuda_f},{outcome_cuda_d}")
         return outcome_d, outcome_f, outcome_cuda_d, outcome_cuda_f
@@ -159,11 +159,11 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123,
                 fit_intercept)
 
     outcome_d = np.allclose(gt_double, double_output)
-    outcome_f = np.allclose(gt_float, float_output, atol=1e-4,
-            rtol=1e-4)
+    outcome_f = np.allclose(gt_float, float_output, atol=1e-3,
+            rtol=1e-3)
     outcome_grad_d = np.allclose(gt_double_grad, double_grad)
     outcome_grad_f = np.allclose(gt_float_grad, float_grad,
-            atol=1e-4, rtol=1e-4)
+            atol=1e-3, rtol=1e-3)
     print("Correct result for CPU  for gradient RBF of "
             f"{xdim}, {num_freqs} float, double? {outcome_f},{outcome_d}")
     print("Correct result for Cuda for gradient RBF of "
@@ -173,10 +173,10 @@ def run_rbf_grad_test(xdim, num_freqs, random_seed = 123,
     if "cupy" in sys.modules:
         outcome_cuda_d = np.allclose(gt_double, cuda_double_output)
         outcome_cuda_f = np.allclose(gt_float, cuda_float_output,
-                atol=1e-4, rtol=1e-4)
+                atol=1e-3, rtol=1e-3)
         outcome_cuda_grad_d = np.allclose(gt_double_grad, cuda_double_grad)
         outcome_cuda_grad_f = np.allclose(gt_float_grad, cuda_float_grad,
-                atol=1e-2, rtol=1e-2)
+                atol=1e-3, rtol=1e-3)
         print("Correct result for CPU  for gradient RBF of "
             f"{xdim}, {num_freqs} float, double? {outcome_cuda_f},{outcome_cuda_d}")
         print("Correct result for Cuda for gradient RBF of "

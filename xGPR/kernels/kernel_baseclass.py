@@ -9,9 +9,7 @@ import abc
 from abc import ABC
 
 import numpy as np
-from xGPR.xgpr_cpu_rfgen_cpp_ext import cpuPrepPooledCovCalc
 try:
-    from xGPR.xgpr_cuda_rfgen_cpp_ext import cudaPrepPooledCovCalc
     import cupy as cp
 except:
     pass

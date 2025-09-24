@@ -274,18 +274,18 @@ bool fit_intercept) {
     int zDim1 = input_arr.shape(1);
     size_t num_rffs = output_arr.shape(1);
     size_t num_freqs = chi_arr.shape(0);
-    double num_freqsFlt = numFreqs;
+    double num_freqsFlt = num_freqs;
 
     const T *input_ptr = input_arr.data();
     double *output_ptr = output_arr.data();
     const T *chi_ptr = chi_arr.data();
     const int8_t *rademPtr = radem.data();
 
-    if (input_arr.shape(0) == 0 || output_arr.shape(0) != inputArr.shape(0))
+    if (input_arr.shape(0) == 0 || output_arr.shape(0) != input_arr.shape(0))
         throw std::runtime_error("no datapoints");
-    if (num_rffs < 2 || (numRffs & 1) != 0)
+    if (num_rffs < 2 || (num_rffs & 1) != 0)
         throw std::runtime_error("last dim of output must be even number");
-    if ( (2 * num_freqs) != num_rffs || numFreqs > radem.shape(2) )
+    if ( (2 * num_freqs) != num_rffs || num_freqs > radem.shape(2) )
         throw std::runtime_error("incorrect number of rffs and or freqs.");
 
     double expectedNFreq = (zDim1 > 2) ? static_cast<double>(zDim1) : 2.0;
@@ -305,8 +305,8 @@ bool fit_intercept) {
 
     //This is the Hadamard normalization constant.
     T norm_constant = log2(padded_buffer_size) / 2;
-    norm_constant = 1 / pow(2, normConstant);
-    int num_repeats = (num_freqs + padded_buffer_size - 1) / paddedBufferSize;
+    norm_constant = 1 / pow(2, norm_constant);
+    int num_repeats = (num_freqs + padded_buffer_size - 1) / padded_buffer_size;
     int stepSize = MIN(MAX_BASE_LEVEL_TRANSFORM, padded_buffer_size);
     int log2N = log2(padded_buffer_size);
 
@@ -356,7 +356,7 @@ float sigma, bool fit_intercept) {
     int zDim1 = input_arr.shape(1);
     size_t num_rffs = output_arr.shape(1);
     size_t num_freqs = chi_arr.shape(0);
-    double num_freqsFlt = numFreqs;
+    double num_freqsFlt = num_freqs;
 
     const T *input_ptr = input_arr.data();
     double *output_ptr = output_arr.data();
@@ -364,13 +364,13 @@ float sigma, bool fit_intercept) {
     const T *chi_ptr = chi_arr.data();
     const int8_t *rademPtr = radem.data();
 
-    if (input_arr.shape(0) == 0 || output_arr.shape(0) != inputArr.shape(0))
+    if (input_arr.shape(0) == 0 || output_arr.shape(0) != input_arr.shape(0))
         throw std::runtime_error("no datapoints");
-    if (num_rffs < 2 || (numRffs & 1) != 0)
+    if (num_rffs < 2 || (num_rffs & 1) != 0)
         throw std::runtime_error("last dim of output must be even number");
-    if ( (2 * num_freqs) != num_rffs || numFreqs > radem.shape(2) )
+    if ( (2 * num_freqs) != num_rffs || num_freqs > radem.shape(2) )
         throw std::runtime_error("incorrect number of rffs and or freqs.");
-    if (grad_arr.shape(0) != output_arr.shape(0) || gradArr.shape(1) != outputArr.shape(1))
+    if (grad_arr.shape(0) != output_arr.shape(0) || grad_arr.shape(1) != output_arr.shape(1))
         throw std::runtime_error("Wrong array sizes.");
 
     double expectedNFreq = (zDim1 > 2) ? static_cast<double>(zDim1) : 2.0;
@@ -391,8 +391,8 @@ float sigma, bool fit_intercept) {
 
     //This is the Hadamard normalization constant.
     T norm_constant = log2(padded_buffer_size) / 2;
-    norm_constant = 1 / pow(2, normConstant);
-    int num_repeats = (num_freqs + padded_buffer_size - 1) / paddedBufferSize;
+    norm_constant = 1 / pow(2, norm_constant);
+    int num_repeats = (num_freqs + padded_buffer_size - 1) / padded_buffer_size;
     int stepSize = MIN(MAX_BASE_LEVEL_TRANSFORM, padded_buffer_size);
     int log2N = log2(padded_buffer_size);
 

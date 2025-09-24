@@ -20,16 +20,15 @@ void multiplyByDiagonalRademacherMat2D(T __restrict xArray[],
 const int8_t *radem_array,
 int dim1,
 int start_row, int end_row) {
-    int i = start_row, j = i;
     T norm_constant = log2(dim1) / 2;
     norm_constant = 1 / pow(2, norm_constant);
     int row_stride = dim1;
     T *__restrict xElement;
 
-    for (i = start_row; i < end_row; i++) {
+    for (int i = start_row; i < end_row; i++) {
         xElement = xArray + i * row_stride;
         #pragma omp simd
-        for (j = 0; j < row_stride; j++)
+        for (int j = 0; j < row_stride; j++)
             xElement[j] *= radem_array[j] * norm_constant;
     }
 }
@@ -91,22 +90,21 @@ int cbufferDim2);
 
 template <typename T>
 void singleVectorRBFPostProcess(const T xdata[],
-const T chiArr[], double *outputArray,
-int dim2, int numFreqs,
+const T chi_arr[], double *output_array,
+int dim2, int num_freqs,
 int row_number, int repeat_num,
 double scaling_term) {
-    int outputStart = repeat_num * dim2;
+    int output_start = repeat_num * dim2;
     T prodVal;
     double *__restrict xOut;
     const T *chiIn;
-    // NOTE: MIN is defined in the header.
-    int endPosition = std::max(numFreqs, (repeat_num + 1) * dim2);
-    endPosition -= outputStart;
+    int end_position = std::min(num_freqs, (repeat_num + 1) * dim2);
+    end_position -= output_start;
 
-    chiIn = chiArr + outputStart;
-    xOut = outputArray + 2 * outputStart + row_number * 2 * numFreqs;
+    chiIn = chi_arr + output_start;
+    xOut = output_array + 2 * output_start + row_number * 2 * num_freqs;
 
-    for (int i=0; i < endPosition; i++) {
+    for (int i=0; i < end_position; i++) {
         prodVal = xdata[i] * chiIn[i];
         *xOut += cos(prodVal) * scaling_term;
         xOut++;
@@ -114,35 +112,34 @@ double scaling_term) {
         xOut++;
     }
 }
-template void singleVectorRBFPostProcess<double>(const double xdata[], const double chiArr[],
-double *outputArray, int dim2, int numFreqs, int row_number, int repeat_num,
+template void singleVectorRBFPostProcess<double>(const double xdata[], const double chi_arr[],
+double *output_array, int dim2, int num_freqs, int row_number, int repeat_num,
 double scaling_term);
-template void singleVectorRBFPostProcess<float>(const float xdata[], const float chiArr[],
-double *outputArray, int dim2, int numFreqs, int row_number, int repeat_num,
+template void singleVectorRBFPostProcess<float>(const float xdata[], const float chi_arr[],
+double *output_array, int dim2, int num_freqs, int row_number, int repeat_num,
 double scaling_term);
 
 
 
 template <typename T>
 void singleVectorRBFPostGrad(const T xdata[],
-const T chiArr[], double *outputArray,
-double *gradientArray, double sigma,
-int dim2, int numFreqs,
+const T chi_arr[], double *output_array,
+double *gradient_array, double sigma,
+int dim2, int num_freqs,
 int row_number, int repeat_num,
 double scaling_term) {
-    int outputStart = repeat_num * dim2;
+    int output_start = repeat_num * dim2;
     T prodVal, gradVal, cosVal, sinVal;
     double *__restrict xOut, *__restrict gradOut;
     const T *chiIn;
-    // NOTE: MIN is defined in the header.
-    int endPosition = std::min(numFreqs, (repeat_num + 1) * dim2);
-    endPosition -= outputStart;
+    int end_position = std::min(num_freqs, (repeat_num + 1) * dim2);
+    end_position -= output_start;
 
-    chiIn = chiArr + outputStart;
-    xOut = outputArray + 2 * outputStart + row_number * 2 * numFreqs;
-    gradOut = gradientArray + 2 * outputStart + row_number * 2 * numFreqs;
+    chiIn = chi_arr + output_start;
+    xOut = output_array + 2 * output_start + row_number * 2 * num_freqs;
+    gradOut = gradient_array + 2 * output_start + row_number * 2 * num_freqs;
 
-    for (int i=0; i < endPosition; i++) {
+    for (int i=0; i < end_position; i++) {
         gradVal = xdata[i] * chiIn[i];
         prodVal = gradVal * sigma;
         cosVal = cos(prodVal) * scaling_term;
@@ -159,15 +156,15 @@ double scaling_term) {
 }
 // Explicitly instantiate for external use.
 template void singleVectorRBFPostGrad<double>(
-const double xdata[], const double chiArr[],
-double *outputArray, double *gradientArray, double sigma,
-int dim2, int numFreqs, int row_number, int repeat_num,
+const double xdata[], const double chi_arr[],
+double *output_array, double *gradient_array, double sigma,
+int dim2, int num_freqs, int row_number, int repeat_num,
 double scaling_term);
 
 template void singleVectorRBFPostGrad<float>(
-const float xdata[], const float chiArr[],
-double *outputArray, double *gradientArray, double sigma,
-int dim2, int numFreqs, int row_number, int repeat_num,
+const float xdata[], const float chi_arr[],
+double *output_array, double *gradient_array, double sigma,
+int dim2, int num_freqs, int row_number, int repeat_num,
 double scaling_term);
 
 }  // namespace SharedCPURandomFeatureOps

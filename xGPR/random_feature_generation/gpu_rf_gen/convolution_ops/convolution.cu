@@ -27,40 +27,40 @@ const int32_t *seqlengths, int rademShape2){
     T *s_data = shared.getPointer();
     int spacing, pos = threadIdx.x;
     int lo, id1, id2;
-    int tempArrPos, chi_arrPos = 0, inputCutoff = xDim2 * conv_width;
-    int input_arrPos = (blockIdx.x * xDim1 * xDim2);
-    int output_arrPos = (blockIdx.x * num_freqs);
+    int temp_arr_pos, chi_arr_pos = 0, inputCutoff = xDim2 * conv_width;
+    int input_arr_pos = (blockIdx.x * xDim1 * xDim2);
+    int output_arr_pos = (blockIdx.x * num_freqs);
     T y, outputVal;
 
     const int8_t *radem_ptr = radem;
 
     //Loop over the kmers in this stretch.
     for (int kmer = 0; kmer < col_cutoff; kmer++){
-        chi_arrPos = 0;
-        output_arrPos = (blockIdx.x * num_freqs);
-        input_arrPos = (blockIdx.x * xDim1 * xDim2) + kmer * xDim2;
+        chi_arr_pos = 0;
+        output_arr_pos = (blockIdx.x * num_freqs);
+        input_arr_pos = (blockIdx.x * xDim1 * xDim2) + kmer * xDim2;
 
         //Run over the number of repeats required to generate the random
         //features.
         for (int rep = 0; rep < nRepeats; rep++){
-            tempArrPos = (blockIdx.x << log2N);
+            temp_arr_pos = (blockIdx.x << log2N);
 
             //Copy original data into the temporary array.
             for (int i = threadIdx.x; i < padded_buffer_size; i += blockDim.x){
                 if (i < inputCutoff)
-                    cArray[i + tempArrPos] = origData[i + input_arrPos];
+                    cArray[i + temp_arr_pos] = origData[i + input_arr_pos];
                 else
-                    cArray[i + tempArrPos] = 0;
+                    cArray[i + temp_arr_pos] = 0;
             }
 
             //Run over three repeats for the SORF procedure.
             for (int sorfRep = 0; sorfRep < 3; sorfRep++){
                 radem_ptr = radem + padded_buffer_size * rep + sorfRep * rademShape2;
-                tempArrPos = (blockIdx.x << log2N);
+                temp_arr_pos = (blockIdx.x << log2N);
 
                 for (int hStep = 0; hStep < padded_buffer_size; hStep+=step_size){
                     for (int i = threadIdx.x; i < step_size; i += blockDim.x)
-                        s_data[i] = cArray[i + tempArrPos];
+                        s_data[i] = cArray[i + temp_arr_pos];
 
                     __syncthreads();
 
@@ -91,22 +91,22 @@ const int32_t *seqlengths, int rademShape2){
                     __syncthreads();
 
                     for (int i = threadIdx.x; i < step_size; i += blockDim.x)
-                        cArray[i + tempArrPos] = s_data[i];
+                        cArray[i + temp_arr_pos] = s_data[i];
 
-                    tempArrPos += step_size;
+                    temp_arr_pos += step_size;
                     __syncthreads();
                 }
 
                 //A less efficient global memory procedure to complete the FHT
                 //for long arrays.
                 if (padded_buffer_size > MAX_BASE_LEVEL_TRANSFORM){
-                    tempArrPos = (blockIdx.x << log2N);
+                    temp_arr_pos = (blockIdx.x << log2N);
 
                     for (int spacing = step_size; spacing < padded_buffer_size; spacing <<= 1){
 
                         for (int k = 0; k < padded_buffer_size; k += (spacing << 1)){
                             for (int i = threadIdx.x; i < spacing; i += blockDim.x){
-                                id1 = i + k + tempArrPos;
+                                id1 = i + k + temp_arr_pos;
                                 id2 = id1 + spacing;
                                 y = cArray[id2];
                                 cArray[id2] = cArray[id1] - y;
@@ -119,17 +119,17 @@ const int32_t *seqlengths, int rademShape2){
             }
             //Now take the results stored in the temporary array, apply the
             //activation function, and populate the output array.
-            tempArrPos = (blockIdx.x << log2N);
+            temp_arr_pos = (blockIdx.x << log2N);
 
             for (int i = threadIdx.x; i < padded_buffer_size; i += blockDim.x){
-                if ((i + chi_arrPos) >= num_freqs)
+                if ((i + chi_arr_pos) >= num_freqs)
                     break;
-                outputVal = chi_arr[chiArrPos + i] * cArray[tempArrPos + i];
-                output_array[outputArrPos + i] = MAX(outputArray[outputArrPos + i], outputVal);
+                outputVal = chi_arr[chi_arr_pos + i] * cArray[temp_arr_pos + i];
+                output_array[output_arr_pos + i] = MAX(output_array[output_arr_pos + i], outputVal);
             }
 
-            chi_arrPos += padded_buffer_size;
-            output_arrPos += padded_buffer_size;
+            chi_arr_pos += padded_buffer_size;
+            output_arr_pos += padded_buffer_size;
             __syncthreads();
         }
     }
@@ -170,7 +170,7 @@ int conv_width) {
 
     if (seqlengths.shape(0) != input_arr.shape(0))
         throw std::runtime_error("wrong array sizes");
-    if (static_cast<int>(input_arr.shape(1)) < conv_width || convWidth <= 0)
+    if (static_cast<int>(input_arr.shape(1)) < conv_width || conv_width <= 0)
         throw std::runtime_error("invalid conv_width");
 
     double expectedNFreq = static_cast<double>(conv_width * input_arr.shape(2));
@@ -225,13 +225,13 @@ int conv_width) {
 
     //This is the Hadamard normalization constant.
     T norm_constant = log2(padded_buffer_size) / 2;
-    norm_constant = 1 / pow(2, normConstant);
+    norm_constant = 1 / pow(2, norm_constant);
     int step_size = MIN(MAX_BASE_LEVEL_TRANSFORM, padded_buffer_size);
     int log2N = log2(padded_buffer_size);
 
-    int num_repeats = (num_freqs + padded_buffer_size - 1) / paddedBufferSize;
+    int num_repeats = (num_freqs + padded_buffer_size - 1) / padded_buffer_size;
 
-    convMaxpoolFeatureGenKernel<T><<<zDim0, step_size / 2, stepSize * sizeof(T)>>>(input_ptr,
+    convMaxpoolFeatureGenKernel<T><<<zDim0, step_size / 2, step_size * sizeof(T)>>>(input_ptr,
             feature_array, output_ptr, chi_ptr, radem_ptr, padded_buffer_size, log2N, num_freqs,
             zDim1, zDim2, num_repeats, norm_constant, conv_width, slenCudaPtr, radem.shape(2));
 

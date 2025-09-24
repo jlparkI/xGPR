@@ -71,7 +71,7 @@ bool fit_intercept) {
 
     #pragma omp parallel
     {
-    int repeatPosition;
+    int repeat_position;
     int num_repeats = (num_freqs + padded_buffer_size - 1) / padded_buffer_size;
     // Notice that we don't have error handling here...very naughty. Out of
     // memory should be extremely rare since we are only allocating memory
@@ -80,7 +80,7 @@ bool fit_intercept) {
 
     #pragma omp for
     for (int i=0; i < xDim0; i++) {
-        repeatPosition = 0;
+        repeat_position = 0;
 
         for (int k=0; k < num_repeats; k++) {
             int start_pos = i * xDim1;
@@ -92,11 +92,11 @@ bool fit_intercept) {
                 copy_buffer[m] = 0;
 
             SharedCPURandomFeatureOps::singleVectorSORF(copy_buffer,
-                    radem_ptr, repeatPosition, radem_shape2, padded_buffer_size);
+                    radem_ptr, repeat_position, radem_shape2, padded_buffer_size);
             SharedCPURandomFeatureOps::singleVectorRBFPostProcess(copy_buffer,
                     chi_ptr, output_ptr, padded_buffer_size, num_freqs, i,
                     k, rbf_norm_constant);
-            repeatPosition += padded_buffer_size;
+            repeat_position += padded_buffer_size;
         }
     }
     delete[] copy_buffer;
@@ -186,7 +186,7 @@ double sigma, bool fit_intercept) {
 
     #pragma omp parallel
     {
-    int repeatPosition;
+    int repeat_position;
     int num_repeats = (num_freqs + padded_buffer_size - 1) / padded_buffer_size;
     // Notice that we don't have error handling here...very naughty. Out of
     // memory should be extremely rare since we are only allocating memory
@@ -195,7 +195,7 @@ double sigma, bool fit_intercept) {
 
     #pragma omp for
     for (int i=0; i < xDim0; i++) {
-        repeatPosition = 0;
+        repeat_position = 0;
 
         for (int k=0; k < num_repeats; k++) {
             int start_pos = i * xDim1;
@@ -207,11 +207,11 @@ double sigma, bool fit_intercept) {
                 copy_buffer[m] = 0;
 
             SharedCPURandomFeatureOps::singleVectorSORF(copy_buffer,
-                    radem_ptr, repeatPosition, radem_shape2, padded_buffer_size);
+                    radem_ptr, repeat_position, radem_shape2, padded_buffer_size);
             SharedCPURandomFeatureOps::singleVectorRBFPostGrad(copy_buffer,
                     chi_ptr, output_ptr, gradientPtr, sigma, padded_buffer_size,
                     num_freqs, i, k, rbf_norm_constant);
-            repeatPosition += padded_buffer_size;
+            repeat_position += padded_buffer_size;
         }
     }
     delete[] copy_buffer;

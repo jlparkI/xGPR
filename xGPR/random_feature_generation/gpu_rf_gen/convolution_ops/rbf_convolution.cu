@@ -14,8 +14,6 @@
 #include "rbf_convolution.h"
 
 
-namespace CudaRBFConvolutionHTransformOps {
-
 
 template <typename T>
 __global__ void convRBFFeatureGenKernel(const T origData[], T cArray[],
@@ -43,10 +41,10 @@ int conv_width, const int32_t *seqlengths){
         case 0:
             break;
         case 1:
-            modified_scaling = modifiedScaling / sqrt( (double) colCutoff);
+            modified_scaling = modified_scaling / sqrt( (double) colCutoff);
             break;
         case 2:
-            modified_scaling = modifiedScaling / (double) colCutoff;
+            modified_scaling = modified_scaling / (double) colCutoff;
             break;
     }
 
@@ -188,10 +186,10 @@ double *gradient, T sigma){
         case 0:
             break;
         case 1:
-            modified_scaling = modifiedScaling / sqrt( (double) colCutoff);
+            modified_scaling = modified_scaling / sqrt( (double) colCutoff);
             break;
         case 2:
-            modified_scaling = modifiedScaling / (double) colCutoff;
+            modified_scaling = modified_scaling / (double) colCutoff;
             break;
     }
 
@@ -333,16 +331,16 @@ int conv_width, int scaling_type) {
     int8_t *radem_ptr = radem.data();
     int32_t *seqlengthsPtr = seqlengths.data();
 
-    if (input_arr.shape(0) == 0 || output_arr.shape(0) != inputArr.shape(0))
+    if (input_arr.shape(0) == 0 || output_arr.shape(0) != input_arr.shape(0))
         throw std::runtime_error("no datapoints");
-    if (num_rffs < 2 || (numRffs & 1) != 0)
+    if (num_rffs < 2 || (num_rffs & 1) != 0)
         throw std::runtime_error("last dim of output must be even number");
-    if ( (2 * num_freqs) != num_rffs || numFreqs > radem.shape(2) )
+    if ( (2 * num_freqs) != num_rffs || num_freqs > radem.shape(2) )
         throw std::runtime_error("incorrect number of rffs and or freqs.");
 
     if (seqlengths.shape(0) != input_arr.shape(0))
         throw std::runtime_error("wrong array sizes");
-    if (static_cast<int>(input_arr.shape(1)) < conv_width || convWidth <= 0)
+    if (static_cast<int>(input_arr.shape(1)) < conv_width || conv_width <= 0)
         throw std::runtime_error("invalid conv_width");
 
     double expectedNFreq = static_cast<double>(conv_width * input_arr.shape(2));
@@ -383,9 +381,9 @@ int conv_width, int scaling_type) {
 
     //This is the Hadamard normalization constant.
     T norm_constant = log2(padded_buffer_size) / 2;
-    norm_constant = 1 / pow(2, normConstant);
+    norm_constant = 1 / pow(2, norm_constant);
 
-    int numRepeats = (num_freqs + padded_buffer_size - 1) / paddedBufferSize;
+    int numRepeats = (num_freqs + padded_buffer_size - 1) / padded_buffer_size;
     int step_size = MIN(MAX_BASE_LEVEL_TRANSFORM, padded_buffer_size);
     int log2N = log2(padded_buffer_size);
 
@@ -397,7 +395,7 @@ int conv_width, int scaling_type) {
         return 1;
     };
 
-    convRBFFeatureGenKernel<T><<<zDim0, step_size / 2, stepSize * sizeof(T)>>>(inputPtr,
+    convRBFFeatureGenKernel<T><<<zDim0, step_size / 2, step_size * sizeof(T)>>>(inputPtr,
             feature_array, output_ptr, chi_ptr, radem_ptr, padded_buffer_size, log2N, num_freqs, zDim1, zDim2,
             numRepeats, radem.shape(2), norm_constant, scaling_term, scaling_type, conv_width,
             slenCudaPtr);
@@ -457,19 +455,19 @@ double sigma, int conv_width, int scaling_type) {
     int32_t *seqlengthsPtr = seqlengths.data();
     double *gradient_ptr = grad_arr.data();
 
-    if (input_arr.shape(0) == 0 || output_arr.shape(0) != inputArr.shape(0))
+    if (input_arr.shape(0) == 0 || output_arr.shape(0) != input_arr.shape(0))
         throw std::runtime_error("no datapoints");
-    if (num_rffs < 2 || (numRffs & 1) != 0)
+    if (num_rffs < 2 || (num_rffs & 1) != 0)
         throw std::runtime_error("last dim of output must be even number");
-    if ( (2 * num_freqs) != num_rffs || numFreqs > radem.shape(2) )
+    if ( (2 * num_freqs) != num_rffs || num_freqs > radem.shape(2) )
         throw std::runtime_error("incorrect number of rffs and or freqs.");
 
     if (seqlengths.shape(0) != input_arr.shape(0))
         throw std::runtime_error("wrong array sizes");
-    if (static_cast<int>(input_arr.shape(1)) < conv_width || convWidth <= 0)
+    if (static_cast<int>(input_arr.shape(1)) < conv_width || conv_width <= 0)
         throw std::runtime_error("invalid conv_width");
 
-    if (grad_arr.shape(0) != output_arr.shape(0) || gradArr.shape(1) != outputArr.shape(1))
+    if (grad_arr.shape(0) != output_arr.shape(0) || grad_arr.shape(1) != output_arr.shape(1))
         throw std::runtime_error("wrong array sizes");
 
     double expectedNFreq = static_cast<double>(conv_width * input_arr.shape(2));
@@ -512,9 +510,9 @@ double sigma, int conv_width, int scaling_type) {
 
     //This is the Hadamard normalization constant.
     T norm_constant = log2(padded_buffer_size) / 2;
-    norm_constant = 1 / pow(2, normConstant);
+    norm_constant = 1 / pow(2, norm_constant);
 
-    int numRepeats = (num_freqs + padded_buffer_size - 1) / paddedBufferSize;
+    int numRepeats = (num_freqs + padded_buffer_size - 1) / padded_buffer_size;
     int step_size = MIN(MAX_BASE_LEVEL_TRANSFORM, padded_buffer_size);
     int log2N = log2(padded_buffer_size);
 
@@ -526,7 +524,7 @@ double sigma, int conv_width, int scaling_type) {
         return 1;
     };
 
-    convRBFFeatureGradKernel<T><<<zDim0, step_size / 2, stepSize * sizeof(T)>>>(inputPtr,
+    convRBFFeatureGradKernel<T><<<zDim0, step_size / 2, step_size * sizeof(T)>>>(inputPtr,
             feature_array, output_ptr, chi_ptr, radem_ptr, padded_buffer_size, log2N, num_freqs, zDim1, zDim2,
             numRepeats, radem.shape(2), norm_constant, scaling_term, scaling_type, conv_width,
             slenCudaPtr, gradient_ptr, sigma);
@@ -550,7 +548,3 @@ nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig> chi_arr,
 nb::ndarray<int32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig> seqlengths,
 nb::ndarray<double, nb::shape<-1,-1,1>, nb::device::cuda, nb::c_contig> grad_arr,
 double sigma, int conv_width, int scaling_type);
-
-
-}  // namespace CudaRBFConvolutionHTransformOps
-
