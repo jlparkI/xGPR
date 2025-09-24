@@ -14,7 +14,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+        with:
+          submodules: true
+
       - name: Install cuda toolkit
         uses: Jimver/cuda-toolkit@master
         id: cuda-toolkit
@@ -42,7 +44,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+        with:
+          submodules: true
+
       - name: Build sdist
         run: |
           python -m pip install --upgrade pip build wheel
