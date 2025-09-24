@@ -12,21 +12,10 @@ jobs:
         os: [ubuntu-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: Jimver/cuda-toolkit@v0.2.24
+        id: cuda-toolkit
         with:
-          token: ${{ secrets.XGPR_PRIVATE_CLONE }}
-          submodules: true
-      - name: setup cuda
-        run: |
-          git submodule update --init --recursive
-          git submodule update --remote --recursive
-          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-ubuntu1804.pin
-          sudo mv cuda-ubuntu1804.pin /etc/apt/preferences.d/cuda-repository-pin-600
-          wget https://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda-repo-ubuntu1804-10-2-local-10.2.89-440.33.01_1.0-1_amd64.deb
-          sudo dpkg -i cuda-repo-ubuntu1804-10-2-local-10.2.89-440.33.01_1.0-1_amd64.deb
-          sudo apt-key add /var/cuda-repo-10-2-local-10.2.89-440.33.01/7fa2af80.pub
-          sudo apt-get update
-          sudo apt-get -y install cuda
+          cuda: '10.0.130'
 
       - name: Build but don't test wheels
         env:
@@ -46,15 +35,8 @@ jobs:
     name: Build source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.XGPR_PRIVATE_CLONE }}
-          submodules: true
-
       - name: Build sdist
         run: |
-          git submodule update --init --recursive
-          git submodule update --remote --recursive
           python -m pip install --upgrade pip build wheel
           python -m build --sdist
 
