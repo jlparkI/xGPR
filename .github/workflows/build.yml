@@ -25,6 +25,8 @@ jobs:
           cuda: '10.0.130'
           log-file-suffix: '${{matrix.os}}.txt'
 
+      - run: echo $GITHUB_PATH
+
       - run: nvcc -V
 
       - name: Build package
