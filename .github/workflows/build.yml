@@ -22,7 +22,7 @@ jobs:
         uses: Jimver/cuda-toolkit@master
         id: cuda-toolkit
         with:
-          cuda: '10.0.130'
+          cuda: '11.0.1'
           log-file-suffix: '${{matrix.os}}.txt'
 
       - run: echo $GITHUB_PATH
