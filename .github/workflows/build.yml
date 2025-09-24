@@ -18,11 +18,17 @@ jobs:
         with:
           submodules: true
 
+      - name: Setup C/C++ Compiler
+        id: setup-compiler
+        uses: rlalik/setup-cpp-compiler@master
+        with:
+          compiler: gcc-latest
+
       - name: Install cuda toolkit
         uses: Jimver/cuda-toolkit@master
         id: cuda-toolkit
         with:
-          cuda: '11.1.1'
+          cuda: '11.0.1'
           log-file-suffix: '${{matrix.os}}.txt'
 
       - run: echo $GITHUB_PATH
